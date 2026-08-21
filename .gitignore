@@ -1,16 +1,17 @@
-# Compiled class file
-*.class
+# ==========================================
+# 1. Gradle & Build Output
+# ==========================================
+.gradle/
+build/
+**/build/
+bin/
+out/
+.kotlin/
+kotlin-js-store/
 
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# ==========================================
+# 2. Package & Archive Files
+# ==========================================
 *.jar
 *.war
 *.nar
@@ -18,10 +19,93 @@
 *.zip
 *.tar.gz
 *.rar
+*.7z
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# 必须保留 Gradle Wrapper 核心 jar 文件
+!gradle/wrapper/gradle-wrapper.jar
+
+# ==========================================
+# 3. Desktop Installer & Distribution Packages
+# ==========================================
+*.dmg
+*.pkg
+*.msi
+*.exe
+*.deb
+*.rpm
+
+# ==========================================
+# 4. IDE & Editor Files
+# ==========================================
+# IntelliJ IDEA / Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+# VS Code & Fleet
+.vscode/
+.fleet/
+
+# Eclipse & NetBeans
+.project
+.classpath
+.settings/
+nbproject/
+nb-configuration.xml
+
+# ==========================================
+# 5. Local Properties & Secrets
+# ==========================================
+local.properties
+*.local
+private.properties
+keystore.properties
+*.jks
+*.keystore
+*.env
+*.env.*
+!*.env.example
+
+# ==========================================
+# 6. OS-specific Artifacts
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon\r\r
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ==========================================
+# 7. Logs, Dumps & Temp Files
+# ==========================================
+*.log
 hs_err_pid*
 replay_pid*
+*.hprof
+tmp/
+temp/
+.tmp/
 
-# Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
-.kotlin/
+# ==========================================
+# 8. Local AI Workspace Artifacts
+# ==========================================
+.ai-local/
