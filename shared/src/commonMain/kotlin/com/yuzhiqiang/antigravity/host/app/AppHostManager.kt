@@ -46,30 +46,34 @@ object AppHostManager {
         }
     }
 
-    /**
-     * 检测 Antigravity App 是否正在运行（零子进程开销内存查询）。
-     */
-    fun isRunning(): Boolean {
-        return try {
-            ProcessHandle.allProcesses().anyMatch { handle ->
-                val cmd = handle.info().command().orElse("")
-                val cmdLine = handle.info().commandLine().orElse("")
-                if (isWindows) {
-                    cmd.contains("Antigravity.exe", ignoreCase = true) || cmdLine.contains(
-                        "Antigravity.exe",
-                        ignoreCase = true
-                    )
-                } else {
-                    cmd.contains("Antigravity.app", ignoreCase = true) || cmdLine.contains(
-                        "Antigravity.app",
-                        ignoreCase = true
-                    )
-                }
+   /**
+    * 检测 Antigravity App 是否正在运行（零子进程开销内存查询）。
+    */
+   fun isRunning(): Boolean {
+       return try {
+            val matched = ProcessHandle.allProcesses().anyMatch { handle ->
+               val cmd = handle.info().command().orElse("")
+               val cmdLine = handle.info().commandLine().orElse("")
+               if (isWindows) {
+                   cmd.contains("Antigravity.exe", ignoreCase = true) || cmdLine.contains(
+                       "Antigravity.exe",
+                       ignoreCase = true
+                   )
+               } else {
+                    (cmd.contains("Antigravity.app", ignoreCase = true) || cmd.contains("/MacOS/Antigravity", ignoreCase = true)) &&
+                            !cmd.contains("Antigravity IDE", ignoreCase = true)
+               }
+           }
+            if (matched) return true
+            if (!isWindows) {
+                val pgrep = ProcessBuilder("pgrep", "-f", "Antigravity.app/Contents/MacOS/Antigravity").start()
+                return pgrep.waitFor() == 0
             }
-        } catch (_: Exception) {
             false
-        }
-    }
+       } catch (_: Exception) {
+           false
+       }
+   }
 
     /**
      * 检测是否已设置代理环境变量。
@@ -131,29 +135,34 @@ object AppHostManager {
         }
     }
 
-    /**
-     * 跨平台重启 Antigravity App。
-     */
-    fun restart(customInstallation: String? = null): Boolean {
-        return try {
-            stopLanguageServer()
-            if (isWindows) {
-                ProcessBuilder("taskkill", "/F", "/IM", "Antigravity.exe").start().waitFor()
-                Thread.sleep(300)
-                launch(customInstallation)
-            } else {
-                val quit = ProcessBuilder(
-                    "/usr/bin/osascript", "-e",
-                    """tell application "Antigravity" to quit"""
-                ).start()
-                quit.waitFor()
-                Thread.sleep(300)
-                launch(customInstallation)
-            }
-        } catch (_: Exception) {
-            false
-        }
-    }
+   /**
+    * 跨平台重启 Antigravity App。
+    */
+   fun restart(customInstallation: String? = null): Boolean {
+       return try {
+           stopLanguageServer()
+           if (isWindows) {
+               ProcessBuilder("taskkill", "/F", "/IM", "Antigravity.exe").start().waitFor()
+                Thread.sleep(500)
+               launch(customInstallation)
+           } else {
+               val quit = ProcessBuilder(
+                   "/usr/bin/osascript", "-e",
+                   """tell application "Antigravity" to quit"""
+               ).start()
+               quit.waitFor()
+                Thread.sleep(600)
+                if (isRunning()) {
+                    ProcessBuilder("pkill", "-f", "Antigravity.app/Contents/MacOS/Antigravity").start().waitFor()
+                    Thread.sleep(400)
+                }
+                stopLanguageServer()
+               launch(customInstallation)
+           }
+       } catch (_: Exception) {
+           false
+       }
+   }
 
     private fun stopLanguageServer() {
         try {

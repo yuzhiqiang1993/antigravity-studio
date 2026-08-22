@@ -313,51 +313,53 @@ class AppViewModel(
         }
     }
 
-    private fun enableIdeHostInternal(wasRunning: Boolean) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val port = actualProxyPort.value
-            val customInstallation = configStore.currentConfig.customHostPaths["ide"]
-            val operationSucceeded = IdeHostManager.enable(port)
-            val restartSucceeded = !operationSucceeded || !wasRunning || IdeHostManager.restart(customInstallation)
-            val actualState = IdeHostManager.isActive(port)
-            _isIdeHostActive.value = actualState
-            val succeeded = operationSucceeded && restartSucceeded && actualState
-            _ideHostError.value = if (succeeded) null else "host_update_failed"
-            showNotice(
-                when {
-                    succeeded && wasRunning -> "Antigravity IDE 已启用代理模式并完成重启"
-                    succeeded -> "Antigravity IDE 已启用代理模式，启动后生效"
-                    operationSucceeded && !restartSucceeded -> "Antigravity IDE 配置已更新，但自动重启失败"
-                    else -> "Antigravity IDE 代理接入配置失败"
-                },
-                if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
-            )
-            refreshHostStatus()
-        }
-    }
+   private fun enableIdeHostInternal(wasRunning: Boolean) {
+       viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+           val port = actualProxyPort.value
+           val customInstallation = configStore.currentConfig.customHostPaths["ide"]
+            val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning()
+           val operationSucceeded = IdeHostManager.enable(port)
+            val restartSucceeded = if (isCurrentlyRunning) IdeHostManager.restart(customInstallation) else true
+           val actualState = IdeHostManager.isActive(port)
+           _isIdeHostActive.value = actualState
+           val succeeded = operationSucceeded && restartSucceeded && actualState
+           _ideHostError.value = if (succeeded) null else "host_update_failed"
+           showNotice(
+               when {
+                    succeeded && isCurrentlyRunning -> "Antigravity IDE 已启用代理模式并完成重启"
+                   succeeded -> "Antigravity IDE 已启用代理模式，启动后生效"
+                   operationSucceeded && !restartSucceeded -> "Antigravity IDE 配置已更新，但自动重启失败"
+                   else -> "Antigravity IDE 代理接入配置失败"
+               },
+               if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
+           )
+           refreshHostStatus()
+       }
+   }
 
-    private fun disableIdeHostInternal(wasRunning: Boolean) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val port = actualProxyPort.value
-            val customInstallation = configStore.currentConfig.customHostPaths["ide"]
-            val operationSucceeded = IdeHostManager.disable(port)
-            val restartSucceeded = !operationSucceeded || !wasRunning || IdeHostManager.restart(customInstallation)
-            val actualState = IdeHostManager.isActive(port)
-            _isIdeHostActive.value = actualState
-            val succeeded = operationSucceeded && restartSucceeded && !actualState
-            _ideHostError.value = if (succeeded) null else "host_update_failed"
-            showNotice(
-                when {
-                    succeeded && wasRunning -> "Antigravity IDE 已停用代理接入并完成重启"
-                    succeeded -> "Antigravity IDE 已停用代理接入"
-                    operationSucceeded && !restartSucceeded -> "Antigravity IDE 配置已更新，但自动重启失败"
-                    else -> "Antigravity IDE 停用代理接入失败"
-                },
-                if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
-            )
-            refreshHostStatus()
-        }
-    }
+   private fun disableIdeHostInternal(wasRunning: Boolean) {
+       viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+           val port = actualProxyPort.value
+           val customInstallation = configStore.currentConfig.customHostPaths["ide"]
+            val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning()
+           val operationSucceeded = IdeHostManager.disable(port)
+            val restartSucceeded = if (isCurrentlyRunning) IdeHostManager.restart(customInstallation) else true
+           val actualState = IdeHostManager.isActive(port)
+           _isIdeHostActive.value = actualState
+           val succeeded = operationSucceeded && restartSucceeded && !actualState
+           _ideHostError.value = if (succeeded) null else "host_update_failed"
+           showNotice(
+               when {
+                    succeeded && isCurrentlyRunning -> "Antigravity IDE 已停用代理接入并完成重启"
+                   succeeded -> "Antigravity IDE 已停用代理接入"
+                   operationSucceeded && !restartSucceeded -> "Antigravity IDE 配置已更新，但自动重启失败"
+                   else -> "Antigravity IDE 停用代理接入失败"
+               },
+               if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
+           )
+           refreshHostStatus()
+       }
+   }
 
     // ---- CLI Host 管理 ----
     fun toggleCliHost() {
@@ -464,47 +466,49 @@ class AppViewModel(
         }
     }
 
-    private fun enableAppHostInternal(wasRunning: Boolean) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val port = actualProxyPort.value
-            val customInstallation = configStore.currentConfig.customHostPaths["app"]
-            val operationSucceeded = AppHostManager.enable(port)
-            val restartSucceeded = !operationSucceeded || !wasRunning || AppHostManager.restart(customInstallation)
-            _isAppHostActive.value = AppHostManager.isActive(port)
-            val succeeded = operationSucceeded && restartSucceeded && _isAppHostActive.value
-            showNotice(
-                when {
-                    succeeded && wasRunning -> "Antigravity App 已启用代理模式并完成重启"
-                    succeeded -> "Antigravity App 已启用代理模式，启动后生效"
-                    operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
-                    else -> "Antigravity App 代理接入配置失败"
-                },
-                if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
-            )
-            refreshHostStatus()
-        }
-    }
+   private fun enableAppHostInternal(wasRunning: Boolean) {
+       viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+           val port = actualProxyPort.value
+           val customInstallation = configStore.currentConfig.customHostPaths["app"]
+            val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
+           val operationSucceeded = AppHostManager.enable(port)
+            val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation) else true
+           _isAppHostActive.value = AppHostManager.isActive(port)
+           val succeeded = operationSucceeded && restartSucceeded && _isAppHostActive.value
+           showNotice(
+               when {
+                    succeeded && isCurrentlyRunning -> "Antigravity App 已启用代理模式并完成重启"
+                   succeeded -> "Antigravity App 已启用代理模式，启动后生效"
+                   operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
+                   else -> "Antigravity App 代理接入配置失败"
+               },
+               if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
+           )
+           refreshHostStatus()
+       }
+   }
 
-    private fun disableAppHostInternal(wasRunning: Boolean) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val port = actualProxyPort.value
-            val customInstallation = configStore.currentConfig.customHostPaths["app"]
-            val operationSucceeded = AppHostManager.disable()
-            val restartSucceeded = !operationSucceeded || !wasRunning || AppHostManager.restart(customInstallation)
-            _isAppHostActive.value = AppHostManager.isActive(port)
-            val succeeded = operationSucceeded && restartSucceeded && !_isAppHostActive.value
-            showNotice(
-                when {
-                    succeeded && wasRunning -> "Antigravity App 已停用代理接入并完成重启"
-                    succeeded -> "Antigravity App 已停用代理接入"
-                    operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
-                    else -> "Antigravity App 停用代理接入失败"
-                },
-                if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
-            )
-            refreshHostStatus()
-        }
-    }
+   private fun disableAppHostInternal(wasRunning: Boolean) {
+       viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+           val port = actualProxyPort.value
+           val customInstallation = configStore.currentConfig.customHostPaths["app"]
+            val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
+           val operationSucceeded = AppHostManager.disable()
+            val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation) else true
+           _isAppHostActive.value = AppHostManager.isActive(port)
+           val succeeded = operationSucceeded && restartSucceeded && !_isAppHostActive.value
+           showNotice(
+               when {
+                    succeeded && isCurrentlyRunning -> "Antigravity App 已停用代理接入并完成重启"
+                   succeeded -> "Antigravity App 已停用代理接入"
+                   operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
+                   else -> "Antigravity App 停用代理接入失败"
+               },
+               if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
+           )
+           refreshHostStatus()
+       }
+   }
 
     fun requestRestartOrLaunchIde(isIdeRunning: Boolean) {
         if (isIdeRunning) {
