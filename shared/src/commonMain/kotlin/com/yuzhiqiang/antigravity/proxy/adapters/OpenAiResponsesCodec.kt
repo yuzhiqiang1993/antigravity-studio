@@ -6,6 +6,7 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralContent
 import com.yuzhiqiang.antigravity.proxy.model.NeutralMessage
 import com.yuzhiqiang.antigravity.proxy.model.NeutralRole
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
+import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -15,6 +16,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -55,7 +57,7 @@ object OpenAiResponsesCodec {
                     schema.exceptionOrNull() ?: IllegalArgumentException("工具参数不是有效 JSON 对象")
                 )
             }
-            tool to schema.getOrThrow()
+            tool to (normalizeJsonSchema(schema.getOrThrow()) as JsonObject)
         }
         val input = request.messages.flatMap(::messageItems)
         val body = buildJsonObject {
@@ -126,7 +128,7 @@ object OpenAiResponsesCodec {
                     }
                 }
             }
-            chunks += NeutralStreamChunk.Completed(normalizeFinishReason(root, status, hasToolCall))
+            chunks += NeutralStreamChunk.Completed(normalizeFinishReason(root, status, hasToolCall), parseUsage(root))
             Result.success(chunks)
         } catch (error: Exception) {
             Result.failure(IllegalArgumentException("解析 OpenAI Responses 响应失败：${error.message}", error))
@@ -167,7 +169,8 @@ object OpenAiResponsesCodec {
                                     root.objectValue("response") ?: root,
                                     "completed",
                                     state.hasToolCalls()
-                                )
+                                ),
+                                parseUsage(root.objectValue("response") ?: root)
                             )
                         )
                     )
@@ -181,7 +184,8 @@ object OpenAiResponsesCodec {
                                 response.objectValue("incomplete_details")
                                     ?.stringValue("reason")
                                     ?: root.stringValue("reason")
-                                    ?: "incomplete"
+                                    ?: "incomplete",
+                                parseUsage(response)
                             )
                         )
                     )
@@ -209,9 +213,19 @@ object OpenAiResponsesCodec {
                     put("text", item.text)
                 }
 
-                is NeutralContent.Image -> content += buildJsonObject {
-                    put("type", "input_image")
-                    put("image_url", "data:${item.mimeType};base64,${item.base64Data}")
+                is NeutralContent.Image -> {
+                    if (item.mimeType.startsWith("image/", ignoreCase = true)) {
+                        content += buildJsonObject {
+                            put("type", "input_image")
+                            put("image_url", "data:${item.mimeType};base64,${item.base64Data}")
+                        }
+                    } else {
+                        content += buildJsonObject {
+                            put("type", "input_file")
+                            put("filename", inlineDataFilename(item.mimeType))
+                            put("file_data", item.base64Data)
+                        }
+                    }
                 }
 
                 is NeutralContent.ToolCall -> functionCalls += buildJsonObject {
@@ -281,6 +295,9 @@ object OpenAiResponsesCodec {
     private fun parseToolArgumentsDelta(root: JsonObject, state: StreamState): Result<List<NeutralStreamChunk>> {
         val index = outputIndex(root, root)
         val tool = state.tool(index)
+        if (tool.closed) {
+            return Result.failure(IllegalArgumentException("OpenAI Responses tool call $index received arguments after it ended"))
+        }
         val delta = root.stringValue("delta") ?: ""
         tool.sawArgumentDelta = tool.sawArgumentDelta || delta.isNotEmpty()
         val chunk = NeutralStreamChunk.ToolCallDelta(index, tool.id, tool.name, delta)
@@ -346,6 +363,28 @@ object OpenAiResponsesCodec {
             ?: "OpenAI Responses upstream request failed"
     }
 
+    private fun parseUsage(root: JsonObject): NeutralUsage? {
+        val usage = root["usage"]?.jsonObject ?: return null
+        fun long(key: String): Long? = usage[key]?.jsonPrimitive?.longOrNull
+        val input = long("input_tokens")
+        val output = long("output_tokens")
+        val cached = usage["input_tokens_details"]?.jsonObject
+            ?.get("cached_tokens")?.jsonPrimitive?.longOrNull
+        val reasoning = usage["output_tokens_details"]?.jsonObject
+            ?.get("reasoning_tokens")?.jsonPrimitive?.longOrNull
+        val validCacheBreakdown = input != null && (cached ?: 0L) <= input
+        val validReasoningBreakdown = output != null && (reasoning ?: 0L) <= output
+        val computedTotal = input?.plus(output ?: 0L)
+        val reportedTotal = long("total_tokens")
+        return NeutralUsage(
+            inputTokens = input?.let { total -> if (validCacheBreakdown) total - (cached ?: 0L) else total },
+            outputTokens = output?.let { total -> if (validReasoningBreakdown) total - (reasoning ?: 0L) else total },
+            cacheReadTokens = cached.takeIf { validCacheBreakdown },
+            reasoningTokens = reasoning.takeIf { validReasoningBreakdown },
+            totalTokens = reportedTotal?.takeIf { computedTotal == null || it >= computedTotal } ?: computedTotal
+        )
+    }
+
     private fun parseJsonObject(value: JsonElement, label: String): Result<JsonObject> {
         val parsed = if (value is JsonPrimitive && value.isString) {
             try {
@@ -363,6 +402,20 @@ object OpenAiResponsesCodec {
         }
     }
 
+    private fun normalizeJsonSchema(value: JsonElement): JsonElement {
+        return when (value) {
+            is JsonObject -> JsonObject(value.mapValues { (key, child) ->
+                if (key == "type" && child is JsonPrimitive && child.isString) {
+                    JsonPrimitive(child.content.lowercase())
+                } else {
+                    normalizeJsonSchema(child)
+                }
+            })
+            is JsonArray -> JsonArray(value.map(::normalizeJsonSchema))
+            else -> value
+        }
+    }
+
     private fun JsonObject.objectValue(vararg keys: String): JsonObject? {
         return keys.firstNotNullOfOrNull { key -> this[key] as? JsonObject }
     }
@@ -373,5 +426,34 @@ object OpenAiResponsesCodec {
 
     private fun JsonObject.intValue(vararg keys: String): Int? {
         return keys.firstNotNullOfOrNull { key -> this[key]?.jsonPrimitive?.intOrNull }
+    }
+
+    private fun inlineDataFilename(mimeType: String): String {
+        return when (mimeType.lowercase()) {
+            "application/pdf" -> "input.pdf"
+            "application/json" -> "input.json"
+            "application/rtf", "text/rtf" -> "input.rtf"
+            "application/x-ipynb+json" -> "input.ipynb"
+            "application/x-javascript", "text/javascript" -> "input.js"
+            "application/x-python-code", "text/x-python", "text/x-python-script" -> "input.py"
+            "application/x-typescript", "text/x-typescript" -> "input.ts"
+            "text/css" -> "input.css"
+            "text/csv" -> "input.csv"
+            "text/html" -> "input.html"
+            "text/markdown" -> "input.md"
+            "text/plain" -> "input.txt"
+            "text/xml" -> "input.xml"
+            "audio/wav", "audio/x-wav" -> "input.wav"
+            "audio/mpeg", "audio/mp3" -> "input.mp3"
+            "audio/webm", "audio/webm;codecs=opus" -> "input.webm"
+            "audio/flac" -> "input.flac"
+            "video/audio/s16le" -> "input.pcm"
+            "video/audio/wav" -> "input.wav"
+            "video/jpeg2000", "video/videoframe/jpeg2000" -> "input.j2k"
+            "video/mp4" -> "input.mp4"
+            "video/text/timestamp" -> "input.txt"
+            "video/webm" -> "input.webm"
+            else -> "input.bin"
+        }
     }
 }

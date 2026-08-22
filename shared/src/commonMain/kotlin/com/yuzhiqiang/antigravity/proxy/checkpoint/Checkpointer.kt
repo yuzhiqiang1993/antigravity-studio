@@ -8,6 +8,9 @@ object Checkpointer {
         policy: ModelCompressionPolicy?,
         defaultContextLength: Long?
     ): ModelCompressionPolicy {
-        return policy ?: ModelCompressionPolicy.preset200k()
+        val base = policy ?: ModelCompressionPolicy.preset200k()
+        return base.resolveEffective(defaultContextLength).let { resolved ->
+            resolved ?: base
+        }
     }
 }

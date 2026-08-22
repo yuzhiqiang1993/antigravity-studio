@@ -6,26 +6,27 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralChatRequest
 import com.yuzhiqiang.antigravity.proxy.model.NeutralContent
 import com.yuzhiqiang.antigravity.proxy.model.NeutralRole
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
+import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteReadChannel
-import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -49,55 +50,89 @@ class GeminiAdapter : ProviderAdapter {
             return@flow
         }
         val requestBody = requestBodyResult.getOrThrow()
+        val minimumRequestTimeoutMs = if (request.outputModalities.contains(com.yuzhiqiang.antigravity.domain.model.ModelModality.IMAGE)) {
+            120_000L
+        } else {
+            0L
+        }
+        var responseStarted = false
         try {
-            val response = ProviderAdapter.executeWithResponseHeadersTimeout(provider, stream) {
+            val response = ProviderAdapter.executeWithResponseHeadersTimeout(
+                provider,
+                stream,
+                minimumRequestTimeoutMs = minimumRequestTimeoutMs
+            ) {
                 ProviderAdapter.sharedHttpClient.preparePost(url) {
                     contentType(ContentType.Application.Json)
                     ProviderAdapter.applyHeaders(this, provider, authHeaders(provider))
-                    ProviderAdapter.applyTimeouts(this, provider, stream)
+                    ProviderAdapter.applyTimeouts(
+                        this,
+                        provider,
+                        stream,
+                        minimumRequestTimeoutMs = minimumRequestTimeoutMs
+                    )
                     setBody(requestBody.toString())
                 }.execute()
             }
 
             if (!response.status.isSuccess()) {
-                val body = response.bodyAsText()
+                val bodyResult = ProviderAdapter.readLimitedResponseText(response)
+                val body = bodyResult.getOrElse { "<${it.message ?: "response body unavailable"}>" }
+                val status = bodyResult.exceptionOrNull()
+                    ?.let(ProviderAdapter::upstreamFailureStatus)
+                    ?: response.status.value
                 emit(
                     NeutralStreamChunk.Error(
                         "Gemini API error (${response.status.value}): $body",
-                        response.status.value
+                        status
                     )
                 )
                 return@flow
             }
+            responseStarted = true
 
             if (stream) {
                 val channel: ByteReadChannel = response.body()
-                var completed = false
-                while (!channel.isClosedForRead && !completed) {
-                    val line = channel.readUTF8Line() ?: break
-                    val trimmed = line.trim()
-                    if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
-                    if (trimmed.startsWith("event:")) continue
-                    if (!trimmed.startsWith("data:")) {
-                        emit(NeutralStreamChunk.Error("Gemini stream frame is missing data field", 502))
+                var streamEnded = false
+                var sawCompletion = false
+                while (!channel.isClosedForRead && !streamEnded) {
+                    val event = ProviderAdapter.readSseDataEvent(channel)
+                    if (event.isFailure) {
+                        emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid Gemini SSE frame", 502, responseStarted = true))
                         return@flow
                     }
-                    val data = trimmed.removePrefix("data:").trim()
+                    val data = event.getOrNull() ?: break
                     val parsed = parseResponse(data)
                     if (parsed.isFailure) {
                         emit(
                             NeutralStreamChunk.Error(
-                                parsed.exceptionOrNull()?.message ?: "Invalid Gemini stream chunk", 502
+                                parsed.exceptionOrNull()?.message ?: "Invalid Gemini stream chunk",
+                                502,
+                                responseStarted = true
                             )
                         )
                         return@flow
                     }
-                    parsed.getOrThrow().forEach { chunk -> emit(chunk) }
-                    if (parsed.getOrThrow().any { it is NeutralStreamChunk.Completed }) completed = true
+                    parsed.getOrThrow().forEach { chunk ->
+                        val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
+                            chunk.copy(responseStarted = true)
+                        } else {
+                            chunk
+                        }
+                        if (effectiveChunk is NeutralStreamChunk.Completed) sawCompletion = true
+                        if (effectiveChunk is NeutralStreamChunk.Error) streamEnded = true
+                        emit(effectiveChunk)
+                        if (streamEnded) return@forEach
+                    }
                 }
-                if (!completed) emit(NeutralStreamChunk.Completed())
+                if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed())
             } else {
-                val parsed = parseResponse(response.bodyAsText())
+                val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                if (responseBody.isFailure) {
+                    emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Gemini response body exceeds 4 MiB buffered limit", 502))
+                    return@flow
+                }
+                val parsed = parseResponse(responseBody.getOrThrow())
                 if (parsed.isFailure) {
                     emit(NeutralStreamChunk.Error(parsed.exceptionOrNull()?.message ?: "Invalid Gemini response", 502))
                     return@flow
@@ -108,7 +143,8 @@ class GeminiAdapter : ProviderAdapter {
                 }
             }
         } catch (error: Exception) {
-            emit(NeutralStreamChunk.Error("Gemini request failed: ${error.message ?: "unknown error"}", 502))
+            val status = ProviderAdapter.upstreamFailureStatus(error)
+            emit(NeutralStreamChunk.Error("Gemini request failed: ${error.message ?: "unknown error"}", status, responseStarted = responseStarted))
         }
     }
 
@@ -121,18 +157,22 @@ class GeminiAdapter : ProviderAdapter {
     }
 
     override suspend fun fetchDiscoveredModels(provider: Provider): List<com.yuzhiqiang.antigravity.proxy.catalog.DiscoveredModelInfo> {
-        val url = provider.modelsEndpoint
+        val url = ProviderAdapter.appendCpaCatalogVersion(provider.modelsEndpoint
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
-            ?: "${provider.effectiveBaseUrl.trimEnd('/')}/models"
+            ?: appendPathBeforeQuery(provider.effectiveBaseUrl.trimEnd('/'), "/models"))
         return try {
             val response = ProviderAdapter.sharedHttpClient.get(url) {
                 ProviderAdapter.applyHeaders(this, provider, authHeaders(provider))
                 ProviderAdapter.applyTimeouts(this, provider, streaming = false)
             }
             if (!response.status.isSuccess()) return emptyList()
-            val body = response.bodyAsText()
-            com.yuzhiqiang.antigravity.proxy.catalog.UniversalModelCatalogParser.parse(body)
+            val body = ProviderAdapter.readLimitedResponseText(response).getOrElse { return emptyList() }
+            com.yuzhiqiang.antigravity.proxy.catalog.UniversalModelCatalogParser.parse(
+                body,
+                protocol = provider.protocol,
+                isCpaCatalog = ProviderAdapter.isCpaCatalogUrl(url)
+            )
         } catch (_: Exception) {
             emptyList()
         }
@@ -140,16 +180,58 @@ class GeminiAdapter : ProviderAdapter {
 
     private fun buildGenerateUrl(provider: Provider, model: String, stream: Boolean): String {
         val method = if (stream) "streamGenerateContent" else "generateContent"
-        val customEndpoint = provider.generateEndpoint?.trim()?.takeIf { it.isNotEmpty() }
-        if (customEndpoint != null) {
-            return customEndpoint
-                .replace("{model}", model)
+        val rawEndpoint = provider.generateEndpoint
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.replace("{model}", model)
+            ?: appendPathBeforeQuery(
+                provider.effectiveBaseUrl.trimEnd('/'),
+                "/models/$model:$method"
+            )
+        return normalizeGenerateEndpoint(rawEndpoint, method, stream)
+    }
+
+    /** 对齐 byok：切换 stream/non-stream 时只调整 action 与 alt=sse，不破坏自定义 query。 */
+    private fun normalizeGenerateEndpoint(rawEndpoint: String, method: String, stream: Boolean): String {
+        return runCatching {
+            val uri = java.net.URI(rawEndpoint)
+            val currentPath = uri.path.trimEnd('/')
+            val resolvedPath = when {
+                currentPath.endsWith(":generateContent") ->
+                    currentPath.removeSuffix(":generateContent") + ":$method"
+
+                currentPath.endsWith(":streamGenerateContent") ->
+                    currentPath.removeSuffix(":streamGenerateContent") + ":$method"
+
+                else -> currentPath
+            }
+            val queryParts = uri.rawQuery
+                ?.split('&')
+                ?.filter { it.isNotBlank() && !it.substringBefore('=').equals("alt", ignoreCase = true) }
+                ?.toMutableList()
+                ?: mutableListOf()
+            if (stream) queryParts += "alt=sse"
+            val authority = uri.rawAuthority ?: return@runCatching rawEndpoint
+            buildString {
+                append(uri.scheme).append("://").append(authority)
+                append(if (resolvedPath.isBlank()) "/" else resolvedPath)
+                if (queryParts.isNotEmpty()) append('?').append(queryParts.joinToString("&"))
+                uri.rawFragment?.let { append('#').append(it) }
+            }
+        }.getOrElse {
+            rawEndpoint
                 .replace(":streamGenerateContent", ":$method")
                 .replace(":generateContent", ":$method")
         }
-        val base = provider.effectiveBaseUrl.trimEnd('/')
-        val separator = if (base.contains("?")) "&" else "?"
-        return "$base/models/$model:$method${separator}alt=${if (stream) "sse" else "json"}"
+    }
+
+    private fun appendPathBeforeQuery(base: String, path: String): String {
+        val queryIndex = base.indexOf('?')
+        return if (queryIndex < 0) {
+            base.trimEnd('/') + path
+        } else {
+            base.substring(0, queryIndex).trimEnd('/') + path + base.substring(queryIndex)
+        }
     }
 
     private fun buildRequestBody(request: NeutralChatRequest): Result<JsonObject> {
@@ -203,17 +285,16 @@ class GeminiAdapter : ProviderAdapter {
                         val response = parseJsonElement(
                             content.content,
                             "Gemini tool ${content.functionName ?: "function"} response"
-                        )
-                        if (response.isFailure) {
-                            return Result.failure(
-                                response.exceptionOrNull() ?: IllegalArgumentException("Invalid tool response")
-                            )
+                        ).getOrElse {
+                            // byok 对纯文本工具结果包装成对象，避免一次工具调用
+                            // 因为上游返回的非 JSON 文本而整条会话失败。
+                            buildJsonObject { put("result", content.content) }
                         }
                         parts.add(buildJsonObject {
                             put("functionResponse", buildJsonObject {
-                                content.functionName?.let { put("name", it) }
+                                put("name", content.functionName ?: content.toolCallId)
                                 put("id", content.toolCallId)
-                                put("response", response.getOrThrow())
+                                put("response", response)
                             })
                         })
                     }
@@ -273,6 +354,16 @@ class GeminiAdapter : ProviderAdapter {
                             }
                     }
                 }
+                if (request.outputModalities.isNotEmpty()) {
+                    put("responseModalities", buildJsonArray {
+                        request.outputModalities.forEach { modality ->
+                            add(JsonPrimitive(modality.name.uppercase()))
+                        }
+                    })
+                }
+                request.imageGenerationConfig?.let { config ->
+                    put("imageConfig", config)
+                }
             })
         }
         return Result.success(ProviderAdapter.mergeSafeExtraBody(baseBody, request))
@@ -293,6 +384,7 @@ class GeminiAdapter : ProviderAdapter {
                 )
             }
             val chunks = mutableListOf<NeutralStreamChunk>()
+            val usage = parseUsage(root)
             val candidates = root["candidates"]?.jsonArray ?: JsonArray(emptyList())
             candidates.forEach { candidateElement ->
                 val candidate = candidateElement.jsonObject
@@ -305,18 +397,25 @@ class GeminiAdapter : ProviderAdapter {
                             chunks.add(
                                 NeutralStreamChunk.ReasoningDelta(
                                     text,
-                                    part["thoughtSignature"]?.jsonPrimitive?.contentOrNull
+                                    part["thoughtSignature"]?.jsonPrimitive?.contentOrNull,
+                                    index
                                 )
                             )
                         } else {
-                            chunks.add(NeutralStreamChunk.TextDelta(text))
+                            chunks.add(NeutralStreamChunk.TextDelta(text, index))
+                        }
+                    }
+                    if (part["text"] == null) {
+                        part["thoughtSignature"]?.jsonPrimitive?.contentOrNull?.let { signature ->
+                            chunks.add(NeutralStreamChunk.ReasoningDelta("", signature, index))
                         }
                     }
                     part["inlineData"]?.jsonObject?.let { inline ->
                         chunks.add(
                             NeutralStreamChunk.InlineDataDelta(
                                 inline["mimeType"]?.jsonPrimitive?.contentOrNull ?: "application/octet-stream",
-                                inline["data"]?.jsonPrimitive?.contentOrNull ?: ""
+                                inline["data"]?.jsonPrimitive?.contentOrNull ?: "",
+                                index
                             )
                         )
                     }
@@ -324,21 +423,58 @@ class GeminiAdapter : ProviderAdapter {
                         chunks.add(
                             NeutralStreamChunk.ToolCallDelta(
                                 index = partIndex,
-                                id = call["id"]?.jsonPrimitive?.contentOrNull,
+                                id = call["id"]?.jsonPrimitive?.contentOrNull
+                                    ?: "call_${index}_$partIndex",
                                 name = call["name"]?.jsonPrimitive?.contentOrNull,
-                                argsText = call["args"]?.toString() ?: "{}"
+                                argsText = (call["args"] as? JsonPrimitive)?.contentOrNull
+                                    ?: call["args"]?.toString()
+                                    ?: "{}",
+                                choiceIndex = index
                             )
                         )
                     }
                 }
                 candidate["finishReason"]?.jsonPrimitive?.contentOrNull?.let {
-                    chunks.add(NeutralStreamChunk.Completed(it))
+                    chunks.add(NeutralStreamChunk.Completed(it, usage, index))
                 }
+            }
+            val blockReason = if (candidates.isEmpty()) {
+                root["promptFeedback"]?.jsonObject
+                    ?.get("blockReason")
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+            } else {
+                null
+            }
+            if (blockReason != null) {
+                chunks.add(NeutralStreamChunk.Completed(blockReason, usage))
+            } else if (usage != null && chunks.none { it is NeutralStreamChunk.Completed }) {
+                chunks.add(NeutralStreamChunk.Completed(null, usage))
             }
             Result.success(chunks)
         } catch (error: Exception) {
             Result.failure(IllegalArgumentException("Failed to parse Gemini response: ${error.message}", error))
         }
+    }
+
+    private fun parseUsage(root: JsonObject): NeutralUsage? {
+        val usage = root["usageMetadata"]?.jsonObject ?: return null
+        fun long(key: String): Long? = usage[key]?.jsonPrimitive?.longOrNull
+        val prompt = long("promptTokenCount")
+        val cached = long("cachedContentTokenCount")
+        val reasoning = long("thoughtsTokenCount")
+        val output = long("candidatesTokenCount")
+        val validCacheBreakdown = prompt != null && (cached ?: 0L) <= prompt
+        val validReasoningBreakdown = output != null && (reasoning ?: 0L) <= output
+        val computedTotal = prompt?.plus((output ?: 0L) + (reasoning ?: 0L))
+        val reportedTotal = long("totalTokenCount")
+        return NeutralUsage(
+            inputTokens = prompt?.let { total -> if (validCacheBreakdown) total - (cached ?: 0L) else total },
+            outputTokens = output?.let { total -> if (validReasoningBreakdown) total - (reasoning ?: 0L) else total },
+            cacheReadTokens = cached.takeIf { validCacheBreakdown },
+            reasoningTokens = reasoning.takeIf { validReasoningBreakdown },
+            totalTokens = reportedTotal?.takeIf { computedTotal == null || it >= computedTotal } ?: computedTotal
+        )
     }
 
     private fun parseJsonObject(value: JsonElement, label: String): Result<JsonObject> {
@@ -380,6 +516,9 @@ class GeminiAdapter : ProviderAdapter {
     }
 
     private fun authHeaders(provider: Provider): Map<String, String> {
-        return provider.apiKey?.let { mapOf("x-goog-api-key" to it) } ?: emptyMap()
+        return provider.apiKey
+            ?.takeIf { it.isNotBlank() }
+            ?.let { mapOf("x-goog-api-key" to it) }
+            ?: emptyMap()
     }
 }
