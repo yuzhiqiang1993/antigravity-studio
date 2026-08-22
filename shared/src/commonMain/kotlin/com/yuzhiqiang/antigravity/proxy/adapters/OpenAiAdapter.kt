@@ -134,6 +134,10 @@ class OpenAiAdapter : ProviderAdapter {
     }
 
     override suspend fun fetchModels(provider: Provider): List<String> {
+        return fetchDiscoveredModels(provider).map { it.id }
+    }
+
+    override suspend fun fetchDiscoveredModels(provider: Provider): List<com.yuzhiqiang.antigravity.proxy.catalog.DiscoveredModelInfo> {
         val url = provider.modelsEndpoint
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
@@ -144,9 +148,8 @@ class OpenAiAdapter : ProviderAdapter {
                 ProviderAdapter.applyTimeouts(this, provider, streaming = false)
             }
             if (!response.status.isSuccess()) return emptyList()
-            val root = json.parseToJsonElement(response.bodyAsText()).jsonObject
-            root["data"]?.jsonArray?.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
-                ?: emptyList()
+            val body = response.bodyAsText()
+            com.yuzhiqiang.antigravity.proxy.catalog.UniversalModelCatalogParser.parse(body)
         } catch (_: Exception) {
             emptyList()
         }

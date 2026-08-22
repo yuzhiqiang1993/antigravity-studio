@@ -18,11 +18,15 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import com.yuzhiqiang.antigravity.proxy.catalog.DiscoveredModelInfo
 
 interface ProviderAdapter {
     suspend fun sendStream(provider: Provider, request: NeutralChatRequest): Flow<NeutralStreamChunk>
     suspend fun testConnection(provider: Provider): Boolean
     suspend fun fetchModels(provider: Provider): List<String>
+    suspend fun fetchDiscoveredModels(provider: Provider): List<DiscoveredModelInfo> {
+        return fetchModels(provider).map { DiscoveredModelInfo(id = it) }
+    }
 
     companion object {
         val sharedHttpClient = HttpClient(CIO) {
