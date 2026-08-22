@@ -1,47 +1,95 @@
 package com.yuzhiqiang.antigravity.studio
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.ui.tooling.preview.Preview
-import org.jetbrains.compose.resources.painterResource
-
-import antigravity_studio.shared.generated.resources.Res
-import antigravity_studio.shared.generated.resources.compose_multiplatform
+import androidx.compose.ui.unit.dp
+import com.yuzhiqiang.antigravity.i18n.AppLanguage
+import com.yuzhiqiang.antigravity.i18n.I18nManager
+import com.yuzhiqiang.antigravity.i18n.LocalStrings
+import com.yuzhiqiang.antigravity.i18n.StringsEn
+import com.yuzhiqiang.antigravity.i18n.StringsZh
+import com.yuzhiqiang.antigravity.ui.components.AppSidebar
+import com.yuzhiqiang.antigravity.ui.components.AppSnackbarHost
+import com.yuzhiqiang.antigravity.ui.dialogs.ConfirmDialog
+import com.yuzhiqiang.antigravity.ui.dialogs.DoctorDialog
+import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
+import com.yuzhiqiang.antigravity.ui.presentation.NavTab
+import com.yuzhiqiang.antigravity.ui.screens.ActivityScreen
+import com.yuzhiqiang.antigravity.ui.screens.ModelsScreen
+import com.yuzhiqiang.antigravity.ui.screens.OverviewScreen
+import com.yuzhiqiang.antigravity.ui.screens.SettingsScreen
+import com.yuzhiqiang.antigravity.ui.theme.AntigravityTheme
 
 @Composable
-@Preview
-fun App() {
-    MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
+fun App(
+    viewModel: AppViewModel = remember { AppViewModel() }
+) {
+    val currentLang = I18nManager.currentLanguage
+    val currentStrings = if (currentLang == AppLanguage.ZH_CN) StringsZh else StringsEn
+    val config by viewModel.config.collectAsState()
+    val currentTab by viewModel.currentTab.collectAsState()
+    val showDoctor by viewModel.showDoctorDialog.collectAsState()
+    val notice by viewModel.notice.collectAsState()
+    val confirmState by viewModel.confirmDialog.collectAsState()
+
+    CompositionLocalProvider(LocalStrings provides currentStrings) {
+        AntigravityTheme(themeMode = config.themeMode) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        AppSidebar(
+                            viewModel = viewModel,
+                            modifier = Modifier.fillMaxHeight()
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.background)
+                        ) {
+                            when (currentTab) {
+                                NavTab.OVERVIEW -> OverviewScreen(viewModel = viewModel)
+                                NavTab.MODELS -> ModelsScreen(viewModel = viewModel)
+                                NavTab.ACTIVITY -> ActivityScreen(viewModel = viewModel)
+                                NavTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
+                            }
+                        }
+                    }
+
+                    // 全局 Toast 通知 — 对标 agy-byok 的 NoticeBar
+                    AppSnackbarHost(
+                        notice = notice,
+                        onDismiss = { viewModel.dismissNotice() },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
+
+                // Doctor 对话框
+                if (showDoctor) {
+                    DoctorDialog(
+                        viewModel = viewModel,
+                        onDismiss = { viewModel.closeDoctorDialog() }
+                    )
+                }
+
+                // 通用确认对话框 — 对标 agy-byok 的 ConfirmModal
+                confirmState?.let { state ->
+                    ConfirmDialog(
+                        title = state.title,
+                        message = state.message,
+                        isDestructive = state.isDestructive,
+                        onConfirm = state.onConfirm,
+                        onDismiss = { viewModel.dismissConfirmDialog() }
+                    )
                 }
             }
         }
