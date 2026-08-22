@@ -15,18 +15,64 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
+import java.awt.Taskbar
+import javax.imageio.ImageIO
 
 private object AppIconCache {
-    val painter: Painter? by lazy {
+    private val isMac: Boolean
+        get() = System.getProperty("os.name", "").lowercase().contains("mac")
+
+    val appIconImage: java.awt.Image? by lazy {
         try {
             val stream = Thread.currentThread().contextClassLoader.getResourceAsStream("drawable/app-icon.png")
                 ?: Thread.currentThread().contextClassLoader.getResourceAsStream("app-icon.png")
+                ?: Thread.currentThread().contextClassLoader.getResourceAsStream("icon.png")
+            if (stream != null) ImageIO.read(stream) else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    val appIconPainter: Painter? by lazy {
+        try {
+            val stream = Thread.currentThread().contextClassLoader.getResourceAsStream("drawable/app-icon.png")
+                ?: Thread.currentThread().contextClassLoader.getResourceAsStream("app-icon.png")
+                ?: Thread.currentThread().contextClassLoader.getResourceAsStream("icon.png")
             if (stream != null) {
                 BitmapPainter(loadImageBitmap(stream))
             } else null
         } catch (_: Exception) {
             null
         }
+    }
+
+    // 托盘图标：macOS 使用专为菜单栏设计的模板图标 tray-icon-solid.png，其他平台使用彩色 tray-icon-solid-color.png
+    val trayIconPainter: Painter? by lazy {
+        try {
+            val resName = if (isMac) "tray-icon-solid.png" else "tray-icon-solid-color.png"
+            val stream = Thread.currentThread().contextClassLoader.getResourceAsStream("drawable/$resName")
+                ?: Thread.currentThread().contextClassLoader.getResourceAsStream(resName)
+                ?: Thread.currentThread().contextClassLoader.getResourceAsStream("drawable/app-icon.png")
+                ?: Thread.currentThread().contextClassLoader.getResourceAsStream("app-icon.png")
+            if (stream != null) {
+                BitmapPainter(loadImageBitmap(stream))
+            } else appIconPainter
+        } catch (_: Exception) {
+            appIconPainter
+        }
+    }
+}
+
+private fun setupPlatformAppIcon() {
+    try {
+        val icon = AppIconCache.appIconImage
+        if (icon != null && Taskbar.isTaskbarSupported()) {
+            val taskbar = Taskbar.getTaskbar()
+            if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                taskbar.iconImage = icon
+            }
+        }
+    } catch (_: Exception) {
     }
 }
 
@@ -39,6 +85,8 @@ fun main() {
     System.setProperty("apple.awt.fullscreencapturable", "true")
     System.setProperty("skiko.vsync", "true")
 
+    setupPlatformAppIcon()
+
     application {
         val windowState = rememberWindowState(
             width = 1120.dp,
@@ -46,11 +94,12 @@ fun main() {
             position = WindowPosition(Alignment.Center)
         )
         var isVisible by remember { mutableStateOf(true) }
-        val iconPainter = AppIconCache.painter
+        val appIcon = AppIconCache.appIconPainter
+        val trayIcon = AppIconCache.trayIconPainter ?: appIcon
 
-        if (iconPainter != null) {
+        if (trayIcon != null) {
             Tray(
-                icon = iconPainter,
+                icon = trayIcon,
                 tooltip = "Antigravity Studio",
                 onAction = { isVisible = true },
                 menu = {
@@ -66,7 +115,7 @@ fun main() {
                 onCloseRequest = { isVisible = false },
                 state = windowState,
                 title = "Antigravity Studio",
-                icon = iconPainter
+                icon = appIcon
             ) {
                 window.minimumSize = java.awt.Dimension(960, 640)
 

@@ -395,17 +395,7 @@ fun ModelsScreen(
                 onToggleGroup = { group ->
                     val allIds = group.variants.map { it.model.id }.toSet()
                     val isCurrentlyDisabled = allIds.any { it in config.disabledOfficialModels }
-                    allIds.forEach { modelId ->
-                        if (isCurrentlyDisabled) {
-                            if (modelId in config.disabledOfficialModels) {
-                                viewModel.toggleOfficialModel(modelId)
-                            }
-                        } else {
-                            if (modelId !in config.disabledOfficialModels) {
-                                viewModel.toggleOfficialModel(modelId)
-                            }
-                        }
-                    }
+                    viewModel.toggleOfficialModelGroup(allIds, isCurrentlyDisabled)
                 },
                 onEditPolicy = { modelId -> policyEditingModelId = modelId },
                 onOpenVisionDetail = { name, vision ->
@@ -803,13 +793,31 @@ private fun OfficialModelsView(
                         Icons.Outlined.LayersClear,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(40.dp)
                     )
                     Text(
-                        "暂无匹配的官方模型",
+                        text = if (searchQuery.isNotBlank()) "未搜索到匹配「$searchQuery」的官方模型" else "当前未探测到官方原生模型",
                         style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (searchQuery.isNotBlank()) "请尝试清除搜索关键词" else "请确认已在「运行概览」中打开 Antigravity IDE 或 App，随后点击「刷新」",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (searchQuery.isBlank()) {
+                        Spacer(Modifier.height(AppTokens.Spacing.xs))
+                        Button(
+                            onClick = onRefresh,
+                            enabled = !isFetching,
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
+                            contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section, vertical = AppTokens.Spacing.xs)
+                        ) {
+                            Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
+                            Spacer(Modifier.width(AppTokens.Spacing.xs))
+                            Text("刷新官方模型", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                 }
             }
         } else {

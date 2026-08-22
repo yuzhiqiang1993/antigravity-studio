@@ -49,6 +49,7 @@ private enum class PolicyPresetMode {
     PRESET_200K,
     PRESET_256K,
     PRESET_372K,
+    PRESET_500K,
     PRESET_1M,
     CUSTOM
 }
@@ -68,9 +69,10 @@ fun PolicyEditorDialog(
                 initialPolicy == null -> PolicyPresetMode.DEFAULT
                 initialPolicy.maxCheckpointTokens == 128_000L -> PolicyPresetMode.PRESET_128K
                 initialPolicy.maxCheckpointTokens == 200_000L -> PolicyPresetMode.PRESET_200K
-                initialPolicy.maxCheckpointTokens == 256_000L -> PolicyPresetMode.PRESET_256K
-                initialPolicy.maxCheckpointTokens == 372_000L -> PolicyPresetMode.PRESET_372K
-                initialPolicy.maxCheckpointTokens == 1_000_000L -> PolicyPresetMode.PRESET_1M
+                initialPolicy.maxCheckpointTokens == 153_600L -> PolicyPresetMode.PRESET_256K
+                initialPolicy.maxCheckpointTokens == 223_200L -> PolicyPresetMode.PRESET_372K
+                initialPolicy.maxCheckpointTokens == 300_000L -> PolicyPresetMode.PRESET_500K
+                initialPolicy.maxCheckpointTokens == 629_145L -> PolicyPresetMode.PRESET_1M
                 else -> PolicyPresetMode.CUSTOM
             }
         )
@@ -158,6 +160,7 @@ fun PolicyEditorDialog(
                         PolicyPresetMode.PRESET_200K to "200K ★",
                         PolicyPresetMode.PRESET_256K to "256K",
                         PolicyPresetMode.PRESET_372K to "372K",
+                        PolicyPresetMode.PRESET_500K to "500K",
                         PolicyPresetMode.PRESET_1M to "1M",
                         PolicyPresetMode.CUSTOM to "自定义"
                     ).forEach { (mode, label) ->
@@ -199,6 +202,12 @@ fun PolicyEditorDialog(
                                         }
                                         PolicyPresetMode.PRESET_372K -> {
                                             val p = ModelCompressionPolicy.preset372k()
+                                            triggerThreshold = p.triggerThresholdTokens.toString()
+                                            maxCheckpoint = p.maxCheckpointTokens.toString()
+                                            reserveOutput = p.reserveOutputTokens.toString()
+                                        }
+                                        PolicyPresetMode.PRESET_500K -> {
+                                            val p = ModelCompressionPolicy.preset500k()
                                             triggerThreshold = p.triggerThresholdTokens.toString()
                                             maxCheckpoint = p.maxCheckpointTokens.toString()
                                             reserveOutput = p.reserveOutputTokens.toString()
@@ -302,10 +311,11 @@ fun PolicyEditorDialog(
                             if (selectedMode == PolicyPresetMode.DEFAULT) {
                                 onSave(null)
                             } else {
-                                val policy = ModelCompressionPolicy(
-                                    triggerThresholdTokens = triggerThreshold.toLongOrNull() ?: 152_000L,
-                                    maxCheckpointTokens = maxCheckpoint.toLongOrNull() ?: 200_000L,
-                                    reserveOutputTokens = reserveOutput.toLongOrNull() ?: 16_000L
+                                val basePolicy = initialPolicy ?: ModelCompressionPolicy()
+                                val policy = basePolicy.copy(
+                                    tokenThreshold = triggerThreshold.toLongOrNull() ?: 152_000L,
+                                    maxTokenLimit = maxCheckpoint.toLongOrNull() ?: 200_000L,
+                                    maxOutputTokens = reserveOutput.toLongOrNull() ?: 16_000L
                                 )
                                 onSave(policy)
                             }

@@ -41,6 +41,8 @@ import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 
@@ -115,7 +117,19 @@ fun ActivityDetailDialog(
                     DetailRow("请求时间", formatFullTime(log.timestamp))
                     DetailRow("路由模式", if (log.isOfficialPassthrough) "官方透传 (Passthrough)" else "自定义路由 (BYOK)")
                     log.modelId?.let { DetailRow("目标模型", it) }
+                    log.requestedModelId
+                        ?.takeIf { it != log.modelId }
+                        ?.let { DetailRow("原始请求模型", it) }
                     log.providerName?.let { DetailRow("服务商", it) }
+
+                    if (log.totalTokens != null || log.inputTokens != null || log.outputTokens != null) {
+                        DetailRow("输入 Token", log.inputTokens?.toString() ?: "—")
+                        DetailRow("输出 Token", log.outputTokens?.toString() ?: "—")
+                        DetailRow("推理 Token", log.reasoningTokens?.toString() ?: "—")
+                        DetailRow("缓存读取 Token", log.cacheReadTokens?.toString() ?: "—")
+                        DetailRow("缓存写入 Token", log.cacheWriteTokens?.toString() ?: "—")
+                        DetailRow("总 Token", log.totalTokens?.toString() ?: "—")
+                    }
 
                     if (log.fallbackAttempted) {
                         DetailRow("备用路由尝试", if (log.fallbackSucceeded) "已成功回退" else "回退失败")
@@ -158,19 +172,26 @@ fun ActivityDetailDialog(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            val jsonString = """
-                                {
-                                  "id": "${log.id}",
-                                  "method": "${log.method}",
-                                  "path": "${log.path}",
-                                  "statusCode": ${log.statusCode},
-                                  "durationMs": ${log.durationMs},
-                                  "isOfficialPassthrough": ${log.isOfficialPassthrough},
-                                  "modelId": "${log.modelId.orEmpty()}",
-                                  "providerName": "${log.providerName.orEmpty()}",
-                                  "errorMessage": "${log.errorMessage.orEmpty()}"
-                                }
-                            """.trimIndent()
+                            val jsonString = buildJsonObject {
+                                put("id", log.id)
+                                put("method", log.method)
+                                put("path", log.path)
+                                put("statusCode", log.statusCode)
+                                put("durationMs", log.durationMs)
+                                put("isOfficialPassthrough", log.isOfficialPassthrough)
+                                put("modelId", log.modelId)
+                                put("requestedModelId", log.requestedModelId)
+                                put("providerName", log.providerName)
+                                put("inputTokens", log.inputTokens)
+                                put("outputTokens", log.outputTokens)
+                                put("cacheReadTokens", log.cacheReadTokens)
+                                put("cacheWriteTokens", log.cacheWriteTokens)
+                                put("reasoningTokens", log.reasoningTokens)
+                                put("totalTokens", log.totalTokens)
+                                put("errorMessage", log.errorMessage)
+                                put("fallbackAttempted", log.fallbackAttempted)
+                                put("fallbackSucceeded", log.fallbackSucceeded)
+                            }.toString()
                             Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(jsonString), null)
                             onCopyNotice(s.commonCopied)
                         },

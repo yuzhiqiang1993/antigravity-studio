@@ -86,6 +86,8 @@ fun App(
                     ConfirmDialog(
                         title = state.title,
                         message = state.message,
+                        confirmLabel = state.confirmLabel,
+                        cancelLabel = state.cancelLabel,
                         isDestructive = state.isDestructive,
                         onConfirm = state.onConfirm,
                         onDismiss = { viewModel.dismissConfirmDialog() }

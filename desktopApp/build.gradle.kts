@@ -51,9 +51,11 @@ compose.desktop {
 
             macOS {
                 bundleID = "com.yuzhiqiang.antigravity.studio"
+                iconFile.set(project.file("src/main/resources/icon.icns"))
             }
             windows {
                 menuGroup = "Antigravity Studio"
+                iconFile.set(project.file("src/main/resources/icon.ico"))
             }
         }
     }
