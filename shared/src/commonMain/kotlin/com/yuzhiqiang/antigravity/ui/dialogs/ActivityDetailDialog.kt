@@ -2,25 +2,42 @@ package com.yuzhiqiang.antigravity.ui.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.BadgeTone
+import com.yuzhiqiang.antigravity.ui.components.StatusBadge
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -34,22 +51,26 @@ fun ActivityDetailDialog(
     onCopyNotice: (String) -> Unit
 ) {
     val s = strings()
-    val isSuccess = log.statusCode in 200..399
-    val statusColor = if (isSuccess) Color(0xFF059669) else MaterialTheme.colorScheme.error
+    val statusTone = when {
+        log.statusCode in 200..299 -> BadgeTone.SUCCESS
+        log.statusCode in 300..499 -> BadgeTone.WARNING
+        else -> BadgeTone.ERROR
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
                 .width(620.dp)
                 .heightIn(max = 680.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface
+            shape = RoundedCornerShape(AppTokens.Radius.large),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = AppTokens.Elevation.dialog
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .fillMaxWidth()
+                    .padding(AppTokens.Spacing.card),
+                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
             ) {
                 // Header
                 Row(
@@ -57,43 +78,36 @@ fun ActivityDetailDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                         Text(
                             text = "请求详情",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = log.id,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontFamily = FontFamily.Monospace
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(statusColor.copy(alpha = 0.12f))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "HTTP ${log.statusCode}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = statusColor
-                        )
-                    }
+
+                    StatusBadge(
+                        text = "HTTP ${log.statusCode}",
+                        tone = statusTone,
+                        showDot = false
+                    )
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // Detail Items
                 Column(
                     modifier = Modifier
-                        .weight(1f)
+                        .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
                 ) {
                     DetailRow("请求方法", log.method.uppercase())
                     DetailRow("请求路径", log.path)
@@ -108,28 +122,33 @@ fun ActivityDetailDialog(
                     }
 
                     if (log.errorMessage != null) {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("错误信息", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
+                        Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)) {
+                            Text(
+                                text = "错误信息",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
-                                    .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                    .padding(12.dp)
+                                    .clip(RoundedCornerShape(AppTokens.Radius.small))
+                                    .background(MaterialTheme.colorScheme.errorContainer)
+                                    .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), RoundedCornerShape(AppTokens.Radius.small))
+                                    .padding(AppTokens.Spacing.content)
                             ) {
                                 Text(
                                     text = log.errorMessage,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontFamily = FontFamily.Monospace
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    ),
+                                    color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                             }
                         }
                     }
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // Actions
                 Row(
@@ -155,18 +174,30 @@ fun ActivityDetailDialog(
                             Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(jsonString), null)
                             onCopyNotice(s.commonCopied)
                         },
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(AppTokens.Radius.medium),
+                        contentPadding = PaddingValues(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.xs)
                     ) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("复制 JSON", fontSize = 12.sp)
+                        Icon(
+                            imageVector = Icons.Outlined.ContentCopy,
+                            contentDescription = null,
+                            modifier = Modifier.size(AppTokens.Size.iconSmall)
+                        )
+                        Spacer(Modifier.width(AppTokens.Spacing.xs))
+                        Text(
+                            text = "复制 JSON",
+                            style = MaterialTheme.typography.labelMedium
+                        )
                     }
 
                     Button(
                         onClick = onDismiss,
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(AppTokens.Radius.medium),
+                        contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.xs)
                     ) {
-                        Text(s.commonClose, fontSize = 12.sp)
+                        Text(
+                            text = s.commonClose,
+                            style = MaterialTheme.typography.labelMedium
+                        )
                     }
                 }
             }
@@ -181,8 +212,17 @@ private fun DetailRow(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 

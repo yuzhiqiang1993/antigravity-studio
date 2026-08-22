@@ -1,18 +1,15 @@
 package com.yuzhiqiang.antigravity.ui.dialogs
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,16 +19,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
-import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
-/** 配置单个上游模型 reasoning 档位、custom mapping 与 Gemini 思考预算。 */
+/** 配置单个上游模型 reasoning 档位、custom mapping 与 Gemini 思考预算（Material Design 3 规范）。 */
 @Composable
 fun ReasoningConfigDialog(
     modelName: String,
@@ -150,102 +145,158 @@ fun ReasoningConfigDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Column(
+        Surface(
             modifier = Modifier
-                .width(520.dp)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .fillMaxWidth(0.9f)
+                .widthIn(max = 520.dp),
+            shape = RoundedCornerShape(AppTokens.Radius.large),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = AppTokens.Elevation.dialog
         ) {
-            Text("配置深度思考", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(modelName, fontSize = 12.sp, color = Color(0xFF64748B))
-            HorizontalDivider()
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = enabled, onCheckedChange = { value ->
-                    enabled = value
-                    validationError = null
-                })
-                Text("启用 reasoning", fontSize = 13.sp)
-            }
-            if (enabled) {
-                Text("可用推理档位", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                selectableLevels.forEach { level ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = level in selectedLevels,
-                            onCheckedChange = { checked ->
-                                selectedLevels = if (checked) {
-                                    selectedLevels + level
-                                } else {
-                                    selectedLevels - level
-                                }
-                                validationError = null
-                            }
-                        )
-                        Text(level.label, fontSize = 12.5.sp)
-                    }
-                }
-                OutlinedTextField(
-                    value = customValue,
-                    onValueChange = { value ->
-                        customValue = value
-                        validationError = null
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Custom reasoning 值（可选）") },
-                    placeholder = {
-                        Text(
-                            when (protocol) {
-                                ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
-                                ProviderProtocol.OPENAI_RESPONSES -> "例如 xhigh"
-
-                                ProviderProtocol.ANTHROPIC_MESSAGES -> "例如 adaptive 或 16384"
-                                ProviderProtocol.GEMINI_GENERATE_CONTENT -> "例如 high 或 8192"
-                            }
-                        )
-                    }
-                )
-                if (protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT) {
-                    OutlinedTextField(
-                        value = thinkingBudget,
-                        onValueChange = { value ->
-                            thinkingBudget = value
-                            validationError = null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("默认思考预算（可选）") },
-                        placeholder = { Text("-1 表示动态预算") }
-                    )
-                    OutlinedTextField(
-                        value = minThinkingBudget,
-                        onValueChange = { value ->
-                            minThinkingBudget = value
-                            validationError = null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("最小思考预算（可选）") }
-                    )
-                }
-                validationError?.let { error ->
-                    Text(error, color = Color(0xFFDC2626), fontSize = 12.sp)
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+            Column(
+                modifier = Modifier
+                    .padding(AppTokens.Spacing.card)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
             ) {
-                TextButton(onClick = onDismiss) { Text("取消") }
-                Button(
-                    onClick = ::confirm,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
+                Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
+                    Text(
+                        text = "配置深度思考",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = modelName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = enabled,
+                        onCheckedChange = { value ->
+                            enabled = value
+                            validationError = null
+                        }
+                    )
+                    Text(
+                        text = "启用 reasoning",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                if (enabled) {
+                    Text(
+                        text = "可用推理档位",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    selectableLevels.forEach { level ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = level in selectedLevels,
+                                onCheckedChange = { checked ->
+                                    selectedLevels = if (checked) {
+                                        selectedLevels + level
+                                    } else {
+                                        selectedLevels - level
+                                    }
+                                    validationError = null
+                                }
+                            )
+                            Text(
+                                text = level.label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = customValue,
+                        onValueChange = { value ->
+                            customValue = value
+                            validationError = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(AppTokens.Radius.medium),
+                        label = { Text("Custom reasoning 值（可选）") },
+                        placeholder = {
+                            Text(
+                                when (protocol) {
+                                    ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+                                    ProviderProtocol.OPENAI_RESPONSES -> "例如 xhigh"
+
+                                    ProviderProtocol.ANTHROPIC_MESSAGES -> "例如 adaptive 或 16384"
+                                    ProviderProtocol.GEMINI_GENERATE_CONTENT -> "例如 high 或 8192"
+                                }
+                            )
+                        }
+                    )
+
+                    if (protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT) {
+                        OutlinedTextField(
+                            value = thinkingBudget,
+                            onValueChange = { value ->
+                                thinkingBudget = value
+                                validationError = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
+                            label = { Text("默认思考预算（可选）") },
+                            placeholder = { Text("-1 表示动态预算") }
+                        )
+                        OutlinedTextField(
+                            value = minThinkingBudget,
+                            onValueChange = { value ->
+                                minThinkingBudget = value
+                                validationError = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
+                            label = { Text("最小思考预算（可选）") }
+                        )
+                    }
+
+                    validationError?.let { error ->
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("确认")
+                    TextButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(AppTokens.Radius.medium)
+                    ) {
+                        Text("取消", style = MaterialTheme.typography.labelMedium)
+                    }
+                    Spacer(Modifier.width(AppTokens.Spacing.sm))
+                    Button(
+                        onClick = ::confirm,
+                        shape = RoundedCornerShape(AppTokens.Radius.medium),
+                        contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.xs)
+                    ) {
+                        Text("确认", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
         }

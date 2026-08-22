@@ -1,13 +1,28 @@
 package com.yuzhiqiang.antigravity.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -15,18 +30,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
 private data class SidebarItem(
     val tab: NavTab,
@@ -63,34 +80,44 @@ fun AppSidebar(
                 )
             }
             .padding(
-                start = AppTokens.Spacing.content,
-                end = AppTokens.Spacing.content,
+                start = AppTokens.Spacing.md,
+                end = AppTokens.Spacing.md,
                 top = AppTokens.Size.sidebarTopPadding,
                 bottom = AppTokens.Size.sidebarBottomPadding
             )
     ) {
+        // App Header Brand
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = AppTokens.Spacing.compact),
+                .padding(horizontal = AppTokens.Spacing.xs, vertical = AppTokens.Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
         ) {
-            BrandMark(modifier = Modifier.size(AppTokens.Size.brandMark))
-            Text(
-                text = "Antigravity Studio",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
-            )
+            BrandMark(size = AppTokens.Size.brandMark)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "Antigravity",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Text(
+                    text = "Studio Hub",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
 
-        Spacer(Modifier.height(AppTokens.Spacing.section))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(Modifier.height(AppTokens.Spacing.section))
+        Spacer(Modifier.height(AppTokens.Spacing.lg))
+        HorizontalDivider(color = dividerColor)
+        Spacer(Modifier.height(AppTokens.Spacing.md))
 
         // Navigation Items
-        Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)) {
+        Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)) {
             mainItems.forEach { item ->
                 SidebarNavigationItem(
                     item = item,
@@ -102,8 +129,8 @@ fun AppSidebar(
 
         Spacer(Modifier.weight(1f))
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(Modifier.height(AppTokens.Spacing.content))
+        HorizontalDivider(color = dividerColor)
+        Spacer(Modifier.height(AppTokens.Spacing.sm))
 
         // Bottom Settings Tab
         SidebarNavigationItem(
@@ -120,33 +147,40 @@ private fun SidebarNavigationItem(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val containerBg = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        androidx.compose.ui.graphics.Color.Transparent
-    }
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val containerBg by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            Color.Transparent
+        },
+        animationSpec = tween(200)
+    )
+
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tween(200)
+    )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(AppTokens.Size.navigationItemHeight)
-            .clip(MaterialTheme.shapes.medium)
+            .clip(RoundedCornerShape(AppTokens.Radius.pill))
             .background(containerBg)
             .clickable(onClick = onClick)
-            .padding(horizontal = AppTokens.Spacing.content),
+            .padding(horizontal = AppTokens.Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
     ) {
         Icon(
             imageVector = item.icon,
             contentDescription = null,
             tint = contentColor,
-            modifier = Modifier.size(AppTokens.Size.iconMedium)
+            modifier = Modifier.size(AppTokens.Size.navigationItemIconSize)
         )
         Text(
             text = item.title,
