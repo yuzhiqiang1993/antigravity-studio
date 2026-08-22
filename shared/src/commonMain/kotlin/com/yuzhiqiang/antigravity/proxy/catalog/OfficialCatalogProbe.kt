@@ -18,6 +18,8 @@ import javax.net.ssl.*
  */
 object OfficialCatalogProbe {
 
+    private const val MAX_CATALOG_BYTES = 4L * 1024L * 1024L
+
     private data class LanguageServerCandidate(
         val pid: Long,
         val source: String,
@@ -36,6 +38,11 @@ object OfficialCatalogProbe {
 
     var lastParsedModels: List<OfficialCatalogModel> = emptyList()
         private set
+
+    fun clearRawOfficialCatalog() {
+        rawOfficialCatalogBody = null
+        lastParsedModels = emptyList()
+    }
 
     fun setRawOfficialCatalog(body: String) {
         if (body.isNotBlank()) {
@@ -85,17 +92,19 @@ object OfficialCatalogProbe {
 
                 val responseCode = connection.responseCode
                 if (responseCode in 200..299) {
-                    val responseBody = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    val responseBytes = connection.inputStream.use { it.readBytes() }
+                    if (responseBytes.size.toLong() > MAX_CATALOG_BYTES) {
+                        throw IllegalStateException("官方模型目录超过 4 MiB 限制")
+                    }
+                    val responseBody = responseBytes.toString(Charsets.UTF_8)
                     rawOfficialCatalogBody = responseBody
                     val rawModels = parseOfficialCatalogModels(responseBody)
                     // 彻底剔除三方自定义模型，确保展示纯净官方数据
                     val models = rawModels.filterNot { m ->
                         m.id in excludedModelIds || m.displayName in excludedModelIds
                     }
-                    if (models.isNotEmpty()) {
-                        lastParsedModels = models
-                        return@withContext Result.success(models)
-                    }
+                    lastParsedModels = models
+                    return@withContext Result.success(models)
                 } else {
                     lastException = IllegalStateException("官方语言服务返回 HTTP $responseCode")
                 }

@@ -2,6 +2,7 @@ package com.yuzhiqiang.antigravity.proxy.model
 
 import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMapping
+import com.yuzhiqiang.antigravity.domain.model.ModelModality
 import kotlinx.serialization.json.JsonElement
 
 enum class NeutralRole {
@@ -48,6 +49,15 @@ data class NeutralMessage(
     val name: String? = null
 )
 
+data class NeutralUsage(
+    val inputTokens: Long? = null,
+    val outputTokens: Long? = null,
+    val cacheReadTokens: Long? = null,
+    val cacheWriteTokens: Long? = null,
+    val reasoningTokens: Long? = null,
+    val totalTokens: Long? = null
+)
+
 data class NeutralChatRequest(
     val originalModelId: String,
     val targetUpstreamModelId: String,
@@ -62,16 +72,43 @@ data class NeutralChatRequest(
     val stream: Boolean = true,
     val extraBody: Map<String, JsonElement> = emptyMap(),
     val reasoningLevel: ReasoningLevel? = null,
-    val reasoningMapping: ReasoningMapping? = null
+    val reasoningMapping: ReasoningMapping? = null,
+    /** 宿主声明的输出模态，用于 Gemini/图像生成请求。 */
+    val outputModalities: Set<ModelModality> = emptySet(),
+    /** 宿主传入的 imageConfig 等生图参数。 */
+    val imageGenerationConfig: JsonElement? = null
 )
 
 sealed class NeutralStreamChunk {
-    data class TextDelta(val text: String) : NeutralStreamChunk()
-    data class ReasoningDelta(val thinkingText: String, val signature: String? = null) : NeutralStreamChunk()
-    data class InlineDataDelta(val mimeType: String, val base64Data: String) : NeutralStreamChunk()
-    data class ToolCallDelta(val index: Int, val id: String?, val name: String?, val argsText: String) :
+    data class TextDelta(val text: String, val choiceIndex: Int = 0) : NeutralStreamChunk()
+    data class ReasoningDelta(
+        val thinkingText: String,
+        val signature: String? = null,
+        val choiceIndex: Int = 0
+    ) : NeutralStreamChunk()
+    data class InlineDataDelta(
+        val mimeType: String,
+        val base64Data: String,
+        val choiceIndex: Int = 0
+    ) : NeutralStreamChunk()
+    data class ToolCallDelta(
+        val index: Int,
+        val id: String?,
+        val name: String?,
+        val argsText: String,
+        val choiceIndex: Int = 0
+    ) :
         NeutralStreamChunk()
 
-    data class Completed(val finishReason: String? = "stop") : NeutralStreamChunk()
-    data class Error(val message: String, val statusCode: Int = 500) : NeutralStreamChunk()
+    data class Completed(
+        val finishReason: String? = "stop",
+        val usage: NeutralUsage? = null,
+        val choiceIndex: Int = 0
+    ) : NeutralStreamChunk()
+    data class Error(
+        val message: String,
+        val statusCode: Int = 500,
+        /** 上游 HTTP 流已经建立后发生的解析/断流错误不能再修改下游状态码。 */
+        val responseStarted: Boolean = false
+    ) : NeutralStreamChunk()
 }

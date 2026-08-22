@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.proxy.parser
 
 import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
+import com.yuzhiqiang.antigravity.domain.model.ModelModality
 import com.yuzhiqiang.antigravity.proxy.model.NeutralChatRequest
 import com.yuzhiqiang.antigravity.proxy.model.NeutralContent
 import com.yuzhiqiang.antigravity.proxy.model.NeutralMessage
@@ -89,7 +90,14 @@ object AntigravityRequestParser {
                 stream = stream,
                 extraBody = readExtraBody(root, request),
                 reasoningBudgetTokens = readReasoningBudget(root, request),
-                reasoningLevel = readReasoningLevel(root, request)
+                reasoningLevel = readReasoningLevel(root, request),
+                outputModalities = readOutputModalities(root, request, generation),
+                imageGenerationConfig = firstElement(
+                    generation ?: request,
+                    root,
+                    "imageConfig",
+                    "image_config"
+                )
             )
         )
     }
@@ -287,7 +295,15 @@ object AntigravityRequestParser {
         val signature = partObject.stringValue("thoughtSignature", "thought_signature")
         if (text != null || thought || signature != null) {
             if (thought || signature != null) {
-                blocks.add(NeutralContent.Thinking(text.orEmpty(), signature))
+                val previous = blocks.lastOrNull() as? NeutralContent.Thinking
+                if (previous != null) {
+                    blocks[blocks.lastIndex] = previous.copy(
+                        text = previous.text + text.orEmpty(),
+                        signature = signature ?: previous.signature
+                    )
+                } else {
+                    blocks.add(NeutralContent.Thinking(text.orEmpty(), signature))
+                }
             } else {
                 blocks.add(NeutralContent.Text(text.orEmpty()))
             }
@@ -444,7 +460,7 @@ object AntigravityRequestParser {
             ?: reasoningObject?.stringValue("effort")
         val normalizedValue = value?.lowercase() ?: return null
         return when (normalizedValue.replace('-', '_')) {
-            "off" -> ReasoningLevel.OFF
+            "off", "none", "disabled" -> ReasoningLevel.OFF
             "low" -> ReasoningLevel.LOW
             "medium" -> ReasoningLevel.MEDIUM
             "high" -> ReasoningLevel.HIGH
@@ -454,6 +470,36 @@ object AntigravityRequestParser {
             "auto" -> ReasoningLevel.AUTO
             else -> null
         }
+    }
+
+    private fun readOutputModalities(
+        root: JsonObject,
+        payload: JsonObject,
+        generation: JsonObject?
+    ): Set<ModelModality> {
+        val raw = firstElement(
+            generation ?: payload,
+            payload,
+            "responseModalities",
+            "response_modalities",
+            "outputModalities",
+            "output_modalities"
+        ) ?: root["responseModalities"]
+        val values = when (raw) {
+            is JsonArray -> raw.mapNotNull { it.jsonPrimitive.contentOrNull }
+            is JsonPrimitive -> raw.contentOrNull?.split(',').orEmpty()
+            else -> emptyList()
+        }
+        return values.mapNotNull { value ->
+            when (value.trim().lowercase()) {
+                "text" -> ModelModality.TEXT
+                "image", "images" -> ModelModality.IMAGE
+                "audio" -> ModelModality.AUDIO
+                "video" -> ModelModality.VIDEO
+                "document", "file" -> ModelModality.DOCUMENT
+                else -> null
+            }
+        }.toSet()
     }
 
     private fun addToolDefinition(value: JsonObject?, target: MutableList<NeutralToolDefinition>) {
@@ -483,7 +529,6 @@ object AntigravityRequestParser {
 
     private class PendingToolCalls {
         private val idsByName = linkedMapOf<String, ArrayDeque<String>>()
-        private val generatedCountByName = mutableMapOf<String, Int>()
 
         fun add(name: String, id: String) {
             idsByName.getOrPut(name) { ArrayDeque() }.addLast(id)
@@ -502,10 +547,10 @@ object AntigravityRequestParser {
             }
         }
 
-        fun nextGeneratedId(name: String, messageIndex: Int, partIndex: Int): String {
-            val count = generatedCountByName.getOrDefault(name, 0)
-            generatedCountByName[name] = count + 1
-            return "call_${name.ifEmpty { "function" }}_${messageIndex}_${partIndex}_$count"
+        fun nextGeneratedId(_name: String, messageIndex: Int, partIndex: Int): String {
+            // 与 byok 保持稳定的宿主侧 ID 形态；消息/part 坐标已经足够保证
+            // 同一请求内唯一，且后续无 ID 的 functionResponse 可按名称队列配对。
+            return "call_${messageIndex}_${partIndex}"
         }
     }
 

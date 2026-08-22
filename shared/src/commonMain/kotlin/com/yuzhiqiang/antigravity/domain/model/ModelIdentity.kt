@@ -12,12 +12,23 @@ object ModelIdentity {
     const val CUSTOM_HOST_MODEL_ID_START = 400
     const val CUSTOM_HOST_MODEL_ID_END = 600
 
-    private const val CUSTOM_HOST_MODEL_SLOT_PREFIX = "MODEL_PLACEHOLDER_"
-    private const val CUSTOM_MODEL_PREFIX = "custom-"
-    private const val CUSTOM_BYOK_MODEL_PREFIX = "custom-byok-"
-    private const val MODEL_NAMESPACE_PREFIX = "models/"
+   private const val CUSTOM_HOST_MODEL_SLOT_PREFIX = "MODEL_PLACEHOLDER_"
+   private const val CUSTOM_MODEL_PREFIX = "custom-"
+   private const val CUSTOM_BYOK_MODEL_PREFIX = "custom-byok-"
+   private const val MODEL_NAMESPACE_PREFIX = "models/"
 
-    /** 返回虚拟模型对宿主生效的稳定 Host Model ID。 */
+    val REASONING_LEVEL_PRIORITY = listOf(
+        ReasoningLevel.HIGH,
+        ReasoningLevel.MEDIUM,
+        ReasoningLevel.LOW,
+        ReasoningLevel.X_HIGH,
+        ReasoningLevel.MAX,
+        ReasoningLevel.ADAPTIVE,
+        ReasoningLevel.AUTO,
+        ReasoningLevel.OFF
+    )
+
+   /** 返回虚拟模型对宿主生效的稳定 Host Model ID。 */
     fun effectiveHostModelId(model: VirtualModel): String {
         val configured = model.hostModelId?.trim()
         return configured.takeUnless { it.isNullOrEmpty() }
@@ -42,13 +53,64 @@ object ModelIdentity {
             return prefixedId
         }
 
-        val slot = effectiveHostModelId(model)
-            .removePrefix(CUSTOM_HOST_MODEL_SLOT_PREFIX)
-            .lowercase()
-        return "$CUSTOM_BYOK_MODEL_PREFIX$slot"
+       val slot = effectiveHostModelId(model)
+           .removePrefix(CUSTOM_HOST_MODEL_SLOT_PREFIX)
+           .lowercase()
+       return "$CUSTOM_BYOK_MODEL_PREFIX$slot"
+   }
+
+    /**
+     * 对齐 byok configured_model_display_name：
+     * - 支持 reasoning 的模型：如果有档位则展示为 "Base (Level)"，无档位则展示为 "Base"（不在名字中混入 Provider，以便 Antigravity 宿主聚类二级子菜单）。
+     * - 不支持 reasoning 的模型：展示为 "Base(Provider)"。
+     */
+    fun configuredModelDisplayName(
+        modelName: String,
+        reasoningLevel: ReasoningLevel?,
+        providerName: String,
+        supportsReasoning: Boolean
+    ): String {
+        val providerSuffix = "($providerName)"
+        var baseName = modelName.trim()
+        if (baseName.endsWith(providerSuffix, ignoreCase = true)) {
+            baseName = baseName.substring(0, baseName.length - providerSuffix.length).trimEnd()
+        }
+        val knownReasoning = listOf(
+            "default", "off", "low", "medium", "high", "xhigh", "x-high", "max", "adaptive", "auto", "custom"
+        )
+        for (known in knownReasoning) {
+            val suffixes = listOf(" ($known)", " $known")
+            for (suffix in suffixes) {
+                if (baseName.endsWith(suffix, ignoreCase = true)) {
+                    baseName = baseName.substring(0, baseName.length - suffix.length).trimEnd()
+                    break
+                }
+            }
+        }
+        if (!supportsReasoning) {
+            return "$baseName$providerSuffix"
+        }
+        val reasoning = reasoningLevel ?: return baseName
+        val label = when (reasoning) {
+            ReasoningLevel.OFF -> "Off"
+            ReasoningLevel.LOW -> "Low"
+            ReasoningLevel.MEDIUM -> "Medium"
+            ReasoningLevel.HIGH -> "High"
+            ReasoningLevel.X_HIGH -> "X-High"
+            ReasoningLevel.MAX -> "Max"
+            ReasoningLevel.ADAPTIVE -> "Adaptive"
+            ReasoningLevel.AUTO -> "Custom"
+        }
+        return "$baseName ($label)"
     }
 
-    /** 返回虚拟模型可被宿主请求接受的全部别名。 */
+    /** 去掉 displayName 末尾的档位后缀（如 ` (High)` / ` (Max)`）。 */
+    fun stripDisplayLevelSuffix(displayName: String): String {
+        val pattern = Regex("(?i)\\s*(?:\\(|\\s)(?:adaptive|x-high|x_high|medium|auto|custom|default|high|max|low|off)\\)?$")
+        return displayName.replace(pattern, "").trim()
+    }
+
+   /** 返回虚拟模型可被宿主请求接受的全部别名。 */
     fun acceptedIds(model: VirtualModel): List<String> {
         return listOf(
             normalizeModelId(model.id),
@@ -57,7 +119,47 @@ object ModelIdentity {
         ).distinct()
     }
 
-    /** 为模型保留显式或确定性 Host Model ID，发生冲突时再分配空闲槽位。 */
+    /** 去掉宿主目录中用于推理档位聚类的后缀。 */
+    fun stripReasoningLevelSuffix(value: String): String {
+        val normalized = normalizeModelId(value)
+        val suffixes = listOf(
+            "-adaptive", "-x-high", "-x_high", "-medium", "-auto",
+            "-high", "-max", "-low", "-off"
+        )
+        return suffixes.firstNotNullOfOrNull { suffix ->
+            normalized.removeSuffix(suffix).takeIf { it != normalized }
+        } ?: normalized
+    }
+
+    /** 返回模型族基础 ID；tiered 母条目与具体推理档位共享该族。 */
+    fun modelFamilyBase(value: String): String {
+        return stripReasoningLevelSuffix(value).removeSuffix("-tiered")
+    }
+
+   fun matchesFamilyBase(model: VirtualModel, familyBase: String): Boolean {
+       val normalizedBase = normalizeModelId(familyBase)
+       return modelFamilyBase(model.id) == normalizedBase ||
+               modelFamilyBase(catalogKey(model)) == normalizedBase ||
+                modelFamilyBase(catalogFamilyBase(model)) == normalizedBase ||
+               modelFamilyBase(effectiveHostModelId(model)) == normalizedBase
+   }
+
+    /** 返回虚拟模型的族 base ID（用于母条目 key 构建）。 */
+    fun catalogFamilyBase(model: VirtualModel): String {
+        val key = catalogKey(model)
+        val stripped = modelFamilyBase(key)
+        if (stripped != key) {
+            return stripped
+        }
+        val idBase = modelFamilyBase(model.id)
+        if (idBase.isNotEmpty() && idBase != model.id) {
+            val prefix = if (idBase.startsWith(CUSTOM_MODEL_PREFIX)) "" else CUSTOM_MODEL_PREFIX
+            return "$prefix$idBase"
+        }
+        return key
+    }
+
+   /** 为模型保留显式或确定性 Host Model ID，发生冲突时再分配空闲槽位。 */
     fun resolveHostModelId(
         seed: String,
         configuredId: String?,

@@ -204,7 +204,19 @@ object ProviderModelSynchronizer {
 
     private fun reasoningDisplayName(upstream: UpstreamModel, level: ReasoningLevel?): String? {
         val baseName = upstream.displayName?.takeIf { it.isNotBlank() } ?: upstream.name
-        return level?.let { "$baseName · ${it.name.lowercase().replace('_', '-')}" } ?: baseName
+        val levelName = level?.let {
+            when (it) {
+                ReasoningLevel.OFF -> "Off"
+                ReasoningLevel.LOW -> "Low"
+                ReasoningLevel.MEDIUM -> "Medium"
+                ReasoningLevel.HIGH -> "High"
+                ReasoningLevel.X_HIGH -> "X-High"
+                ReasoningLevel.MAX -> "Max"
+                ReasoningLevel.ADAPTIVE -> "Adaptive"
+                ReasoningLevel.AUTO -> "Custom"
+            }
+        }
+        return levelName?.let { "$baseName ($it)" } ?: baseName
     }
 
     private fun desiredReasoningLevels(

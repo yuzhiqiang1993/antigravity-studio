@@ -148,7 +148,7 @@ class DoctorEngine(
         // 4. 宿主集成检测 (HOST)
         // =========================================================================
         // (1) IDE 诊断
-        if (IdeHostManager.isInstalled()) {
+        if (IdeHostManager.isInstalled(config.customHostPaths["ide"])) {
             val ideActive = IdeHostManager.isActive(actualPort)
             if (ideActive) {
                 items.add(
@@ -176,7 +176,7 @@ class DoctorEngine(
         }
 
         // (2) App 诊断
-        if (AppHostManager.isInstalled()) {
+        if (AppHostManager.isInstalled(config.customHostPaths["app"])) {
             val appActive = AppHostManager.isActive(actualPort)
             val appRunning = AppHostManager.isRunning()
             if (appActive) {
@@ -363,11 +363,11 @@ class DoctorEngine(
                 }
 
                 is DoctorFixAction.RestartIdeHost -> {
-                    IdeHostManager.restart()
+                    IdeHostManager.restart(configStore.currentConfig.customHostPaths["ide"])
                 }
 
                 is DoctorFixAction.RestartAppHost -> {
-                    AppHostManager.restart()
+                    AppHostManager.restart(configStore.currentConfig.customHostPaths["app"])
                 }
 
                 is DoctorFixAction.PruneInvalidModels -> {

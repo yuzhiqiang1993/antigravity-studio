@@ -2,8 +2,12 @@ package com.yuzhiqiang.antigravity.network
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
+import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
 import java.net.HttpURLConnection
 import java.net.URL
+import com.yuzhiqiang.antigravity.proxy.adapters.ProviderAdapter
 
 /**
  * 代理连接测试器，对标 agy-byok 的 test_connection 命令。
@@ -93,7 +97,7 @@ object ConnectionTester {
     suspend fun testUpstream(baseUrl: String, apiKey: String? = null): TestResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         try {
-            val url = URL("${baseUrl.trimEnd('/')}/v1/models")
+            val url = URL(appendPath(baseUrl, "/models"))
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 10000
@@ -125,45 +129,332 @@ object ConnectionTester {
 
     /**
      * 测试指定 Provider 及其模型连通性。
+     * 对标 agy-byok 的 test_model_connection 逻辑：
+     * - 若指定 modelId，则针对协议发送最小补全请求（Reply with OK.），校验鉴权、模型有效性及额度；
+     * - 若未指定 modelId，则请求模型列表或基础端点验证服务商可达性。
      */
     suspend fun testProvider(
         provider: com.yuzhiqiang.antigravity.domain.model.Provider,
         modelId: String? = null
+    ): TestResult = testProviderInternal(provider, modelId, imageOnly = false)
+
+    /** 编辑器尚未落盘模型配置时，直接按当前目录识别结果执行生图探测。 */
+    suspend fun testProvider(
+        provider: com.yuzhiqiang.antigravity.domain.model.Provider,
+        modelId: String,
+        imageOnly: Boolean
+    ): TestResult = testProviderInternal(provider, modelId, imageOnly)
+
+    /** 使用模型能力元数据执行与 byok 一致的生图连通性探测。 */
+    suspend fun testProvider(
+        provider: com.yuzhiqiang.antigravity.domain.model.Provider,
+        model: com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+    ): TestResult = testProviderInternal(
+        provider,
+        model.upstreamModelId,
+        imageOnly = com.yuzhiqiang.antigravity.domain.model.ModelRole.IMAGE_GENERATION in model.capabilities.roles &&
+                com.yuzhiqiang.antigravity.domain.model.ModelRole.AGENT !in model.capabilities.roles
+    )
+
+    /** 以指定推理档位执行最小模型探测，保留 byok 的 reasoning mapping 语义。 */
+    suspend fun testProvider(
+        provider: com.yuzhiqiang.antigravity.domain.model.Provider,
+        model: com.yuzhiqiang.antigravity.domain.model.UpstreamModel,
+        reasoningLevel: ReasoningLevel
+    ): TestResult {
+        val mapping = ReasoningMappingSupport.resolveMapping(
+            protocol = provider.protocol,
+            level = reasoningLevel,
+            configured = ReasoningMappingSupport.parse(model.capabilities.reasoning.levels),
+            outputTokenLimit = model.tokenLimits.outputTokenLimit
+        ) ?: return TestResult(success = false, error = "模型不支持推理档位 ${reasoningLevel.label}")
+        return testProviderInternal(
+            provider = provider,
+            modelId = model.upstreamModelId,
+            imageOnly = false,
+            reasoningEffort = ReasoningMappingSupport.mappingValueAsString(mapping),
+            reasoningBudget = ReasoningMappingSupport.mappingValueAsInt(mapping),
+            reasoningDisabled = mapping.kind.equals("disabled", ignoreCase = true)
+        )
+    }
+
+    private suspend fun testProviderInternal(
+        provider: com.yuzhiqiang.antigravity.domain.model.Provider,
+        modelId: String?,
+        imageOnly: Boolean,
+        reasoningEffort: String? = null,
+        reasoningBudget: Int? = null,
+        reasoningDisabled: Boolean = false
     ): TestResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
+        var connection: HttpURLConnection? = null
         try {
             val baseUrl = provider.effectiveBaseUrl.trimEnd('/')
-            val endpoint = provider.modelsEndpoint?.takeIf { it.isNotBlank() } ?: "$baseUrl/v1/models"
-            val url = URL(endpoint)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = provider.connectTimeoutMs.toInt().coerceIn(1000, 15000)
-            connection.readTimeout = provider.requestTimeoutMs.toInt().coerceIn(1000, 30000)
-            connection.setRequestProperty("Accept", "application/json")
-            if (!provider.apiKey.isNullOrBlank()) {
-                connection.setRequestProperty("Authorization", "Bearer ${provider.apiKey}")
-            }
-            provider.headers?.forEach { (k, v) ->
-                connection.setRequestProperty(k, v)
+            val effectiveTimeout = provider.requestTimeoutMs
+                .coerceAtLeast(if (imageOnly) 60_000L else 3_000L)
+                .toInt()
+                .coerceIn(3000, if (imageOnly) 60_000 else 30_000)
+            val effectiveConnectTimeout = provider.connectTimeoutMs.toInt().coerceIn(2000, 15000)
+
+            if (!modelId.isNullOrBlank()) {
+                // 真实模型单项连通性测试 (按协议构建最小请求)
+                if (imageOnly && provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.ANTHROPIC_MESSAGES) {
+                    return@withContext TestResult(
+                        success = false,
+                        error = "Anthropic 不支持图像生成"
+                    )
+                }
+                when (provider.protocol) {
+                    com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.ANTHROPIC_MESSAGES -> {
+                        val endpoint = provider.generateEndpoint
+                            ?.takeIf { it.isNotBlank() }
+                            ?.replace("{model}", modelId)
+                            ?: appendProtocolPath(baseUrl, "/messages")
+                        connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = effectiveConnectTimeout
+                            readTimeout = effectiveTimeout
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json")
+                            setRequestProperty("Accept", "application/json")
+                            setRequestProperty("anthropic-version", "2023-06-01")
+                            if (!provider.apiKey.isNullOrBlank()) {
+                                setRequestProperty("x-api-key", provider.apiKey)
+                            }
+                            provider.headers?.forEach { (k, v) -> setRequestProperty(k, v) }
+                            provider.headerOverrides?.forEach { (k, v) -> setRequestProperty(k, v) }
+                            val payload = when {
+                                reasoningBudget != null -> """{"model":"$modelId","messages":[{"role":"user","content":"Reply with OK."}],"max_tokens":${reasoningBudget + 1},"thinking":{"type":"enabled","budget_tokens":$reasoningBudget}}"""
+                                reasoningDisabled -> """{"model":"$modelId","messages":[{"role":"user","content":"Reply with OK."}],"max_tokens":8,"thinking":{"type":"disabled"}}"""
+                                else -> """{"model":"$modelId","messages":[{"role":"user","content":"Reply with OK."}],"max_tokens":8}"""
+                            }
+                            outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                        }
+                    }
+                    com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.GEMINI_GENERATE_CONTENT -> {
+                        val endpoint = provider.generateEndpoint
+                            ?.takeIf { it.isNotBlank() }
+                            ?.replace("{model}", modelId)
+                            ?.replace(":streamGenerateContent", ":generateContent")
+                            ?: appendGeminiModelPath(baseUrl, modelId)
+                        connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = effectiveConnectTimeout
+                            readTimeout = effectiveTimeout
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json")
+                            setRequestProperty("Accept", "application/json")
+                            if (!provider.apiKey.isNullOrBlank()) {
+                                setRequestProperty("x-goog-api-key", provider.apiKey)
+                            }
+                            provider.headers?.forEach { (k, v) -> setRequestProperty(k, v) }
+                            provider.headerOverrides?.forEach { (k, v) -> setRequestProperty(k, v) }
+                            val payload = if (imageOnly) {
+                                """{"contents":[{"parts":[{"text":"a small red dot"}]}],"generationConfig":{"responseModalities":["IMAGE"]}}"""
+                            } else if (reasoningBudget != null) {
+                                """{"contents":[{"parts":[{"text":"Reply with OK."}]}],"generationConfig":{"maxOutputTokens":8,"thinkingConfig":{"thinkingBudget":$reasoningBudget}}}"""
+                            } else if (reasoningDisabled) {
+                                """{"contents":[{"parts":[{"text":"Reply with OK."}]}],"generationConfig":{"maxOutputTokens":8,"thinkingConfig":{"thinkingBudget":0}}}"""
+                            } else {
+                                """{"contents":[{"parts":[{"text":"Reply with OK."}]}],"generationConfig":{"maxOutputTokens":8}}"""
+                            }
+                            outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                        }
+                    }
+                    else -> {
+                        // 默认 OPENAI_CHAT_COMPLETIONS / OPENAI_RESPONSES 格式
+                        val defaultPath = if (
+                            provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.OPENAI_RESPONSES
+                        ) "/v1/responses" else "/v1/chat/completions"
+                        if (imageOnly && provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.OPENAI_RESPONSES) {
+                            return@withContext TestResult(
+                                success = false,
+                                error = "OpenAI Responses API 不支持图像生成"
+                            )
+                        }
+                        val endpoint = if (imageOnly && provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.OPENAI_CHAT_COMPLETIONS) {
+                            deriveOpenAiImageEndpoint(provider)
+                        } else {
+                            provider.generateEndpoint
+                            ?.takeIf { it.isNotBlank() }
+                            ?.replace("{model}", modelId)
+                            ?: appendProtocolPath(baseUrl, defaultPath.removePrefix("/v1"))
+                        }
+                        connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = effectiveConnectTimeout
+                            readTimeout = effectiveTimeout
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json")
+                            setRequestProperty("Accept", "application/json")
+                            applyProviderAuth(this, provider)
+                            provider.headers?.forEach { (k, v) -> setRequestProperty(k, v) }
+                            provider.headerOverrides?.forEach { (k, v) -> setRequestProperty(k, v) }
+                            val payload = if (imageOnly) {
+                                """{"model":"$modelId","prompt":"a small red dot","n":1,"response_format":"b64_json"}"""
+                            } else if (reasoningEffort != null && provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.OPENAI_RESPONSES) {
+                                """{"model":"$modelId","input":[{"role":"user","content":"Reply with OK."}],"reasoning":{"effort":"$reasoningEffort"},"stream":false}"""
+                            } else if (reasoningEffort != null) {
+                                """{"model":"$modelId","messages":[{"role":"user","content":"Reply with OK."}],"reasoning_effort":"$reasoningEffort","stream":false}"""
+                            } else if (reasoningDisabled && provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.OPENAI_RESPONSES) {
+                                """{"model":"$modelId","input":[{"role":"user","content":"Reply with OK."}],"stream":false}"""
+                            } else if (reasoningDisabled) {
+                                """{"model":"$modelId","messages":[{"role":"user","content":"Reply with OK."}],"reasoning_effort":"none","stream":false}"""
+                            } else if (
+                                provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.OPENAI_RESPONSES
+                            ) {
+                                """{"model":"$modelId","input":[{"role":"user","content":"Reply with OK."}],"max_output_tokens":8,"stream":false}"""
+                            } else {
+                                """{"model":"$modelId","messages":[{"role":"user","content":"Reply with OK."}],"max_tokens":8,"stream":false}"""
+                            }
+                            outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                        }
+                    }
+                }
+            } else {
+                // 纯服务商连通性探测 (GET /v1/models)
+                val endpoint = ProviderAdapter.appendCpaCatalogVersion(
+                    provider.modelsEndpoint?.takeIf { it.isNotBlank() }
+                        ?: appendPath(baseUrl, "/models")
+                )
+                connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = effectiveConnectTimeout
+                    readTimeout = effectiveTimeout
+                    setRequestProperty("Accept", "application/json")
+                    applyProviderAuth(this, provider)
+                    provider.headers?.forEach { (k, v) -> setRequestProperty(k, v) }
+                    provider.headerOverrides?.forEach { (k, v) -> setRequestProperty(k, v) }
+                }
             }
 
-            val responseCode = connection.responseCode
+            val responseCode = connection!!.responseCode
             val latency = System.currentTimeMillis() - startTime
+            val isSuccess = responseCode in 200..299
 
-            connection.disconnect()
+            val errorDetail = if (!isSuccess) {
+                try {
+                    val stream = connection.errorStream ?: connection.inputStream
+                    val errorBody = stream?.use { input ->
+                        val bytes = input.readNBytes(4 * 1024 * 1024 + 1)
+                        bytes.toString(Charsets.UTF_8).let { body ->
+                            if (bytes.size > 4 * 1024 * 1024) body.take(4 * 1024 * 1024) + "..." else body
+                        }
+                    } ?: ""
+                    if (errorBody.isNotBlank()) {
+                        if (errorBody.length > 120) errorBody.take(120) + "..." else errorBody
+                    } else {
+                        "HTTP $responseCode"
+                    }
+                } catch (_: Exception) {
+                    "HTTP $responseCode"
+                }
+            } else {
+                val body = try {
+                    connection.inputStream.use { stream ->
+                        val bytes = stream.readNBytes(4 * 1024 * 1024 + 1)
+                        if (bytes.size > 4 * 1024 * 1024) {
+                            return@withContext TestResult(
+                                success = false,
+                                latencyMs = latency,
+                                statusCode = responseCode,
+                                error = "上游响应超过 4 MiB 限制"
+                            )
+                        }
+                        bytes.toString(Charsets.UTF_8)
+                    }
+                } catch (error: Exception) {
+                    return@withContext TestResult(
+                        success = false,
+                        latencyMs = latency,
+                        statusCode = responseCode,
+                        error = "读取上游响应失败：${error.message ?: "未知错误"}"
+                    )
+                }
+                if (body.isBlank()) {
+                    "上游返回空响应"
+                } else {
+                    runCatching { Json.parseToJsonElement(body) }
+                        .exceptionOrNull()
+                        ?.let { "上游返回的 JSON 无法解析：${it.message ?: "格式无效"}" }
+                }
+            }
 
             TestResult(
-                success = responseCode in 200..299,
+                success = isSuccess && errorDetail == null,
                 latencyMs = latency,
-                statusCode = responseCode
+                statusCode = responseCode,
+                error = errorDetail
             )
         } catch (e: Exception) {
             val latency = System.currentTimeMillis() - startTime
             TestResult(
                 success = false,
                 latencyMs = latency,
-                error = e.message ?: "Unknown error"
+                error = e.message ?: "网络连接异常"
             )
+        } finally {
+            connection?.disconnect()
         }
+    }
+
+    private fun applyProviderAuth(
+        connection: HttpURLConnection,
+        provider: com.yuzhiqiang.antigravity.domain.model.Provider
+    ) {
+        if (provider.apiKey.isNullOrBlank()) return
+        when (provider.protocol) {
+            com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.ANTHROPIC_MESSAGES ->
+                connection.setRequestProperty("x-api-key", provider.apiKey)
+            com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.GEMINI_GENERATE_CONTENT ->
+                connection.setRequestProperty("x-goog-api-key", provider.apiKey)
+            else -> connection.setRequestProperty("Authorization", "Bearer ${provider.apiKey}")
+        }
+    }
+
+    private fun appendPath(baseUrl: String, path: String): String {
+        val base = baseUrl.trimEnd('/')
+        val queryIndex = base.indexOf('?')
+        if (queryIndex < 0) return if (base.endsWith(path)) base else "$base$path"
+        val pathPart = base.substring(0, queryIndex)
+        val queryPart = base.substring(queryIndex)
+        return if (pathPart.endsWith(path)) base else "${pathPart.trimEnd('/')}$path$queryPart"
+    }
+
+    private fun appendProtocolPath(baseUrl: String, path: String): String {
+        val base = baseUrl.trimEnd('/')
+        return when {
+            base.endsWith("/v1") && path.startsWith("/") -> "$base$path"
+            base.endsWith("/v1beta") && path.startsWith("/") -> "$base$path"
+            else -> "$base/v1$path"
+        }
+    }
+
+    private fun appendGeminiModelPath(baseUrl: String, modelId: String): String {
+        val base = baseUrl.trimEnd('/')
+        val apiBase = if (base.endsWith("/v1beta")) base else "$base/v1beta"
+        return "$apiBase/models/$modelId:generateContent"
+    }
+
+    private fun deriveOpenAiImageEndpoint(
+        provider: com.yuzhiqiang.antigravity.domain.model.Provider
+    ): String {
+        val endpoint = provider.generateEndpoint?.trim()?.takeIf { it.isNotBlank() }
+            ?: return appendProtocolPath(provider.effectiveBaseUrl, "/images/generations")
+        val expanded = endpoint.replace("{model}", "model")
+        return runCatching {
+            val uri = java.net.URI(expanded)
+            val path = uri.path.trimEnd('/')
+            val basePath = path.removeSuffix("/chat/completions").removeSuffix("/responses")
+            java.net.URI(
+                uri.scheme,
+                uri.userInfo,
+                uri.host,
+                uri.port,
+                "${basePath.ifBlank { "/v1" }}/images/generations",
+                uri.query,
+                uri.fragment
+            ).toString()
+        }.getOrElse { appendProtocolPath(provider.effectiveBaseUrl, "/images/generations") }
     }
 }
