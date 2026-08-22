@@ -6,6 +6,7 @@ import java.io.File
 import java.net.URI
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import kotlinx.serialization.Serializable
@@ -77,10 +78,22 @@ object HostOwnershipStore {
         return endpoint == localEndpoint(proxyPort)
     }
 
+    /** 只有 receipt 仍记录当前入口 owner 时，才视为 Studio 正在托管接入。 */
+    fun isEnvironmentConfigured(owner: EnvironmentOwner, proxyPort: Int): Boolean {
+        val endpoint = readEnvironmentEndpoint().getOrNull() ?: return false
+        if (endpoint != localEndpoint(proxyPort)) return false
+        val receipt = readEnvironmentReceipt().getOrNull() ?: return false
+        return receipt.managedEndpoint == endpoint && receipt.hasOwner(owner)
+    }
+
     /** 判断指定 IDE settings 当前是否已经写入代理地址。 */
     fun isIdeConfigured(settingsFile: File, proxyPort: Int): Boolean {
         val content = readText(settingsFile).getOrNull() ?: return false
-        return extractIdeEndpoint(content) == localEndpoint(proxyPort)
+        val endpoint = extractIdeEndpoint(content) ?: return false
+        if (endpoint != localEndpoint(proxyPort)) return false
+        val receipt = readIdeReceipt().getOrNull() ?: return false
+        return receipt.settingsPath == settingsFile.absoluteFile.normalize().path &&
+                receipt.managedEndpoint == endpoint
     }
 
     /** 以 App owner 身份接管共享环境变量。 */
@@ -337,7 +350,8 @@ object HostOwnershipStore {
     }
 
     private fun integrationRoot(): File {
-        val configuredPath = System.getenv("AGY_BYOK_CONFIG_PATH")
+        val configuredPath = (System.getenv("ANTIGRAVITY_STUDIO_CONFIG_PATH")
+            ?: System.getenv("AGY_STUDIO_CONFIG_PATH"))
             ?.trim()
             ?.takeIf { path -> path.isNotEmpty() }
             ?.let(::File)
@@ -348,19 +362,19 @@ object HostOwnershipStore {
         val userHome = System.getProperty("user.home")
         val osName = System.getProperty("os.name", "").lowercase()
         return when {
-            osName.contains("mac") -> File(userHome, "Library/Application Support/AGY BYOK")
+            osName.contains("mac") -> File(userHome, "Library/Application Support/Antigravity Studio")
             osName.contains("win") -> {
                 val appData = System.getenv("APPDATA")
                     ?.takeIf { value -> value.isNotBlank() }
                     ?: File(userHome, "AppData/Roaming").absolutePath
-                File(appData, "AGY BYOK")
+                File(appData, "Antigravity Studio")
             }
 
             else -> {
                 val configHome = System.getenv("XDG_CONFIG_HOME")
                     ?.takeIf { value -> value.isNotBlank() }
                     ?: File(userHome, ".config").absolutePath
-                File(configHome, "AGY BYOK")
+                File(configHome, "Antigravity Studio")
             }
         }
     }
@@ -434,10 +448,20 @@ object HostOwnershipStore {
 
     private fun writeTextAtomically(file: File, content: String): Result<Unit> {
         return try {
+            if (Files.isSymbolicLink(file.toPath())) {
+                return Result.failure(IllegalStateException("宿主配置目标不能是符号链接：${file.absolutePath}"))
+            }
             val parent = file.parentFile
             if (parent != null && !parent.exists() && !parent.mkdirs()) {
                 return Result.failure(IllegalStateException("无法创建宿主配置目录：${parent.absolutePath}"))
             }
+            val originalPermissions = runCatching {
+                if (file.exists() && !Files.isSymbolicLink(file.toPath())) {
+                    Files.getPosixFilePermissions(file.toPath())
+                } else {
+                    null
+                }
+            }.getOrNull()
             val temp = File.createTempFile("${file.name}-", ".tmp", parent)
             try {
                 temp.writeText(content, Charsets.UTF_8)
@@ -445,6 +469,9 @@ object HostOwnershipStore {
                     Files.move(temp.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
                 } catch (_: AtomicMoveNotSupportedException) {
                     Files.move(temp.toPath(), file.toPath(), REPLACE_EXISTING)
+                }
+                originalPermissions?.let { permissions: Set<PosixFilePermission> ->
+                    runCatching { Files.setPosixFilePermissions(file.toPath(), permissions) }
                 }
             } finally {
                 if (temp.exists()) {

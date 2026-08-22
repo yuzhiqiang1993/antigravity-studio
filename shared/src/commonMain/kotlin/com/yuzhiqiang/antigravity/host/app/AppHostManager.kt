@@ -13,21 +13,36 @@ object AppHostManager {
     /**
      * 检测 Antigravity App 是否已安装。
      */
-    fun isInstalled(): Boolean {
+    fun isInstalled(customInstallation: String? = null): Boolean {
+        val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
+            ?.let { if (it.isFile) it.parentFile else it }
         return if (isWindows) {
             val localAppData = System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
             val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
-            val paths = listOf(
-                File(localAppData, "Programs/Antigravity/Antigravity.exe"),
-                File(programFiles, "Antigravity/Antigravity.exe")
-            )
-            paths.any { it.exists() }
+            val paths = buildList {
+                customRoot?.let(::add)
+                add(File(localAppData, "Programs/Antigravity"))
+                add(File(programFiles, "Antigravity"))
+                System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity")) }
+                addAll(discoverWindowsInstallations("Antigravity.exe"))
+            }
+            paths.any { root ->
+                root.isDirectory &&
+                        File(root, "Antigravity.exe").isFile &&
+                        File(root, "resources/bin/language_server.exe").isFile
+            }
         } else {
-            val appPaths = listOf(
-                File("/Applications/Antigravity.app"),
-                File("${System.getProperty("user.home")}/Applications/Antigravity.app")
-            )
-            appPaths.any { it.exists() }
+            val appPaths = buildList {
+                customRoot?.let(::add)
+                add(File("/Applications/Antigravity.app"))
+                add(File("${System.getProperty("user.home")}/Applications/Antigravity.app"))
+                addAll(discoverMacApplications("com.google.antigravity"))
+            }
+            appPaths.any { root ->
+                root.isDirectory &&
+                        File(root, "Contents/MacOS/Antigravity").isFile &&
+                        File(root, "Contents/Resources/bin/language_server").isFile
+            }
         }
     }
 
@@ -60,7 +75,10 @@ object AppHostManager {
      * 检测是否已设置代理环境变量。
      */
     fun isActive(proxyPort: Int): Boolean {
-        return HostOwnershipStore.isEnvironmentConfigured(proxyPort)
+        return HostOwnershipStore.isEnvironmentConfigured(
+            HostOwnershipStore.EnvironmentOwner.APP,
+            proxyPort
+        )
     }
 
     /**
@@ -85,11 +103,14 @@ object AppHostManager {
     /**
      * 跨平台启动 Antigravity App。
      */
-    fun launch(): Boolean {
+    fun launch(customInstallation: String? = null): Boolean {
         return try {
             if (isWindows) {
                 val localAppData = System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
-                val exe = File(localAppData, "Programs/Antigravity/Antigravity.exe")
+                val customExe = customInstallation?.trim()?.takeIf { it.isNotEmpty() }
+                    ?.let { File(it).let { root -> if (root.isFile) root else File(root, "Antigravity.exe") } }
+                val exe = customExe?.takeIf(File::isFile)
+                    ?: File(localAppData, "Programs/Antigravity/Antigravity.exe")
                 if (exe.exists()) {
                     ProcessBuilder(exe.absolutePath).start()
                 } else {
@@ -97,7 +118,12 @@ object AppHostManager {
                 }
                 true
             } else {
-                ProcessBuilder("/usr/bin/open", "-a", "Antigravity").start()
+                val app = customInstallation?.trim()?.takeIf { it.isNotEmpty() }
+                if (app != null && File(app).isDirectory) {
+                    ProcessBuilder("/usr/bin/open", app).start()
+                } else {
+                    ProcessBuilder("/usr/bin/open", "-a", "Antigravity").start()
+                }
                 true
             }
         } catch (_: Exception) {
@@ -108,12 +134,13 @@ object AppHostManager {
     /**
      * 跨平台重启 Antigravity App。
      */
-    fun restart(): Boolean {
+    fun restart(customInstallation: String? = null): Boolean {
         return try {
+            stopLanguageServer()
             if (isWindows) {
                 ProcessBuilder("taskkill", "/F", "/IM", "Antigravity.exe").start().waitFor()
                 Thread.sleep(300)
-                launch()
+                launch(customInstallation)
             } else {
                 val quit = ProcessBuilder(
                     "/usr/bin/osascript", "-e",
@@ -121,10 +148,66 @@ object AppHostManager {
                 ).start()
                 quit.waitFor()
                 Thread.sleep(300)
-                launch()
+                launch(customInstallation)
             }
         } catch (_: Exception) {
             false
+        }
+    }
+
+    private fun stopLanguageServer() {
+        try {
+            ProcessHandle.allProcesses().forEach { handle ->
+                val command = handle.info().command().orElse("")
+                val commandLine = handle.info().commandLine().orElse("")
+                if (commandLine.contains("language_server", ignoreCase = true) &&
+                    (command.contains("Antigravity", ignoreCase = true) ||
+                            commandLine.contains("Antigravity", ignoreCase = true))
+                ) {
+                    handle.destroyForcibly()
+                }
+            }
+        } catch (_: Exception) {
+            // 语言服务已退出时无需阻断宿主重启。
+        }
+    }
+
+    private fun discoverMacApplications(bundleId: String): List<File> {
+        return try {
+            val process = ProcessBuilder(
+                "/usr/bin/mdfind", "-0", "kMDItemCFBundleIdentifier == '$bundleId'"
+            ).start()
+            val output = process.inputStream.readBytes()
+            process.waitFor()
+            output.toString(Charsets.UTF_8)
+                .split('\u0000')
+                .filter { it.isNotBlank() }
+                .map(::File)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun discoverWindowsInstallations(executableName: String): List<File> {
+        if (!isWindows) return emptyList()
+        return try {
+            listOf(
+                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\$executableName",
+                "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\$executableName"
+            ).mapNotNull { key ->
+                val process = ProcessBuilder("reg", "query", key, "/ve").start()
+                val output = process.inputStream.bufferedReader().readText()
+                process.waitFor()
+                output.lineSequence()
+                    .firstOrNull { it.contains("REG_SZ") }
+                    ?.substringAfter("REG_SZ")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let(::File)
+                    ?.let { if (it.isFile) it.parentFile else it }
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 }
