@@ -1,0 +1,161 @@
+package com.yuzhiqiang.antigravity.ui.theme
+
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+
+/**
+ * Antigravity Studio 的跨平台视觉令牌。
+ * 页面和组件只消费语义令牌，避免在业务 UI 中散落颜色与尺寸常量。
+ */
+object AppTokens {
+    object Spacing {
+        val pageHorizontal = 30.dp
+        val pageVertical = 48.dp
+        val pageSection = 20.dp
+        val section = 16.dp
+        val card = 18.dp
+        val content = 12.dp
+        val control = 8.dp
+        val compact = 4.dp
+    }
+
+    object Size {
+        val sidebarWidth = 218.dp
+        val sidebarTopPadding = 48.dp
+        val sidebarBottomPadding = 18.dp
+        val navigationItemHeight = 42.dp
+        val dialogWidth = 880.dp
+        val dialogHeight = 660.dp
+        val singleModelDialogHeight = 540.dp
+        val debugDialogWidth = 680.dp
+        val debugDialogMinHeight = 360.dp
+        val debugDialogMaxHeight = 640.dp
+        val searchFieldWidth = 190.dp
+        val modelSearchFieldWidth = 260.dp
+        val presetGridMinWidth = 142.dp
+        val controlHeight = 40.dp
+        val fieldHeight = 56.dp
+        val compactControlHeight = 32.dp
+        val iconSmall = 14.dp
+        val iconMedium = 18.dp
+        val iconLarge = 24.dp
+        val statusDot = 8.dp
+        val debugCodePadding = 14.dp
+        val brandMark = 40.dp
+        val emptyStateHeight = 260.dp
+    }
+
+    object Radius {
+        val small = 8.dp
+        val medium = 12.dp
+        val large = 16.dp
+        val dialog = 20.dp
+        val pill = 999.dp
+    }
+
+    object Elevation {
+        val card = 1.dp
+        val floating = 4.dp
+        val dialog = 20.dp
+    }
+
+    @Immutable
+    data class StatusColors(
+        val success: Color,
+        val onSuccess: Color,
+        val successContainer: Color,
+        val onSuccessContainer: Color,
+        val warning: Color,
+        val onWarning: Color,
+        val warningContainer: Color,
+        val onWarningContainer: Color,
+        val info: Color,
+        val onInfo: Color,
+        val infoContainer: Color,
+        val onInfoContainer: Color
+    )
+
+    val lightStatusColors = StatusColors(
+        success = Color(0xFF15803D),
+        onSuccess = Color.White,
+        successContainer = Color(0xFFDCFCE7),
+        onSuccessContainer = Color(0xFF166534),
+        warning = Color(0xFFB45309),
+        onWarning = Color.White,
+        warningContainer = Color(0xFFFEF3C7),
+        onWarningContainer = Color(0xFF92400E),
+        info = Color(0xFF2563EB),
+        onInfo = Color.White,
+        infoContainer = Color(0xFFEFF6FF),
+        onInfoContainer = Color(0xFF1D4ED8)
+    )
+
+    val darkStatusColors = StatusColors(
+        success = Color(0xFF4ADE80),
+        onSuccess = Color(0xFF052E16),
+        successContainer = Color(0xFF14532D),
+        onSuccessContainer = Color(0xFFBBF7D0),
+        warning = Color(0xFFFBBF24),
+        onWarning = Color(0xFF451A03),
+        warningContainer = Color(0xFF78350F),
+        onWarningContainer = Color(0xFFFDE68A),
+        info = Color(0xFF60A5FA),
+        onInfo = Color(0xFF172554),
+        infoContainer = Color(0xFF1E3A8A),
+        onInfoContainer = Color(0xFFBFDBFE)
+    )
+
+    @Immutable
+    data class FeatureStyle(
+        val foreground: Color,
+        val container: Color,
+        val border: Color
+    )
+
+    object Feature {
+        val vision = FeatureStyle(
+            foreground = Color(0xFF2563EB),
+            container = Color(0xFFEFF6FF),
+            border = Color(0xFFBFDBFE)
+        )
+        val tools = FeatureStyle(
+            foreground = Color(0xFF0F766E),
+            container = Color(0xFFF0FDFA),
+            border = Color(0xFF99F6E4)
+        )
+        val reasoning = FeatureStyle(
+            foreground = Color(0xFF7C3AED),
+            container = Color(0xFFFAF5FF),
+            border = Color(0xFFE9D5FF)
+        )
+        val info = FeatureStyle(
+            foreground = Color(0xFF15803D),
+            container = Color(0xFFF0FDF4),
+            border = Color(0xFFBBF7D0)
+        )
+    }
+
+    object Brand {
+        @Immutable
+        data class Colors(
+            val start: Color,
+            val end: Color,
+            val accent: Color
+        )
+
+        val gemini = Colors(Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFF6366F1))
+        val claude = Colors(Color(0xFFEA580C), Color(0xFFF97316), Color(0xFFEA580C))
+        val openAi = Colors(Color(0xFF059669), Color(0xFF10B981), Color(0xFF059669))
+        val deepSeek = Colors(Color(0xFF0284C7), Color(0xFF0EA5E9), Color(0xFF0284C7))
+        val qwen = Colors(Color(0xFF7C3AED), Color(0xFF9333EA), Color(0xFF7C3AED))
+        val custom = Colors(Color(0xFF3B82F6), Color(0xFF60A5FA), Color(0xFF3B82F6))
+    }
+}
+
+val LocalAppStatusColors = compositionLocalOf { AppTokens.lightStatusColors }
+
+val AppStatusColors: AppTokens.StatusColors
+    @androidx.compose.runtime.Composable
+    get() = LocalAppStatusColors.current
