@@ -19,11 +19,26 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -39,10 +54,41 @@ import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+private fun Modifier.dashedBorder(
+    width: Dp,
+    color: Color,
+    cornerRadius: Dp,
+    dashLength: Dp = 4.dp,
+    gapLength: Dp = 3.5.dp
+) = this.drawWithContent {
+    drawContent()
+    val stroke = Stroke(
+        width = width.toPx(),
+        pathEffect = PathEffect.dashPathEffect(
+            floatArrayOf(dashLength.toPx(), gapLength.toPx()),
+            0f
+        )
+    )
+    val halfWidth = width.toPx() / 2
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(halfWidth, halfWidth),
+        size = Size(size.width - width.toPx(), size.height - width.toPx()),
+        cornerRadius = CornerRadius(cornerRadius.toPx(), cornerRadius.toPx()),
+        style = stroke
+    )
+}
+
 enum class ProviderEditStep {
     SELECT_PRESET,
     CONFIG_CONNECTION,
     SELECT_MODELS
+}
+
+enum class ModelSelectionFilter {
+    ALL,
+    SELECTED,
+    UNSELECTED
 }
 
 // 供步骤 3 选中的模型配置项
@@ -71,22 +117,60 @@ data class CatalogModelConfig(
 )
 
 private val INPUT_TOKEN_LIMIT_OPTIONS = listOf(
-    16_384L to "16K",
-    32_768L to "32K",
-    65_536L to "64K",
     131_072L to "128K",
     200_000L to "200K",
+    262_144L to "256K",
+    380_928L to "372K",
+    524_288L to "512K",
     1_048_576L to "1M",
     2_097_152L to "2M"
 )
 
 private val OUTPUT_TOKEN_LIMIT_OPTIONS = listOf(
+    2_048L to "2K",
     4_096L to "4K",
     8_192L to "8K",
     16_384L to "16K",
     32_768L to "32K",
-    65_536L to "64K"
+    65_536L to "64K",
+    131_072L to "128K"
 )
+
+internal fun formatTokenDisplay(limit: Long?): String {
+    if (limit == null || limit <= 0L) return "未设置"
+    INPUT_TOKEN_LIMIT_OPTIONS.find { it.first == limit }?.let { return it.second.substringBefore(" ") }
+    OUTPUT_TOKEN_LIMIT_OPTIONS.find { it.first == limit }?.let { return it.second.substringBefore(" ") }
+
+    return when {
+        limit >= 1_048_576L && limit % 1_048_576L == 0L -> "${limit / 1_048_576L}M"
+        limit >= 1_000_000L && limit % 1_000_000L == 0L -> "${limit / 1_000_000L}M"
+        limit >= 1_000_000L -> "${((limit / 100_000.0).toInt()) / 10.0}M"
+        limit >= 1024L && limit % 1024L == 0L -> "${limit / 1024L}K"
+        limit >= 1000L && limit % 1000L == 0L -> "${limit / 1000L}K"
+        limit >= 1000L -> "${limit / 1000L}K"
+        else -> limit.toString()
+    }
+}
+
+private fun parseCustomTokenInput(text: String): Long? {
+    val clean = text.trim().lowercase().replace(",", "").replace("_", "")
+    if (clean.isBlank()) return null
+    return try {
+        when {
+            clean.endsWith("m") -> {
+                val num = clean.removeSuffix("m").trim().toDouble()
+                (num * 1_048_576L).toLong()
+            }
+            clean.endsWith("k") -> {
+                val num = clean.removeSuffix("k").trim().toDouble()
+                (num * 1024L).toLong()
+            }
+            else -> clean.toLong()
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
 
 private fun suggestedEndpoints(baseUrl: String, protocol: ProviderProtocol): Pair<String, String> {
     val base = baseUrl.trim().trimEnd('/')
@@ -290,13 +374,19 @@ fun ProviderEditorDialog(
         }
     }
 
-    val filteredFetchedModels = remember(fetchedModelConfigs, modelSearchQuery) {
-        if (modelSearchQuery.isBlank()) fetchedModelConfigs
-        else fetchedModelConfigs.filter {
-            it.name.contains(modelSearchQuery, ignoreCase = true) || it.id.contains(
-                modelSearchQuery,
-                ignoreCase = true
-            )
+    var modelFilterTab by remember { mutableStateOf(ModelSelectionFilter.ALL) }
+
+    val filteredFetchedModels = remember(fetchedModelConfigs, modelSearchQuery, modelFilterTab, selectedModelIds) {
+        fetchedModelConfigs.filter { model ->
+            val matchQuery = modelSearchQuery.isBlank() ||
+                model.name.contains(modelSearchQuery, ignoreCase = true) ||
+                model.id.contains(modelSearchQuery, ignoreCase = true)
+            val matchTab = when (modelFilterTab) {
+                ModelSelectionFilter.ALL -> true
+                ModelSelectionFilter.SELECTED -> model.id in selectedModelIds
+                ModelSelectionFilter.UNSELECTED -> model.id !in selectedModelIds
+            }
+            matchQuery && matchTab
         }
     }
 
@@ -304,23 +394,29 @@ fun ProviderEditorDialog(
         onDismissRequest = { requestDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
-            modifier = Modifier
-                .width(AppTokens.Size.dialogWidth)
-                .height(
-                    if (isSingleModelMode) {
-                        AppTokens.Size.singleModelDialogHeight
-                    } else {
-                        AppTokens.Size.dialogHeight
-                    }
-                ),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = AppTokens.Elevation.dialog
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
+            val dialogMaxHeight = maxHeight * 0.94f
+            val dialogMaxWidth = maxWidth * 0.94f
+            val actualHeight = minOf(
+                if (isSingleModelMode) AppTokens.Size.singleModelDialogHeight else 600.dp,
+                dialogMaxHeight
+            )
+            val actualWidth = minOf(820.dp, dialogMaxWidth)
+
+            Surface(
+                modifier = Modifier
+                    .width(actualWidth)
+                    .height(actualHeight),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = AppTokens.Elevation.dialog
             ) {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
                 // Header：左侧标题、中间步骤、右侧关闭按钮，对齐旧版三列结构。
                 Row(
                     modifier = Modifier
@@ -494,6 +590,7 @@ fun ProviderEditorDialog(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
+                        .clipToBounds()
                         .padding(
                             horizontal = AppTokens.Spacing.card,
                             vertical = AppTokens.Spacing.content
@@ -515,8 +612,8 @@ fun ProviderEditorDialog(
                                         modifier = Modifier
                                             .clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                                            .padding(AppTokens.Spacing.compact),
-                                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
+                                            .padding(3.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
                                         listOf(
                                             PresetCategory.ALL to "全部",
@@ -527,12 +624,12 @@ fun ProviderEditorDialog(
                                         ).forEach { (cat, label) ->
                                             val selected = presetCategory == cat
                                             val background = if (selected) {
-                                                MaterialTheme.colorScheme.primaryContainer
+                                                MaterialTheme.colorScheme.surface
                                             } else {
-                                                MaterialTheme.colorScheme.surfaceVariant
+                                                Color.Transparent
                                             }
                                             val textColor = if (selected) {
-                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                                MaterialTheme.colorScheme.primary
                                             } else {
                                                 MaterialTheme.colorScheme.onSurfaceVariant
                                             }
@@ -542,18 +639,14 @@ fun ProviderEditorDialog(
                                                     .background(background)
                                                     .clickable { presetCategory = cat }
                                                     .padding(
-                                                        horizontal = AppTokens.Spacing.content,
-                                                        vertical = AppTokens.Spacing.compact
+                                                        horizontal = 10.dp,
+                                                        vertical = 5.dp
                                                     )
                                             ) {
                                                 Text(
                                                     label,
                                                     style = MaterialTheme.typography.labelSmall.copy(
-                                                        fontWeight = if (selected) {
-                                                            FontWeight.Bold
-                                                        } else {
-                                                            FontWeight.Medium
-                                                        }
+                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                                     ),
                                                     color = textColor
                                                 )
@@ -561,29 +654,11 @@ fun ProviderEditorDialog(
                                         }
                                     }
 
-                                    OutlinedTextField(
+                                    com.yuzhiqiang.antigravity.ui.components.StudioSearchField(
                                         value = presetSearchQuery,
                                         onValueChange = { presetSearchQuery = it },
-                                        placeholder = {
-                                            Text(
-                                                "搜索服务名称...",
-                                                style = MaterialTheme.typography.labelSmall
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Outlined.Search,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(AppTokens.Size.iconSmall)
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .width(AppTokens.Size.searchFieldWidth)
-                                            .height(AppTokens.Size.controlHeight),
-                                        shape = MaterialTheme.shapes.small,
-                                        colors = fieldColors,
-                                        singleLine = true
+                                        placeholder = "搜索服务商名称...",
+                                        modifier = Modifier.width(220.dp)
                                     )
                                 }
 
@@ -614,59 +689,73 @@ fun ProviderEditorDialog(
                                             PresetCategory.LOCAL_CUSTOM -> statusColors.success
                                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                                         }
-                                        val cardBackground = when {
-                                            isSelected -> MaterialTheme.colorScheme.primaryContainer
-                                            isCustom -> MaterialTheme.colorScheme.surfaceVariant
-                                            else -> MaterialTheme.colorScheme.surface
-                                        }
-                                        val cardBorder = when {
-                                            isSelected -> MaterialTheme.colorScheme.primary
-                                            isCustom -> statusColors.success.copy(alpha = 0.6f)
-                                            else -> MaterialTheme.colorScheme.outlineVariant
+                                        val cardBackground = if (isSelected) {
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                                        } else {
+                                            MaterialTheme.colorScheme.surface
                                         }
 
-                                        Surface(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(AppTokens.Size.controlHeight)
-                                                .clip(MaterialTheme.shapes.small)
-                                                .clickable(enabled = !isFetching && initialProvider == null) {
-                                                    selectedPresetId = preset.id
-                                                    if (preset.id == "custom_openai") {
-                                                        name = ""
-                                                        protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS
-                                                        baseUrl = ""
-                                                        updateSuggestedEndpoints()
-                                                        isDirty = false
-                                                        selectedPresetId = null
-                                                    } else {
-                                                        name = preset.name
-                                                        protocol = preset.protocol
-                                                        baseUrl = preset.defaultBaseUrl
-                                                        updateSuggestedEndpoints()
-                                                        markDirty()
-                                                    }
-                                                    resetCatalogResults()
-                                                    currentStep = ProviderEditStep.CONFIG_CONNECTION
-                                                },
-                                            shape = MaterialTheme.shapes.small,
-                                            color = cardBackground,
-                                            border = androidx.compose.foundation.BorderStroke(
-                                                width = if (isSelected) 1.5.dp else 1.dp,
-                                                color = cardBorder
+                                        val cardModifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(50.dp)
+                                            .clip(RoundedCornerShape(AppTokens.Radius.small))
+                                            .then(
+                                                if (!isSelected) {
+                                                    Modifier.dashedBorder(
+                                                        width = 1.2.dp,
+                                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
+                                                        cornerRadius = AppTokens.Radius.small,
+                                                        dashLength = 4.dp,
+                                                        gapLength = 3.5.dp
+                                                    )
+                                                } else {
+                                                    Modifier
+                                                }
                                             )
+                                            .clickable(enabled = !isFetching && initialProvider == null) {
+                                                selectedPresetId = preset.id
+                                                if (preset.id == "custom_openai") {
+                                                    name = ""
+                                                    protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS
+                                                    baseUrl = ""
+                                                    updateSuggestedEndpoints()
+                                                    isDirty = false
+                                                    selectedPresetId = null
+                                                } else {
+                                                    name = preset.name
+                                                    protocol = preset.protocol
+                                                    baseUrl = preset.defaultBaseUrl
+                                                    updateSuggestedEndpoints()
+                                                    markDirty()
+                                                }
+                                                resetCatalogResults()
+                                                currentStep = ProviderEditStep.CONFIG_CONNECTION
+                                            }
+
+                                        Surface(
+                                            modifier = cardModifier,
+                                            shape = RoundedCornerShape(AppTokens.Radius.small),
+                                            color = cardBackground,
+                                            border = if (isSelected) {
+                                                androidx.compose.foundation.BorderStroke(
+                                                    width = 1.8.dp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            } else {
+                                                null
+                                            }
                                         ) {
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxSize()
-                                                    .padding(horizontal = 9.dp),
+                                                    .padding(horizontal = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(AppTokens.Size.iconLarge)
-                                                        .clip(MaterialTheme.shapes.small)
+                                                        .size(28.dp)
+                                                        .clip(RoundedCornerShape(6.dp))
                                                         .background(
                                                             if (isCustom) {
                                                                 statusColors.successContainer
@@ -678,7 +767,7 @@ fun ProviderEditorDialog(
                                                 ) {
                                                     Text(
                                                         text = preset.name.trim().firstOrNull()?.uppercase() ?: "?",
-                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                        style = MaterialTheme.typography.labelMedium.copy(
                                                             fontWeight = FontWeight.Bold
                                                         ),
                                                         color = if (isCustom) {
@@ -691,23 +780,27 @@ fun ProviderEditorDialog(
                                                 Text(
                                                     text = preset.name,
                                                     modifier = Modifier.weight(1f),
-                                                    style = MaterialTheme.typography.labelLarge,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontWeight = FontWeight.Medium
+                                                    ),
                                                     color = MaterialTheme.colorScheme.onSurface,
                                                     maxLines = 1,
                                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                                 )
                                                 Box(
                                                     modifier = Modifier
-                                                        .clip(MaterialTheme.shapes.small)
+                                                        .clip(RoundedCornerShape(4.dp))
                                                         .background(tagBackground)
                                                         .padding(
-                                                            horizontal = AppTokens.Spacing.control,
-                                                            vertical = AppTokens.Spacing.compact
+                                                            horizontal = 6.dp,
+                                                            vertical = 2.dp
                                                         )
                                                 ) {
                                                     Text(
                                                         text = tagText,
-                                                        style = MaterialTheme.typography.labelSmall,
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            fontSize = 10.5.sp
+                                                        ),
                                                         color = tagColor
                                                     )
                                                 }
@@ -734,6 +827,7 @@ fun ProviderEditorDialog(
                                 val selectedProtocolLabel =
                                     protocolOptions.firstOrNull { it.first == protocol }?.second.orEmpty()
 
+                                // 第 1 行：上游服务名称 + API 协议
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -748,80 +842,132 @@ fun ProviderEditorDialog(
                                         enabled = !isFetching,
                                         label = { Text("上游服务名称") },
                                         placeholder = { Text("例如 CPA、公司代理、DeepSeek 官方") },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(AppTokens.Size.fieldHeight),
-                                        shape = MaterialTheme.shapes.small,
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(AppTokens.Radius.medium),
                                         colors = fieldColors,
                                         singleLine = true
                                     )
 
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text(
-                                            "API 协议",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Box {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(AppTokens.Size.fieldHeight)
-                                                    .clip(MaterialTheme.shapes.small)
-                                                    .background(MaterialTheme.colorScheme.surface)
-                                                    .border(
-                                                        1.dp,
-                                                        MaterialTheme.colorScheme.outlineVariant,
-                                                        MaterialTheme.shapes.small
-                                                    )
-                                                    .clickable(enabled = !isFetching) {
-                                                        protocolMenuExpanded = true
-                                                    }
-                                                    .padding(horizontal = AppTokens.Spacing.section),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = selectedProtocolLabel,
-                                                    modifier = Modifier.weight(1f),
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    maxLines = 1,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                )
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        OutlinedTextField(
+                                            value = selectedProtocolLabel,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            enabled = !isFetching,
+                                            label = { Text("API 协议") },
+                                            trailingIcon = {
                                                 Icon(
                                                     imageVector = Icons.Outlined.ExpandMore,
                                                     contentDescription = "选择协议",
                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
-                                            }
-                                            DropdownMenu(
-                                                expanded = protocolMenuExpanded,
-                                                onDismissRequest = { protocolMenuExpanded = false },
-                                                modifier = Modifier.widthIn(min = 300.dp, max = 380.dp)
-                                            ) {
-                                                protocolOptions.forEach { (candidateProtocol, label) ->
-                                                    DropdownMenuItem(
-                                                        text = {
-                                                            Text(
-                                                                label,
-                                                                style = MaterialTheme.typography.bodySmall
-                                                            )
-                                                        },
-                                                        onClick = {
-                                                            protocolMenuExpanded = false
-                                                            protocol = candidateProtocol
-                                                            updateSuggestedEndpoints()
-                                                            selectedPresetId = detectPresetId(baseUrl)
-                                                            resetCatalogResults()
-                                                            markDirty()
-                                                        }
-                                                    )
-                                                }
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable(enabled = !isFetching) {
+                                                    protocolMenuExpanded = true
+                                                },
+                                            shape = RoundedCornerShape(AppTokens.Radius.medium),
+                                            colors = fieldColors,
+                                            singleLine = true
+                                        )
+                                        DropdownMenu(
+                                            expanded = protocolMenuExpanded,
+                                            onDismissRequest = { protocolMenuExpanded = false },
+                                            modifier = Modifier.widthIn(min = 300.dp, max = 380.dp)
+                                        ) {
+                                            protocolOptions.forEach { (candidateProtocol, label) ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            label,
+                                                            style = MaterialTheme.typography.bodySmall
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        protocolMenuExpanded = false
+                                                        protocol = candidateProtocol
+                                                        updateSuggestedEndpoints()
+                                                        selectedPresetId = detectPresetId(baseUrl)
+                                                        resetCatalogResults()
+                                                        markDirty()
+                                                    }
+                                                )
                                             }
                                         }
+                                    }
+                                }
+
+                                // 第 2 行：API 地址 Base URL + API Key 并排
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    OutlinedTextField(
+                                        value = baseUrl,
+                                        onValueChange = {
+                                            baseUrl = it
+                                            updateSuggestedEndpoints()
+                                            selectedPresetId = detectPresetId(it)
+                                            resetCatalogResults()
+                                            markDirty()
+                                        },
+                                        enabled = !isFetching,
+                                        label = { Text("API 地址 (Base URL)") },
+                                        placeholder = { Text("例如 https://api.openai.com/v1") },
+                                        modifier = Modifier.weight(1.15f),
+                                        shape = RoundedCornerShape(AppTokens.Radius.medium),
+                                        colors = fieldColors,
+                                        singleLine = true
+                                    )
+
+                                    OutlinedTextField(
+                                        value = apiKey,
+                                        onValueChange = {
+                                            apiKey = it
+                                            resetCatalogResults()
+                                            markDirty()
+                                        },
+                                        enabled = !isFetching,
+                                        label = { Text("API Key (选填)") },
+                                        placeholder = { Text("输入 API Key（无鉴权则留空）") },
+                                        modifier = Modifier.weight(0.85f),
+                                        shape = RoundedCornerShape(AppTokens.Radius.medium),
+                                        colors = fieldColors,
+                                        singleLine = true,
+                                        visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                                        trailingIcon = {
+                                            IconButton(
+                                                enabled = !isFetching,
+                                                onClick = { showApiKey = !showApiKey }
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (showApiKey) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                        }
+                                    )
+                                }
+
+                                // 协议微说明条
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Info,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(15.dp)
+                                        )
                                         Text(
                                             text = when (protocol) {
                                                 ProviderProtocol.OPENAI_CHAT_COMPLETIONS -> "适用于 /v1/chat/completions；CPA、Sub2API 及主流 OpenAI 兼容网关。"
@@ -829,97 +975,37 @@ fun ProviderEditorDialog(
                                                 ProviderProtocol.GEMINI_GENERATE_CONTENT -> "适用于 Google Gemini generateContent 协议。"
                                                 ProviderProtocol.OPENAI_RESPONSES -> "适用于 OpenAI Responses API；请求与工具调用使用 input 事件模型。"
                                             },
-                                            style = MaterialTheme.typography.bodySmall,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
 
-                                OutlinedTextField(
-                                    value = baseUrl,
-                                    onValueChange = {
-                                        baseUrl = it
-                                        updateSuggestedEndpoints()
-                                        selectedPresetId = detectPresetId(it)
-                                        resetCatalogResults()
-                                        markDirty()
-                                    },
-                                    enabled = !isFetching,
-                                    label = { Text("API 地址 (Base URL)") },
-                                    placeholder = { Text("例如 https://api.openai.com/v1") },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(AppTokens.Size.fieldHeight),
-                                    shape = MaterialTheme.shapes.small,
-                                    colors = fieldColors,
-                                    singleLine = true
-                                )
-
-                                OutlinedTextField(
-                                    value = apiKey,
-                                    onValueChange = {
-                                        apiKey = it
-                                        resetCatalogResults()
-                                        markDirty()
-                                    },
-                                    enabled = !isFetching,
-                                    label = { Text("API Key (选填)") },
-                                    placeholder = { Text("输入 API Key（无鉴权则留空）") },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(AppTokens.Size.fieldHeight),
-                                    shape = MaterialTheme.shapes.small,
-                                    colors = fieldColors,
-                                    singleLine = true,
-                                    visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
-                                    trailingIcon = {
-                                        IconButton(
-                                            enabled = !isFetching,
-                                            onClick = { showApiKey = !showApiKey }
-                                        ) {
-                                            Icon(
-                                                imageVector = if (showApiKey) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                                                contentDescription = null
-                                            )
-                                        }
-                                    }
-                                )
-
-                                // 高级设置折叠面板
+                                // 高级端点设置（默认展开，无需折叠）
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(MaterialTheme.shapes.small)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .clip(RoundedCornerShape(AppTokens.Radius.medium))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                                         .border(
                                             1.dp,
-                                            MaterialTheme.colorScheme.outlineVariant,
-                                            MaterialTheme.shapes.small
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                            RoundedCornerShape(AppTokens.Radius.medium)
                                         )
-                                        .padding(AppTokens.Spacing.content),
-                                    verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
+                                    Text(
+                                        "高级设置（自定义端点 URL）",
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable(enabled = !isFetching) {
-                                                showAdvancedEndpoints = !showAdvancedEndpoints
-                                            },
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        Text(
-                                            "高级设置（自定义端点 URL）",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Icon(
-                                            imageVector = if (showAdvancedEndpoints) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    if (showAdvancedEndpoints) {
                                         OutlinedTextField(
                                             value = modelsEndpoint,
                                             onValueChange = {
@@ -930,10 +1016,8 @@ fun ProviderEditorDialog(
                                             enabled = !isFetching,
                                             label = { Text("模型列表接口 (自定义)") },
                                             placeholder = { Text("留空自动推断") },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(AppTokens.Size.fieldHeight),
-                                            shape = MaterialTheme.shapes.small,
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(AppTokens.Radius.small),
                                             colors = fieldColors,
                                             singleLine = true
                                         )
@@ -947,10 +1031,8 @@ fun ProviderEditorDialog(
                                             enabled = !isFetching,
                                             label = { Text("生成响应接口 (自定义)") },
                                             placeholder = { Text("留空自动推断") },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(AppTokens.Size.fieldHeight),
-                                            shape = MaterialTheme.shapes.small,
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(AppTokens.Radius.small),
                                             colors = fieldColors,
                                             singleLine = true
                                         )
@@ -980,7 +1062,7 @@ fun ProviderEditorDialog(
 
                         ProviderEditStep.SELECT_MODELS -> {
                             Column(
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 if (!isSingleModelMode) {
@@ -989,22 +1071,58 @@ fun ProviderEditorDialog(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        OutlinedTextField(
-                                            value = modelSearchQuery,
-                                            onValueChange = { modelSearchQuery = it },
-                                            placeholder = {
-                                                Text(
-                                                    "搜索模型名称或 ID...",
-                                                    style = MaterialTheme.typography.labelSmall
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .width(AppTokens.Size.modelSearchFieldWidth)
-                                                .height(AppTokens.Size.controlHeight),
-                                            shape = MaterialTheme.shapes.small,
-                                            colors = fieldColors,
-                                            singleLine = true
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            com.yuzhiqiang.antigravity.ui.components.StudioSearchField(
+                                                value = modelSearchQuery,
+                                                onValueChange = { modelSearchQuery = it },
+                                                placeholder = "搜索模型名称或 ID...",
+                                                modifier = Modifier.width(220.dp)
+                                            )
+
+                                            // 分段胶囊筛选 (全部 / 已选 / 未选)
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                                    .padding(2.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                val totalCount = fetchedModelConfigs.size
+                                                val selCount = selectedModelIds.size
+                                                val unselCount = totalCount - selCount
+
+                                                listOf(
+                                                    ModelSelectionFilter.ALL to "全部 ($totalCount)",
+                                                    ModelSelectionFilter.SELECTED to "已选 ($selCount)",
+                                                    ModelSelectionFilter.UNSELECTED to "未选 ($unselCount)"
+                                                ).forEach { (filter, label) ->
+                                                    val isTabActive = modelFilterTab == filter
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                                            .background(
+                                                                if (isTabActive) MaterialTheme.colorScheme.surface
+                                                                else Color.Transparent
+                                                            )
+                                                            .clickable { modelFilterTab = filter }
+                                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(
+                                                            text = label,
+                                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                                fontSize = 11.sp,
+                                                                fontWeight = if (isTabActive) FontWeight.Bold else FontWeight.Normal
+                                                            ),
+                                                            color = if (isTabActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
 
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
@@ -1014,7 +1132,7 @@ fun ProviderEditorDialog(
                                             val isAllSelected =
                                                 allVisibleIds.isNotEmpty() && allVisibleIds.all { it in selectedModelIds }
 
-                                            TextButton(
+                                            OutlinedButton(
                                                 onClick = {
                                                     selectedModelIds = if (isAllSelected) {
                                                         selectedModelIds - allVisibleIds
@@ -1022,65 +1140,101 @@ fun ProviderEditorDialog(
                                                         selectedModelIds + allVisibleIds
                                                     }
                                                     markDirty()
-                                                }
+                                                },
+                                                shape = RoundedCornerShape(AppTokens.Radius.small),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(30.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                                ),
+                                                border = androidx.compose.foundation.BorderStroke(
+                                                    1.dp,
+                                                    MaterialTheme.colorScheme.outlineVariant
+                                                )
                                             ) {
                                                 Text(
-                                                    if (isAllSelected) "取消全选" else "选择当前结果",
-                                                    style = MaterialTheme.typography.labelMedium
+                                                    if (isAllSelected) "取消全选" else "全选 (${filteredFetchedModels.size})",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp)
                                                 )
                                             }
                                         }
                                     }
                                 }
 
-                                LazyColumn(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    items(filteredFetchedModels, key = { it.id }) { modelConfig ->
-                                        val isChecked = selectedModelIds.contains(modelConfig.id)
-                                        CatalogModelRowCard(
-                                            config = modelConfig,
-                                            isChecked = isChecked,
-                                            isSingleMode = isSingleModelMode,
-                                            onToggleCheck = {
-                                                selectedModelIds =
-                                                    if (isChecked) selectedModelIds - modelConfig.id else selectedModelIds + modelConfig.id
-                                                markDirty()
-                                            },
-                                            onConfigureReasoning = {
-                                                reasoningModelId = modelConfig.id
-                                            },
-                                            onTokenLimitChanged = { updatedConfig ->
-                                                updateFetchedModelConfig(updatedConfig.id) { updatedConfig }
-                                                markDirty()
-                                            },
-                                            onToolsChanged = { updatedConfig ->
-                                                updateFetchedModelConfig(updatedConfig.id) { updatedConfig }
-                                                markDirty()
-                                            },
-                                            onVisionChanged = { updatedConfig ->
-                                                updateFetchedModelConfig(updatedConfig.id) { updatedConfig }
-                                                markDirty()
-                                            },
-                                            onTestModel = {
-                                                scope.launch {
-                                                    updateFetchedModelConfig(modelConfig.id) {
-                                                        it.copy(isTesting = true, testStatusText = null)
-                                                    }
-                                                    val tempProvider = currentProvider()
-                                                    val result =
-                                                        ConnectionTester.testProvider(tempProvider, modelConfig.id)
-                                                    updateFetchedModelConfig(modelConfig.id) {
-                                                        it.copy(
-                                                            isTesting = false,
-                                                            isTestSuccess = result.success,
-                                                            testStatusText = if (result.success) "${result.latencyMs}ms" else "失败"
-                                                        )
+                                if (filteredFetchedModels.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.SearchOff,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                modifier = Modifier.size(36.dp)
+                                            )
+                                            Text(
+                                                text = if (modelSearchQuery.isNotBlank()) "未搜索到匹配「$modelSearchQuery」的模型" else "当前筛选下暂无模型",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        items(filteredFetchedModels, key = { it.id }) { modelConfig ->
+                                            val isChecked = selectedModelIds.contains(modelConfig.id)
+                                            CatalogModelRowCard(
+                                                config = modelConfig,
+                                                isChecked = isChecked,
+                                                isSingleMode = isSingleModelMode,
+                                                onToggleCheck = {
+                                                    selectedModelIds =
+                                                        if (isChecked) selectedModelIds - modelConfig.id else selectedModelIds + modelConfig.id
+                                                    markDirty()
+                                                },
+                                                onConfigureReasoning = {
+                                                    reasoningModelId = modelConfig.id
+                                                },
+                                                onTokenLimitChanged = { updatedConfig ->
+                                                    updateFetchedModelConfig(updatedConfig.id) { updatedConfig }
+                                                    markDirty()
+                                                },
+                                                onToolsChanged = { updatedConfig ->
+                                                    updateFetchedModelConfig(updatedConfig.id) { updatedConfig }
+                                                    markDirty()
+                                                },
+                                                onVisionChanged = { updatedConfig ->
+                                                    updateFetchedModelConfig(updatedConfig.id) { updatedConfig }
+                                                    markDirty()
+                                                },
+                                                onTestModel = {
+                                                    scope.launch {
+                                                        updateFetchedModelConfig(modelConfig.id) {
+                                                            it.copy(isTesting = true, testStatusText = null)
+                                                        }
+                                                        val tempProvider = currentProvider()
+                                                        val result =
+                                                            ConnectionTester.testProvider(tempProvider, modelConfig.id)
+                                                        updateFetchedModelConfig(modelConfig.id) {
+                                                            it.copy(
+                                                                isTesting = false,
+                                                                isTestSuccess = result.success,
+                                                                testStatusText = if (result.success) "${result.latencyMs}ms" else "失败"
+                                                            )
+                                                        }
                                                     }
                                                 }
-                                            }
-                                        )
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1093,9 +1247,8 @@ fun ProviderEditorDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(AppTokens.Size.fieldHeight)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(horizontal = AppTokens.Spacing.card),
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                        .padding(horizontal = AppTokens.Spacing.card, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1117,8 +1270,8 @@ fun ProviderEditorDialog(
                             OutlinedButton(
                                 enabled = !isFetching,
                                 onClick = { currentStep = ProviderEditStep.SELECT_PRESET },
-                                modifier = Modifier.height(AppTokens.Size.controlHeight),
-                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(AppTokens.Radius.small),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.onSurface
                                 ),
@@ -1127,14 +1280,14 @@ fun ProviderEditorDialog(
                                     MaterialTheme.colorScheme.outlineVariant
                                 )
                             ) {
-                                Text("← 重新选择预设")
+                                Text("← 重新选择预设", style = MaterialTheme.typography.labelMedium)
                             }
                         } else if (currentStep == ProviderEditStep.SELECT_MODELS) {
                             OutlinedButton(
                                 enabled = !isFetching,
                                 onClick = { currentStep = ProviderEditStep.CONFIG_CONNECTION },
-                                modifier = Modifier.height(AppTokens.Size.controlHeight),
-                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(AppTokens.Radius.small),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.onSurface
                                 ),
@@ -1143,24 +1296,25 @@ fun ProviderEditorDialog(
                                     MaterialTheme.colorScheme.outlineVariant
                                 )
                             ) {
-                                Text("← 返回修改配置")
+                                Text("← 修改连接配置", style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         if (currentStep != ProviderEditStep.SELECT_MODELS && !isSingleModelMode) {
                             TextButton(
                                 enabled = !isFetching,
                                 onClick = { requestDismiss() },
+                                modifier = Modifier.height(36.dp),
                                 colors = ButtonDefaults.textButtonColors(
                                     contentColor = MaterialTheme.colorScheme.primary
                                 )
                             ) {
-                                Text(s.commonCancel)
+                                Text(s.commonCancel, style = MaterialTheme.typography.labelMedium)
                             }
                         }
                         if (currentStep == ProviderEditStep.SELECT_MODELS && !isSingleModelMode) {
@@ -1174,6 +1328,8 @@ fun ProviderEditorDialog(
                         if (currentStep == ProviderEditStep.CONFIG_CONNECTION) {
                             Button(
                                 enabled = name.isNotBlank() && baseUrl.isNotBlank() && !isFetching,
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(AppTokens.Radius.small),
                                 onClick = {
                                     scope.launch {
                                         isFetching = true
@@ -1181,47 +1337,90 @@ fun ProviderEditorDialog(
                                         try {
                                             val tempProvider = currentProvider()
                                             val adapter = AdapterFactory.getAdapter(protocol)
-                                            val models = adapter.fetchModels(tempProvider)
+                                            val discoveredList = adapter.fetchDiscoveredModels(tempProvider)
+                                            val discoveredMap = discoveredList.associateBy { it.id }
+                                            val models = discoveredList.map { it.id }
                                             if (models.isNotEmpty() || initialModels.isNotEmpty()) {
                                                 val existingMap = initialModels.associateBy { it.upstreamModelId }
                                                 val modelIds =
                                                     (models + initialModels.map { it.upstreamModelId }).distinct()
                                                 val configs = modelIds.map { mName ->
                                                     val existing = existingMap[mName]
+                                                    val disc = discoveredMap[mName]
                                                     val isUnavailable = mName !in models
-                                                    val lower = mName.lowercase()
+
+                                                    val inputLimit = existing?.tokenLimits?.contextWindow
+                                                        ?: existing?.tokenLimits?.inputTokenLimit
+                                                        ?: disc?.inputTokenLimit
+
+                                                    val inputSource = if (existing?.tokenLimits?.contextWindow != null) {
+                                                        existing.tokenLimits.contextWindowSource
+                                                    } else if (existing?.tokenLimits?.inputTokenLimit != null) {
+                                                        existing.tokenLimits.inputTokenLimitSource
+                                                    } else {
+                                                        disc?.inputTokenLimitSource ?: TokenLimitSource.UNKNOWN
+                                                    }
+
+                                                    val outputLimit = existing?.tokenLimits?.outputTokenLimit ?: disc?.outputTokenLimit
+                                                    val outputSource = if (existing?.tokenLimits?.outputTokenLimit != null) {
+                                                        existing.tokenLimits.outputTokenLimitSource
+                                                    } else {
+                                                        disc?.outputTokenLimitSource ?: TokenLimitSource.UNKNOWN
+                                                    }
+
                                                     val isVision = existing?.capabilities?.supportsVision
-                                                        ?: (lower.contains("vision") || lower.contains("vl") || lower.contains(
-                                                            "4o"
-                                                        ) || lower.contains("gemini") || lower.contains("claude"))
+                                                        ?: disc?.supportsVision
+                                                        ?: false
+
+                                                    val isTools = existing?.capabilities?.tools
+                                                        ?: disc?.supportsTools
+                                                        ?: true
+
                                                     val reasoningDraft = existing?.let { model ->
                                                         ReasoningConfigDraft.fromCapabilities(model.capabilities)
-                                                    } ?: ReasoningConfigDraft(
-                                                        enabled = false,
-                                                        levels = emptySet(),
-                                                        customValue = null,
-                                                        thinkingBudget = null,
-                                                        minThinkingBudget = null,
-                                                        mappings = emptyMap()
-                                                    )
+                                                    } ?: if (disc != null && disc.supportsReasoning) {
+                                                        val levels = disc.supportedReasoningLevels.mapNotNull { lvlStr ->
+                                                            when (lvlStr.lowercase()) {
+                                                                "low" -> ReasoningLevel.LOW
+                                                                "medium" -> ReasoningLevel.MEDIUM
+                                                                "high" -> ReasoningLevel.HIGH
+                                                                "x_high", "xhigh" -> ReasoningLevel.X_HIGH
+                                                                "max" -> ReasoningLevel.MAX
+                                                                else -> null
+                                                            }
+                                                        }.toSet().ifEmpty {
+                                                            setOf(ReasoningLevel.LOW, ReasoningLevel.MEDIUM, ReasoningLevel.HIGH)
+                                                        }
+                                                        ReasoningConfigDraft(
+                                                            enabled = true,
+                                                            levels = levels,
+                                                            customValue = disc.defaultReasoningLevel,
+                                                            thinkingBudget = disc.thinkingBudget?.toInt(),
+                                                            minThinkingBudget = disc.minThinkingBudget?.toInt(),
+                                                            mappings = emptyMap()
+                                                        )
+                                                    } else {
+                                                        ReasoningConfigDraft(
+                                                            enabled = false,
+                                                            levels = emptySet(),
+                                                            customValue = null,
+                                                            thinkingBudget = null,
+                                                            minThinkingBudget = null,
+                                                            mappings = emptyMap()
+                                                        )
+                                                    }
+
                                                     CatalogModelConfig(
                                                         id = mName,
-                                                        name = existing?.displayName ?: mName,
-                                                        inputTokenLimit = existing?.tokenLimits?.contextWindow
-                                                            ?: existing?.tokenLimits?.inputTokenLimit,
-                                                        inputTokenLimitSource = if (existing?.tokenLimits?.contextWindow != null) {
-                                                            existing.tokenLimits.contextWindowSource
-                                                        } else {
-                                                            existing?.tokenLimits?.inputTokenLimitSource
-                                                                ?: TokenLimitSource.UNKNOWN
-                                                        },
-                                                        outputTokenLimit = existing?.tokenLimits?.outputTokenLimit,
-                                                        outputTokenLimitSource = existing?.tokenLimits?.outputTokenLimitSource
-                                                            ?: TokenLimitSource.UNKNOWN,
+                                                        name = existing?.displayName ?: disc?.displayName ?: mName,
+                                                        inputTokenLimit = inputLimit,
+                                                        inputTokenLimitSource = inputSource,
+                                                        outputTokenLimit = outputLimit,
+                                                        outputTokenLimitSource = outputSource,
                                                         isVision = isVision,
                                                         isReasoning = reasoningDraft.enabled,
                                                         reasoningDraft = reasoningDraft,
-                                                        isTools = existing?.capabilities?.tools ?: true,
+                                                        isTools = isTools,
                                                         isUnavailable = isUnavailable
                                                     )
                                                 }
@@ -1240,8 +1439,6 @@ fun ProviderEditorDialog(
                                         }
                                     }
                                 },
-                                modifier = Modifier.height(AppTokens.Size.controlHeight),
-                                shape = MaterialTheme.shapes.small,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -1249,11 +1446,27 @@ fun ProviderEditorDialog(
                                     disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                                 )
                             ) {
-                                Text(if (isFetching) "正在获取..." else "获取模型列表 →")
+                                if (isFetching) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Text("正在获取模型列表...", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                } else {
+                                    Text("获取模型列表 →", style = MaterialTheme.typography.labelMedium)
+                                }
                             }
                         } else if (currentStep == ProviderEditStep.SELECT_MODELS) {
                             Button(
                                 enabled = selectedModelIds.isNotEmpty(),
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(AppTokens.Radius.small),
                                 onClick = {
                                     val finalProvider = currentProvider()
                                     val finalModels = fetchedModelConfigs
@@ -1279,6 +1492,7 @@ fun ProviderEditorDialog(
                                             )
                                             val capabilities = ModelCapabilities(
                                                 inputModalities = inputModalities,
+                                                outputModalities = listOf(ModelModality.TEXT),
                                                 tools = config.isTools,
                                                 reasoning = config.reasoningDraft.toCapability(
                                                     protocol = protocol,
@@ -1303,8 +1517,6 @@ fun ProviderEditorDialog(
                                         }
                                     onSave(finalProvider, finalModels)
                                 },
-                                modifier = Modifier.height(AppTokens.Size.controlHeight),
-                                shape = MaterialTheme.shapes.small,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -1312,7 +1524,7 @@ fun ProviderEditorDialog(
                                     disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                                 )
                             ) {
-                                Text(if (isSingleModelMode) "保存模型配置" else "保存上游服务")
+                                Text(if (isSingleModelMode) "保存模型配置" else "保存上游服务", style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
@@ -1320,6 +1532,7 @@ fun ProviderEditorDialog(
             }
         }
     }
+}
 
     if (showDiscardConfirm) {
         ConfirmDialog(
@@ -1362,7 +1575,204 @@ fun ProviderEditorDialog(
     }
 }
 
-// 步骤 3 中的单模型配置行 (对齐 catalogModelRow & TokenLimitsControl)
+@Composable
+private fun CustomTokenInputDialog(
+    title: String,
+    initialValue: Long?,
+    onConfirm: (Long?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var inputText by remember { mutableStateOf(initialValue?.let { formatTokenDisplay(it) }.orEmpty()) }
+    val parsedTokens = remember(inputText) { parseCustomTokenInput(inputText) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .width(420.dp)
+                .wrapContentHeight(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = AppTokens.Elevation.dialog,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = "关闭",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "支持直接输入数字（如 131072），或带单位简写（如 128k、200k、1m、2m）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    placeholder = { Text("例如 128k、1m 或 131072") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(AppTokens.Radius.small),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    ),
+                    trailingIcon = {
+                        if (inputText.isNotBlank()) {
+                            IconButton(onClick = { inputText = "" }) {
+                                Icon(Icons.Outlined.Clear, contentDescription = "清除", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                )
+
+                // 实时解析提示
+                if (inputText.isNotBlank()) {
+                    if (parsedTokens != null && parsedTokens > 0L) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    "解析为: ${java.text.NumberFormat.getIntegerInstance().format(parsedTokens)} Tokens",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            "无法识别该格式，请输入有效数值（如 32k、1m、128000）",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                // 快捷选项
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("快捷填入:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    listOf("128k", "200k", "256k", "372k", "512k", "1m", "2m").forEach { quickTag ->
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { inputText = quickTag }
+                        ) {
+                            Text(
+                                quickTag.uppercase(),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        enabled = inputText.isBlank() || (parsedTokens != null && parsedTokens > 0L),
+                        onClick = {
+                            if (inputText.isBlank()) {
+                                onConfirm(null)
+                            } else {
+                                onConfirm(parsedTokens)
+                            }
+                            onDismiss()
+                        }
+                    ) {
+                        Text(if (inputText.isBlank()) "设为未设置" else "确认设置")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class ModelBrandStyle(
+    val badge: String,
+    val container: Color,
+    val contentColor: Color
+)
+
+private fun getModelBrandStyle(modelId: String, modelName: String): ModelBrandStyle {
+    val lower = "${modelId} ${modelName}".lowercase()
+    return when {
+        lower.contains("gemini") -> ModelBrandStyle("G", Color(0xFFE8F0FE), Color(0xFF1967D2))
+        lower.contains("claude") -> ModelBrandStyle("C", Color(0xFFFCE8E6), Color(0xFFC5221F))
+        lower.contains("gpt") || lower.contains("openai") || lower.contains("o1") || lower.contains("o3") || lower.contains("o4") || lower.contains("chatgpt") ->
+            ModelBrandStyle("O", Color(0xFFE6F4EA), Color(0xFF137333))
+        lower.contains("deepseek") -> ModelBrandStyle("D", Color(0xFFEEF2FF), Color(0xFF4F46E5))
+        lower.contains("grok") || lower.contains("xai") -> ModelBrandStyle("X", Color(0xFFF1F3F4), Color(0xFF202124))
+        lower.contains("qwen") || lower.contains("tongyi") -> ModelBrandStyle("Q", Color(0xFFF3E8FD), Color(0xFF7E22CE))
+        lower.contains("llama") || lower.contains("meta") -> ModelBrandStyle("M", Color(0xFFE0F2FE), Color(0xFF0369A1))
+        lower.contains("mistral") || lower.contains("codestral") || lower.contains("pixtral") ->
+            ModelBrandStyle("M", Color(0xFFFEF3C7), Color(0xFFD97706))
+        lower.contains("moonshot") || lower.contains("kimi") -> ModelBrandStyle("K", Color(0xFFE0F7FA), Color(0xFF00838F))
+        lower.contains("glm") || lower.contains("zhipu") || lower.contains("chatglm") -> ModelBrandStyle("Z", Color(0xFFEDE7F6), Color(0xFF5E35B1))
+        lower.contains("hunyuan") -> ModelBrandStyle("H", Color(0xFFE8EAF6), Color(0xFF283593))
+        lower.contains("doubao") || lower.contains("skylark") -> ModelBrandStyle("B", Color(0xFFE1F5FE), Color(0xFF0277BD))
+        else -> ModelBrandStyle(
+            (modelName.firstOrNull() ?: 'M').uppercase().toString(),
+            Color(0xFFF1F3F4),
+            Color(0xFF5F6368)
+        )
+    }
+}
+
+// 步骤 3 中的单模型配置行
 @Composable
 private fun CatalogModelRowCard(
     config: CatalogModelConfig,
@@ -1378,410 +1788,529 @@ private fun CatalogModelRowCard(
     val statusColors = AppStatusColors
     var expandedInputMenu by remember { mutableStateOf(false) }
     var expandedOutputMenu by remember { mutableStateOf(false) }
+    var customDialogType by remember { mutableStateOf<String?>(null) } // "input" 或 "output"
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
 
-    Column(
+    if (customDialogType != null) {
+        val isInput = customDialogType == "input"
+        CustomTokenInputDialog(
+            title = if (isInput) "自定义输入 Token 上限 · ${config.name}" else "自定义输出 Token 上限 · ${config.name}",
+            initialValue = if (isInput) config.inputTokenLimit else config.outputTokenLimit,
+            onConfirm = { newLimit ->
+                if (isInput) {
+                    onTokenLimitChanged(
+                        config.copy(
+                            inputTokenLimit = newLimit,
+                            inputTokenLimitSource = if (newLimit != null) TokenLimitSource.CONFIGURED else TokenLimitSource.UNKNOWN
+                        )
+                    )
+                } else {
+                    onTokenLimitChanged(
+                        config.copy(
+                            outputTokenLimit = newLimit,
+                            outputTokenLimitSource = if (newLimit != null) TokenLimitSource.CONFIGURED else TokenLimitSource.UNKNOWN
+                        )
+                    )
+                }
+            },
+            onDismiss = { customDialogType = null }
+        )
+    }
+
+    val brandStyle = remember(config.id, config.name) {
+        getModelBrandStyle(config.id, config.name)
+    }
+
+    val cardBg by animateColorAsState(
+        if (isChecked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        else if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        else MaterialTheme.colorScheme.surface
+    )
+
+    val cardBorderColor by animateColorAsState(
+        if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+        else if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+        else MaterialTheme.colorScheme.outlineVariant
+    )
+
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(
-                if (isChecked) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surface
-                }
-            )
-            .border(
-                1.dp,
-                if (isChecked) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                } else {
-                    MaterialTheme.colorScheme.outlineVariant
-                },
-                MaterialTheme.shapes.medium
-            )
-            .padding(AppTokens.Spacing.content),
-        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+            .hoverable(interactionSource)
+            .clickable(enabled = !isSingleMode) { onToggleCheck() },
+        shape = RoundedCornerShape(AppTokens.Radius.medium),
+        color = cardBg,
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (isChecked) 1.5.dp else 1.dp,
+            color = cardBorderColor
+        )
     ) {
-        // 第一行：Checkbox + 模型名称 + 单模型测试按钮
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
+            // 第一行：Checkbox + 品牌徽章 + 模型名称/ID + 测试状态/按钮
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control),
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (!isSingleMode) {
-                    Checkbox(
-                        checked = isChecked,
-                        onCheckedChange = { onToggleCheck() }
-                    )
-                }
-                Column {
-                    Text(
-                        text = config.name,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (!isSingleMode) {
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clip(RoundedCornerShape(3.5.dp))
+                                .background(
+                                    if (isChecked) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                                .border(
+                                    width = 1.2.dp,
+                                    color = if (isChecked) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f),
+                                    shape = RoundedCornerShape(3.5.dp)
+                                )
+                                .clickable { onToggleCheck() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isChecked) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // 品牌微徽章
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(brandStyle.container),
+                        contentAlignment = Alignment.Center
                     ) {
+                        Text(
+                            text = brandStyle.badge,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            ),
+                            color = brandStyle.contentColor
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = config.name,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.5.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (config.isUnavailable) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(statusColors.warning.copy(alpha = 0.12f))
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "目录未探活",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        color = statusColors.warning
+                                    )
+                                }
+                            }
+                        }
+
                         Text(
                             text = config.id,
                             style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.5.sp
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                         )
-                        if (config.isUnavailable) {
-                            Text(
-                                text = "当前目录缺失",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = statusColors.warning
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 单模型独立测试区域
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-            ) {
-                if (config.testStatusText != null) {
-                    val summaryBackground = if (config.isTestSuccess) {
-                        statusColors.successContainer
-                    } else {
-                        MaterialTheme.colorScheme.errorContainer
-                    }
-                    val summaryTextColor = if (config.isTestSuccess) {
-                        statusColors.onSuccessContainer
-                    } else {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(MaterialTheme.shapes.small)
-                            .background(summaryBackground)
-                            .padding(
-                                horizontal = AppTokens.Spacing.control,
-                                vertical = AppTokens.Spacing.compact
-                            )
-                    ) {
-                        config.testStatusText?.let { statusText ->
-                            Text(
-                                statusText,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = summaryTextColor
-                            )
-                        }
                     }
                 }
 
-                OutlinedButton(
-                    onClick = onTestModel,
-                    enabled = isChecked && !config.isUnavailable && !config.isTesting,
-                    shape = MaterialTheme.shapes.small,
-                    contentPadding = PaddingValues(
-                        horizontal = AppTokens.Spacing.content,
-                        vertical = AppTokens.Spacing.compact
-                    ),
-                    modifier = Modifier.height(AppTokens.Size.compactControlHeight),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isChecked && !config.isUnavailable && !config.isTesting) {
-                            MaterialTheme.colorScheme.outline
-                        } else {
-                            MaterialTheme.colorScheme.outlineVariant
-                        }
-                    )
+                // 单模型测试区域
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        if (config.isTesting) "测试中..." else "测试",
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    if (config.isTesting) {
+                        Box(
+                            modifier = Modifier
+                                .height(28.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(11.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    "测试中",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else if (config.testStatusText != null) {
+                        val testSuccess = config.isTestSuccess
+                        val pillBg = if (testSuccess) statusColors.successContainer else MaterialTheme.colorScheme.errorContainer
+                        val pillText = if (testSuccess) statusColors.onSuccessContainer else MaterialTheme.colorScheme.onErrorContainer
+                        val dotColor = if (testSuccess) statusColors.success else MaterialTheme.colorScheme.error
+
+                        Box(
+                            modifier = Modifier
+                                .height(28.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(pillBg)
+                                .clickable(enabled = isChecked && !config.isUnavailable) { onTestModel() }
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(dotColor)
+                                )
+                                Text(
+                                    config.testStatusText ?: "",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 11.sp
+                                    ),
+                                    color = pillText
+                                )
+                            }
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onTestModel,
+                            enabled = isChecked && !config.isUnavailable,
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier.height(28.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary,
+                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isChecked && !config.isUnavailable) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Text("测试", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp))
+                        }
+                    }
                 }
             }
-        }
 
-        // 第二行：Token 控制与能力标签 (对齐 .catalog-token-badge)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Token 控制
+            // 第二行：参数胶囊（输入/输出） + 能力微胶囊（图像/工具/推理）
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "输入上限:",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // 左侧 Token 上限选择器
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // 输入上限
+                    Box {
+                        val inputLabel = formatTokenDisplay(config.inputTokenLimit)
 
-                Box {
-                    val inputLabel = config.inputTokenLimit?.let { limit ->
-                        INPUT_TOKEN_LIMIT_OPTIONS.find { it.first == limit }?.second ?: "${limit / 1024}K"
-                    } ?: "未设置"
-
-                    Box(
-                        modifier = Modifier
-                            .height(AppTokens.Size.compactControlHeight)
-                            .clip(MaterialTheme.shapes.small)
-                            .background(
-                                if (isChecked) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                }
-                            )
-                            .border(
-                                1.dp,
-                                if (isChecked) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.outlineVariant
-                                },
-                                MaterialTheme.shapes.small
-                            )
-                            .clickable(enabled = isChecked) { expandedInputMenu = true }
-                            .padding(horizontal = AppTokens.Spacing.control)
-                    ) {
-                        Text(
-                            inputLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isChecked) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                        Box(
+                            modifier = Modifier
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                .clickable { expandedInputMenu = true }
+                                .padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    "输入: $inputLabel",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "▾",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                        )
-                    }
+                        }
 
-                    DropdownMenu(
-                        expanded = expandedInputMenu,
-                        onDismissRequest = { expandedInputMenu = false }
-                    ) {
-                        INPUT_TOKEN_LIMIT_OPTIONS.forEach { (valLimit, label) ->
+                        DropdownMenu(
+                            expanded = expandedInputMenu,
+                            onDismissRequest = { expandedInputMenu = false }
+                        ) {
+                            INPUT_TOKEN_LIMIT_OPTIONS.forEach { (valLimit, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label, style = MaterialTheme.typography.bodySmall) },
+                                    onClick = {
+                                        expandedInputMenu = false
+                                        onTokenLimitChanged(
+                                            config.copy(
+                                                inputTokenLimit = valLimit,
+                                                inputTokenLimitSource = TokenLimitSource.CONFIGURED
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             DropdownMenuItem(
                                 text = {
-                                    Text(
-                                        label,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Text("自定义输入...", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary))
+                                    }
                                 },
                                 onClick = {
                                     expandedInputMenu = false
-                                    onTokenLimitChanged(
-                                        config.copy(
-                                            inputTokenLimit = valLimit,
-                                            inputTokenLimitSource = TokenLimitSource.CONFIGURED
-                                        )
-                                    )
+                                    customDialogType = "input"
                                 }
                             )
+                            if (config.inputTokenLimit != null) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                                            Text("清除 (设为未设置)", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error))
+                                        }
+                                    },
+                                    onClick = {
+                                        expandedInputMenu = false
+                                        onTokenLimitChanged(
+                                            config.copy(
+                                                inputTokenLimit = null,
+                                                inputTokenLimitSource = TokenLimitSource.UNKNOWN
+                                            )
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
-                }
 
-                Text(
-                    "·",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    // 输出上限
+                    Box {
+                        val outputLabel = formatTokenDisplay(config.outputTokenLimit)
 
-                Text(
-                    "输出上限:",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Box {
-                    val outputLabel = config.outputTokenLimit?.let { limit ->
-                        OUTPUT_TOKEN_LIMIT_OPTIONS.find { it.first == limit }?.second ?: "${limit / 1024}K"
-                    } ?: "未设置"
-
-                    Box(
-                        modifier = Modifier
-                            .height(AppTokens.Size.compactControlHeight)
-                            .clip(MaterialTheme.shapes.small)
-                            .background(
-                                if (isChecked) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                }
-                            )
-                            .border(
-                                1.dp,
-                                if (isChecked) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.outlineVariant
-                                },
-                                MaterialTheme.shapes.small
-                            )
-                            .clickable(enabled = isChecked) { expandedOutputMenu = true }
-                            .padding(horizontal = AppTokens.Spacing.control)
-                    ) {
-                        Text(
-                            outputLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isChecked) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                        Box(
+                            modifier = Modifier
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                .clickable { expandedOutputMenu = true }
+                                .padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    "输出: $outputLabel",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "▾",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                        )
-                    }
+                        }
 
-                    DropdownMenu(
-                        expanded = expandedOutputMenu,
-                        onDismissRequest = { expandedOutputMenu = false }
-                    ) {
-                        OUTPUT_TOKEN_LIMIT_OPTIONS.forEach { (valLimit, label) ->
+                        DropdownMenu(
+                            expanded = expandedOutputMenu,
+                            onDismissRequest = { expandedOutputMenu = false }
+                        ) {
+                            OUTPUT_TOKEN_LIMIT_OPTIONS.forEach { (valLimit, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label, style = MaterialTheme.typography.bodySmall) },
+                                    onClick = {
+                                        expandedOutputMenu = false
+                                        onTokenLimitChanged(
+                                            config.copy(
+                                                outputTokenLimit = valLimit,
+                                                outputTokenLimitSource = TokenLimitSource.CONFIGURED
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             DropdownMenuItem(
                                 text = {
-                                    Text(
-                                        label,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Text("自定义输入...", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary))
+                                    }
                                 },
                                 onClick = {
                                     expandedOutputMenu = false
-                                    onTokenLimitChanged(
-                                        config.copy(
-                                            outputTokenLimit = valLimit,
-                                            outputTokenLimitSource = TokenLimitSource.CONFIGURED
-                                        )
-                                    )
+                                    customDialogType = "output"
                                 }
                             )
+                            if (config.outputTokenLimit != null) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                                            Text("清除 (设为未设置)", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error))
+                                        }
+                                    },
+                                    onClick = {
+                                        expandedOutputMenu = false
+                                        onTokenLimitChanged(
+                                            config.copy(
+                                                outputTokenLimit = null,
+                                                outputTokenLimitSource = TokenLimitSource.UNKNOWN
+                                            )
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            // 能力开关小徽章
-            Row(horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)) {
-                val visionStyle = if (config.isVision) {
-                    AppTokens.Feature.vision
-                } else {
-                    AppTokens.FeatureStyle(
-                        foreground = MaterialTheme.colorScheme.onSurfaceVariant,
-                        container = MaterialTheme.colorScheme.surfaceVariant,
-                        border = MaterialTheme.colorScheme.outlineVariant
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(MaterialTheme.shapes.small)
-                        .background(visionStyle.container)
-                        .border(1.dp, visionStyle.border, MaterialTheme.shapes.small)
-                        .clickable(enabled = isChecked) {
-                            onVisionChanged(config.copy(isVision = !config.isVision))
-                        }
-                        .padding(
-                            horizontal = AppTokens.Spacing.control,
-                            vertical = AppTokens.Spacing.compact
-                        )
-                ) {
-                    Text(
-                        text = if (config.isVision) "✓ 图像输入" else "图像输入",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = if (config.isVision) {
-                                FontWeight.Bold
-                            } else {
-                                FontWeight.Medium
-                            }
-                        ),
-                        color = visionStyle.foreground
-                    )
-                }
-
-                val toolsStyle = if (config.isTools) {
-                    AppTokens.Feature.tools
-                } else {
-                    AppTokens.FeatureStyle(
-                        foreground = MaterialTheme.colorScheme.onSurfaceVariant,
-                        container = MaterialTheme.colorScheme.surfaceVariant,
-                        border = MaterialTheme.colorScheme.outlineVariant
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(MaterialTheme.shapes.small)
-                        .background(toolsStyle.container)
-                        .border(1.dp, toolsStyle.border, MaterialTheme.shapes.small)
-                        .clickable(enabled = isChecked) {
-                            onToolsChanged(config.copy(isTools = !config.isTools))
-                        }
-                        .padding(
-                            horizontal = AppTokens.Spacing.control,
-                            vertical = AppTokens.Spacing.compact
-                        )
-                ) {
-                    Text(
-                        text = if (config.isTools) "✓ 工具调用" else "工具调用",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = if (config.isTools) {
-                                FontWeight.Bold
-                            } else {
-                                FontWeight.Medium
-                            }
-                        ),
-                        color = toolsStyle.foreground
-                    )
-                }
-
-                if (config.isReasoning) {
+                // 右侧能力开关（随时可切换调整）
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // 图像输入
+                    val visionActive = config.isVision
                     Box(
                         modifier = Modifier
-                            .clip(MaterialTheme.shapes.small)
-                            .background(AppTokens.Feature.reasoning.container)
-                            .clickable(enabled = isChecked, onClick = onConfigureReasoning)
-                            .padding(
-                                horizontal = AppTokens.Spacing.control,
-                                vertical = AppTokens.Spacing.compact
+                            .height(24.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (visionActive) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             )
+                            .border(
+                                1.dp,
+                                if (visionActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .clickable {
+                                onVisionChanged(config.copy(isVision = !config.isVision))
+                            }
+                            .padding(horizontal = 7.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "配置推理",
+                            text = if (visionActive) "✓ 多模态" else "多模态",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold
+                                fontSize = 11.sp,
+                                fontWeight = if (visionActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = AppTokens.Feature.reasoning.foreground
+                            color = if (visionActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                } else {
-                    TextButton(
-                        onClick = onConfigureReasoning,
-                        enabled = isChecked,
-                        contentPadding = PaddingValues(
-                            horizontal = AppTokens.Spacing.compact,
-                            vertical = 0.dp
-                        ),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = AppTokens.Feature.reasoning.foreground,
-                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                        )
+
+                    // 工具调用
+                    val toolsActive = config.isTools
+                    Box(
+                        modifier = Modifier
+                            .height(24.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (toolsActive) statusColors.successContainer
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
+                            .border(
+                                1.dp,
+                                if (toolsActive) statusColors.success.copy(alpha = 0.4f)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .clickable {
+                                onToolsChanged(config.copy(isTools = !config.isTools))
+                            }
+                            .padding(horizontal = 7.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "配置推理",
-                            style = MaterialTheme.typography.labelSmall
+                            text = if (toolsActive) "✓ 工具" else "工具",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = if (toolsActive) FontWeight.SemiBold else FontWeight.Normal
+                            ),
+                            color = if (toolsActive) statusColors.onSuccessContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // 配置推理
+                    val reasoningActive = config.isReasoning
+                    Box(
+                        modifier = Modifier
+                            .height(24.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (reasoningActive) AppTokens.Feature.reasoning.container
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
+                            .border(
+                                1.dp,
+                                if (reasoningActive) AppTokens.Feature.reasoning.border
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .clickable(onClick = onConfigureReasoning)
+                            .padding(horizontal = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (reasoningActive) "✓ 推理 (已配置)" else "配置推理",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = if (reasoningActive) FontWeight.SemiBold else FontWeight.Normal
+                            ),
+                            color = if (reasoningActive) AppTokens.Feature.reasoning.foreground else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1789,3 +2318,6 @@ private fun CatalogModelRowCard(
         }
     }
 }
+
+
+

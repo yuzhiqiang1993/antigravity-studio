@@ -6,59 +6,88 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
- * Antigravity Studio 的跨平台视觉令牌。
- * 页面和组件只消费语义令牌，避免在业务 UI 中散落颜色与尺寸常量。
+ * Antigravity Studio 的跨平台视觉令牌（Material Design 3 标准）。
+ * 页面和组件只消费语义令牌，避免在业务 UI 中散落随意颜色与尺寸常量。
  */
 object AppTokens {
+
     object Spacing {
-        val pageHorizontal = 30.dp
-        val pageVertical = 48.dp
-        val pageSection = 20.dp
+        val none = 0.dp
+        val xxs = 2.dp
+        val xs = 4.dp
+        val sm = 8.dp
+        val md = 16.dp
+        val lg = 24.dp
+        val xl = 32.dp
+        val xxl = 48.dp
+
+        // 语义化间距
+        val pageHorizontal = 32.dp
+        val pageVertical = 28.dp
+        val pageSection = 24.dp
         val section = 16.dp
-        val card = 18.dp
+        val card = 20.dp
         val content = 12.dp
         val control = 8.dp
         val compact = 4.dp
     }
 
     object Size {
-        val sidebarWidth = 218.dp
+        val sidebarWidth = 224.dp
         val sidebarTopPadding = 48.dp
-        val sidebarBottomPadding = 18.dp
-        val navigationItemHeight = 42.dp
+        val sidebarBottomPadding = 20.dp
+        val navigationItemHeight = 44.dp
+        val navigationItemIconSize = 20.dp
+
         val dialogWidth = 880.dp
         val dialogHeight = 660.dp
+        val doctorDialogWidth = 720.dp
+        val doctorDialogMaxHeight = 660.dp
         val singleModelDialogHeight = 540.dp
         val debugDialogWidth = 680.dp
         val debugDialogMinHeight = 360.dp
         val debugDialogMaxHeight = 640.dp
-        val searchFieldWidth = 190.dp
-        val modelSearchFieldWidth = 260.dp
-        val presetGridMinWidth = 142.dp
+
+        val searchFieldWidth = 240.dp
+        val modelSearchFieldWidth = 300.dp
+        val presetGridMinWidth = 176.dp
+        val presetGridHeight = 56.dp
+
         val controlHeight = 40.dp
         val fieldHeight = 56.dp
-        val compactControlHeight = 32.dp
+        val compactControlHeight = 34.dp
+
         val iconSmall = 14.dp
         val iconMedium = 18.dp
         val iconLarge = 24.dp
         val statusDot = 8.dp
         val debugCodePadding = 14.dp
-        val brandMark = 40.dp
-        val emptyStateHeight = 260.dp
+        val brandMark = 36.dp
+        val emptyStateHeight = 240.dp
     }
 
     object Radius {
+        val none = 0.dp
+        val xs = 4.dp
         val small = 8.dp
         val medium = 12.dp
         val large = 16.dp
-        val dialog = 20.dp
+        val xl = 20.dp
+        val dialog = 24.dp
         val pill = 999.dp
     }
 
     object Elevation {
+        val level0 = 0.dp
+        val level1 = 1.dp
+        val level2 = 3.dp
+        val level3 = 6.dp
+        val level4 = 8.dp
+        val level5 = 12.dp
+
         val card = 1.dp
         val floating = 4.dp
-        val dialog = 20.dp
+        val dialog = 16.dp
     }
 
     @Immutable
@@ -74,22 +103,30 @@ object AppTokens {
         val info: Color,
         val onInfo: Color,
         val infoContainer: Color,
-        val onInfoContainer: Color
+        val onInfoContainer: Color,
+        val error: Color,
+        val onError: Color,
+        val errorContainer: Color,
+        val onErrorContainer: Color
     )
 
     val lightStatusColors = StatusColors(
-        success = Color(0xFF15803D),
+        success = Color(0xFF16A34A),
         onSuccess = Color.White,
         successContainer = Color(0xFFDCFCE7),
-        onSuccessContainer = Color(0xFF166534),
-        warning = Color(0xFFB45309),
+        onSuccessContainer = Color(0xFF14532D),
+        warning = Color(0xFFD97706),
         onWarning = Color.White,
         warningContainer = Color(0xFFFEF3C7),
-        onWarningContainer = Color(0xFF92400E),
+        onWarningContainer = Color(0xFF78350F),
         info = Color(0xFF2563EB),
         onInfo = Color.White,
         infoContainer = Color(0xFFEFF6FF),
-        onInfoContainer = Color(0xFF1D4ED8)
+        onInfoContainer = Color(0xFF1E40AF),
+        error = Color(0xFFDC2626),
+        onError = Color.White,
+        errorContainer = Color(0xFFFEE2E2),
+        onErrorContainer = Color(0xFF7F1D1D)
     )
 
     val darkStatusColors = StatusColors(
@@ -104,7 +141,11 @@ object AppTokens {
         info = Color(0xFF60A5FA),
         onInfo = Color(0xFF172554),
         infoContainer = Color(0xFF1E3A8A),
-        onInfoContainer = Color(0xFFBFDBFE)
+        onInfoContainer = Color(0xFFBFDBFE),
+        error = Color(0xFFF87171),
+        onError = Color(0xFF450A0A),
+        errorContainer = Color(0xFF7F1D1D),
+        onErrorContainer = Color(0xFFFECACA)
     )
 
     @Immutable
@@ -121,7 +162,7 @@ object AppTokens {
             border = Color(0xFFBFDBFE)
         )
         val tools = FeatureStyle(
-            foreground = Color(0xFF0F766E),
+            foreground = Color(0xFF0D9488),
             container = Color(0xFFF0FDFA),
             border = Color(0xFF99F6E4)
         )
@@ -131,7 +172,7 @@ object AppTokens {
             border = Color(0xFFE9D5FF)
         )
         val info = FeatureStyle(
-            foreground = Color(0xFF15803D),
+            foreground = Color(0xFF16A34A),
             container = Color(0xFFF0FDF4),
             border = Color(0xFFBBF7D0)
         )

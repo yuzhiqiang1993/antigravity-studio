@@ -1,9 +1,17 @@
 package com.yuzhiqiang.antigravity.ui.components
 
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -13,9 +21,11 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,7 +33,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlinx.coroutines.delay
 
 enum class NoticeKind {
@@ -43,8 +54,7 @@ data class NoticeState(
 )
 
 /**
- * 全局 Toast 通知宿主，放置在 App 顶层。
- * 对标 agy-byok 的 NoticeBar / Notice 组件。
+ * Material Design 3 全局浮动 Snackbar 提示组件。
  */
 @Composable
 fun AppSnackbarHost(
@@ -53,13 +63,15 @@ fun AppSnackbarHost(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppTokens.Spacing.lg, vertical = AppTokens.Spacing.md),
         contentAlignment = Alignment.BottomCenter
     ) {
         AnimatedVisibility(
             visible = notice != null,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
         ) {
             notice?.let { current ->
                 LaunchedEffect(current.id) {
@@ -67,67 +79,72 @@ fun AppSnackbarHost(
                     onDismiss()
                 }
 
-                val (bgColor, iconTint, icon) = when (current.kind) {
+                val statusColors = AppStatusColors
+                val (containerColor, contentColor, icon) = when (current.kind) {
                     NoticeKind.SUCCESS -> Triple(
-                        Color(0xFF059669),
-                        Color.White,
+                        statusColors.success,
+                        statusColors.onSuccess,
                         Icons.Outlined.CheckCircle
                     )
                     NoticeKind.ERROR -> Triple(
-                        Color(0xFFDC2626),
-                        Color.White,
+                        statusColors.error,
+                        statusColors.onError,
                         Icons.Outlined.ErrorOutline
                     )
                     NoticeKind.INFO -> Triple(
-                        MaterialTheme.colorScheme.primary,
-                        Color.White,
+                        MaterialTheme.colorScheme.inverseSurface,
+                        MaterialTheme.colorScheme.inverseOnSurface,
                         Icons.Outlined.Info
                     )
                 }
 
-                Row(
+                Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(8.dp, RoundedCornerShape(12.dp))
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(bgColor)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        .shadow(AppTokens.Elevation.floating, RoundedCornerShape(AppTokens.Radius.medium)),
+                    shape = RoundedCornerShape(AppTokens.Radius.medium),
+                    color = containerColor,
+                    contentColor = contentColor
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = current.message,
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    current.action?.let { action ->
-                        TextButton(onClick = action.onClick) {
-                            Text(
-                                text = action.label,
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(24.dp)
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.content),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Close,
-                            contentDescription = "Dismiss",
-                            tint = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier.size(16.dp)
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = contentColor,
+                            modifier = Modifier.size(AppTokens.Size.iconLarge)
                         )
+                        Text(
+                            text = current.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = contentColor,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        current.action?.let { action ->
+                            TextButton(onClick = action.onClick) {
+                                Text(
+                                    text = action.label,
+                                    color = contentColor,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "Dismiss",
+                                tint = contentColor.copy(alpha = 0.8f),
+                                modifier = Modifier.size(AppTokens.Size.iconMedium)
+                            )
+                        }
                     }
                 }
             }

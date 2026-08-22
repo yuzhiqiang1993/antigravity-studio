@@ -3,24 +3,45 @@ package com.yuzhiqiang.antigravity.ui.dialogs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
 private enum class PolicyPresetMode {
     DEFAULT,
@@ -70,67 +91,66 @@ fun PolicyEditorDialog(
             modifier = Modifier
                 .width(560.dp)
                 .wrapContentHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = Color.White,
-            shadowElevation = 8.dp
+            shape = RoundedCornerShape(AppTokens.Radius.large),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = AppTokens.Elevation.dialog
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .padding(AppTokens.Spacing.card)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
             ) {
                 // Header
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFEFF6FF)),
+                            .size(AppTokens.Size.brandMark)
+                            .clip(RoundedCornerShape(AppTokens.Radius.small))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Tune,
                             contentDescription = null,
-                            tint = Color(0xFF2563EB),
-                            modifier = Modifier.size(18.dp)
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(AppTokens.Size.iconLarge)
                         )
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                         Text(
                             text = "上下文压缩策略配置",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = "为 $modelId 设置 Checkpointer 上下文压缩触发与上限参数",
-                            fontSize = 11.5.sp,
-                            color = Color(0xFF64748B)
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFFE2E8F0))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                // 预设分段选择器 (对齐 .policy-preset-segmented)
+                // 预设分段选择器
                 Text(
                     text = "预设策略模式",
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF334155)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(9999.dp))
-                        .background(Color(0xFFF1F5F9))
-                        .padding(3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(AppTokens.Spacing.xxs),
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)
                 ) {
                     listOf(
                         PolicyPresetMode.DEFAULT to "默认",
@@ -142,19 +162,18 @@ fun PolicyEditorDialog(
                         PolicyPresetMode.CUSTOM to "自定义"
                     ).forEach { (mode, label) ->
                         val isSelected = selectedMode == mode
-                        val bg = if (isSelected) Color.White else Color.Transparent
-                        val txt = if (isSelected) Color(0xFF2563EB) else Color(0xFF475569)
+                        val bg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                        val txt = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
 
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(9999.dp))
+                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
                                 .background(bg)
                                 .clickable {
                                     selectedMode = mode
                                     when (mode) {
                                         PolicyPresetMode.DEFAULT -> {
-                                            // 默认模式使用标准基线
                                             val p = ModelCompressionPolicy.preset200k()
                                             triggerThreshold = p.triggerThresholdTokens.toString()
                                             maxCheckpoint = p.maxCheckpointTokens.toString()
@@ -193,12 +212,12 @@ fun PolicyEditorDialog(
                                         else -> {}
                                     }
                                 }
-                                .padding(vertical = 6.dp),
+                                .padding(vertical = AppTokens.Spacing.control),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
-                                fontSize = 11.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = txt,
                                 maxLines = 1
@@ -211,21 +230,19 @@ fun PolicyEditorDialog(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFF8FAFC))
-                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                            .padding(12.dp)
+                            .clip(RoundedCornerShape(AppTokens.Radius.medium))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(AppTokens.Radius.medium))
+                            .padding(AppTokens.Spacing.content)
                     ) {
                         Text(
                             text = "当前使用「默认策略」。系统不会覆盖自定义压缩阈值，遵循官方/上游推荐的上下文管理策略。",
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B),
-                            lineHeight = 17.sp
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 } else {
-                    // 详细字段输入
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)) {
                         OutlinedTextField(
                             value = triggerThreshold,
                             onValueChange = {
@@ -235,6 +252,7 @@ fun PolicyEditorDialog(
                             label = { Text("压缩触发阈值 (Tokens)") },
                             supportingText = { Text("当总上下文超过此阈值时触发自动滑动压缩") },
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
                             singleLine = true
                         )
 
@@ -247,6 +265,7 @@ fun PolicyEditorDialog(
                             label = { Text("Checkpoint 保留上限 (Tokens)") },
                             supportingText = { Text("压缩后最大允许保留的上下文历史量") },
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
                             singleLine = true
                         )
 
@@ -259,6 +278,7 @@ fun PolicyEditorDialog(
                             label = { Text("输出空间预留 (Tokens)") },
                             supportingText = { Text("为模型生成回答预留的安全 Token 预算") },
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
                             singleLine = true
                         )
                     }
@@ -270,8 +290,11 @@ fun PolicyEditorDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(s.commonCancel)
+                    TextButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(AppTokens.Radius.medium)
+                    ) {
+                        Text(s.commonCancel, style = MaterialTheme.typography.labelMedium)
                     }
 
                     Button(
@@ -288,10 +311,10 @@ fun PolicyEditorDialog(
                             }
                             onDismiss()
                         },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                        shape = RoundedCornerShape(AppTokens.Radius.medium),
+                        contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.xs)
                     ) {
-                        Text(s.commonSave)
+                        Text(s.commonSave, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
