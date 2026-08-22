@@ -2,8 +2,10 @@ package com.yuzhiqiang.antigravity.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -138,7 +140,8 @@ fun OverviewScreen(
                     isProxyActive = isIdeActive,
                     integrationDetail = if (isIdeActive) "settings.json 代理接入生效中" else "当前使用官方直连模式",
                     onToggle = { viewModel.toggleIdeHost() },
-                    onRestart = if (isIdeInstalled) ({ viewModel.launchIde() }) else null,
+                    actionLabel = if (isIdeRunning) "重启" else if (isIdeInstalled) "打开" else null,
+                    onAction = if (isIdeInstalled) ({ viewModel.requestRestartOrLaunchIde(isIdeRunning) }) else null,
                     onRefresh = { viewModel.refreshHostStatus() }
                 ),
                 HostCardData(
@@ -149,7 +152,8 @@ fun OverviewScreen(
                     isProxyActive = isAppActive,
                     integrationDetail = if (isAppActive) "环境变量 CLOUD_CODE_URL 代理生效中" else "当前使用官方直连模式",
                     onToggle = { viewModel.toggleAppHost() },
-                    onRestart = if (isAppInstalled) ({ viewModel.launchApp() }) else null,
+                    actionLabel = if (isAppRunning) "重启" else if (isAppInstalled) "打开" else null,
+                    onAction = if (isAppInstalled) ({ viewModel.requestRestartOrLaunchApp(isAppRunning) }) else null,
                     onRefresh = { viewModel.refreshHostStatus() }
                 ),
                 HostCardData(
@@ -160,7 +164,8 @@ fun OverviewScreen(
                     isProxyActive = isCliActive,
                     integrationDetail = if (isCliActive) "CLI 配置文件代理接入生效中" else "CLI 当前处于官方直连模式",
                     onToggle = { viewModel.toggleCliHost() },
-                    onRestart = null,
+                    actionLabel = null,
+                    onAction = null,
                     onRefresh = { viewModel.refreshHostStatus() }
                 )
             )
@@ -330,7 +335,8 @@ private data class HostCardData(
     val isProxyActive: Boolean,
     val integrationDetail: String,
     val onToggle: () -> Unit,
-    val onRestart: (() -> Unit)? = null,
+    val actionLabel: String? = null,
+    val onAction: (() -> Unit)? = null,
     val onRefresh: () -> Unit
 )
 
@@ -427,14 +433,21 @@ private fun HostCardItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (data.isProxyActive) {
-                        FilledTonalButton(
+                        val successColor = Color(0xFF16A34A)
+                        OutlinedButton(
                             onClick = data.onToggle,
                             shape = RoundedCornerShape(AppTokens.Radius.medium),
+                            border = BorderStroke(1.dp, successColor.copy(alpha = 0.45f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = successColor.copy(alpha = 0.08f),
+                                contentColor = successColor
+                            ),
                             contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
                         ) {
                             Text(
                                 text = "恢复官方直连",
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     } else {
@@ -444,20 +457,21 @@ private fun HostCardItem(
                             contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
                         ) {
                             Text(
-                                text = "接入 Studio 代理",
-                                style = MaterialTheme.typography.labelMedium
+                                text = "接入代理",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
 
-                    if (data.onRestart != null) {
+                    if (data.onAction != null && data.actionLabel != null) {
                         OutlinedButton(
-                            onClick = data.onRestart,
+                            onClick = data.onAction,
                             shape = RoundedCornerShape(AppTokens.Radius.medium),
                             contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
                         ) {
                             Text(
-                                text = "唤起 / 重启",
+                                text = data.actionLabel,
                                 style = MaterialTheme.typography.labelMedium
                             )
                         }

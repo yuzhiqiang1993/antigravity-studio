@@ -75,6 +75,7 @@ fun ActivityScreen(
     val displayedLogs = logs.filter { log ->
         val matchesQuery = normalizedQuery.isBlank() || listOfNotNull(
             log.modelId,
+            log.requestedModelId,
             log.providerName,
             log.path,
             log.errorMessage
@@ -82,6 +83,10 @@ fun ActivityScreen(
         matchesQuery && (!filterOnlyFailed || log.statusCode >= 400)
     }
     val failedCount = logs.count { it.statusCode >= 400 }
+    val averageDuration = logs.takeIf { it.isNotEmpty() }
+        ?.map { it.durationMs }
+        ?.average()
+        ?.toLong() ?: 0L
 
     Column(
         modifier = modifier
@@ -174,6 +179,29 @@ fun ActivityScreen(
 
                 Spacer(Modifier.height(AppTokens.Spacing.md))
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
+                ) {
+                    ActivityMetricCard(
+                        label = s.activityTotal,
+                        value = logs.size.toString(),
+                        modifier = Modifier.weight(1f)
+                    )
+                    ActivityMetricCard(
+                        label = s.activityFailedTotal,
+                        value = failedCount.toString(),
+                        modifier = Modifier.weight(1f)
+                    )
+                    ActivityMetricCard(
+                        label = s.activityAverage,
+                        value = "$averageDuration ms",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(Modifier.height(AppTokens.Spacing.md))
+
                 if (displayedLogs.isEmpty()) {
                     EmptyStateView(
                         icon = if (logs.isEmpty()) Icons.Outlined.History else Icons.Outlined.SearchOff,
@@ -207,6 +235,35 @@ fun ActivityScreen(
             onDismiss = { selectedLog = null },
             onCopyNotice = { viewModel.showNotice(it) }
         )
+    }
+}
+
+@Composable
+private fun ActivityMetricCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(AppTokens.Radius.medium)
+    ) {
+        Column(
+            modifier = Modifier.padding(AppTokens.Spacing.content),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 
@@ -309,8 +366,13 @@ private fun ActivityLogRow(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val subtitleText = when {
+                        log.modelId != null -> "${log.providerName ?: "未知服务商"} / ${log.modelId}"
+                        log.isOfficialPassthrough -> log.providerName ?: "Official Cloud Code"
+                        else -> log.providerName ?: "未知服务商"
+                    }
                     Text(
-                        text = "${log.providerName ?: "未知服务商"} / ${log.modelId ?: "未知模型"}",
+                        text = subtitleText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
