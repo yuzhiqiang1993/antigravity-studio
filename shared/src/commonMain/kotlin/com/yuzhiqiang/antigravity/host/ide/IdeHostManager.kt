@@ -88,23 +88,30 @@ object IdeHostManager {
         return HostOwnershipStore.disableIde(getSettingsFile(), proxyPort).isSuccess
     }
 
-    /**
-     * 检测 Antigravity IDE 进程是否正在运行（零子进程开销内存查询）。
-     */
-    fun isRunning(): Boolean {
-        return try {
-            ProcessHandle.allProcesses().anyMatch { handle ->
-                val cmd = handle.info().command().orElse("")
-                val cmdLine = handle.info().commandLine().orElse("")
-                cmd.contains("Antigravity IDE", ignoreCase = true) || cmdLine.contains(
-                    "Antigravity IDE",
-                    ignoreCase = true
-                )
+   /**
+    * 检测 Antigravity IDE 进程是否正在运行（零子进程开销内存查询）。
+    */
+   fun isRunning(): Boolean {
+       return try {
+            val matched = ProcessHandle.allProcesses().anyMatch { handle ->
+               val cmd = handle.info().command().orElse("")
+               val cmdLine = handle.info().commandLine().orElse("")
+               cmd.contains("Antigravity IDE", ignoreCase = true) || cmdLine.contains(
+                   "Antigravity IDE",
+                   ignoreCase = true
+               )
+           }
+            if (matched) return true
+            val os = System.getProperty("os.name", "").lowercase()
+            if (os.contains("mac")) {
+                val pgrep = ProcessBuilder("pgrep", "-f", "Antigravity IDE").start()
+                return pgrep.waitFor() == 0
             }
-        } catch (_: Exception) {
             false
-        }
-    }
+       } catch (_: Exception) {
+           false
+       }
+   }
 
     /**
      * 一键启动 Antigravity IDE 客户端。
@@ -155,28 +162,52 @@ object IdeHostManager {
         }
     }
 
-    /**
-     * 重启 Antigravity IDE 客户端。
-     */
-    fun restart(customInstallation: String? = null): Boolean {
-        return try {
-            val os = System.getProperty("os.name", "").lowercase()
-            if (os.contains("win")) {
-                ProcessBuilder("taskkill", "/F", "/IM", "Antigravity IDE.exe").start().waitFor()
-            } else {
-                ProcessBuilder(
-                    "/usr/bin/osascript", "-e",
-                    """tell application "Antigravity IDE" to quit"""
-                ).start().waitFor()
+   /**
+    * 重启 Antigravity IDE 客户端。
+    */
+   fun restart(customInstallation: String? = null): Boolean {
+       return try {
+           stopLanguageServer()
+           val os = System.getProperty("os.name", "").lowercase()
+           if (os.contains("win")) {
+               ProcessBuilder("taskkill", "/F", "/IM", "Antigravity IDE.exe").start().waitFor()
+                Thread.sleep(500)
+           } else {
+               ProcessBuilder(
+                   "/usr/bin/osascript", "-e",
+                   """tell application "Antigravity IDE" to quit"""
+               ).start().waitFor()
+                Thread.sleep(600)
+                if (isRunning()) {
+                    ProcessBuilder("pkill", "-f", "Antigravity IDE.app/Contents/MacOS/Electron").start().waitFor()
+                    Thread.sleep(400)
+                }
+                stopLanguageServer()
             }
-            Thread.sleep(300)
-            launch(customInstallation)
+           launch(customInstallation)
+       } catch (_: Exception) {
+           false
+       }
+   }
+
+    private fun stopLanguageServer() {
+        try {
+            ProcessHandle.allProcesses().forEach { handle ->
+                val command = handle.info().command().orElse("")
+                val commandLine = handle.info().commandLine().orElse("")
+                if (commandLine.contains("language_server", ignoreCase = true) &&
+                    (command.contains("Antigravity", ignoreCase = true) ||
+                            commandLine.contains("Antigravity", ignoreCase = true))
+                ) {
+                    handle.destroyForcibly()
+                }
+            }
         } catch (_: Exception) {
-            false
+            // 语言服务已退出时无需阻断宿主重启。
         }
     }
 
-    private fun discoverMacApplications(bundleId: String): List<File> {
+   private fun discoverMacApplications(bundleId: String): List<File> {
         return try {
             val process = ProcessBuilder(
                 "/usr/bin/mdfind", "-0", "kMDItemCFBundleIdentifier == '$bundleId'"
