@@ -36,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,24 +44,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.BrandMark
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
-import com.yuzhiqiang.antigravity.ui.components.SectionCard
+import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import java.awt.Desktop
+import java.io.File
+import java.net.URI
 
 private enum class SettingsSection {
     GENERAL,
@@ -87,8 +91,8 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(horizontal = 28.dp, vertical = 26.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(horizontal = AppTokens.Spacing.pageHorizontal, vertical = AppTokens.Spacing.pageVertical),
+        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
     ) {
         PageHeader(
             title = s.settingsTitle,
@@ -98,7 +102,7 @@ fun SettingsScreen(
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val compact = maxWidth < 780.dp
             if (compact) {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)) {
                     SettingsSectionSelector(
                         selectedSection = selectedSection,
                         s = s,
@@ -134,14 +138,14 @@ fun SettingsScreen(
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.lg)
                 ) {
                     SettingsSidebar(
                         selectedSection = selectedSection,
                         s = s,
                         onSelect = { selectedSection = it }
                     )
-                    Spacer(Modifier.width(18.dp))
                     SettingsContent(
                         selectedSection = selectedSection,
                         viewModel = viewModel,
@@ -181,22 +185,21 @@ private fun SettingsSidebar(
     s: Strings,
     onSelect: (SettingsSection) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .width(190.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
-            .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    StudioCard(
+        modifier = Modifier.width(AppTokens.Size.sidebarWidth)
     ) {
-        SettingsSection.values().forEach { section ->
-            SettingsNavItem(
-                section = section,
-                selected = selectedSection == section,
-                s = s,
-                onClick = { onSelect(section) }
-            )
+        Column(
+            modifier = Modifier.padding(AppTokens.Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
+        ) {
+            SettingsSection.values().forEach { section ->
+                SettingsNavItem(
+                    section = section,
+                    selected = selectedSection == section,
+                    s = s,
+                    onClick = { onSelect(section) }
+                )
+            }
         }
     }
 }
@@ -207,23 +210,24 @@ private fun SettingsSectionSelector(
     s: Strings,
     onSelect: (SettingsSection) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SettingsSection.values().toList().chunked(2).forEach { rowSections ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowSections.forEach { section ->
-                    SettingsNavItem(
-                        section = section,
-                        selected = selectedSection == section,
-                        s = s,
-                        onClick = { onSelect(section) },
-                        modifier = Modifier.weight(1f)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
+    ) {
+        SettingsSection.values().forEach { section ->
+            FilterChip(
+                selected = selectedSection == section,
+                onClick = { onSelect(section) },
+                label = { Text(section.title(s), style = MaterialTheme.typography.labelMedium) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = section.icon(),
+                        contentDescription = null,
+                        modifier = Modifier.size(AppTokens.Size.iconSmall)
                     )
-                }
-                if (rowSections.size == 1) Spacer(Modifier.weight(1f))
-            }
+                },
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
@@ -236,22 +240,28 @@ private fun SettingsNavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val container = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-    val content = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val container = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val content = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(AppTokens.Radius.small))
             .background(container)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.content),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
     ) {
-        Icon(section.icon(), contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+        Icon(
+            imageVector = section.icon(),
+            contentDescription = null,
+            tint = content,
+            modifier = Modifier.size(AppTokens.Size.iconMedium)
+        )
         Text(
             text = section.title(s),
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = content,
             maxLines = 1
@@ -274,7 +284,7 @@ private fun SettingsContent(
     s: Strings,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)) {
         when (selectedSection) {
             SettingsSection.GENERAL -> GeneralSettings(viewModel, s)
             SettingsSection.NETWORK -> NetworkSettings(
@@ -302,85 +312,204 @@ private fun GeneralSettings(
     s: Strings
 ) {
     val config by viewModel.config.collectAsState()
-    SectionCard(modifier = Modifier.fillMaxWidth()) {
-        SettingsCardTitle(Icons.Outlined.Settings, s.settingsGeneral)
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-
-        // 语言
-        SettingRow(
-            icon = Icons.Outlined.Language,
-            title = s.settingsLanguage,
-            description = s.settingsLanguageDescription
+    StudioCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(AppTokens.Spacing.card),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
         ) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(9999.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(9999.dp))
-                    .padding(3.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            SettingsCardTitle(Icons.Outlined.Settings, s.settingsGeneral)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            // 语言设置
+            SettingRow(
+                icon = Icons.Outlined.Language,
+                title = s.settingsLanguage,
+                description = s.settingsLanguageDescription
             ) {
-                AppLanguage.values().forEach { lang ->
-                    val selected = I18nManager.currentLanguage == lang
-                    val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                    val text = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(9999.dp))
-                            .background(bg)
-                            .clickable { viewModel.updateLanguage(lang) }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = if (lang == AppLanguage.ZH_CN) "简体中文" else "English",
-                            fontSize = 12.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = text
-                        )
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(AppTokens.Spacing.xxs),
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)
+                ) {
+                    AppLanguage.values().forEach { lang ->
+                        val selected = I18nManager.currentLanguage == lang
+                        val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                        val text = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                .background(bg)
+                                .clickable { viewModel.updateLanguage(lang) }
+                                .padding(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.control)
+                        ) {
+                            Text(
+                                text = if (lang == AppLanguage.ZH_CN) "简体中文" else "English",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                color = text
+                            )
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            // 主题模式
+            SettingRow(
+                icon = Icons.Outlined.Palette,
+                title = s.settingsTheme,
+                description = s.settingsThemeDescription
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(AppTokens.Spacing.xxs),
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)
+                ) {
+                    listOf(
+                        Triple("system", s.settingsThemeSystem, Icons.Outlined.Computer),
+                        Triple("light", s.settingsThemeLight, Icons.Outlined.Palette),
+                        Triple("dark", s.settingsThemeDark, Icons.Outlined.Settings)
+                    ).forEach { (mode, label, _) ->
+                        val selected = config.themeMode == mode
+                        val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                        val text = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                .background(bg)
+                                .clickable { viewModel.updateThemeMode(mode) }
+                                .padding(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.control)
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                color = text
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-
-        // 主题模式（三段胶囊）
-        SettingRow(
-            icon = Icons.Outlined.Palette,
-            title = s.settingsTheme,
-            description = s.settingsThemeDescription
+@Composable
+private fun NetworkSettings(
+    portInput: String,
+    portError: String?,
+    onPortInputChange: (String) -> Unit,
+    onSavePort: () -> Unit,
+    s: Strings
+) {
+    StudioCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(AppTokens.Spacing.card),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
         ) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(9999.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(9999.dp))
-                    .padding(3.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            SettingsCardTitle(Icons.Outlined.Router, s.settingsNetwork)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            SettingRow(
+                icon = Icons.Outlined.Router,
+                title = s.settingsPort,
+                description = s.settingsPortDescription
             ) {
-                listOf(
-                    Triple("system", s.settingsThemeSystem, Icons.Outlined.Computer),
-                    Triple("light", s.settingsThemeLight, Icons.Outlined.Palette),
-                    Triple("dark", s.settingsThemeDark, Icons.Outlined.Settings)
-                ).forEach { (mode, label, _) ->
-                    val selected = config.themeMode == mode
-                    val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                    val text = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(9999.dp))
-                            .background(bg)
-                            .clickable { viewModel.updateThemeMode(mode) }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
+                ) {
+                    OutlinedTextField(
+                        value = portInput,
+                        onValueChange = onPortInputChange,
+                        isError = portError != null,
+                        singleLine = true,
+                        modifier = Modifier.width(130.dp),
+                        shape = RoundedCornerShape(AppTokens.Radius.medium)
+                    )
+                    Button(
+                        onClick = onSavePort,
+                        shape = RoundedCornerShape(AppTokens.Radius.medium)
                     ) {
-                        Text(
-                            text = label,
-                            fontSize = 12.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = text
-                        )
+                        Text(s.commonSave, style = MaterialTheme.typography.labelMedium)
                     }
                 }
+            }
+
+            if (portError != null) {
+                Text(
+                    text = portError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DataSettings(
+    viewModel: AppViewModel,
+    loadError: String?,
+    openDirectoryError: String?,
+    onOpenDirectory: () -> Unit,
+    s: Strings
+) {
+    StudioCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(AppTokens.Spacing.card),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
+        ) {
+            SettingsCardTitle(Icons.Outlined.Folder, s.settingsData)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            if (loadError != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AppTokens.Radius.medium))
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(AppTokens.Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = loadError,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+
+            SettingRow(
+                icon = Icons.Outlined.Folder,
+                title = "配置文件目录",
+                description = "查看或备份本地持久化的服务商配置与策略数据"
+            ) {
+                OutlinedButton(
+                    onClick = onOpenDirectory,
+                    shape = RoundedCornerShape(AppTokens.Radius.medium)
+                ) {
+                    Text("打开目录", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            if (openDirectoryError != null) {
+                Text(
+                    text = openDirectoryError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }
@@ -391,84 +520,54 @@ private fun AboutSettings(
     viewModel: AppViewModel,
     s: Strings
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Hero Card
-        SectionCard(modifier = Modifier.fillMaxWidth()) {
+    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)) {
+        StudioCard(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(AppTokens.Spacing.card),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.lg)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Router,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
+                BrandMark(size = 56.dp)
 
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
                     ) {
                         Text(
                             text = s.appName,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(9999.dp))
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .padding(horizontal = AppTokens.Spacing.sm, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "v1.0.0",
-                                fontSize = 11.sp,
+                                text = "v2.0.0",
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
                     Text(
                         text = s.appSubtitle,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Compose Desktop", "Kotlin Multiplatform", "BYOK Proxy", "Material 3").forEach { tag ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .padding(horizontal = 7.dp, vertical = 3.dp)
-                            ) {
-                                Text(
-                                    text = tag,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
 
-        // 4 Quick Action Cards (开源仓库、配置目录、开发者、意见反馈)
+        // 快捷操作卡片
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
         ) {
             AboutActionCard(
                 icon = Icons.Outlined.Code,
@@ -480,14 +579,14 @@ private fun AboutSettings(
             AboutActionCard(
                 icon = Icons.Outlined.Folder,
                 title = "配置目录",
-                subtitle = "打开配置文件所在目录",
+                subtitle = "打开数据与模型配置文件",
                 onClick = { openConfigDirectory(viewModel) },
                 modifier = Modifier.weight(1f)
             )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
         ) {
             AboutActionCard(
                 icon = Icons.Outlined.Person,
@@ -498,8 +597,8 @@ private fun AboutSettings(
             )
             AboutActionCard(
                 icon = Icons.Outlined.Feedback,
-                title = "意见反馈",
-                subtitle = "提交 Issue 与 Feature Request",
+                title = "反馈建议",
+                subtitle = "提交 Issue 或加入交流群",
                 onClick = { openWebUrl("https://github.com/yuzhiqiang1993/antigravity-studio/issues") },
                 modifier = Modifier.weight(1f)
             )
@@ -515,127 +614,85 @@ private fun AboutActionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    OutlinedCard(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(AppTokens.Radius.large)
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppTokens.Spacing.card),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(AppTokens.Radius.medium))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(AppTokens.Size.iconLarge)
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                Text(subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            }
-        }
-    }
-}
-
-private fun openWebUrl(url: String) {
-    runCatching {
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-            Desktop.getDesktop().browse(java.net.URI(url))
-        }
-    }
-}
-
-@Composable
-private fun NetworkSettings(
-    portInput: String,
-    portError: String?,
-    onPortInputChange: (String) -> Unit,
-    onSavePort: () -> Unit,
-    s: Strings
-) {
-    SectionCard(modifier = Modifier.fillMaxWidth()) {
-        SettingsCardTitle(Icons.Outlined.Router, s.settingsNetwork)
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        SettingRow(
-            icon = Icons.Outlined.Settings,
-            title = s.settingsPort,
-            description = s.settingsPortDescription
-        ) {
-            Row(
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = portInput,
-                    onValueChange = onPortInputChange,
-                    modifier = Modifier.width(130.dp),
-                    singleLine = true,
-                    isError = portError != null,
-                    supportingText = portError?.let { { Text(it, fontSize = 10.sp) } }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Button(onClick = onSavePort, shape = RoundedCornerShape(8.dp)) {
-                    Text(s.commonSave, fontSize = 12.sp)
-                }
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
 @Composable
-private fun DataSettings(
-    viewModel: AppViewModel,
-    loadError: String?,
-    openDirectoryError: String?,
-    onOpenDirectory: () -> Unit,
-    s: Strings
+private fun SettingRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    content: @Composable () -> Unit
 ) {
-    SectionCard(modifier = Modifier.fillMaxWidth()) {
-        SettingsCardTitle(Icons.Outlined.Folder, s.settingsData)
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        SettingRow(
-            icon = Icons.Outlined.Folder,
-            title = s.settingsStoragePath,
-            description = s.settingsStorageDescription
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f, fill = false),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
         ) {
-            OutlinedButton(onClick = onOpenDirectory, shape = RoundedCornerShape(8.dp)) {
-                Icon(Icons.Outlined.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(s.settingsOpenDirectory, fontSize = 11.sp)
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(AppTokens.Size.iconLarge)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-        Text(
-            text = viewModel.configStore.configFile.absolutePath,
-            fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2
-        )
-        if (loadError != null) {
-            DiagnosticMessage(
-                title = s.commonError,
-                message = loadError,
-                isError = true
-            )
-        }
-        if (openDirectoryError != null) {
-            DiagnosticMessage(
-                title = s.settingsDirectoryOpenError,
-                message = openDirectoryError,
-                isError = true
-            )
-        }
+        Spacer(Modifier.width(AppTokens.Spacing.md))
+        content()
     }
 }
 
@@ -646,100 +703,20 @@ private fun SettingsCardTitle(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(19.dp))
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    }
-    Spacer(Modifier.height(14.dp))
-}
-
-@Composable
-private fun SettingRow(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    content: @Composable () -> Unit
-) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
-        val compact = maxWidth < 560.dp
-        if (compact) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SettingLabel(icon, title, description)
-                content()
-            }
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SettingLabel(
-                    icon = icon,
-                    title = title,
-                    description = description,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(14.dp))
-                content()
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingLabel(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text(description, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun DiagnosticMessage(
-    title: String,
-    message: String,
-    isError: Boolean
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
-            .padding(10.dp),
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
     ) {
         Icon(
-            imageVector = Icons.Outlined.Warning,
+            imageVector = icon,
             contentDescription = null,
-            tint = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(17.dp)
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(AppTokens.Size.iconLarge)
         )
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-            Text(message, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
-}
-
-private fun SettingsSection.title(s: Strings): String = when (this) {
-    SettingsSection.GENERAL -> s.settingsGeneral
-    SettingsSection.NETWORK -> s.settingsNetwork
-    SettingsSection.DATA -> s.settingsData
-    SettingsSection.ABOUT -> s.settingsAboutSection
 }
 
 private fun SettingsSection.icon(): ImageVector = when (this) {
@@ -749,24 +726,33 @@ private fun SettingsSection.icon(): ImageVector = when (this) {
     SettingsSection.ABOUT -> Icons.Outlined.Info
 }
 
+private fun SettingsSection.title(s: Strings): String = when (this) {
+    SettingsSection.GENERAL -> s.settingsGeneral
+    SettingsSection.NETWORK -> s.settingsNetwork
+    SettingsSection.DATA -> s.settingsData
+    SettingsSection.ABOUT -> s.settingsAbout
+}
+
+private fun openWebUrl(url: String) {
+    try {
+        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+            Desktop.getDesktop().browse(URI(url))
+        }
+    } catch (_: Exception) {}
+}
+
 private fun openConfigDirectory(viewModel: AppViewModel): String? {
     return try {
-        val parent = viewModel.configStore.configFile.parentFile
-            ?: throw IllegalStateException("config directory is unavailable")
-        if (!parent.exists()) parent.mkdirs()
-
+        val path = viewModel.configStore.currentConfig
+        val dir = File(System.getProperty("user.home"), ".antigravity")
+        if (!dir.exists()) dir.mkdirs()
         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-            Desktop.getDesktop().open(parent)
+            Desktop.getDesktop().open(dir)
+            null
         } else {
-            val os = System.getProperty("os.name", "").lowercase()
-            when {
-                os.contains("win") -> ProcessBuilder("explorer.exe", parent.absolutePath).start()
-                os.contains("mac") -> ProcessBuilder("/usr/bin/open", parent.absolutePath).start()
-                else -> ProcessBuilder("xdg-open", parent.absolutePath).start()
-            }
+            "当前平台不支持直接打开文件夹"
         }
-        null
-    } catch (error: Exception) {
-        error.message ?: "Unable to open directory"
+    } catch (e: Exception) {
+        "打开配置目录失败：${e.message}"
     }
 }

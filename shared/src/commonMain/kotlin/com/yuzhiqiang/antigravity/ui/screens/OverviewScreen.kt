@@ -3,35 +3,64 @@ package com.yuzhiqiang.antigravity.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material3.*
+import androidx.compose.material.icons.outlined.HealthAndSafety
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.yuzhiqiang.antigravity.host.app.AppHostManager
-import com.yuzhiqiang.antigravity.host.cli.CliHostManager
-import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.BadgeTone
+import com.yuzhiqiang.antigravity.ui.components.PageHeader
+import com.yuzhiqiang.antigravity.ui.components.StatusBadge
+import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OverviewScreen(
     viewModel: AppViewModel,
@@ -55,188 +84,46 @@ fun OverviewScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(horizontal = 32.dp, vertical = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp)
+            .padding(horizontal = AppTokens.Spacing.pageHorizontal, vertical = AppTokens.Spacing.pageVertical),
+        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
     ) {
-        // Topbar: 标题 + 副标题 + 紫蓝色一键体检按钮
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(
-                    text = "运行概览",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A),
-                    letterSpacing = (-0.5).sp
-                )
-                Text(
-                    text = "管理上下文压缩配置、模型与 Antigravity 客户端的代理接入。",
-                    fontSize = 13.5.sp,
-                    color = Color(0xFF475569)
-                )
-            }
-
-            Button(
-                onClick = { viewModel.openDoctorDialog() },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4F46E5),
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 9.dp)
-            ) {
-                Text("一键体检", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        // Hero Service Panel: 本地代理服务通栏单行卡片
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = Color.White,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x18000000)),
-            shadowElevation = 1.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f, fill = false),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+        // Topbar: 标题 + 副标题 + Material 3 规范一键体检按钮
+        PageHeader(
+            title = s.navOverview,
+            subtitle = s.overviewSubtitle,
+            action = {
+                Button(
+                    onClick = { viewModel.openDoctorDialog() },
+                    shape = RoundedCornerShape(AppTokens.Radius.medium),
+                    contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.content)
                 ) {
-                    Text(
-                        text = "本地代理服务",
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                    Icon(
+                        imageVector = Icons.Outlined.HealthAndSafety,
+                        contentDescription = null,
+                        modifier = Modifier.size(AppTokens.Size.iconMedium)
                     )
-
-                    // 绿色 Glow 圆点 + 运行中胶囊
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(if (isRunning) Color(0xFF10B981) else Color(0xFF94A3B8))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(9999.dp))
-                                .background(if (isRunning) Color(0xFFDCFCE7) else Color(0xFFF1F5F9))
-                                .padding(horizontal = 10.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = if (isRunning) "运行中" else "已停止",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isRunning) Color(0xFF15803D) else Color(0xFF64748B)
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.width(10.dp))
-
-                    // 代理服务地址代码框
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "代理服务地址",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B)
-                        )
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = address,
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF2563EB)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable {
-                                        copyToClipboard("http://$address")
-                                        viewModel.showNotice("已复制代理地址")
-                                    }
-                                    .padding(2.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.ContentCopy,
-                                    contentDescription = "复制",
-                                    tint = Color(0xFF64748B),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 停止代理按钮 (白底细灰框，单行展示)
-                if (isRunning) {
-                    OutlinedButton(
-                        onClick = { viewModel.stopProxy() },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF334155)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "停止代理",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                } else {
-                    Button(
-                        onClick = { viewModel.startProxy() },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2563EB),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "启动代理",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
+                    Spacer(Modifier.width(AppTokens.Spacing.sm))
+                    Text(
+                        text = "一键体检",
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
             }
-        }
+        )
 
-        // 宿主环境卡片网格 (1:1 还原原版 2+1 网格)
+        // Hero Service Panel: 本地代理服务通栏卡片
+        HeroProxyServiceCard(
+            isRunning = isRunning,
+            address = address,
+            onStart = { viewModel.startProxy() },
+            onStop = { viewModel.stopProxy() },
+            onCopyAddress = {
+                copyToClipboard("http://$address")
+                viewModel.showNotice("已复制代理地址")
+            }
+        )
+
+        // 宿主环境卡片网格
         val hostCardItems = remember(
             isIdeActive, isIdeRunning, isIdeInstalled,
             isAppActive, isAppRunning, isAppInstalled,
@@ -246,32 +133,32 @@ fun OverviewScreen(
                 HostCardData(
                     title = "Antigravity IDE",
                     statusLabel = if (isIdeActive || isIdeRunning) "运行中" else if (isIdeInstalled) "已就绪" else "未安装",
-                    isGreenStatus = isIdeActive || isIdeRunning,
-                    desc = if (isIdeRunning) "Antigravity IDE 正在运行  (自定义)" else "Antigravity IDE 已安装",
+                    statusTone = if (isIdeActive || isIdeRunning) BadgeTone.SUCCESS else if (isIdeInstalled) BadgeTone.INFO else BadgeTone.NEUTRAL,
+                    desc = if (isIdeRunning) "Antigravity IDE 正在运行并已配置" else if (isIdeInstalled) "Antigravity IDE 已安装就绪" else "未检测到 Antigravity IDE 安装目录",
                     isProxyActive = isIdeActive,
-                    integrationDetail = if (isIdeActive) "代理配置正常" else "未接入代理模式",
+                    integrationDetail = if (isIdeActive) "settings.json 代理接入生效中" else "当前使用官方直连模式",
                     onToggle = { viewModel.toggleIdeHost() },
-                    onRestart = { viewModel.launchIde() },
+                    onRestart = if (isIdeInstalled) ({ viewModel.launchIde() }) else null,
                     onRefresh = { viewModel.refreshHostStatus() }
                 ),
                 HostCardData(
                     title = "Antigravity App",
                     statusLabel = if (isAppActive || isAppRunning) "运行中" else if (isAppInstalled) "已安装" else "未安装",
-                    isGreenStatus = isAppActive || isAppRunning,
-                    desc = if (isAppRunning) "Antigravity App 正在运行" else "Antigravity App 已安装",
+                    statusTone = if (isAppActive || isAppRunning) BadgeTone.SUCCESS else if (isAppInstalled) BadgeTone.INFO else BadgeTone.NEUTRAL,
+                    desc = if (isAppRunning) "Antigravity App 正在运行" else if (isAppInstalled) "Antigravity App 已安装就绪" else "未检测到 Antigravity App 应用安装",
                     isProxyActive = isAppActive,
-                    integrationDetail = if (isAppActive) "代理配置正常" else "未接入代理模式",
+                    integrationDetail = if (isAppActive) "环境变量 CLOUD_CODE_URL 代理生效中" else "当前使用官方直连模式",
                     onToggle = { viewModel.toggleAppHost() },
-                    onRestart = { viewModel.launchApp() },
+                    onRestart = if (isAppInstalled) ({ viewModel.launchApp() }) else null,
                     onRefresh = { viewModel.refreshHostStatus() }
                 ),
                 HostCardData(
                     title = "Antigravity CLI",
                     statusLabel = if (isCliInstalled) "已安装" else "未安装",
-                    isGreenStatus = false,
-                    desc = "Antigravity CLI 已安装",
+                    statusTone = if (isCliActive) BadgeTone.SUCCESS else if (isCliInstalled) BadgeTone.INFO else BadgeTone.NEUTRAL,
+                    desc = if (isCliInstalled) "Antigravity CLI (agy) 已安装" else "未检测到 agy CLI 配置文件",
                     isProxyActive = isCliActive,
-                    integrationDetail = if (isCliActive) "CLI 已接入代理模式" else "CLI 当前处于官方直连模式",
+                    integrationDetail = if (isCliActive) "CLI 配置文件代理接入生效中" else "CLI 当前处于官方直连模式",
                     onToggle = { viewModel.toggleCliHost() },
                     onRestart = null,
                     onRefresh = { viewModel.refreshHostStatus() }
@@ -279,12 +166,11 @@ fun OverviewScreen(
             )
         }
 
-        // 宿主环境卡片网格 (1:1 还原 CSS Grid: repeat(auto-fit, minmax(300px, 1fr)))
+        // 响应式网格布局 (自适应 1~3 列)
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val availableWidth = maxWidth
             val minCardWidth = 300.dp
-            val gap = 20.dp
-            // 计算当前宽度能够容纳的列数 (1, 2 或 3)
+            val gap = AppTokens.Spacing.card
             val columns = ((availableWidth + gap) / (minCardWidth + gap)).toInt().coerceIn(1, 3)
 
             Column(verticalArrangement = Arrangement.spacedBy(gap)) {
@@ -299,7 +185,6 @@ fun OverviewScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        // 最后一行的空缺占位，确保卡片保持 1fr 相同宽度
                         val emptySlots = columns - rowItems.size
                         repeat(emptySlots) {
                             Spacer(Modifier.weight(1f))
@@ -311,10 +196,136 @@ fun OverviewScreen(
     }
 }
 
+@Composable
+private fun HeroProxyServiceCard(
+    isRunning: Boolean,
+    address: String,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onCopyAddress: () -> Unit
+) {
+    var isRecentlyCopied by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    StudioCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.section),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
+            ) {
+                Text(
+                    text = "本地代理服务",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                StatusBadge(
+                    text = if (isRunning) "运行中" else "已停止",
+                    isActive = isRunning,
+                    pulse = isRunning
+                )
+
+                Spacer(Modifier.width(AppTokens.Spacing.xs))
+
+                // 代理地址单行代码框
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
+                ) {
+                    Text(
+                        text = "服务地址",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(AppTokens.Radius.small))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(AppTokens.Radius.small))
+                            .clickable {
+                                onCopyAddress()
+                                isRecentlyCopied = true
+                                scope.launch {
+                                    delay(2000)
+                                    isRecentlyCopied = false
+                                }
+                            }
+                            .padding(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+                    ) {
+                        Text(
+                            text = address,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Icon(
+                            imageVector = if (isRecentlyCopied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                            contentDescription = "复制地址",
+                            tint = if (isRecentlyCopied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(AppTokens.Size.iconSmall)
+                        )
+                    }
+                }
+            }
+
+            // 启停按钮
+            if (isRunning) {
+                OutlinedButton(
+                    onClick = onStop,
+                    shape = RoundedCornerShape(AppTokens.Radius.medium),
+                    contentPadding = PaddingValues(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.xs)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Stop,
+                        contentDescription = null,
+                        modifier = Modifier.size(AppTokens.Size.iconMedium)
+                    )
+                    Spacer(Modifier.width(AppTokens.Spacing.xs))
+                    Text(
+                        text = "停止代理",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            } else {
+                Button(
+                    onClick = onStart,
+                    shape = RoundedCornerShape(AppTokens.Radius.medium),
+                    contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.xs)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(AppTokens.Size.iconMedium)
+                    )
+                    Spacer(Modifier.width(AppTokens.Spacing.xs))
+                    Text(
+                        text = "启动代理",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        }
+    }
+}
+
 private data class HostCardData(
     val title: String,
     val statusLabel: String,
-    val isGreenStatus: Boolean,
+    val statusTone: BadgeTone,
     val desc: String,
     val isProxyActive: Boolean,
     val integrationDetail: String,
@@ -328,20 +339,17 @@ private fun HostCardItem(
     data: HostCardData,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    StudioCard(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x18000000)),
-        shadowElevation = 1.dp
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(AppTokens.Spacing.card),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
         ) {
-            // 标题行：左侧标题 + 右侧药丸胶囊
+            // 标题行：左侧标题 + 右侧状态胶囊
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -349,54 +357,39 @@ private fun HostCardItem(
             ) {
                 Text(
                     text = data.title,
-                    fontSize = 17.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A),
-                    letterSpacing = (-0.3).sp,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     modifier = Modifier.weight(1f, fill = false)
                 )
 
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AppTokens.Spacing.sm))
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(9999.dp))
-                        .background(if (data.isGreenStatus) Color(0xFFDCFCE7) else Color(0xFFF1F5F9))
-                        .padding(horizontal = 10.dp, vertical = 3.5.dp)
-                ) {
-                    Text(
-                        text = data.statusLabel,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (data.isGreenStatus) Color(0xFF15803D) else Color(0xFF475569),
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
+                StatusBadge(
+                    text = data.statusLabel,
+                    tone = data.statusTone
+                )
             }
 
-            // 标题下方的细分割线 (1:1 还原原版 panel-heading border-bottom)
-            HorizontalDivider(color = Color(0x12000000), thickness = 1.dp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             // 描述行
             Text(
                 text = data.desc,
-                fontSize = 13.sp,
-                color = Color(0xFF475569),
-                lineHeight = 18.sp,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 minLines = 1
             )
 
-            // 内嵌代理模式子面板 (ide-integration-summary)
+            // 内嵌代理模式子面板
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFF8FAFC))
-                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .clip(RoundedCornerShape(AppTokens.Radius.medium))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(AppTokens.Radius.medium))
+                    .padding(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.content),
+                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -405,80 +398,67 @@ private fun HostCardItem(
                 ) {
                     Text(
                         text = "代理模式",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF334155)
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(9999.dp))
-                            .background(if (data.isProxyActive) Color(0xFFDCFCE7) else Color(0xFFF1F5F9))
-                            .padding(horizontal = 8.dp, vertical = 2.5.dp)
-                    ) {
-                        Text(
-                            text = if (data.isProxyActive) "已启用" else "未启用",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (data.isProxyActive) Color(0xFF15803D) else Color(0xFF64748B),
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
+                    StatusBadge(
+                        text = if (data.isProxyActive) "已接入" else "未接入",
+                        tone = if (data.isProxyActive) BadgeTone.SUCCESS else BadgeTone.NEUTRAL,
+                        showDot = false
+                    )
                 }
                 Text(
                     text = data.integrationDetail,
-                    fontSize = 11.5.sp,
-                    color = Color(0xFF64748B)
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AppTokens.Spacing.xxs))
 
-            // 底部操作按钮组：左侧主操作与重启 + 右侧刷新按钮靠右对齐 (1:1 还原原版 host-actions)
+            // 底部操作按钮组
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(
-                        onClick = data.onToggle,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF334155)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = if (data.isProxyActive) "停用代理接入" else "启用代理模式",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                    if (data.isProxyActive) {
+                        FilledTonalButton(
+                            onClick = data.onToggle,
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
+                            contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
+                        ) {
+                            Text(
+                                text = "恢复官方直连",
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = data.onToggle,
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
+                            contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
+                        ) {
+                            Text(
+                                text = "接入 Studio 代理",
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
                     }
 
                     if (data.onRestart != null) {
                         OutlinedButton(
                             onClick = data.onRestart,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = Color.White,
-                                contentColor = Color(0xFF334155)
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            shape = RoundedCornerShape(AppTokens.Radius.medium),
+                            contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
                         ) {
                             Text(
-                                text = "重启",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                softWrap = false
+                                text = "唤起 / 重启",
+                                style = MaterialTheme.typography.labelMedium
                             )
                         }
                     }
@@ -488,20 +468,13 @@ private fun HostCardItem(
 
                 OutlinedButton(
                     onClick = data.onRefresh,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.White,
-                        contentColor = Color(0xFF334155)
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    shape = RoundedCornerShape(AppTokens.Radius.medium),
+                    contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
                 ) {
-                    Text(
-                        text = "刷新",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        softWrap = false
+                    Icon(
+                        imageVector = Icons.Outlined.Refresh,
+                        contentDescription = "刷新",
+                        modifier = Modifier.size(AppTokens.Size.iconSmall)
                     )
                 }
             }

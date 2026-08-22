@@ -393,6 +393,31 @@ class AppViewModel(
         }
     }
 
+    fun toggleCustomModel(modelId: String) {
+        configStore.updateConfig { current ->
+            val targetModel = current.upstreamModels.find { it.id == modelId }
+            val newEnabled = targetModel?.let { !it.enabled } ?: true
+            val updatedUpstream = current.upstreamModels.map { model ->
+                if (model.id == modelId) {
+                    model.copy(enabled = newEnabled)
+                } else {
+                    model
+                }
+            }
+            val updatedVirtual = current.virtualModels.map { vModel ->
+                if (vModel.upstreamModelId == modelId) {
+                    vModel.copy(enabled = newEnabled)
+                } else {
+                    vModel
+                }
+            }
+            current.copy(
+                upstreamModels = updatedUpstream,
+                virtualModels = updatedVirtual
+            )
+        }
+    }
+
     fun deleteProvider(providerId: String): Boolean {
         try {
             configStore.updateConfig { current ->
