@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.yuzhiqiang.antigravity.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
@@ -20,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +34,6 @@ import com.yuzhiqiang.antigravity.domain.model.OfficialCatalogModel
 import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
 import com.yuzhiqiang.antigravity.domain.model.VirtualModel
-import com.yuzhiqiang.antigravity.ui.components.FallbackSelector
 import com.yuzhiqiang.antigravity.ui.dialogs.*
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
@@ -437,7 +440,6 @@ fun ModelsScreen(
                     modelTestStatuses = modelTestStatuses,
                     isProviderTesting = isProviderTesting,
                     compressionPolicies = config.modelCompressionPolicies,
-                    virtualModels = config.virtualModels,
                     onEditProvider = {
                         editingProvider = currentProvider
                         editingSingleModel = null
@@ -480,10 +482,10 @@ fun ModelsScreen(
                     onTestSingleModel = { model ->
                         viewModel.testSingleModel(model, currentProvider)
                     },
-                    onEditPolicy = { modelId -> policyEditingModelId = modelId },
-                    onUpdateFallback = { virtualModelId, fallbackId ->
-                        viewModel.updateVirtualModelFallback(virtualModelId, fallbackId)
+                    onToggleModelEnabled = { model ->
+                        viewModel.toggleCustomModel(model.id)
                     },
+                    onEditPolicy = { modelId -> policyEditingModelId = modelId },
                     onOpenVisionDetail = { name, vision ->
                         activeMultimodalModelInfo = name to vision
                     },
@@ -740,41 +742,11 @@ private fun OfficialModelsView(
                 )
             }
 
-            // 右侧搜索与按钮组
+            // 右侧操作按钮组
             Row(
                 horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    placeholder = {
-                        Text(
-                            "搜索模型...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Outlined.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(AppTokens.Size.iconSmall)
-                        )
-                    },
-                    modifier = Modifier
-                        .width(AppTokens.Size.searchFieldWidth)
-                        .height(AppTokens.Size.controlHeight),
-                    shape = MaterialTheme.shapes.small,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                    ),
-                    singleLine = true
-                )
                 ModernToolButton(
                     icon = Icons.Outlined.Sensors,
                     text = if (isTesting) "测试中..." else "测试连接",
@@ -842,38 +814,46 @@ private fun OfficialModelsView(
             }
         } else {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val columnCount = ((maxWidth.value + 16f) / 296f).toInt().coerceAtLeast(1)
+                val columnCount = when {
+                    maxWidth < 720.dp -> 1
+                    maxWidth < 1120.dp -> 2
+                    maxWidth < 1560.dp -> 3
+                    else -> 4
+                }
                 if (columnCount == 1) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         groupedModels.forEach { group ->
-                            ModernOfficialCard(
-                                group = group,
-                                configDisabledModels = configDisabledModels,
-                                compressionPolicies = compressionPolicies,
-                                onToggle = { onToggleGroup(group) },
-                                onEditPolicy = { onEditPolicy(group.baseItem.id) },
-                                onOpenVisionDetail = {
-                                    onOpenVisionDetail(
-                                        group.baseName,
-                                        group.baseItem.supportsVision
-                                    )
-                                },
-                                onOpenReasoningDetail = {
-                                    onOpenReasoningDetail(
-                                        group.baseName,
-                                        group.variants.map { it.label })
-                                },
-                                onOpenInfoDetail = {
-                                    onOpenInfoDetail(
-                                        ModelMetaInfo(
-                                            name = group.baseName,
-                                            id = group.baseItem.id,
-                                            contextLimit = group.baseItem.inputTokenLimit ?: group.baseItem.maxTokens,
-                                            outputLimit = group.baseItem.outputTokenLimit,
-                                            roles = group.baseItem.roles
+                            UniversalModelCard(
+                                state = createOfficialCardState(
+                                    group = group,
+                                    configDisabledModels = configDisabledModels,
+                                    compressionPolicies = compressionPolicies,
+                                    onToggle = { onToggleGroup(group) },
+                                    onEditPolicy = { onEditPolicy(group.baseItem.id) },
+                                    onOpenVisionDetail = {
+                                        onOpenVisionDetail(
+                                            group.baseName,
+                                            group.baseItem.supportsVision
                                         )
-                                    )
-                                }
+                                    },
+                                    onOpenReasoningDetail = {
+                                        onOpenReasoningDetail(
+                                            group.baseName,
+                                            group.variants.map { it.label }
+                                        )
+                                    },
+                                    onOpenInfoDetail = {
+                                        onOpenInfoDetail(
+                                            ModelMetaInfo(
+                                                name = group.baseName,
+                                                id = group.baseItem.id,
+                                                contextLimit = group.baseItem.inputTokenLimit ?: group.baseItem.maxTokens,
+                                                outputLimit = group.baseItem.outputTokenLimit,
+                                                roles = group.baseItem.roles
+                                            )
+                                        )
+                                    }
+                                )
                             )
                         }
                     }
@@ -885,326 +865,46 @@ private fun OfficialModelsView(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 rowGroups.forEach { group ->
-                                    ModernOfficialCard(
-                                        group = group,
-                                        configDisabledModels = configDisabledModels,
-                                        compressionPolicies = compressionPolicies,
-                                        onToggle = { onToggleGroup(group) },
-                                        onEditPolicy = { onEditPolicy(group.baseItem.id) },
-                                        onOpenVisionDetail = {
-                                            onOpenVisionDetail(
-                                                group.baseName,
-                                                group.baseItem.supportsVision
-                                            )
-                                        },
-                                        onOpenReasoningDetail = {
-                                            onOpenReasoningDetail(
-                                                group.baseName,
-                                                group.variants.map { it.label })
-                                        },
-                                        onOpenInfoDetail = {
-                                            onOpenInfoDetail(
-                                                ModelMetaInfo(
-                                                    name = group.baseName,
-                                                    id = group.baseItem.id,
-                                                    contextLimit = group.baseItem.inputTokenLimit
-                                                        ?: group.baseItem.maxTokens,
-                                                    outputLimit = group.baseItem.outputTokenLimit,
-                                                    roles = group.baseItem.roles
+                                    UniversalModelCard(
+                                        state = createOfficialCardState(
+                                            group = group,
+                                            configDisabledModels = configDisabledModels,
+                                            compressionPolicies = compressionPolicies,
+                                            onToggle = { onToggleGroup(group) },
+                                            onEditPolicy = { onEditPolicy(group.baseItem.id) },
+                                            onOpenVisionDetail = {
+                                                onOpenVisionDetail(
+                                                    group.baseName,
+                                                    group.baseItem.supportsVision
                                                 )
-                                            )
-                                        },
+                                            },
+                                            onOpenReasoningDetail = {
+                                                onOpenReasoningDetail(
+                                                    group.baseName,
+                                                    group.variants.map { it.label }
+                                                )
+                                            },
+                                            onOpenInfoDetail = {
+                                                onOpenInfoDetail(
+                                                    ModelMetaInfo(
+                                                        name = group.baseName,
+                                                        id = group.baseItem.id,
+                                                        contextLimit = group.baseItem.inputTokenLimit
+                                                            ?: group.baseItem.maxTokens,
+                                                        outputLimit = group.baseItem.outputTokenLimit,
+                                                        roles = group.baseItem.roles
+                                                    )
+                                                )
+                                            }
+                                        ),
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
-                                if (rowGroups.size == 1) {
+                                val emptySlots = columnCount - rowGroups.size
+                                repeat(emptySlots) {
                                     Spacer(Modifier.weight(1f))
                                 }
                             }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// =========================================================================
-// 现代化官方模型卡片 (Modern Official Model Card)
-// =========================================================================
-@Composable
-private fun ModernOfficialCard(
-    group: GroupedOfficialModel,
-    configDisabledModels: List<String>,
-    compressionPolicies: Map<String, com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy>,
-    onToggle: () -> Unit,
-    onEditPolicy: () -> Unit,
-    onOpenVisionDetail: () -> Unit,
-    onOpenReasoningDetail: () -> Unit,
-    onOpenInfoDetail: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val allModelIds = group.variants.map { it.model.id }.toSet()
-    val isDisabled = allModelIds.any { it in configDisabledModels }
-    val item = group.baseItem
-
-    val policy =
-        compressionPolicies[item.id] ?: group.variants.firstNotNullOfOrNull { compressionPolicies[it.model.id] }
-    val hasPolicy = policy != null
-    val brand = ModelBrand.fromModelName(group.baseName)
-
-    val cardAlpha = if (isDisabled) 0.55f else 1f
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(cardAlpha),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isDisabled) 0.dp else AppTokens.Elevation.card
-        ),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        )
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // --- 1. 卡片 Header (品牌徽标 + 模型大名 + 右侧开关) ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 18.dp, top = 18.dp, end = 16.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f, fill = false),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // 品牌徽标使用令牌中的品牌色，不再在卡片内创建独立色板。
-                    Box(
-                        modifier = Modifier
-                            .size(AppTokens.Size.brandMark)
-                            .clip(MaterialTheme.shapes.small)
-                            .background(brand.colors.start.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = brand.iconVector,
-                            contentDescription = null,
-                            tint = brand.colors.accent,
-                            modifier = Modifier.size(AppTokens.Size.iconLarge)
-                        )
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)) {
-                        Text(
-                            text = group.baseName,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "${brand.brandName} · ${if (item.contextWindow != null) "${item.contextWindow / 1000}K 上下文" else "官方多模态引擎"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                // 现代 Switch 风格的启用/禁用按钮
-                ModernToggleSwitch(
-                    isChecked = !isDisabled,
-                    onToggle = onToggle
-                )
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            // --- 2. 卡片 Body (特性 Tags 徽章 + 推理档位胶囊) ---
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = AppTokens.Spacing.card,
-                        vertical = AppTokens.Spacing.content
-                    ),
-                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
-            ) {
-                // 特性徽章集合
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (item.supportsVision) {
-                        ModernFeatureTag(
-                            icon = Icons.Outlined.Image,
-                            text = "视觉解析",
-                            style = AppTokens.Feature.vision,
-                            onClick = onOpenVisionDetail
-                        )
-                    }
-                    if (item.supportsTools) {
-                        ModernFeatureTag(
-                            icon = Icons.Outlined.Build,
-                            text = "工具联动",
-                            style = AppTokens.Feature.tools,
-                            onClick = null
-                        )
-                    }
-                    if (item.supportsReasoning) {
-                        ModernFeatureTag(
-                            icon = Icons.Outlined.Psychology,
-                            text = "深度推理",
-                            style = AppTokens.Feature.reasoning,
-                            onClick = onOpenReasoningDetail
-                        )
-                    }
-                    ModernFeatureTag(
-                        icon = Icons.Outlined.Info,
-                        text = "规格详情",
-                        style = AppTokens.Feature.info,
-                        onClick = onOpenInfoDetail
-                    )
-                }
-
-                // 推理档位胶囊行
-                Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)) {
-                    Text(
-                        text = "推理档位 (REASONING TIERS)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 0.5.sp
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        group.variants.forEach { variant ->
-                            Surface(
-                                shape = MaterialTheme.shapes.small,
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outlineVariant
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(
-                                        horizontal = AppTokens.Spacing.content,
-                                        vertical = AppTokens.Spacing.compact
-                                    ),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(AppTokens.Spacing.compact)
-                                            .clip(CircleShape)
-                                            .background(AppStatusColors.success)
-                                    )
-                                    Text(
-                                        text = variant.label,
-                                        style = MaterialTheme.typography.labelMedium
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // --- 3. 卡片 Footer (压缩策略管理栏) ---
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                tonalElevation = 0.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = AppTokens.Spacing.card,
-                            vertical = AppTokens.Spacing.content
-                        ),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Compress,
-                            contentDescription = null,
-                            modifier = Modifier.size(AppTokens.Size.iconSmall)
-                        )
-                        Text(
-                            text = "上下文压缩",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    val pillLabel = if (hasPolicy) {
-                        if (policy?.triggerThresholdTokens != null && policy.triggerThresholdTokens > 0) {
-                            "${policy.triggerThresholdTokens / 1000}K (已自定义)"
-                        } else {
-                            "自定义策略"
-                        }
-                    } else {
-                        "官方默认 (80%)"
-                    }
-                    val policyContainer = if (hasPolicy) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    }
-                    val policyContent = if (hasPolicy) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-
-                    Surface(
-                        modifier = Modifier.clickable(onClick = onEditPolicy),
-                        shape = RoundedCornerShape(AppTokens.Radius.pill),
-                        color = policyContainer,
-                        contentColor = policyContent,
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (hasPolicy) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            }
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(
-                                horizontal = AppTokens.Spacing.content,
-                                vertical = AppTokens.Spacing.compact
-                            ),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-                        ) {
-                            Text(
-                                text = pillLabel,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                            Icon(
-                                imageVector = Icons.Outlined.Edit,
-                                contentDescription = null,
-                                modifier = Modifier.size(AppTokens.Size.iconSmall)
-                            )
                         }
                     }
                 }
@@ -1225,15 +925,14 @@ private fun CustomProviderView(
     modelTestStatuses: Map<String, AppViewModel.ModelTestStatus>,
     isProviderTesting: Boolean,
     compressionPolicies: Map<String, com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy>,
-    virtualModels: List<VirtualModel>,
     onEditProvider: () -> Unit,
     onDeleteProvider: () -> Unit,
     onTestProvider: () -> Unit,
     onEditSingleModel: (UpstreamModel) -> Unit,
     onDeleteSingleModel: (UpstreamModel) -> Unit,
     onTestSingleModel: (UpstreamModel) -> Unit,
+    onToggleModelEnabled: (UpstreamModel) -> Unit,
     onEditPolicy: (String) -> Unit,
-    onUpdateFallback: (String, String?) -> Unit,
     onOpenVisionDetail: (String, Boolean) -> Unit,
     onOpenReasoningDetail: (String, List<String>) -> Unit,
     onOpenInfoDetail: (ModelMetaInfo) -> Unit,
@@ -1343,41 +1042,11 @@ private fun CustomProviderView(
                 }
             }
 
-            // 右侧搜索与操作
+            // 右侧操作按钮组与状态
             Row(
                 horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    placeholder = {
-                        Text(
-                            "搜索模型...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Outlined.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(AppTokens.Size.iconSmall)
-                        )
-                    },
-                    modifier = Modifier
-                        .width(AppTokens.Size.searchFieldWidth)
-                        .height(AppTokens.Size.controlHeight),
-                    shape = MaterialTheme.shapes.small,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                    ),
-                    singleLine = true
-                )
                 if (hasTested) {
                     val summaryContainer = if (failedCount == 0) {
                         AppStatusColors.successContainer
@@ -1467,44 +1136,49 @@ private fun CustomProviderView(
             }
         } else {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val columnCount = ((maxWidth.value + 16f) / 296f).toInt().coerceAtLeast(1)
+                val columnCount = when {
+                    maxWidth < 720.dp -> 1
+                    maxWidth < 1120.dp -> 2
+                    maxWidth < 1560.dp -> 3
+                    else -> 4
+                }
                 if (columnCount == 1) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         models.forEach { model ->
-                            ModernCustomModelCard(
-                                model = model,
-                                testStatus = modelTestStatuses[model.id],
-                                hasPolicy = compressionPolicies.containsKey(model.id),
-                                virtualModels = virtualModels.filter { virtual ->
-                                    virtual.upstreamModelId == model.id
-                                },
-                                allVirtualModels = virtualModels,
-                                onUpdateFallback = onUpdateFallback,
-                                onEditModel = { onEditSingleModel(model) },
-                                onDeleteModel = { onDeleteSingleModel(model) },
-                                onTestModel = { onTestSingleModel(model) },
-                                onEditPolicy = { onEditPolicy(model.id) },
-                                onOpenVisionDetail = {
-                                    onOpenVisionDetail(
-                                        model.displayName ?: model.upstreamModelId,
-                                        model.capabilities.supportsVision
-                                    )
-                                },
-                                onOpenReasoningDetail = {
-                                    onOpenReasoningDetail(
-                                        model.displayName ?: model.upstreamModelId, listOf("Thinking / Reasoning")
-                                    )
-                                },
-                                onOpenInfoDetail = {
-                                    onOpenInfoDetail(
-                                        ModelMetaInfo(
-                                            name = model.displayName ?: model.upstreamModelId,
-                                            id = model.upstreamModelId,
-                                            contextLimit = model.effectiveContextWindow,
-                                            outputLimit = model.tokenLimits.outputTokenLimit ?: model.maxOutputTokens
+                            UniversalModelCard(
+                                state = createCustomCardState(
+                                    model = model,
+                                    testStatus = modelTestStatuses[model.id],
+                                    hasPolicy = compressionPolicies.containsKey(model.id),
+                                    policy = compressionPolicies[model.id],
+                                    onEditModel = { onEditSingleModel(model) },
+                                    onDeleteModel = { onDeleteSingleModel(model) },
+                                    onTestModel = { onTestSingleModel(model) },
+                                    onToggleEnabled = { onToggleModelEnabled(model) },
+                                    onEditPolicy = { onEditPolicy(model.id) },
+                                    onOpenVisionDetail = {
+                                        onOpenVisionDetail(
+                                            model.displayName ?: model.upstreamModelId,
+                                            model.capabilities.supportsVision
                                         )
-                                    )
-                                }
+                                    },
+                                    onOpenReasoningDetail = {
+                                        onOpenReasoningDetail(
+                                            model.displayName ?: model.upstreamModelId,
+                                            listOf("Thinking / Reasoning")
+                                        )
+                                    },
+                                    onOpenInfoDetail = {
+                                        onOpenInfoDetail(
+                                            ModelMetaInfo(
+                                                name = model.displayName ?: model.upstreamModelId,
+                                                id = model.upstreamModelId,
+                                                contextLimit = model.effectiveContextWindow,
+                                                outputLimit = model.tokenLimits.outputTokenLimit ?: model.maxOutputTokens
+                                            )
+                                        )
+                                    }
+                                )
                             )
                         }
                     }
@@ -1516,46 +1190,46 @@ private fun CustomProviderView(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 rowModels.forEach { model ->
-                                    ModernCustomModelCard(
-                                        model = model,
-                                        testStatus = modelTestStatuses[model.id],
-                                        hasPolicy = compressionPolicies.containsKey(model.id),
-                                        virtualModels = virtualModels.filter { virtual ->
-                                            virtual.upstreamModelId == model.id
-                                        },
-                                        allVirtualModels = virtualModels,
-                                        onUpdateFallback = onUpdateFallback,
-                                        onEditModel = { onEditSingleModel(model) },
-                                        onDeleteModel = { onDeleteSingleModel(model) },
-                                        onTestModel = { onTestSingleModel(model) },
-                                        onEditPolicy = { onEditPolicy(model.id) },
-                                        onOpenVisionDetail = {
-                                            onOpenVisionDetail(
-                                                model.displayName ?: model.upstreamModelId,
-                                                model.capabilities.supportsVision
-                                            )
-                                        },
-                                        onOpenReasoningDetail = {
-                                            onOpenReasoningDetail(
-                                                model.displayName ?: model.upstreamModelId,
-                                                listOf("Thinking / Reasoning")
-                                            )
-                                        },
-                                        onOpenInfoDetail = {
-                                            onOpenInfoDetail(
-                                                ModelMetaInfo(
-                                                    name = model.displayName ?: model.upstreamModelId,
-                                                    id = model.upstreamModelId,
-                                                    contextLimit = model.effectiveContextWindow,
-                                                    outputLimit = model.tokenLimits.outputTokenLimit
-                                                        ?: model.maxOutputTokens
+                                    UniversalModelCard(
+                                        state = createCustomCardState(
+                                            model = model,
+                                            testStatus = modelTestStatuses[model.id],
+                                            hasPolicy = compressionPolicies.containsKey(model.id),
+                                            policy = compressionPolicies[model.id],
+                                            onEditModel = { onEditSingleModel(model) },
+                                            onDeleteModel = { onDeleteSingleModel(model) },
+                                            onTestModel = { onTestSingleModel(model) },
+                                            onToggleEnabled = { onToggleModelEnabled(model) },
+                                            onEditPolicy = { onEditPolicy(model.id) },
+                                            onOpenVisionDetail = {
+                                                onOpenVisionDetail(
+                                                    model.displayName ?: model.upstreamModelId,
+                                                    model.capabilities.supportsVision
                                                 )
-                                            )
-                                        },
+                                            },
+                                            onOpenReasoningDetail = {
+                                                onOpenReasoningDetail(
+                                                    model.displayName ?: model.upstreamModelId,
+                                                    listOf("Thinking / Reasoning")
+                                                )
+                                            },
+                                            onOpenInfoDetail = {
+                                                onOpenInfoDetail(
+                                                    ModelMetaInfo(
+                                                        name = model.displayName ?: model.upstreamModelId,
+                                                        id = model.upstreamModelId,
+                                                        contextLimit = model.effectiveContextWindow,
+                                                        outputLimit = model.tokenLimits.outputTokenLimit
+                                                            ?: model.maxOutputTokens
+                                                    )
+                                                )
+                                            }
+                                        ),
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
-                                if (rowModels.size == 1) {
+                                val emptySlots = columnCount - rowModels.size
+                                repeat(emptySlots) {
                                     Spacer(Modifier.weight(1f))
                                 }
                             }
@@ -1568,322 +1242,430 @@ private fun CustomProviderView(
 }
 
 // =========================================================================
-// 现代化三方模型卡片 (Modern Custom Model Card)
+// 全局通用模型卡片 UI 状态模型
 // =========================================================================
-@Composable
-private fun ModernCustomModelCard(
-    model: UpstreamModel,
-    testStatus: AppViewModel.ModelTestStatus?,
-    hasPolicy: Boolean,
-    virtualModels: List<VirtualModel>,
-    allVirtualModels: List<VirtualModel>,
-    onUpdateFallback: (String, String?) -> Unit,
-    onEditModel: () -> Unit,
-    onDeleteModel: () -> Unit,
-    onTestModel: () -> Unit,
+private data class UniversalModelCardUiState(
+    val title: String,
+    val subtitle: String? = null,
+    val brand: ModelBrand,
+    val isEnabled: Boolean,
+    val onToggleEnabled: () -> Unit,
+    val testStatus: AppViewModel.ModelTestStatus? = null,
+    val onTest: (() -> Unit)? = null,
+    val onEdit: (() -> Unit)? = null,
+    val onDelete: (() -> Unit)? = null,
+    val contextLimitText: String,
+    val outputLimitText: String?,
+    val supportsVision: Boolean = false,
+    val supportsTools: Boolean = false,
+    val supportsReasoning: Boolean = false,
+    val reasoningVariants: List<String> = emptyList(),
+    val compressionLabel: String,
+    val isCompressionCustom: Boolean,
+    val onEditCompressionPolicy: () -> Unit,
+    val onOpenVisionDetail: (() -> Unit)? = null,
+    val onOpenReasoningDetail: (() -> Unit)? = null,
+    val onOpenInfoDetail: (() -> Unit)? = null
+)
+
+// 官方模型状态构建器
+private fun createOfficialCardState(
+    group: GroupedOfficialModel,
+    configDisabledModels: List<String>,
+    compressionPolicies: Map<String, com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy>,
+    onToggle: () -> Unit,
     onEditPolicy: () -> Unit,
     onOpenVisionDetail: () -> Unit,
     onOpenReasoningDetail: () -> Unit,
-    onOpenInfoDetail: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+    onOpenInfoDetail: () -> Unit
+): UniversalModelCardUiState {
+    val allModelIds = group.variants.map { it.model.id }.toSet()
+    val isDisabled = allModelIds.any { it in configDisabledModels }
+    val item = group.baseItem
+    val policy = compressionPolicies[item.id] ?: group.variants.firstNotNullOfOrNull { compressionPolicies[it.model.id] }
+    val hasPolicy = policy != null
+    val compressionLabel = if (hasPolicy) {
+        if (policy?.triggerThresholdTokens != null && policy.triggerThresholdTokens > 0) {
+            "${policy.triggerThresholdTokens / 1000}K (已自定义)"
+        } else {
+            "自定义策略"
+        }
+    } else {
+        "官方默认 (80%)"
+    }
+    val contextText = item.contextWindow?.let { formatTokenDisplay(it) }
+        ?: item.maxTokens?.let { formatTokenDisplay(it) }
+        ?: "1048K"
+    val outputText = item.outputTokenLimit?.let { formatTokenDisplay(it) }
+    val brand = ModelBrand.fromModelName(group.baseName)
+
+    return UniversalModelCardUiState(
+        title = group.baseName,
+        subtitle = null,
+        brand = brand,
+        isEnabled = !isDisabled,
+        onToggleEnabled = onToggle,
+        contextLimitText = contextText,
+        outputLimitText = outputText,
+        supportsVision = item.supportsVision,
+        supportsTools = item.supportsTools,
+        supportsReasoning = item.supportsReasoning,
+        reasoningVariants = group.variants.map { it.label },
+        compressionLabel = compressionLabel,
+        isCompressionCustom = hasPolicy,
+        onEditCompressionPolicy = onEditPolicy,
+        onOpenVisionDetail = onOpenVisionDetail,
+        onOpenReasoningDetail = onOpenReasoningDetail,
+        onOpenInfoDetail = onOpenInfoDetail
+    )
+}
+
+// 自定义三方模型状态构建器
+private fun createCustomCardState(
+    model: UpstreamModel,
+    testStatus: AppViewModel.ModelTestStatus?,
+    hasPolicy: Boolean,
+    policy: com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy?,
+    onEditModel: () -> Unit,
+    onDeleteModel: () -> Unit,
+    onTestModel: () -> Unit,
+    onToggleEnabled: () -> Unit,
+    onEditPolicy: () -> Unit,
+    onOpenVisionDetail: () -> Unit,
+    onOpenReasoningDetail: () -> Unit,
+    onOpenInfoDetail: () -> Unit
+): UniversalModelCardUiState {
     val modelTitle = (model.displayName ?: "").ifBlank { model.upstreamModelId }
     val brand = ModelBrand.fromModelName(modelTitle)
+    val compressionLabel = if (hasPolicy) {
+        if (policy?.triggerThresholdTokens != null && policy.triggerThresholdTokens > 0) {
+            "${policy.triggerThresholdTokens / 1000}K (已自定义)"
+        } else {
+            "自定义策略"
+        }
+    } else {
+        "官方默认 (80%)"
+    }
+    val contextText = model.tokenLimits.contextWindow?.let { formatTokenDisplay(it) } ?: "未设置"
+    val outputText = (model.tokenLimits.outputTokenLimit ?: model.maxOutputTokens)?.let { formatTokenDisplay(it) }
+    val customSubtitle = if (model.displayName != null && model.displayName.isNotBlank() && model.displayName != model.upstreamModelId) {
+        model.upstreamModelId
+    } else null
+
+    val rawLevels = com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport.configuredLevels(model.capabilities.reasoning.levels)
+    val reasoningLevels = if (rawLevels.isNotEmpty()) {
+        rawLevels.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+    } else if (model.capabilities.reasoning.supportsReasoning) {
+        listOf("High", "Medium", "Low")
+    } else {
+        emptyList()
+    }
+
+    return UniversalModelCardUiState(
+        title = modelTitle,
+        subtitle = customSubtitle,
+        brand = brand,
+        isEnabled = model.enabled,
+        onToggleEnabled = onToggleEnabled,
+        testStatus = testStatus,
+        onTest = onTestModel,
+        onEdit = onEditModel,
+        onDelete = onDeleteModel,
+        contextLimitText = contextText,
+        outputLimitText = outputText,
+        supportsVision = model.capabilities.supportsVision,
+        supportsTools = model.capabilities.tools,
+        supportsReasoning = model.capabilities.reasoning.supportsReasoning || reasoningLevels.isNotEmpty(),
+        reasoningVariants = reasoningLevels,
+        compressionLabel = compressionLabel,
+        isCompressionCustom = hasPolicy,
+        onEditCompressionPolicy = onEditPolicy,
+        onOpenVisionDetail = onOpenVisionDetail,
+        onOpenReasoningDetail = onOpenReasoningDetail,
+        onOpenInfoDetail = onOpenInfoDetail
+    )
+}
+
+// =========================================================================
+// 全局通用现代化模型卡片 (Universal Modern Model Card) - 参考图二极简高质感设计
+// =========================================================================
+@Composable
+private fun UniversalModelCard(
+    state: UniversalModelCardUiState,
+    modifier: Modifier = Modifier
+) {
+    val cardAlpha = if (state.isEnabled) 1f else 0.55f
 
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(cardAlpha),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = AppTokens.Elevation.card),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (state.isEnabled) 1.dp else 0.dp),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outlineVariant
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
         )
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // --- 1. 卡片 Header ---
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // --- 1. 卡片 Header (模型主名称/ID + 右侧微图标操作组) ---
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 18.dp, top = 18.dp, end = 16.dp, bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
+                // 左侧：模型标题 (+ 可选自定义副标题)
+                Column(
                     modifier = Modifier.weight(1f, fill = false),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(AppTokens.Size.brandMark)
-                            .clip(MaterialTheme.shapes.small)
-                            .background(brand.colors.start.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            brand.iconVector,
-                            contentDescription = null,
-                            tint = brand.colors.accent,
-                            modifier = Modifier.size(AppTokens.Size.iconLarge)
-                        )
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)) {
+                    Text(
+                        text = state.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (state.subtitle != null) {
                         Text(
-                            text = modelTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "上游 ID: ${model.upstreamModelId}",
+                            text = state.subtitle,
                             style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace
+                                fontSize = 11.5.sp
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                // 操作按钮组（编辑 / 删除）
+                // 右侧微图标组 (统一 28dp 微方块：多模态 + 工具 + 规格详情 + 连通性测试 + 状态开关 + 编辑 + 删除)
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onEditModel,
-                        modifier = Modifier.size(AppTokens.Size.compactControlHeight)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Edit,
-                            contentDescription = "编辑",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(AppTokens.Size.iconSmall)
-                        )
-                    }
-                    IconButton(
-                        onClick = onDeleteModel,
-                        modifier = Modifier.size(AppTokens.Size.compactControlHeight)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Delete,
-                            contentDescription = "删除",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(AppTokens.Size.iconSmall)
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            // --- 2. 卡片 Body ---
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = AppTokens.Spacing.card,
-                        vertical = AppTokens.Spacing.content
-                    ),
-                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
-            ) {
-                // 特性徽章集合
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (model.capabilities.supportsVision) {
-                        ModernFeatureTag(
+                    if (state.supportsVision) {
+                        ActionSquareIcon(
                             icon = Icons.Outlined.Image,
-                            text = "视觉解析",
-                            style = AppTokens.Feature.vision,
-                            onClick = onOpenVisionDetail
+                            contentDescription = "多模态能力",
+                            onClick = state.onOpenVisionDetail
                         )
                     }
-                    if (model.capabilities.tools) {
-                        ModernFeatureTag(
+                    if (state.supportsTools) {
+                        ActionSquareIcon(
                             icon = Icons.Outlined.Build,
-                            text = "工具联动",
-                            style = AppTokens.Feature.tools,
+                            contentDescription = "工具联动支持",
                             onClick = null
                         )
                     }
-                    if (model.capabilities.reasoning.supportsReasoning) {
-                        ModernFeatureTag(
-                            icon = Icons.Outlined.Psychology,
-                            text = "深度推理",
-                            style = AppTokens.Feature.reasoning,
-                            onClick = onOpenReasoningDetail
+                    if (state.onOpenInfoDetail != null) {
+                        ActionSquareIcon(
+                            icon = Icons.Outlined.Info,
+                            contentDescription = "规格详情",
+                            onClick = state.onOpenInfoDetail
                         )
                     }
-                    ModernFeatureTag(
-                        icon = Icons.Outlined.Info,
-                        text = "规格详情",
-                        style = AppTokens.Feature.info,
-                        onClick = onOpenInfoDetail
-                    )
-                }
 
-                if (virtualModels.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)) {
-                        Text(
-                            "模型入口与备用路由",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    // 自定义模型连通性测试微图标
+                    if (state.onTest != null) {
+                        data class TestIconMeta(
+                            val icon: ImageVector,
+                            val tint: Color,
+                            val bg: Color,
+                            val border: Color,
+                            val desc: String
                         )
-                        virtualModels.forEach { virtualModel ->
-                            FallbackSelector(
-                                source = virtualModel,
-                                allVirtualModels = allVirtualModels,
-                                onSelected = { fallbackId ->
-                                    onUpdateFallback(virtualModel.id, fallbackId)
-                                }
-                            )
+
+                        val meta = when (state.testStatus?.status) {
+                            AppViewModel.ModelTestStatusKind.SUCCESS -> {
+                                val latency = "${state.testStatus.latencyMs ?: 0}ms"
+                                TestIconMeta(
+                                    Icons.Outlined.CheckCircle,
+                                    AppStatusColors.success,
+                                    AppStatusColors.successContainer.copy(alpha = 0.65f),
+                                    AppStatusColors.success.copy(alpha = 0.4f),
+                                    "测试成功 ($latency)"
+                                )
+                            }
+                            AppViewModel.ModelTestStatusKind.PENDING -> {
+                                TestIconMeta(
+                                    Icons.Outlined.Sync,
+                                    AppStatusColors.warning,
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    AppStatusColors.warning.copy(alpha = 0.4f),
+                                    "测试中..."
+                                )
+                            }
+                            AppViewModel.ModelTestStatusKind.ERROR -> {
+                                TestIconMeta(
+                                    Icons.Outlined.ErrorOutline,
+                                    MaterialTheme.colorScheme.error,
+                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.65f),
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                                    "测试失败"
+                                )
+                            }
+                            null -> {
+                                TestIconMeta(
+                                    Icons.Outlined.Speed,
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+                                    "测试连通性"
+                                )
+                            }
                         }
-                    }
-                }
 
-                // 连通性测试胶囊
-                Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)) {
-                    Text(
-                        text = "连通性测试 (ENDPOINT STATUS)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 0.5.sp
+                        ActionSquareIcon(
+                            icon = meta.icon,
+                            contentDescription = meta.desc,
+                            tint = meta.tint,
+                            containerColor = meta.bg,
+                            borderColor = meta.border,
+                            onClick = state.onTest
+                        )
+                    }
+
+                    // 启用/停用眼睛状态开关
+                    ActionSquareIcon(
+                        icon = if (state.isEnabled) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                        contentDescription = if (state.isEnabled) "已启用" else "已禁用",
+                        tint = if (state.isEnabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                        containerColor = if (state.isEnabled) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        borderColor = if (state.isEnabled) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        onClick = state.onToggleEnabled
                     )
 
-                    val dotColor = when (testStatus?.status) {
-                        AppViewModel.ModelTestStatusKind.SUCCESS -> AppStatusColors.success
-                        AppViewModel.ModelTestStatusKind.PENDING -> AppStatusColors.warning
-                        AppViewModel.ModelTestStatusKind.ERROR -> MaterialTheme.colorScheme.error
-                        null -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    val testContainer = when (testStatus?.status) {
-                        AppViewModel.ModelTestStatusKind.SUCCESS -> AppStatusColors.successContainer
-                        AppViewModel.ModelTestStatusKind.ERROR -> MaterialTheme.colorScheme.errorContainer
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    }
-                    val testContent = when (testStatus?.status) {
-                        AppViewModel.ModelTestStatusKind.SUCCESS -> AppStatusColors.onSuccessContainer
-                        AppViewModel.ModelTestStatusKind.ERROR -> MaterialTheme.colorScheme.onErrorContainer
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-
-                    Surface(
-                        modifier = Modifier.clickable(onClick = onTestModel),
-                        shape = MaterialTheme.shapes.small,
-                        color = testContainer,
-                        contentColor = testContent,
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            MaterialTheme.colorScheme.outlineVariant
+                    if (state.onEdit != null) {
+                        ActionSquareIcon(
+                            icon = Icons.Outlined.Edit,
+                            contentDescription = "编辑",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                            onClick = state.onEdit
                         )
+                    }
+                    if (state.onDelete != null) {
+                        ActionSquareIcon(
+                            icon = Icons.Outlined.Delete,
+                            contentDescription = "删除",
+                            tint = MaterialTheme.colorScheme.error,
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+                            borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
+                            onClick = state.onDelete
+                        )
+                    }
+                }
+            }
+
+            // --- 2. 独立推理等级行 (Reasoning Levels) ---
+            if (state.reasoningVariants.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "推理等级",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(
-                                horizontal = AppTokens.Spacing.content,
-                                vertical = AppTokens.Spacing.control
-                            ),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
-                        ) {
+                        state.reasoningVariants.forEach { variant ->
                             Box(
                                 modifier = Modifier
-                                    .size(AppTokens.Size.statusDot)
-                                    .clip(CircleShape)
-                                    .background(dotColor)
-                            )
-                            Text(
-                                text = when (testStatus?.status) {
-                                    AppViewModel.ModelTestStatusKind.SUCCESS -> "连通成功 (${testStatus.latencyMs ?: 0}ms) · 点击重测"
-                                    AppViewModel.ModelTestStatusKind.PENDING -> "正在向服务商发送握手探测..."
-                                    AppViewModel.ModelTestStatusKind.ERROR -> "测试失败 (${testStatus.error ?: "网络异常"}) · 点击重试"
-                                    null -> "尚未测试 · 点击检测连通性"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = testContent,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(AppStatusColors.success)
+                                    )
+                                    Text(
+                                        text = variant,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // --- 3. 卡片 Footer ---
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                tonalElevation = 0.dp
+            // --- 3. 底部压缩策略整洁行 ---
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
+                Text(
+                    text = "压缩策略",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                )
+
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = AppTokens.Spacing.card,
-                            vertical = AppTokens.Spacing.content
-                        ),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (state.isCompressionCustom) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                        )
+                        .clickable(onClick = state.onEditCompressionPolicy)
+                        .padding(horizontal = 10.dp, vertical = 4.5.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(
-                            Icons.Outlined.Compress,
-                            contentDescription = null,
-                            modifier = Modifier.size(AppTokens.Size.iconSmall)
-                        )
-                        Text("上下文压缩", style = MaterialTheme.typography.bodySmall)
-                    }
-
-                    val pillLabel = if (hasPolicy) "自定义策略" else "上游默认 (80%)"
-                    val policyContainer = if (hasPolicy) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    }
-                    val policyContent = if (hasPolicy) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-
-                    Surface(
-                        modifier = Modifier.clickable(onClick = onEditPolicy),
-                        shape = RoundedCornerShape(AppTokens.Radius.pill),
-                        color = policyContainer,
-                        contentColor = policyContent,
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (hasPolicy) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            }
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(
-                                horizontal = AppTokens.Spacing.content,
-                                vertical = AppTokens.Spacing.compact
+                        Text(
+                            text = state.compressionLabel,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.5.sp,
+                                fontWeight = if (state.isCompressionCustom) FontWeight.Medium else FontWeight.Normal
                             ),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-                        ) {
-                            Text(text = pillLabel, style = MaterialTheme.typography.labelMedium)
-                            Icon(
-                                imageVector = Icons.Outlined.Edit,
-                                contentDescription = null,
-                                modifier = Modifier.size(AppTokens.Size.iconSmall)
-                            )
-                        }
+                            color = if (state.isCompressionCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = "编辑策略",
+                            tint = if (state.isCompressionCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(12.dp)
+                        )
                     }
                 }
             }
@@ -1891,45 +1673,35 @@ private fun ModernCustomModelCard(
     }
 }
 
-// 现代化特性小标签 (Modern Feature Tag)
+// =========================================================================
+// 现代化方块微图标按钮 (Action Square Icon)
+// =========================================================================
 @Composable
-private fun ModernFeatureTag(
+private fun ActionSquareIcon(
     icon: ImageVector,
-    text: String,
-    style: AppTokens.FeatureStyle,
-    onClick: (() -> Unit)?
+    contentDescription: String?,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.primary,
+    containerColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+    borderColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+    size: androidx.compose.ui.unit.Dp = 28.dp
 ) {
-    Surface(
-        modifier = Modifier.then(
-            if (onClick != null) {
-                Modifier.clickable(onClick = onClick)
-            } else {
-                Modifier
-            }
-        ),
-        shape = MaterialTheme.shapes.small,
-        color = style.container,
-        contentColor = style.foreground,
-        border = androidx.compose.foundation.BorderStroke(1.dp, style.border)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(7.dp))
+            .background(containerColor)
+            .border(1.dp, borderColor, RoundedCornerShape(7.dp))
+            .clickable(enabled = onClick != null, onClick = { onClick?.invoke() }),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.padding(
-                horizontal = AppTokens.Spacing.control,
-                vertical = AppTokens.Spacing.compact
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(AppTokens.Size.iconSmall)
-            )
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(15.dp)
+        )
     }
 }
 
@@ -1957,8 +1729,8 @@ private fun ModernToolButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.height(AppTokens.Size.compactControlHeight),
-        shape = MaterialTheme.shapes.small,
-        contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content),
+        shape = RoundedCornerShape(AppTokens.Radius.small),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = contentColor,
             disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
@@ -1970,28 +1742,12 @@ private fun ModernToolButton(
             contentDescription = null,
             modifier = Modifier.size(AppTokens.Size.iconSmall)
         )
-        Spacer(Modifier.width(AppTokens.Spacing.compact))
-        Text(text = text, style = MaterialTheme.typography.labelMedium)
-    }
-}
-
-// 使用 Material3 标准开关，保持统一的触控语义和主题颜色。
-@Composable
-private fun ModernToggleSwitch(
-    isChecked: Boolean,
-    onToggle: () -> Unit
-) {
-    Switch(
-        checked = isChecked,
-        onCheckedChange = { onToggle() },
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-            checkedTrackColor = MaterialTheme.colorScheme.primary,
-            uncheckedThumbColor = MaterialTheme.colorScheme.surface,
-            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-            uncheckedBorderColor = MaterialTheme.colorScheme.outline
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
         )
-    )
+    }
 }
 
 // 官方模型 Debug 弹窗
