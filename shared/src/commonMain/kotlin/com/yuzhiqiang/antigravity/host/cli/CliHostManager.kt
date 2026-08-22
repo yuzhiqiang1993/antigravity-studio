@@ -41,6 +41,7 @@ object CliHostManager {
 
                 val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome/AppData/Local"
                 listOf(
+                    File(localAppData, "agy/bin/agy.exe"),
                     File(localAppData, "Programs/agy/agy.exe"),
                     File(localAppData, "Programs/Antigravity/agy.exe"),
                     File(userHome, ".cargo/bin/agy.exe")
@@ -65,7 +66,10 @@ object CliHostManager {
      * 检测 CLI 是否已配置代理端点。
      */
     fun isActive(proxyPort: Int): Boolean {
-        return HostOwnershipStore.isEnvironmentConfigured(proxyPort)
+        return HostOwnershipStore.isEnvironmentConfigured(
+            HostOwnershipStore.EnvironmentOwner.CLI,
+            proxyPort
+        )
     }
 
     /**
