@@ -46,23 +46,48 @@ Join our Antigravity community for discussions, updates, and feedback:
 
 ## 🧭 Feature Overview
 
-```text
-                                 Antigravity Studio
-  ┌─────────────────────────────────────┼─────────────────────────────────────┐
-  │                                     │                                     │
-  ▼                                     ▼                                     ▼
-🛠️ Model Hub (BYOK Models)            🌐 Host & Proxy Manager               🧠 Smart Checkpointer
-• OpenAI / Claude / Gemini / Ollama   • 1-Click Takeover for IDE/App/CLI    • Physical Capacity Tiers (128K~1M)
-• Toggle & Hide Built-in Models       • Loopback Port Auto-Discovery        • Custom Thresholds & Safety Buffers
-• Vision / Tools / Reasoning Mapping  • macOS Session & Windows Registry    • Dedicated Lightweight Worker Model
-  │                                     │                                     │
-  ├─────────────────────────────────────┼─────────────────────────────────────┤
-  │                                     │                                     │
-  ▼                                     ▼                                     ▼
-🩺 Doctor Diagnostics                 📊 Activity Logs                      ⚙️ Settings & Auto-Update
-• Network, Storage & Proxy Health     • Request Routing, Latency & Status   • English & Simplified Chinese
-• Host Takeover & Path Validation     • Official Passthrough vs Custom      • SemVer Check & Multi-Arch Download
-• 1-Click Actionable Fixes            • In-Memory Privacy (No Prompts/Keys) • Developer Mode & Environment Guard
+```mermaid
+flowchart TD
+    classDef mainNode fill:#4F46E5,stroke:#3730A3,stroke-width:2px,color:#FFFFFF,font-weight:bold;
+    classDef groupNode fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1.5px,color:#0F172A;
+    classDef compNode fill:#FFFFFF,stroke:#E2E8F0,stroke-width:1px,color:#1E293B;
+
+    Studio["⚡ Antigravity Studio All-in-One Desktop Gateway"]:::mainNode
+
+    subgraph G_Hosts ["🌐 Host Environment & 1-Click Takeover"]
+        IDE["<b>Antigravity IDE</b><br/>Automatic settings.json takeover"]:::compNode
+        App["<b>Antigravity App</b><br/>macOS session / Win registry injection"]:::compNode
+        CLI["<b>Antigravity CLI</b><br/>Isolated session env variables"]:::compNode
+    end
+
+    subgraph G_Core ["⚙️ Local Proxy Engine & Protocol Adapters"]
+        Proxy["<b>127.0.0.1:8321 Local Proxy</b><br/>Loopback auto-fallback & anti-collision"]:::compNode
+        Adapter["<b>Multi-Protocol Translation</b><br/>Chat Completions · Messages · Gemini · Ollama"]:::compNode
+        Checkpointer["<b>🧠 Smart Checkpointer</b><br/>128K~1M physical capacity · Dedicated worker"]:::compNode
+    end
+
+    subgraph G_Upstream ["🛠️ BYOK Model Hub & Governance"]
+        Official["<b>Official Built-in Models</b><br/>Toggle/Hide · Clean passthrough"]:::compNode
+        Custom["<b>Major Providers & Local LLMs</b><br/>OpenAI · Anthropic · Gemini · DeepSeek · OpenRouter · Ollama"]:::compNode
+        Thinking["<b>Thinking / Reasoning Mapping</b><br/>Low / Med / High / Max native submenus"]:::compNode
+    end
+
+    subgraph G_Ops ["🩺 Doctor Diagnostics & Observability"]
+        Doctor["<b>Doctor Diagnostics</b><br/>Network · Storage · Proxy · Host 1-click self-heal"]:::compNode
+        Logs["<b>Activity Request Logs</b><br/>Routing · Latency analytics · In-memory privacy"]:::compNode
+        Settings["<b>Settings & Auto-Update</b><br/>Bilingual i18n · Theme adaptation · SemVer updater"]:::compNode
+    end
+
+    Studio --> G_Hosts
+    Studio --> G_Core
+    Studio --> G_Upstream
+    Studio --> G_Ops
+
+    IDE & App & CLI <==> Proxy
+    Proxy --> Adapter
+    Adapter --> Checkpointer
+    Adapter --> Custom
+    Proxy -. Official Passthrough .-> Official
 ```
 
 ### 1. Run Overview

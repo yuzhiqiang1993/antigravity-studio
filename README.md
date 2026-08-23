@@ -46,23 +46,48 @@ Antigravity 只提供了官方预设的 Gemini 系列模型以及部分旧版 Cl
 
 ## 🧭 功能概览
 
-```text
-                                 Antigravity Studio
-  ┌─────────────────────────────────────┼─────────────────────────────────────┐
-  │                                     │                                     │
-  ▼                                     ▼                                     ▼
-🛠️ 模型中心 (BYOK Model Hub)        🌐 宿主与代理 (Host & Proxy)          🧠 智能压缩 (Smart Checkpointer)
-• OpenAI / Claude / Gemini / Ollama   • IDE / App / CLI 一键接管与恢复      • 模型级物理容量预设 (128K ~ 1M)
-• 官方模型自由隐藏/启用               • Loopback 端口自适应与防冲突         • 触发阈值与安全缓冲区精细调节
-• 图像视觉 / 工具调用 / 思考档位聚合  • macOS 会话级隔离 & Windows 注册表   • 压缩任务独立轻量工作模型隔离
-  │                                     │                                     │
-  ├─────────────────────────────────────┼─────────────────────────────────────┤
-  │                                     │                                     │
-  ▼                                     ▼                                     ▼
-🩺 全链路体检 (Doctor Diagnostics)    📊 调用日志 (Activity Logs)           ⚙️ 偏好与更新 (Preferences & Update)
-• 网络连通性、本地配置与代理端口检测  • 请求路由、上游 Provider 与耗时解析  • 中英双语一键切换与主题适配
-• 宿主接管状态与路径智能诊断          • 官方透传与自定义路由明细            • GitHub Releases 自动增量更新检查
-• 智能修复建议与错误一键定位          • 纯内存安全留存，不记录敏感数据      • 开发者调试模式与原生环境隔离
+```mermaid
+flowchart TD
+    classDef mainNode fill:#4F46E5,stroke:#3730A3,stroke-width:2px,color:#FFFFFF,font-weight:bold;
+    classDef groupNode fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1.5px,color:#0F172A;
+    classDef compNode fill:#FFFFFF,stroke:#E2E8F0,stroke-width:1px,color:#1E293B;
+
+    Studio["⚡ Antigravity Studio 桌面全能控制中枢"]:::mainNode
+
+    subgraph G_Hosts ["🌐 宿主环境感知与接管 (Host Management)"]
+        IDE["<b>Antigravity IDE</b><br/>settings.json 自动无感接管"]:::compNode
+        App["<b>Antigravity App</b><br/>macOS 会话级 / Win 注册表注入"]:::compNode
+        CLI["<b>Antigravity CLI</b><br/>跨平台会话环境变量隔离"]:::compNode
+    end
+
+    subgraph G_Core ["⚙️ 本地代理引擎 & 协议适配 (Core Engine)"]
+        Proxy["<b>127.0.0.1:8321 本地代理</b><br/>Loopback 端口自适应 · 智能防冲突"]:::compNode
+        Adapter["<b>多协议原生适配</b><br/>Chat Completions · Messages · Gemini · Ollama"]:::compNode
+        Checkpointer["<b>🧠 智能上下文压缩</b><br/>128K~1M 物理容量预设 · 独立轻量工作模型"]:::compNode
+    end
+
+    subgraph G_Upstream ["🛠️ BYOK 模型接入与治理 (Model Hub)"]
+        Official["<b>官方原生模型</b><br/>自由启用/禁用/隐藏 · 纯净透传"]:::compNode
+        Custom["<b>主流服务商与本地大模型</b><br/>OpenAI · Anthropic · Gemini · DeepSeek · OpenRouter · Ollama"]:::compNode
+        Thinking["<b>Thinking / Reasoning 档位</b><br/>Low / Medium / High / Max 原生子菜单映射"]:::compNode
+    end
+
+    subgraph G_Ops ["🩺 全链路体检与运维 (Diagnostics & Logs)"]
+        Doctor["<b>Doctor 健康体检</b><br/>网络 · 存储 · 代理 · 宿主一键智能自愈"]:::compNode
+        Logs["<b>活动调用日志</b><br/>请求路由 · 耗时分析 · 纯内存安全留存"]:::compNode
+        Settings["<b>偏好与自动更新</b><br/>中英双语 · 主题适配 · 增量升级"]:::compNode
+    end
+
+    Studio --> G_Hosts
+    Studio --> G_Core
+    Studio --> G_Upstream
+    Studio --> G_Ops
+
+    IDE & App & CLI <==> Proxy
+    Proxy --> Adapter
+    Adapter --> Checkpointer
+    Adapter --> Custom
+    Proxy -. 官方直连 .-> Official
 ```
 
 ### 1. 运行概览 (Overview)
