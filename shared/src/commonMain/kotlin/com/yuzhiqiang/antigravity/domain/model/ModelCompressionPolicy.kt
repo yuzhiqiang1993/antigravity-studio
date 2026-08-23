@@ -137,9 +137,39 @@ data class ModelCompressionPolicy(
         )
 
         fun preset200k() = ModelCompressionPolicy(
-            tokenThreshold = 152_000L,
+            tokenThreshold = 150_000L,
             maxTokenLimit = 200_000L,
             maxOutputTokens = 16_000L
+        )
+
+        fun preset300k() = ModelCompressionPolicy(
+            tokenThreshold = 225_000L,
+            maxTokenLimit = 300_000L,
+            maxOutputTokens = 16_000L
+        )
+
+        fun preset400k() = ModelCompressionPolicy(
+            tokenThreshold = 300_000L,
+            maxTokenLimit = 400_000L,
+            maxOutputTokens = 20_000L
+        )
+
+        fun preset500k() = ModelCompressionPolicy(
+            tokenThreshold = 375_000L,
+            maxTokenLimit = 500_000L,
+            maxOutputTokens = 24_000L
+        )
+
+        fun preset600k() = ModelCompressionPolicy(
+            tokenThreshold = 450_000L,
+            maxTokenLimit = 600_000L,
+            maxOutputTokens = 30_000L
+        )
+
+        fun preset700k() = ModelCompressionPolicy(
+            tokenThreshold = 520_000L,
+            maxTokenLimit = 700_000L,
+            maxOutputTokens = 32_000L
         )
 
         fun preset256k() = ModelCompressionPolicy(
@@ -152,12 +182,6 @@ data class ModelCompressionPolicy(
             tokenThreshold = 148_800L,
             maxTokenLimit = 223_200L,
             maxOutputTokens = 44_640L
-        )
-
-        fun preset500k() = ModelCompressionPolicy(
-            tokenThreshold = 200_000L,
-            maxTokenLimit = 300_000L,
-            maxOutputTokens = 60_000L
         )
 
         fun preset1m() = ModelCompressionPolicy(

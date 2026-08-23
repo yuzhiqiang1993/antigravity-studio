@@ -588,6 +588,7 @@ class AppViewModel(
     fun saveCompressionPolicy(modelId: String, policy: ModelCompressionPolicy?) {
         configStore.updateConfig { current ->
             val updatedPolicies = current.modelCompressionPolicies.toMutableMap()
+            var updatedUpstreams = current.upstreamModels
             val currentOfficial = _officialModels.value
             val matchedOfficial = currentOfficial.find { it.id == modelId }
             if (matchedOfficial != null) {
@@ -599,15 +600,37 @@ class AppViewModel(
                     val mBase = regex.find(m.displayName.ifBlank { m.id })?.groupValues?.getOrNull(1)?.trim() ?: m.id
                     mBase.equals(targetBaseName, ignoreCase = true) ||
                             m.replacementModelId == modelId || matchedOfficial.replacementModelId == m.id
-                }.map { it.id }.toSet() + modelId
+                }.map { it.id }.toMutableSet()
+                relatedIds.add(modelId)
+
+                // 补充模型族基础 ID 与 -tiered 父条目 ID，确保全量覆盖
+                val baseSlug = modelId.removeSuffix("-high")
+                    .removeSuffix("-medium")
+                    .removeSuffix("-low")
+                    .removeSuffix("-tiered")
+                relatedIds.add(baseSlug)
+                relatedIds.add("$baseSlug-tiered")
 
                 relatedIds.forEach { id ->
                     if (policy != null) updatedPolicies[id] = policy else updatedPolicies.remove(id)
                 }
             } else {
                 if (policy != null) updatedPolicies[modelId] = policy else updatedPolicies.remove(modelId)
+                // 同步更新 UpstreamModel 实体内部的 compressionPolicy 字段，确保双向一致
+                updatedUpstreams = current.upstreamModels.map { upstream ->
+                    val isDirectMatch = upstream.id == modelId || upstream.upstreamModelId == modelId
+                    val isVirtualMatch = current.virtualModels.any { it.id == modelId && it.upstreamModelId == upstream.id }
+                    if (isDirectMatch || isVirtualMatch) {
+                        upstream.copy(compressionPolicy = policy)
+                    } else {
+                        upstream
+                    }
+                }
             }
-            current.copy(modelCompressionPolicies = updatedPolicies)
+            current.copy(
+                upstreamModels = updatedUpstreams,
+                modelCompressionPolicies = updatedPolicies
+            )
         }
     }
 

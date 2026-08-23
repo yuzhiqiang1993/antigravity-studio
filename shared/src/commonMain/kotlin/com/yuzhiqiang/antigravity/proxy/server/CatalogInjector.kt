@@ -218,15 +218,32 @@ object CatalogInjector {
         value: JsonElement
     ): ModelCompressionPolicy? {
         val objectValue = value as? JsonObject
-        val candidates = listOfNotNull(
+        val rawCandidates = listOfNotNull(
             key,
             objectValue?.get("id")?.jsonPrimitive?.contentOrNull,
             objectValue?.get("name")?.jsonPrimitive?.contentOrNull,
             objectValue?.get("model")?.jsonPrimitive?.contentOrNull,
-            objectValue?.get("catalogKey")?.jsonPrimitive?.contentOrNull
-        ).map(::normalizeCatalogModelId)
-        return candidates.firstNotNullOfOrNull { candidate ->
-            policies.entries.firstOrNull { (modelId, _) -> normalizeCatalogModelId(modelId) == candidate }?.value
+            objectValue?.get("catalogKey")?.jsonPrimitive?.contentOrNull,
+            objectValue?.get("displayName")?.jsonPrimitive?.contentOrNull
+        )
+        val normalizedCandidates = rawCandidates.flatMap { raw ->
+            val norm = normalizeCatalogModelId(raw)
+            val baseSlug = norm.removeSuffix("-high")
+                .removeSuffix("-medium")
+                .removeSuffix("-low")
+                .removeSuffix("-tiered")
+            listOf(norm, baseSlug, "$baseSlug-tiered")
+        }.distinct()
+
+        return normalizedCandidates.firstNotNullOfOrNull { candidate ->
+            policies.entries.firstOrNull { (modelId, _) ->
+                val normModelId = normalizeCatalogModelId(modelId)
+                val normBaseSlug = normModelId.removeSuffix("-high")
+                    .removeSuffix("-medium")
+                    .removeSuffix("-low")
+                    .removeSuffix("-tiered")
+                normModelId == candidate || normBaseSlug == candidate
+            }?.value
         }
     }
 
@@ -257,10 +274,7 @@ object CatalogInjector {
             .filter { it > 0L }
             .minOrNull()
         val declaredOutputLimit = outputLimit ?: effectivePolicy.maxOutputTokens
-        val boundedOutputLimit = checkpointWorkerLimits[effectivePolicy.checkpointModel]
-            ?.let(declaredOutputLimit::coerceAtMost)
-            ?: declaredOutputLimit
-        val resolved = effectivePolicy.resolveEffective(capacity, boundedOutputLimit) ?: return value
+        val resolved = effectivePolicy.resolveEffective(capacity, declaredOutputLimit) ?: return value
         val existingPayload = entry["modelExperiments"]
             ?.jsonObject
             ?.get("experiments")
@@ -271,17 +285,36 @@ object CatalogInjector {
             ?.jsonPrimitive
             ?.contentOrNull
             ?.let { raw -> runCatching { catalogJson.parseToJsonElement(raw).jsonObject }.getOrNull() }
-            ?.toMutableMap()
-            ?: return value
 
-        val updatedPayload = JsonObject(existingPayload).toMutableMap().apply {
-            put("enabled", JsonPrimitive(resolved.enabled))
-            put("checkpoint_model", JsonPrimitive(resolved.checkpointModel))
-            put("strategy", JsonPrimitive(resolved.strategy))
-            put("use_last_planner_model", JsonPrimitive(resolved.useLastPlannerModel))
-            put("token_threshold", JsonPrimitive(resolved.tokenThreshold.toString()))
-            put("max_token_limit", JsonPrimitive(resolved.maxTokenLimit.toString()))
-            put("max_output_tokens", JsonPrimitive(resolved.maxOutputTokens.toString()))
+        val updatedPayload = if (existingPayload != null) {
+            JsonObject(existingPayload).toMutableMap().apply {
+                put("enabled", JsonPrimitive(resolved.enabled))
+                put("checkpoint_model", JsonPrimitive(resolved.checkpointModel))
+                put("strategy", JsonPrimitive(resolved.strategy))
+                put("use_last_planner_model", JsonPrimitive(resolved.useLastPlannerModel))
+                put("token_threshold", JsonPrimitive(resolved.tokenThreshold.toString()))
+                put("max_token_limit", JsonPrimitive(resolved.maxTokenLimit.toString()))
+                put("max_output_tokens", JsonPrimitive(resolved.maxOutputTokens.toString()))
+            }
+        } else {
+            mutableMapOf<String, JsonElement>().apply {
+                put("enabled", JsonPrimitive(resolved.enabled))
+                put("checkpoint_model", JsonPrimitive(resolved.checkpointModel))
+                put("strategy", JsonPrimitive(resolved.strategy))
+                put("max_overhead_ratio", JsonPrimitive(resolved.maxOverheadRatio))
+                put("moving_window_size", JsonPrimitive(resolved.movingWindowSize))
+                put("use_last_planner_model", JsonPrimitive(resolved.useLastPlannerModel))
+                put("is_sync", JsonPrimitive(resolved.isSync))
+                put("max_user_requests", JsonPrimitive(resolved.maxUserRequests))
+                put("include_last_user_message", JsonPrimitive(resolved.includeLastUserMessage))
+                put("include_conversation_log", JsonPrimitive(resolved.includeConversationLog))
+                put("include_running_task_snapshots", JsonPrimitive(resolved.includeRunningTaskSnapshots))
+                put("include_subagent_snapshots", JsonPrimitive(resolved.includeSubagentSnapshots))
+                put("include_artifact_snapshots", JsonPrimitive(resolved.includeArtifactSnapshots))
+                put("token_threshold", JsonPrimitive(resolved.tokenThreshold.toString()))
+                put("max_token_limit", JsonPrimitive(resolved.maxTokenLimit.toString()))
+                put("max_output_tokens", JsonPrimitive(resolved.maxOutputTokens.toString()))
+            }
         }
         val payloadText = catalogJson.encodeToString(
             JsonElement.serializer(),
@@ -290,11 +323,10 @@ object CatalogInjector {
         val experiment = buildJsonObject {
             put("stringValue", payloadText)
         }
-        val modelExperiments = buildJsonObject {
-            put("experiments", buildJsonObject {
-                put("CASCADE_USE_EXPERIMENT_CHECKPOINTER", experiment)
-            })
-        }
+        val existingModelExperiments = entry["modelExperiments"]?.jsonObject ?: JsonObject(emptyMap())
+        val existingExperiments = existingModelExperiments["experiments"]?.jsonObject ?: JsonObject(emptyMap())
+        val updatedExperiments = JsonObject(existingExperiments + ("CASCADE_USE_EXPERIMENT_CHECKPOINTER" to experiment))
+        val modelExperiments = JsonObject(existingModelExperiments + ("experiments" to updatedExperiments))
         return JsonObject(entry + ("modelExperiments" to modelExperiments))
     }
 
@@ -366,9 +398,9 @@ object CatalogInjector {
                     reasoningLevel = virtual.defaultReasoningLevel,
                     entryId = virtual.id,
                     policy = healCheckpointPolicy(
-                        upstream.compressionPolicy
-                            ?: config.modelCompressionPolicies[virtual.id]
-                            ?: config.modelCompressionPolicies[upstream.id],
+                        config.modelCompressionPolicies[virtual.id]
+                            ?: config.modelCompressionPolicies[upstream.id]
+                            ?: upstream.compressionPolicy,
                         checkpointWorkers,
                         defaultCheckpointWorker
                     )
@@ -450,9 +482,9 @@ object CatalogInjector {
                 reasoningLevel = null,
                 entryId = tieredKey,
                 policy = healCheckpointPolicy(
-                    upstream.compressionPolicy
-                        ?: config.modelCompressionPolicies[firstVm.id]
-                        ?: config.modelCompressionPolicies[upstream.id],
+                    config.modelCompressionPolicies[firstVm.id]
+                        ?: config.modelCompressionPolicies[upstream.id]
+                        ?: upstream.compressionPolicy,
                     checkpointWorkers,
                     defaultCheckpointWorker
                 )
