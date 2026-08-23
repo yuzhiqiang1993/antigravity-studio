@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
 import com.yuzhiqiang.antigravity.ui.dialogs.*
+import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.models.*
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -82,41 +83,10 @@ fun ModelsScreen(
             ),
         verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
-            ) {
-                Text(
-                    text = "模型管理",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant
-                    )
-                ) {
-                    Text(
-                        text = "${availableOfficialCount + config.upstreamModels.size} 个可用模型",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(
-                            horizontal = AppTokens.Spacing.content,
-                            vertical = AppTokens.Spacing.compact
-                        )
-                    )
-                }
-            }
-            Text(
-                text = "统一调度 Google 官方原生模型与三方自建模型，灵活配置上下文压缩与思考预算",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        PageHeader(
+            title = "模型管理",
+            subtitle = "统一调度 Google 官方原生模型与三方自建模型，灵活配置上下文压缩与思考预算"
+        )
 
         Row(
             modifier = Modifier.fillMaxWidth(),

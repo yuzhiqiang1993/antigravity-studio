@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.update
 import java.util.UUID
 
 object ActivityRecorder {
-    private const val MAX_LOGS = 200
+    private const val MAX_LOGS = 500
     private val _logs = MutableStateFlow<List<ActivityLog>>(emptyList())
     val logs: StateFlow<List<ActivityLog>> = _logs.asStateFlow()
 
@@ -29,6 +29,7 @@ object ActivityRecorder {
     ) {
         val newLog = ActivityLog(
             id = UUID.randomUUID().toString(),
+            timestamp = System.currentTimeMillis(),
             method = method,
             path = path,
             modelId = modelId,
@@ -37,7 +38,7 @@ object ActivityRecorder {
             statusCode = statusCode,
             durationMs = durationMs,
             isOfficialPassthrough = isOfficialPassthrough,
-            errorMessage = errorMessage?.let(::sanitizeLogText),
+            errorMessage = errorMessage,
             fallbackAttempted = fallbackAttempted,
             fallbackSucceeded = fallbackSucceeded,
             inputTokens = usage?.inputTokens,
@@ -60,27 +61,5 @@ object ActivityRecorder {
 
     fun clear() {
         _logs.value = emptyList()
-    }
-
-    private fun sanitizeLogText(value: String): String {
-        var redactNext = false
-        return value.split(Regex("\\s+")).map { token ->
-            val comparable = token.trim { char -> !char.isLetterOrDigit() && char !in "-_=" }.lowercase()
-            when {
-                redactNext -> {
-                    redactNext = false
-                    "[REDACTED]"
-                }
-                comparable == "bearer" -> {
-                    redactNext = true
-                    "Bearer"
-                }
-                comparable.startsWith("sk-") ||
-                        comparable.startsWith("api_key=") ||
-                        comparable.startsWith("apikey=") ||
-                        comparable.startsWith("authorization=") -> "[REDACTED]"
-                else -> token
-            }
-        }.joinToString(" ").take(500)
     }
 }

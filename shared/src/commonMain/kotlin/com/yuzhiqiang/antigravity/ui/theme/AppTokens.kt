@@ -11,6 +11,17 @@ import androidx.compose.ui.unit.dp
  */
 object AppTokens {
 
+    object Motion {
+        const val durationShort = 180
+        const val durationMedium = 280
+        const val durationLong = 400
+
+        val standardEasing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
+        val decelerateEasing = androidx.compose.animation.core.CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)
+        val accelerateEasing = androidx.compose.animation.core.CubicBezierEasing(0.3f, 0.0f, 1.0f, 1.0f)
+    }
+
+
     object Spacing {
         val none = 0.dp
         val xxs = 2.dp
@@ -62,7 +73,7 @@ object AppTokens {
         val iconLarge = 24.dp
         val statusDot = 8.dp
         val debugCodePadding = 14.dp
-        val brandMark = 36.dp
+        val brandMark = 52.dp
         val emptyStateHeight = 240.dp
     }
 

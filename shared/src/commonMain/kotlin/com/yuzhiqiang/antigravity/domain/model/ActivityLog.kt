@@ -1,6 +1,5 @@
 package com.yuzhiqiang.antigravity.domain.model
 
-import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -9,7 +8,7 @@ data class ActivityLog(
     @SerialName("id")
     val id: String,
     @SerialName("timestamp")
-    val timestamp: Long = Clock.System.now().toEpochMilliseconds(),
+    val timestamp: Long = 0L,
     @SerialName("method")
     val method: String,
     @SerialName("path")

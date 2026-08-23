@@ -14,6 +14,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.doctor.model.DoctorCheckItem
 import com.yuzhiqiang.antigravity.doctor.model.DoctorCheckStatus
 import com.yuzhiqiang.antigravity.doctor.model.DoctorFixAction

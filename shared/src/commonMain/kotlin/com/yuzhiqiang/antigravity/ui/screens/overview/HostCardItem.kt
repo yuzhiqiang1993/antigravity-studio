@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,6 +21,7 @@ import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
+@Immutable
 data class HostCardData(
     val title: String,
     val statusLabel: String,
@@ -30,7 +32,8 @@ data class HostCardData(
     val onToggle: () -> Unit,
     val actionLabel: String? = null,
     val onAction: (() -> Unit)? = null,
-    val onRefresh: () -> Unit
+    val onRefresh: () -> Unit,
+    val isLoading: Boolean = false
 )
 
 @Composable
@@ -118,37 +121,55 @@ fun HostCardItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (data.isProxyActive) {
                         val successColor = Color(0xFF16A34A)
                         OutlinedButton(
                             onClick = data.onToggle,
-                            shape = RoundedCornerShape(AppTokens.Radius.medium),
-                            border = BorderStroke(1.dp, successColor.copy(alpha = 0.45f)),
+                            enabled = !data.isLoading,
+                            modifier = Modifier.height(32.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, successColor.copy(alpha = if (data.isLoading) 0.2f else 0.45f)),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = successColor.copy(alpha = 0.08f),
                                 contentColor = successColor
                             ),
-                            contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                         ) {
+                            if (data.isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(13.dp),
+                                    strokeWidth = 2.dp,
+                                    color = successColor
+                                )
+                                Spacer(Modifier.width(5.dp))
+                            }
                             Text(
                                 text = "恢复官方直连",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                             )
                         }
                     } else {
                         Button(
                             onClick = data.onToggle,
-                            shape = RoundedCornerShape(AppTokens.Radius.medium),
-                            contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
+                            enabled = !data.isLoading,
+                            modifier = Modifier.height(32.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                         ) {
+                            if (data.isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(13.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(Modifier.width(5.dp))
+                            }
                             Text(
                                 text = "接入代理",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                             )
                         }
                     }
@@ -156,12 +177,14 @@ fun HostCardItem(
                     if (data.onAction != null && data.actionLabel != null) {
                         OutlinedButton(
                             onClick = data.onAction,
-                            shape = RoundedCornerShape(AppTokens.Radius.medium),
-                            contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
+                            enabled = !data.isLoading,
+                            modifier = Modifier.height(32.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                         ) {
                             Text(
                                 text = data.actionLabel,
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                             )
                         }
                     }
@@ -171,13 +194,15 @@ fun HostCardItem(
 
                 OutlinedButton(
                     onClick = data.onRefresh,
-                    shape = RoundedCornerShape(AppTokens.Radius.medium),
-                    contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs)
+                    enabled = !data.isLoading,
+                    modifier = Modifier.size(32.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(0.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Refresh,
                         contentDescription = "刷新",
-                        modifier = Modifier.size(AppTokens.Size.iconSmall)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }

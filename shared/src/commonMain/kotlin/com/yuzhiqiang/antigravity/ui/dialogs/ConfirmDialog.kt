@@ -2,6 +2,7 @@ package com.yuzhiqiang.antigravity.ui.dialogs
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -65,9 +67,11 @@ fun ConfirmDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(
+                    OutlinedButton(
                         onClick = onDismiss,
-                        shape = RoundedCornerShape(AppTokens.Radius.medium)
+                        modifier = Modifier.height(32.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                     ) {
                         Text(
                             text = cancelLabel ?: s.commonCancel,
@@ -88,8 +92,9 @@ fun ConfirmDialog(
                         } else {
                             ButtonDefaults.buttonColors()
                         },
-                        shape = RoundedCornerShape(AppTokens.Radius.medium),
-                        contentPadding = PaddingValues(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.xs)
+                        modifier = Modifier.height(32.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
                     ) {
                         Text(
                             text = confirmLabel ?: s.commonConfirm,

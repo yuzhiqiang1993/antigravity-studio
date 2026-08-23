@@ -92,8 +92,8 @@ fun main() {
 
     application {
         val windowState = rememberWindowState(
-            width = 1120.dp,
-            height = 720.dp,
+            width = 1280.dp,
+            height = 820.dp,
             position = WindowPosition(Alignment.Center)
         )
         var isVisible by remember { mutableStateOf(true) }
@@ -121,7 +121,7 @@ fun main() {
                 icon = appIcon
             ) {
                 LaunchedEffect(Unit) {
-                    window.minimumSize = java.awt.Dimension(960, 640)
+                    window.minimumSize = java.awt.Dimension(1020, 680)
                 }
 
                 App(window = window)

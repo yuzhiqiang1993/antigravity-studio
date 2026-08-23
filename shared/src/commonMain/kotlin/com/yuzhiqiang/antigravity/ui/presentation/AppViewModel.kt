@@ -121,7 +121,7 @@ class AppViewModel(
 
     private val _providerTestingIds = MutableStateFlow<Set<String>>(emptySet())
     val providerTestingIds: StateFlow<Set<String>> = _providerTestingIds.asStateFlow()
-
+    
     private val hostDelegate = HostLifecycleDelegate(
         scope = viewModelScope,
         configStore = configStore,
@@ -138,6 +138,10 @@ class AppViewModel(
         showNotice = ::showNotice,
         showConfirmDialog = ::showConfirmDialog
     )
+    val operatingHostKeys: StateFlow<Set<String>> = hostDelegate.operatingHostKeys
+    private val _isSidebarCollapsed = MutableStateFlow(false)
+    val isSidebarCollapsed: StateFlow<Boolean> = _isSidebarCollapsed.asStateFlow()
+    fun toggleSidebar() { _isSidebarCollapsed.value = !_isSidebarCollapsed.value }
 
     private val doctorDelegate = DoctorDelegate(
         scope = viewModelScope,
