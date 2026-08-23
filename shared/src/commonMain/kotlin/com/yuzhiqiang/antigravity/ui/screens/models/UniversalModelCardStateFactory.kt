@@ -23,12 +23,10 @@ fun createOfficialCardState(
         ?: group.variants.firstNotNullOfOrNull { compressionPolicies[it.model.id] }
     val hasPolicy = policy != null
     val compressionLabel = policy?.let {
-        if (it.triggerThresholdTokens > 0) {
-            "${it.triggerThresholdTokens / 1000}K (已自定义)"
-        } else {
-            "自定义策略"
-        }
-    } ?: "官方默认 (80%)"
+        val limit = formatTokenDisplay(it.maxTokenLimit)
+        val prep = formatTokenDisplay(it.tokenThreshold)
+        "$limit 容量 ($prep 预备)"
+    } ?: "官方默认"
     val contextText = item.contextWindow?.let(::formatTokenDisplay)
         ?: item.maxTokens?.let(::formatTokenDisplay)
         ?: "1048K"
@@ -79,12 +77,10 @@ fun createCustomCardState(
         else -> emptyList()
     }
     val compressionLabel = policy?.let {
-        if (it.triggerThresholdTokens > 0) {
-            "${it.triggerThresholdTokens / 1000}K (已自定义)"
-        } else {
-            "自定义策略"
-        }
-    } ?: "官方默认 (80%)"
+        val limit = formatTokenDisplay(it.maxTokenLimit)
+        val prep = formatTokenDisplay(it.tokenThreshold)
+        "$limit 容量 ($prep 预备)"
+    } ?: "官方默认"
 
     return UniversalModelCardUiState(
         title = modelTitle,
@@ -111,4 +107,3 @@ fun createCustomCardState(
         onOpenInfoDetail = onOpenInfoDetail
     )
 }
-

@@ -130,13 +130,45 @@ object OfficialCatalogProbe {
     }
 
     /**
-     * 获取格式化好的 Modified 解析后数据
+     * 获取格式化好的 Modified 解析后数据（1:1 对标 agy-byok 的 prepare_model_catalog_response 最终注入报文）
      */
-    fun getFormattedModifiedJson(): String {
+    fun getFormattedModifiedJson(
+        config: com.yuzhiqiang.antigravity.domain.model.AppConfig? = null,
+        proxyPort: Int = 8045
+    ): String {
+        val raw = rawOfficialCatalogBody ?: return "(暂无原始数据，请先点击「刷新」拉取官方模型)"
         return try {
-            json.encodeToString(kotlinx.serialization.builtins.ListSerializer(OfficialCatalogModel.serializer()), lastParsedModels)
-        } catch (_: Exception) {
-            "(暂无已解析模型数据)"
+            val parsedRoot = json.parseToJsonElement(raw) as? JsonObject
+                ?: return raw
+            val root = JsonObject(parsedRoot - "error")
+            if (config == null) {
+                return json.encodeToString(JsonElement.serializer(), root)
+            }
+            // 1. 过滤已禁用官方模型
+            val filtered = com.yuzhiqiang.antigravity.proxy.server.CatalogInjector.removeDisabledOfficialModels(
+                root,
+                config.disabledOfficialModels
+            )
+            // 2. 注入官方模型压缩策略 (Checkpointer 实验)
+            val overridden = com.yuzhiqiang.antigravity.proxy.server.CatalogInjector.applyOfficialCompressionPolicies(
+                filtered,
+                config.modelCompressionPolicies
+            )
+            // 3. 注入自定义虚拟模型与上游
+            val responseJson = com.yuzhiqiang.antigravity.proxy.server.CatalogInjector.injectCustomModels(
+                overridden,
+                config
+            )
+            // 4. 重写官方 URL 为本地代理端口
+            val proxyTarget = "http://127.0.0.1:$proxyPort"
+            val rewritten = responseJson.toString()
+                .replace("https://daily-cloudcode-pa.googleapis.com", proxyTarget)
+                .replace("https://cloudcode-pa.googleapis.com", proxyTarget)
+
+            val element = json.parseToJsonElement(rewritten)
+            json.encodeToString(JsonElement.serializer(), element)
+        } catch (e: Exception) {
+            "生成修改后 JSON 失败: ${e.message ?: "未知错误"}"
         }
     }
 
@@ -315,26 +347,32 @@ object OfficialCatalogProbe {
     private fun discoverUnixCandidates(): List<LanguageServerCandidate> {
         val candidates = mutableListOf<LanguageServerCandidate>()
         try {
-            ProcessHandle.allProcesses().forEach { handle ->
-                val cmdLine = handle.info().commandLine().orElse("")
-                if (cmdLine.contains("language_server")) {
-                    val pid = handle.pid()
-                    val csrf = extractFlagValue(cmdLine, "--csrf_token")
-                    val source = extractFlagValue(cmdLine, "--subclient_type") ?: "ide"
-                    val httpsPort = extractFlagValue(cmdLine, "--https_server_port")?.toIntOrNull()
+            val process = ProcessBuilder("/bin/ps", "-axo", "pid=,command=").start()
+            val lines = BufferedReader(InputStreamReader(process.inputStream)).readLines()
+            process.waitFor()
 
-                    if (csrf != null) {
-                        val ports = mutableListOf<Int>()
-                        if (httpsPort != null && httpsPort > 0) {
-                            ports.add(httpsPort)
-                        }
-                        if (ports.isEmpty()) {
-                            ports.addAll(getListeningPortsByLsof(pid))
-                        }
-                        for (port in ports) {
-                            if (port > 0 && candidates.none { it.port == port }) {
-                                candidates.add(LanguageServerCandidate(pid, source, csrf, port))
-                            }
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (trimmed.isEmpty() || !trimmed.contains("language_server")) continue
+                val separator = trimmed.indexOfFirst { it.isWhitespace() }
+                if (separator <= 0) continue
+                val pid = trimmed.substring(0, separator).trim().toLongOrNull() ?: continue
+                val command = trimmed.substring(separator).trim()
+
+                val csrf = extractFlagValue(command, "--csrf_token")
+                if (!csrf.isNullOrBlank()) {
+                    val source = extractFlagValue(command, "--subclient_type") ?: "ide"
+                    val httpsPort = extractFlagValue(command, "--https_server_port")?.toIntOrNull()
+                    val ports = mutableListOf<Int>()
+                    if (httpsPort != null && httpsPort > 0) {
+                        ports.add(httpsPort)
+                    }
+                    if (ports.isEmpty()) {
+                        ports.addAll(getListeningPortsByLsof(pid))
+                    }
+                    for (port in ports) {
+                        if (port > 0 && candidates.none { it.port == port }) {
+                            candidates.add(LanguageServerCandidate(pid, source, csrf, port))
                         }
                     }
                 }

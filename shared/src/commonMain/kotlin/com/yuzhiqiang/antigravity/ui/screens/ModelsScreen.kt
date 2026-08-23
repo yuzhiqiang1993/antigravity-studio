@@ -208,9 +208,12 @@ fun ModelsScreen(
                         com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedRawJson()
                 },
                 onViewModifiedJson = {
-                    debugDialogTitle = "官方模型解析后 JSON 数据"
+                    debugDialogTitle = "官方模型修改后（下发给 IDE）JSON 数据"
                     debugDialogJson =
-                        com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedModifiedJson()
+                        com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedModifiedJson(
+                            config = config,
+                            proxyPort = viewModel.actualProxyPort.value
+                        )
                 },
                 onToggleGroup = { group ->
                     val allIds = group.variants.map { it.model.id }.toSet()
@@ -336,11 +339,27 @@ fun ModelsScreen(
         )
     }
 
-   policyEditingModelId?.let { modelId ->
+    policyEditingModelId?.let { modelId ->
         val currentPolicy = config.modelCompressionPolicies[modelId]
+        val officialMatch = groupedOfficial.firstOrNull { group ->
+            group.baseItem.id == modelId || group.variants.any { it.model.id == modelId }
+        }
+        val customMatch = config.upstreamModels.firstOrNull { it.id == modelId }
+
+        val modelDisplayName = officialMatch?.variants?.firstOrNull { it.model.id == modelId }?.model?.displayName
+            ?: officialMatch?.baseItem?.displayName
+            ?: customMatch?.displayName?.takeIf { it.isNotBlank() }
+            ?: customMatch?.upstreamModelId
+            ?: modelId
+
+        val contextWindow = officialMatch?.baseItem?.let { it.contextWindow ?: it.maxTokens }
+            ?: customMatch?.tokenLimits?.contextWindow
+
         PolicyEditorDialog(
             modelId = modelId,
+            modelDisplayName = modelDisplayName,
             initialPolicy = currentPolicy,
+            contextWindow = contextWindow,
             onDismiss = { policyEditingModelId = null },
             onSave = { policy ->
                 viewModel.saveCompressionPolicy(modelId, policy)

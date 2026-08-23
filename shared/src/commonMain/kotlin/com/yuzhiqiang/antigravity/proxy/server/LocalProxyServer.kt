@@ -383,8 +383,10 @@ class LocalProxyServer(
     }
 
     private fun isOfficialCatalogFetchPath(path: String): Boolean {
-        return path.contains("fetchAvailableModels") ||
-                path.endsWith("/fetchAvailableModels")
+        val lower = path.lowercase()
+        return lower.contains("fetchavailablemodels") ||
+                lower.contains("getavailablemodels") ||
+                lower.contains("listavailablemodels")
     }
 
     private fun isGenerationPath(path: String): Boolean {
