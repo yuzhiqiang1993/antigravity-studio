@@ -79,12 +79,9 @@ private fun setupPlatformAppIcon() {
 }
 
 fun main() {
-    // 强制开启 macOS Metal GPU 硬件加速与平滑渲染参数
+    // macOS 原生 Skiko Metal 硬件加速与系统外观同步
     System.setProperty("skiko.renderApi", "METAL")
-    System.setProperty("sun.java2d.metal", "true")
-    System.setProperty("sun.java2d.opengl", "false")
     System.setProperty("apple.awt.application.appearance", "system")
-    System.setProperty("apple.awt.fullscreencapturable", "true")
     System.setProperty("skiko.vsync", "true")
 
     startKoin {
@@ -123,9 +120,11 @@ fun main() {
                 title = "Antigravity Studio",
                 icon = appIcon
             ) {
-                window.minimumSize = java.awt.Dimension(960, 640)
+                LaunchedEffect(Unit) {
+                    window.minimumSize = java.awt.Dimension(960, 640)
+                }
 
-                App()
+                App(window = window)
             }
         }
     }

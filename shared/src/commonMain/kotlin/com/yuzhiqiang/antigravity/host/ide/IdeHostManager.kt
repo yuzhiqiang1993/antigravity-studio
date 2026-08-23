@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.host.ide
 
 import com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
+import kotlinx.coroutines.delay
 import java.io.File
 
 object IdeHostManager {
@@ -165,22 +166,22 @@ object IdeHostManager {
    /**
     * 重启 Antigravity IDE 客户端。
     */
-   fun restart(customInstallation: String? = null): Boolean {
+   suspend fun restart(customInstallation: String? = null): Boolean {
        return try {
            stopLanguageServer()
            val os = System.getProperty("os.name", "").lowercase()
            if (os.contains("win")) {
                ProcessBuilder("taskkill", "/F", "/IM", "Antigravity IDE.exe").start().waitFor()
-                Thread.sleep(500)
+               delay(500)
            } else {
                ProcessBuilder(
                    "/usr/bin/osascript", "-e",
                    """tell application "Antigravity IDE" to quit"""
                ).start().waitFor()
-                Thread.sleep(600)
+               delay(600)
                 if (isRunning()) {
                     ProcessBuilder("pkill", "-f", "Antigravity IDE.app/Contents/MacOS/Electron").start().waitFor()
-                    Thread.sleep(400)
+                    delay(400)
                 }
                 stopLanguageServer()
             }

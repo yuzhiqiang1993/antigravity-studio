@@ -160,7 +160,7 @@ class ByokParityTest {
                 )
             )
             val server = LocalProxyServer(store)
-            val port = server.start(24_321).getOrThrow()
+            val port = runBlocking { server.start(24_321).getOrThrow() }
             try {
                 fun get(path: String): Pair<Int, String> {
                     val connection = java.net.URI("http://127.0.0.1:$port$path").toURL().openConnection() as HttpURLConnection
@@ -174,7 +174,7 @@ class ByokParityTest {
                 assertEquals(200, catalogStatus)
                 assertTrue(catalog.contains("custom-gpt-test"))
             } finally {
-                server.stop()
+                runBlocking { server.stop() }
             }
         } finally {
             root.deleteRecursively()

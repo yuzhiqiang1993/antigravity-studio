@@ -49,6 +49,11 @@ interface ProviderAdapter {
         val sharedHttpClient = createHttpClient(useSystemProxy = true)
         val officialHttpClient = createHttpClient(useSystemProxy = true)
 
+        fun closeAll() {
+            runCatching { sharedHttpClient.close() }
+            runCatching { officialHttpClient.close() }
+        }
+
         /** 回环官方地址不能再经过系统代理，否则会破坏本地调试端点。 */
         fun officialClientFor(url: String): HttpClient {
             val uri = runCatching { URI(url) }.getOrNull()

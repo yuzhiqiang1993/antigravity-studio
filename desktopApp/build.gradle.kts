@@ -32,12 +32,8 @@ compose.desktop {
         mainClass = "com.yuzhiqiang.antigravity.studio.MainKt"
 
         jvmArgs += listOf(
-            "-Dskiko.renderApi=METAL",
-            "-Dsun.java2d.metal=true",
-            "-Dsun.java2d.opengl=false",
             "-Dapple.awt.application.appearance=system",
             "-Dskiko.vsync=true",
-            "-Dskiko.fps=120",
             "-Xmx1024m",
             "-Xms256m",
             "-XX:+UseG1GC"
@@ -60,11 +56,4 @@ compose.desktop {
             }
         }
     }
-}
-
-// Compatibility alias only; this delegates to the existing Compose Desktop run task.
-tasks.register("hotRun") {
-    group = "application"
-    description = "Alias for the Compose Desktop run task (no HMR)."
-    dependsOn("run")
 }

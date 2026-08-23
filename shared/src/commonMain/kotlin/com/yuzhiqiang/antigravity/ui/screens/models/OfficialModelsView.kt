@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -179,6 +180,7 @@ fun OfficialModelsView(
                 if (columnCount == 1) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         groupedModels.forEach { group ->
+                            key(group.baseItem.id) {
                             UniversalModelCard(
                                 state = createOfficialCardState(
                                     group = group,
@@ -211,6 +213,7 @@ fun OfficialModelsView(
                                     }
                                 )
                             )
+                            }
                         }
                     }
                 } else {
@@ -221,6 +224,7 @@ fun OfficialModelsView(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 rowGroups.forEach { group ->
+                                    key(group.baseItem.id) {
                                     UniversalModelCard(
                                         state = createOfficialCardState(
                                             group = group,
@@ -255,6 +259,7 @@ fun OfficialModelsView(
                                         ),
                                         modifier = Modifier.weight(1f)
                                     )
+                                    }
                                 }
                                 val emptySlots = columnCount - rowGroups.size
                                 repeat(emptySlots) {

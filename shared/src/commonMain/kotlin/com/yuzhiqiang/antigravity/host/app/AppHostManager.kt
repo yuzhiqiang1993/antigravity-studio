@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.host.app
 
 import com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
+import kotlinx.coroutines.delay
 import java.io.File
 
 /**
@@ -138,12 +139,12 @@ object AppHostManager {
    /**
     * 跨平台重启 Antigravity App。
     */
-   fun restart(customInstallation: String? = null): Boolean {
+   suspend fun restart(customInstallation: String? = null): Boolean {
        return try {
            stopLanguageServer()
            if (isWindows) {
                ProcessBuilder("taskkill", "/F", "/IM", "Antigravity.exe").start().waitFor()
-                Thread.sleep(500)
+               delay(500)
                launch(customInstallation)
            } else {
                val quit = ProcessBuilder(
@@ -151,10 +152,10 @@ object AppHostManager {
                    """tell application "Antigravity" to quit"""
                ).start()
                quit.waitFor()
-                Thread.sleep(600)
+               delay(600)
                 if (isRunning()) {
                     ProcessBuilder("pkill", "-f", "Antigravity.app/Contents/MacOS/Antigravity").start().waitFor()
-                    Thread.sleep(400)
+                    delay(400)
                 }
                 stopLanguageServer()
                launch(customInstallation)

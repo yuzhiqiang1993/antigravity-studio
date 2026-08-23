@@ -72,21 +72,25 @@ fun ActivityScreen(
 
     var selectedLog by remember { mutableStateOf<ActivityLog?>(null) }
 
-    val displayedLogs = logs.filter { log ->
-        val matchesQuery = normalizedQuery.isBlank() || listOfNotNull(
-            log.modelId,
-            log.requestedModelId,
-            log.providerName,
-            log.path,
-            log.errorMessage
-        ).any { it.lowercase().contains(normalizedQuery) }
-        matchesQuery && (!filterOnlyFailed || log.statusCode >= 400)
+    val displayedLogs = remember(logs, normalizedQuery, filterOnlyFailed) {
+        logs.filter { log ->
+            val matchesQuery = normalizedQuery.isBlank() || listOfNotNull(
+                log.modelId,
+                log.requestedModelId,
+                log.providerName,
+                log.path,
+                log.errorMessage
+            ).any { it.lowercase().contains(normalizedQuery) }
+            matchesQuery && (!filterOnlyFailed || log.statusCode >= 400)
+        }
     }
-    val failedCount = logs.count { it.statusCode >= 400 }
-    val averageDuration = logs.takeIf { it.isNotEmpty() }
-        ?.map { it.durationMs }
-        ?.average()
-        ?.toLong() ?: 0L
+    val failedCount = remember(logs) { logs.count { it.statusCode >= 400 } }
+    val averageDuration = remember(logs) {
+        logs.takeIf { it.isNotEmpty() }
+            ?.map { it.durationMs }
+            ?.average()
+            ?.toLong() ?: 0L
+    }
 
     Column(
         modifier = modifier
