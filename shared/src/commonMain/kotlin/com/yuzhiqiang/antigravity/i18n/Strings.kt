@@ -157,6 +157,9 @@ interface Strings {
     val hostPathResetDefault: String
     val hostPathSavedCustom: String
     val hostPathResetNotice: String
+    val hostPathBrowse: String
+    val hostPathSuggestedTitle: String
+    val hostPathSelectFile: String
 
     // Models Screen & Views
     val modelsTitle: String
@@ -755,6 +758,9 @@ object StringsZh : Strings {
     override val hostPathResetDefault = "重置为默认"
     override val hostPathSavedCustom = "已设置自定义路径并重新检测"
     override val hostPathResetNotice = "已重置为默认自动探测路径"
+    override val hostPathBrowse = "选择路径 / 浏览..."
+    override val hostPathSuggestedTitle = "推荐 / 发现的候选路径"
+    override val hostPathSelectFile = "浏览"
 
     override val modelsTitle = "模型管理"
     override val modelsSubtitle = "统一调度 Google 官方原生模型与三方自建模型，灵活配置上下文压缩与思考预算"
@@ -1341,6 +1347,9 @@ object StringsEn : Strings {
     override val hostPathResetDefault = "Reset to Default"
     override val hostPathSavedCustom = "Custom path configured; re-scanning host"
     override val hostPathResetNotice = "Reset to default auto-detection path"
+    override val hostPathBrowse = "Browse..."
+    override val hostPathSuggestedTitle = "Detected candidate paths"
+    override val hostPathSelectFile = "Browse"
 
     override val modelsTitle = "Models"
     override val modelsSubtitle = "Orchestrate Google official models & custom BYOK upstream providers with context compression and reasoning budgets"
