@@ -35,3 +35,8 @@
 
 - **Material 3 设计系统**：深度适配浅色与深色主题，桌面端紧凑视觉优化
 - **中英多语言即时切换**：运行时一键无感切换简体中文与 English
+
+> ⚠️ **macOS 用户注意**：首次安装后如果提示"已损坏"或"无法打开"，请在终端执行以下命令解除 Gatekeeper 隔离限制：
+> ```bash
+> sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"
+> ```
