@@ -120,7 +120,7 @@ object OfficialCatalogProbe {
      * 获取格式化好的 Raw JSON 数据
      */
     fun getFormattedRawJson(): String {
-        val raw = rawOfficialCatalogBody ?: return "(暂无原始数据)"
+        val raw = rawOfficialCatalogBody ?: return if (com.yuzhiqiang.antigravity.i18n.I18nManager.currentLanguage == com.yuzhiqiang.antigravity.i18n.AppLanguage.ZH_CN) "(暂无原始数据)" else "(No raw data available)"
         return try {
             val element = json.parseToJsonElement(raw)
             json.encodeToString(JsonElement.serializer(), element)
@@ -136,7 +136,7 @@ object OfficialCatalogProbe {
         config: com.yuzhiqiang.antigravity.domain.model.AppConfig? = null,
         proxyPort: Int = 8045
     ): String {
-        val raw = rawOfficialCatalogBody ?: return "(暂无原始数据，请先点击「刷新」拉取官方模型)"
+        val raw = rawOfficialCatalogBody ?: return if (com.yuzhiqiang.antigravity.i18n.I18nManager.currentLanguage == com.yuzhiqiang.antigravity.i18n.AppLanguage.ZH_CN) "(暂无原始数据，请先点击「刷新」拉取官方模型)" else "(No raw data available, please click Refresh to fetch official models first)"
         return try {
             val parsedRoot = json.parseToJsonElement(raw) as? JsonObject
                 ?: return raw

@@ -41,6 +41,7 @@ fun CatalogModelRowCard(
     onVisionChanged: (CatalogModelConfig) -> Unit,
     onTestModel: () -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val statusColors = AppStatusColors
     var expandedInputMenu by remember { mutableStateOf(false) }
     var expandedOutputMenu by remember { mutableStateOf(false) }
@@ -51,7 +52,7 @@ fun CatalogModelRowCard(
     if (customDialogType != null) {
         val isInput = customDialogType == "input"
         CustomTokenInputDialog(
-            title = if (isInput) "自定义输入 Token 上限 · ${config.name}" else "自定义输出 Token 上限 · ${config.name}",
+            title = if (isInput) s.providerCustomInputTokenTitle(config.name) else s.providerCustomOutputTokenTitle(config.name),
             initialValue = if (isInput) config.inputTokenLimit else config.outputTokenLimit,
             onConfirm = { newLimit ->
                 if (isInput) {
@@ -98,15 +99,14 @@ fun CatalogModelRowCard(
         shape = RoundedCornerShape(AppTokens.Radius.medium),
         color = cardBg,
         border = androidx.compose.foundation.BorderStroke(
-            width = if (isChecked) 1.5.dp else 1.dp,
-            color = cardBorderColor
-        )
+            1.dp,
+            cardBorderColor
+        ),
+        shadowElevation = if (isChecked) 1.dp else 0.dp
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -119,38 +119,21 @@ fun CatalogModelRowCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     if (!isSingleMode) {
-                        Box(
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clip(RoundedCornerShape(3.5.dp))
-                                .background(
-                                    if (isChecked) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.surface
-                                )
-                                .border(
-                                    width = 1.2.dp,
-                                    color = if (isChecked) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f),
-                                    shape = RoundedCornerShape(3.5.dp)
-                                )
-                                .clickable { onToggleCheck() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isChecked) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                            }
-                        }
+                        Checkbox(
+                            checked = isChecked,
+                            onCheckedChange = { onToggleCheck() },
+                            modifier = Modifier.size(18.dp),
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MaterialTheme.colorScheme.primary,
+                                uncheckedColor = MaterialTheme.colorScheme.outline
+                            )
+                        )
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(6.dp))
                             .background(brandStyle.container),
                         contentAlignment = Alignment.Center
                     ) {
@@ -158,13 +141,13 @@ fun CatalogModelRowCard(
                             text = brandStyle.badge,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                fontSize = 11.5.sp
                             ),
                             color = brandStyle.contentColor
                         )
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp), modifier = Modifier.weight(1f)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -185,7 +168,7 @@ fun CatalogModelRowCard(
                                         .padding(horizontal = 5.dp, vertical = 1.dp)
                                 ) {
                                     Text(
-                                        text = "目录未探活",
+                                        text = s.providerUnprobedCatalog,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = statusColors.warning
                                     )
@@ -227,7 +210,7 @@ fun CatalogModelRowCard(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    "测试中",
+                                    s.providerTesting,
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -285,7 +268,7 @@ fun CatalogModelRowCard(
                                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                             )
                         ) {
-                            Text("测试", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp))
+                            Text(s.providerTestBtn, style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp))
                         }
                     }
                 }
@@ -318,7 +301,7 @@ fun CatalogModelRowCard(
                                 horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Text(
-                                    "输入: $inputLabel",
+                                    s.providerInputTokenPrefix(inputLabel),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -353,7 +336,7 @@ fun CatalogModelRowCard(
                                 text = {
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Text("自定义输入...", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary))
+                                        Text(s.providerCustomTokenOption, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary))
                                     }
                                 },
                                 onClick = {
@@ -366,7 +349,7 @@ fun CatalogModelRowCard(
                                     text = {
                                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
-                                            Text("清除 (设为未设置)", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error))
+                                            Text(s.providerClearTokenOption, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error))
                                         }
                                     },
                                     onClick = {
@@ -401,7 +384,7 @@ fun CatalogModelRowCard(
                                 horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Text(
-                                    "输出: $outputLabel",
+                                    s.providerOutputTokenPrefix(outputLabel),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -436,7 +419,7 @@ fun CatalogModelRowCard(
                                 text = {
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Text("自定义输入...", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary))
+                                        Text(s.providerCustomTokenOption, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary))
                                     }
                                 },
                                 onClick = {
@@ -449,7 +432,7 @@ fun CatalogModelRowCard(
                                     text = {
                                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
-                                            Text("清除 (设为未设置)", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error))
+                                            Text(s.providerClearTokenOption, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error))
                                         }
                                     },
                                     onClick = {
@@ -490,7 +473,7 @@ fun CatalogModelRowCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (visionActive) "✓ 多模态" else "多模态",
+                            text = if (visionActive) "✓ ${s.modelsVision}" else s.modelsVision,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (visionActive) FontWeight.SemiBold else FontWeight.Normal
@@ -521,7 +504,7 @@ fun CatalogModelRowCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (toolsActive) "✓ 工具" else "工具",
+                            text = if (toolsActive) "✓ ${s.modelsTools}" else s.modelsTools,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (toolsActive) FontWeight.SemiBold else FontWeight.Normal
@@ -550,7 +533,7 @@ fun CatalogModelRowCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (reasoningActive) "✓ 推理 (已配置)" else "配置推理",
+                            text = if (reasoningActive) "✓ ${s.modelsReasoning}" else s.modelsReasoningConfig,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (reasoningActive) FontWeight.SemiBold else FontWeight.Normal

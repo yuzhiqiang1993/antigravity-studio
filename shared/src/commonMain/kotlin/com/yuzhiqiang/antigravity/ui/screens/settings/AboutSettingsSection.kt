@@ -82,15 +82,15 @@ fun AboutSettingsSection(
         ) {
             AboutActionCard(
                 icon = Icons.Outlined.Code,
-                title = "开源仓库",
+                title = s.settingsRepo,
                 subtitle = "yuzhiqiang1993/antigravity-studio",
                 onClick = { openWebUrl("https://github.com/yuzhiqiang1993/antigravity-studio") },
                 modifier = Modifier.weight(1f)
             )
             AboutActionCard(
                 icon = Icons.Outlined.Folder,
-                title = "配置目录",
-                subtitle = "打开数据与模型配置文件",
+                title = s.settingsConfigDir,
+                subtitle = s.settingsOpenConfigDir,
                 onClick = onOpenConfigDirectory,
                 modifier = Modifier.weight(1f)
             )
@@ -101,15 +101,15 @@ fun AboutSettingsSection(
         ) {
             AboutActionCard(
                 icon = Icons.Outlined.Person,
-                title = "开发者",
-                subtitle = "喻志强 (@yuzhiqiang1993)",
+                title = s.settingsDeveloper,
+                subtitle = "@yuzhiqiang1993",
                 onClick = { openWebUrl("https://github.com/yuzhiqiang1993") },
                 modifier = Modifier.weight(1f)
             )
             AboutActionCard(
                 icon = Icons.Outlined.Feedback,
-                title = "反馈建议",
-                subtitle = "提交 Issue 或加入交流群",
+                title = s.settingsFeedback,
+                subtitle = s.settingsFeedbackDesc,
                 onClick = { openWebUrl("https://github.com/yuzhiqiang1993/antigravity-studio/issues") },
                 modifier = Modifier.weight(1f)
             )

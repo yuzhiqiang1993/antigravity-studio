@@ -1,5 +1,8 @@
 package com.yuzhiqiang.antigravity.ui.screens.models
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,9 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,7 @@ fun UniversalModelCard(
     state: UniversalModelCardUiState,
     modifier: Modifier = Modifier
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val cardAlpha by animateFloatAsState(
         targetValue = if (state.isEnabled) 1f else 0.55f,
         animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.standardEasing)
@@ -82,9 +84,10 @@ fun UniversalModelCard(
                         Text(
                             text = state.subtitle,
                             style = MaterialTheme.typography.bodySmall.copy(
-                                fontSize = 11.5.sp
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -98,21 +101,21 @@ fun UniversalModelCard(
                     if (state.supportsVision) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Image,
-                            contentDescription = "多模态视觉能力 (Vision)",
+                            contentDescription = s.modelsVisionDesc,
                             onClick = state.onOpenVisionDetail
                         )
                     }
                     if (state.supportsTools) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Build,
-                            contentDescription = "原生工具调用 (Tool Call)",
+                            contentDescription = s.modelsToolsDesc,
                             onClick = null
                         )
                     }
                     if (state.onOpenInfoDetail != null) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Info,
-                            contentDescription = "查看模型规格与参数",
+                            contentDescription = s.modelsSpecsDesc,
                             onClick = state.onOpenInfoDetail
                         )
                     }
@@ -134,7 +137,7 @@ fun UniversalModelCard(
                                     AppStatusColors.success,
                                     AppStatusColors.successContainer.copy(alpha = 0.65f),
                                     AppStatusColors.success.copy(alpha = 0.4f),
-                                    "测试成功 ($latency)"
+                                    s.modelsTestSuccess(latency)
                                 )
                             }
                             AppViewModel.ModelTestStatusKind.PENDING -> {
@@ -143,7 +146,7 @@ fun UniversalModelCard(
                                     AppStatusColors.warning,
                                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                     AppStatusColors.warning.copy(alpha = 0.4f),
-                                    "测试中..."
+                                    s.modelsTesting
                                 )
                             }
                             AppViewModel.ModelTestStatusKind.ERROR -> {
@@ -152,7 +155,7 @@ fun UniversalModelCard(
                                     MaterialTheme.colorScheme.error,
                                     MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.65f),
                                     MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
-                                    "测试失败"
+                                    s.modelsTestFailed
                                 )
                             }
                             null -> {
@@ -161,7 +164,7 @@ fun UniversalModelCard(
                                     MaterialTheme.colorScheme.primary,
                                     MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
                                     MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                                    "测试连通性"
+                                    s.modelsTestConnection
                                 )
                             }
                         }
@@ -178,7 +181,7 @@ fun UniversalModelCard(
 
                     ActionSquareIcon(
                         icon = if (state.isEnabled) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
-                        contentDescription = if (state.isEnabled) "已启用（点击禁用）" else "已禁用（点击启用）",
+                        contentDescription = if (state.isEnabled) s.modelsEnabledDesc else s.modelsDisabledDesc,
                         tint = if (state.isEnabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                         containerColor = if (state.isEnabled) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
                         borderColor = if (state.isEnabled) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
@@ -188,7 +191,7 @@ fun UniversalModelCard(
                     if (state.onEdit != null) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Edit,
-                            contentDescription = "编辑模型配置",
+                            contentDescription = s.modelsEditModel,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                             borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
@@ -198,7 +201,7 @@ fun UniversalModelCard(
                     if (state.onDelete != null) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Delete,
-                            contentDescription = "删除此模型",
+                            contentDescription = s.modelsDeleteModel,
                             tint = MaterialTheme.colorScheme.error,
                             containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
                             borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
@@ -211,7 +214,7 @@ fun UniversalModelCard(
             if (state.reasoningVariants.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "推理等级",
+                        text = s.modelsReasoningLevelLabel,
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium
@@ -267,7 +270,7 @@ fun UniversalModelCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "压缩策略",
+                    text = s.modelsCompressionPolicyLabel,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
@@ -300,7 +303,7 @@ fun UniversalModelCard(
                         )
                         Icon(
                             imageVector = Icons.Outlined.Edit,
-                            contentDescription = "编辑策略",
+                            contentDescription = s.modelsEditPolicy,
                             tint = if (state.isCompressionCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             modifier = Modifier.size(12.dp)
                         )

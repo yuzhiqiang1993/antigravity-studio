@@ -70,6 +70,7 @@ fun ModelsScreen(
         }
     }
 
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val scrollState = rememberScrollState()
 
     Column(
@@ -84,8 +85,8 @@ fun ModelsScreen(
         verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
     ) {
         PageHeader(
-            title = "模型管理",
-            subtitle = "统一调度 Google 官方原生模型与三方自建模型，灵活配置上下文压缩与思考预算"
+            title = s.modelsTitle,
+            subtitle = s.modelsSubtitle
         )
 
         Row(
@@ -112,7 +113,7 @@ fun ModelsScreen(
 
                     ModernSegmentedTab(
                         icon = Icons.Outlined.AutoAwesome,
-                        title = "官方原生",
+                        title = s.modelsOfficialDefault,
                         count = officialCount,
                         isActive = isOfficialActive,
                         onClick = {
@@ -161,7 +162,7 @@ fun ModelsScreen(
                     modifier = Modifier.size(AppTokens.Size.iconMedium)
                 )
                 Spacer(Modifier.width(AppTokens.Spacing.control))
-                Text("添加上游服务", style = MaterialTheme.typography.labelLarge)
+                Text(s.modelsAddProvider, style = MaterialTheme.typography.labelLarge)
             }
         }
 
@@ -184,17 +185,17 @@ fun ModelsScreen(
                             isOfficialTestSuccess = false
                             viewModel.fetchOfficialModels().join()
                             val errorMessage = viewModel.officialModelsError.value
-                            val duration = System.currentTimeMillis() - startTime
+                            val duration = "${System.currentTimeMillis() - startTime}ms"
                             if (errorMessage == null) {
-                                officialTestSummaryText = "官方通道连通正常 (${duration}ms)"
+                                officialTestSummaryText = s.modelsTestSuccess(duration)
                                 isOfficialTestSuccess = true
                             } else {
-                                officialTestSummaryText = "连接失败: $errorMessage"
+                                officialTestSummaryText = s.modelsTestFailed
                             }
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            officialTestSummaryText = "连接失败: ${e.message ?: "未知错误"}"
+                            officialTestSummaryText = s.modelsTestFailed
                             isOfficialTestSuccess = false
                         } finally {
                             isTestingOfficial = false
@@ -203,12 +204,12 @@ fun ModelsScreen(
                 },
                 onRefresh = { viewModel.fetchOfficialModels() },
                 onViewRawJson = {
-                    debugDialogTitle = "官方模型原始 JSON 数据"
+                    debugDialogTitle = s.modelsRawJsonTitle
                     debugDialogJson =
                         com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedRawJson()
                 },
                 onViewModifiedJson = {
-                    debugDialogTitle = "官方模型修改后（下发给 IDE）JSON 数据"
+                    debugDialogTitle = s.modelsModifiedJsonTitle
                     debugDialogJson =
                         com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedModifiedJson(
                             config = config,
@@ -253,9 +254,9 @@ fun ModelsScreen(
                     onDeleteProvider = {
                         viewModel.showConfirmDialog(
                             AppViewModel.ConfirmDialogState(
-                                title = "删除服务商",
-                                message = "确定要删除服务商「${currentProvider.name}」吗？关联的 ${providerModels.size} 个模型配置将一并移除。",
-                                confirmLabel = "删除",
+                                title = s.modelsDeleteProviderConfirmTitle,
+                                message = s.modelsDeleteProviderConfirmMessage(currentProvider.name, providerModels.size),
+                                confirmLabel = s.commonDelete,
                                 isDestructive = true,
                                 onConfirm = {
                                     viewModel.deleteProvider(currentProvider.id)
@@ -275,9 +276,9 @@ fun ModelsScreen(
                    onDeleteSingleModel = { model ->
                        viewModel.showConfirmDialog(
                            AppViewModel.ConfirmDialogState(
-                               title = "删除模型",
-                               message = "确定要删除模型「${model.displayName ?: model.upstreamModelId}」吗？",
-                               confirmLabel = "删除",
+                               title = s.modelsDeleteModelConfirmTitle,
+                               message = s.modelsDeleteModelConfirmMessage(model.displayName ?: model.upstreamModelId),
+                               confirmLabel = s.commonDelete,
                                isDestructive = true,
                                onConfirm = {
                                     viewModel.deleteSingleModel(model.id)
@@ -370,7 +371,7 @@ fun ModelsScreen(
 
    debugDialogJson?.let { jsonContent ->
        OfficialCatalogDebugDialog(
-           title = debugDialogTitle ?: "JSON 数据",
+           title = debugDialogTitle ?: s.modelsJsonData,
            jsonContent = jsonContent,
            onDismiss = {
                debugDialogJson = null
@@ -378,7 +379,7 @@ fun ModelsScreen(
            },
            onCopy = {
                copyTextToClipboard(jsonContent)
-                viewModel.showNotice("已复制 JSON 数据")
+                viewModel.showNotice(s.modelsCopiedJson)
             }
         )
     }

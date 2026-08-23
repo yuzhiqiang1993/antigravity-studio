@@ -36,8 +36,9 @@ fun ProviderPresetStep(
 ) {
     var presetCategory by remember { mutableStateOf(PresetCategory.ALL) }
     var presetSearchQuery by remember { mutableStateOf("") }
+    val isZh = com.yuzhiqiang.antigravity.i18n.I18nManager.currentLanguage == com.yuzhiqiang.antigravity.i18n.AppLanguage.ZH_CN
 
-    val filteredPresets = remember(presetCategory, presetSearchQuery) {
+    val filteredPresets = remember(presetCategory, presetSearchQuery, isZh) {
         val list = if (presetCategory == PresetCategory.ALL) {
             ProviderPresets.allPresets
         } else {
@@ -48,11 +49,13 @@ fun ProviderPresetStep(
         } else {
             list.filter {
                 it.name.contains(presetSearchQuery, ignoreCase = true) ||
+                        it.nameEn.contains(presetSearchQuery, ignoreCase = true) ||
                         it.defaultBaseUrl.contains(presetSearchQuery, ignoreCase = true)
             }
         }
     }
 
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = modifier
@@ -78,11 +81,11 @@ fun ProviderPresetStep(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 listOf(
-                    PresetCategory.ALL to "全部",
-                    PresetCategory.AGGREGATOR to "聚合网关",
-                    PresetCategory.RECOMMENDED to "常用推荐",
-                    PresetCategory.OFFICIAL to "官方厂商",
-                    PresetCategory.LOCAL_CUSTOM to "本地/自定义"
+                    PresetCategory.ALL to s.providerPresetCategoryAll,
+                    PresetCategory.AGGREGATOR to s.providerPresetCategoryAggregator,
+                    PresetCategory.RECOMMENDED to s.providerPresetCategoryRecommended,
+                    PresetCategory.OFFICIAL to s.providerPresetCategoryOfficial,
+                    PresetCategory.LOCAL_CUSTOM to s.providerPresetCategoryLocalCustom
                 ).forEach { (cat, label) ->
                     val selected = presetCategory == cat
                     Box(
@@ -116,7 +119,7 @@ fun ProviderPresetStep(
             StudioSearchField(
                 value = presetSearchQuery,
                 onValueChange = { presetSearchQuery = it },
-                placeholder = "搜索服务...",
+                placeholder = s.providerSearchPlaceholder,
                 modifier = Modifier.width(220.dp)
             )
         }
@@ -192,7 +195,7 @@ fun ProviderPresetStep(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = preset.iconChar,
+                            text = preset.displayIconChar(isZh),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold
@@ -202,7 +205,7 @@ fun ProviderPresetStep(
                     }
 
                     Text(
-                        text = preset.name,
+                        text = if (preset.isCustomCard || preset.id == "custom_openai") s.providerPresetCustomName else preset.displayName(isZh),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold

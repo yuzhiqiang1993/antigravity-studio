@@ -32,14 +32,14 @@ enum class ReasoningLevel {
 
     val label: String
         get() = when (this) {
-            OFF -> "Off (关闭推理)"
-            LOW -> "Low (轻量推理)"
-            MEDIUM -> "Medium (标准推理)"
-            HIGH -> "High (深度推理)"
-            X_HIGH -> "X-High (增强推理)"
-            MAX -> "Max (极限推理)"
-            ADAPTIVE -> "Adaptive (自适应推理)"
-            AUTO -> "Auto (自动推理)"
+            OFF -> "Off"
+            LOW -> "Low"
+            MEDIUM -> "Medium"
+            HIGH -> "High"
+            X_HIGH -> "X-High"
+            MAX -> "Max"
+            ADAPTIVE -> "Adaptive"
+            AUTO -> "Auto"
         }
 }
 

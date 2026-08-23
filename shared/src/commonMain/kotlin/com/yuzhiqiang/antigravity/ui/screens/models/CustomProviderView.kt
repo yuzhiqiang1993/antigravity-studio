@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
 import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -43,6 +44,7 @@ fun CustomProviderView(
     onOpenInfoDetail: (ModelMetaInfo) -> Unit,
     onCopyNotice: (String) -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val passedCount = models.count { modelTestStatuses[it.id]?.status == AppViewModel.ModelTestStatusKind.SUCCESS }
     val failedCount = models.count { modelTestStatuses[it.id]?.status == AppViewModel.ModelTestStatusKind.ERROR }
     val hasTested = passedCount > 0 || failedCount > 0
@@ -90,57 +92,49 @@ fun CustomProviderView(
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ) {
-                            Text(
-                                text = provider.protocol.name,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(
-                                    horizontal = AppTokens.Spacing.control,
-                                    vertical = AppTokens.Spacing.compact
-                                )
-                            )
-                        }
+                        StatusBadge(
+                            text = provider.protocol.name.replace('_', ' '),
+                            isActive = true
+                        )
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .clip(MaterialTheme.shapes.small)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.outlineVariant,
-                                MaterialTheme.shapes.small
+                    if (provider.effectiveBaseUrl.isNotBlank()) {
+                        Row(
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant,
+                                    MaterialTheme.shapes.small
+                                )
+                                .clickable {
+                                    copyTextToClipboard(provider.effectiveBaseUrl)
+                                    onCopyNotice(s.modelsCopiedProviderUrl)
+                                }
+                                .padding(
+                                    horizontal = AppTokens.Spacing.control,
+                                    vertical = AppTokens.Spacing.compact
+                                ),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
+                        ) {
+                            Text(
+                                text = provider.effectiveBaseUrl,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            .clickable {
-                                copyTextToClipboard(provider.effectiveBaseUrl)
-                                onCopyNotice("已复制服务地址")
-                            }
-                            .padding(
-                                horizontal = AppTokens.Spacing.control,
-                                vertical = AppTokens.Spacing.compact
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-                    ) {
-                        Text(
-                            text = provider.effectiveBaseUrl,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Icon(
-                            Icons.Outlined.ContentCopy,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(AppTokens.Size.iconSmall)
-                        )
+                            Icon(
+                                Icons.Outlined.ContentCopy,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(AppTokens.Size.iconSmall)
+                            )
+                        }
                     }
                 }
             }
@@ -175,9 +169,9 @@ fun CustomProviderView(
                     ) {
                         Text(
                             text = if (failedCount == 0) {
-                                "$passedCount/${models.size} 项通过"
+                                s.modelsPassedCount(passedCount, models.size)
                             } else {
-                                "$passedCount/${models.size} 项通过 ($failedCount 失败)"
+                                s.modelsPassedWithFailed(passedCount, models.size, failedCount)
                             },
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.padding(
@@ -190,18 +184,18 @@ fun CustomProviderView(
 
                 ModernToolButton(
                     icon = Icons.Outlined.Sensors,
-                    text = if (isProviderTesting) "测试中..." else if (failedCount > 0) "重试失败项 ($failedCount)" else "批量测试",
+                    text = if (isProviderTesting) s.providerTesting else if (failedCount > 0) s.modelsRetryFailed(failedCount) else s.modelsBatchTest,
                     onClick = onTestProvider,
                     enabled = !isProviderTesting && models.isNotEmpty()
                 )
                 ModernToolButton(
                     icon = Icons.Outlined.Settings,
-                    text = "编辑配置",
+                    text = s.modelsEditConfig,
                     onClick = onEditProvider
                 )
                 ModernToolButton(
                     icon = Icons.Outlined.Delete,
-                    text = "删除服务商",
+                    text = s.modelsDeleteProvider,
                     isDestructive = true,
                     onClick = onDeleteProvider
                 )
@@ -229,7 +223,7 @@ fun CustomProviderView(
                         modifier = Modifier.size(36.dp)
                     )
                     Text(
-                        "该服务商尚未添加模型，点击「编辑配置」添加或拉取",
+                        s.modelsNoModelsHint,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -20,6 +20,7 @@ class DoctorEngine(
     private val proxyServer: LocalProxyServer
 ) {
     suspend fun diagnose(): DoctorReport = withContext(Dispatchers.IO) {
+        val s = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
         val items = mutableListOf<DoctorCheckItem>()
         val config = configStore.currentConfig
         val actualPort = if (proxyServer.isRunning.value) proxyServer.actualPort.value else config.proxyPort
@@ -33,10 +34,10 @@ class DoctorEngine(
                 DoctorCheckItem(
                     id = "proxy.not_running",
                     category = DoctorCheckCategory.PROXY,
-                    title = "本地代理服务未运行",
+                    title = s.doctorCheckProxyStoppedTitle,
                     status = DoctorCheckStatus.FAILED,
-                    message = "代理服务处于停止状态，无法拦截转发请求（配置端口：$actualPort）。",
-                    suggestion = "请启动本地代理服务。",
+                    message = s.doctorCheckProxyStoppedMsg(actualPort),
+                    suggestion = s.doctorCheckProxyStoppedSugg,
                     autoFixable = true,
                     fixAction = DoctorFixAction.StartProxy
                 )
@@ -57,9 +58,9 @@ class DoctorEngine(
                     DoctorCheckItem(
                         id = "proxy.healthy",
                         category = DoctorCheckCategory.PROXY,
-                        title = "本地代理服务运行正常",
+                        title = s.doctorCheckProxyOkTitle,
                         status = DoctorCheckStatus.PASSED,
-                        message = "代理已就绪并正常监听 http://127.0.0.1:$actualPort。"
+                        message = s.doctorCheckProxyOkMsg(actualPort)
                     )
                 )
             } else {
@@ -67,10 +68,10 @@ class DoctorEngine(
                     DoctorCheckItem(
                         id = "proxy.unreachable",
                         category = DoctorCheckCategory.PROXY,
-                        title = "本地代理端点无法连通",
+                        title = s.doctorCheckProxyUnreachableTitle,
                         status = DoctorCheckStatus.FAILED,
-                        message = "无法连接 127.0.0.1:$actualPort，请检查端口占用或权限。",
-                        suggestion = "尝试重启代理服务。",
+                        message = s.doctorCheckProxyUnreachableMsg(actualPort),
+                        suggestion = s.doctorCheckProxyUnreachableSugg,
                         autoFixable = true,
                         fixAction = DoctorFixAction.StartProxy
                     )
@@ -87,9 +88,9 @@ class DoctorEngine(
                 DoctorCheckItem(
                     id = "network.official_cloud_code.healthy",
                     category = DoctorCheckCategory.NETWORK,
-                    title = "连接官方服务",
+                    title = s.doctorCheckNetworkOkTitle,
                     status = DoctorCheckStatus.PASSED,
-                    message = "官方 Cloud Code 服务可建立网络通信（${networkResult.latencyMs}ms）。"
+                    message = s.doctorCheckNetworkOkMsg(networkResult.latencyMs)
                 )
             )
         } else {
@@ -97,10 +98,10 @@ class DoctorEngine(
                 DoctorCheckItem(
                     id = "network.official_cloud_code.unreachable",
                     category = DoctorCheckCategory.NETWORK,
-                    title = "连接官方服务失败",
+                    title = s.doctorCheckNetworkFailedTitle,
                     status = DoctorCheckStatus.FAILED,
-                    message = "无法连通 Google 官方服务：${networkResult.error ?: "HTTP ${networkResult.statusCode}"}。",
-                    suggestion = "请检查网络与代理配置；如直连正常但 Studio 仍失败，请重启 Studio 后重新检测。",
+                    message = s.doctorCheckNetworkFailedMsg(networkResult.error ?: "HTTP ${networkResult.statusCode}"),
+                    suggestion = s.doctorCheckNetworkFailedSugg,
                     autoFixable = true,
                     fixAction = DoctorFixAction.RetestNetwork
                 )
@@ -116,10 +117,10 @@ class DoctorEngine(
                 DoctorCheckItem(
                     id = "config.no_enabled_providers",
                     category = DoctorCheckCategory.CONFIG,
-                    title = "未配置或未启用任何提供商",
+                    title = s.doctorCheckNoProvidersTitle,
                     status = DoctorCheckStatus.WARNING,
-                    message = "当前没有已启用的 Provider，所有模型请求将被拦截或直接失败。",
-                    suggestion = "前往「模型管理」添加 Provider。",
+                    message = s.doctorCheckNoProvidersMsg,
+                    suggestion = s.doctorCheckNoProvidersSugg,
                     autoFixable = true,
                     fixAction = DoctorFixAction.OpenAddProvider
                 )
@@ -132,14 +133,14 @@ class DoctorEngine(
                         DoctorCheckItem(
                             id = "provider.${provider.id}.no_models",
                             category = DoctorCheckCategory.PROVIDER,
-                            title = "提供商「${provider.name}」未配置模型",
+                            title = s.doctorCheckProviderNoModelsTitle(provider.name),
                             status = DoctorCheckStatus.WARNING,
-                            message = "该提供商已启用，但尚未关联任何上游模型。",
-                            suggestion = "请在模型管理中配置上游模型。"
+                            message = s.doctorCheckProviderNoModelsMsg,
+                            suggestion = s.doctorCheckProviderNoModelsSugg
                         )
                     )
                 } else {
-                    diagnoseProvider(provider, providerUpstreams, items)
+                    diagnoseProvider(provider, providerUpstreams, items, s)
                 }
             }
         }
@@ -160,24 +161,24 @@ class DoctorEngine(
                         DoctorCheckItem(
                             id = "host.ide.mismatch",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity IDE 代理配置不匹配（待更新）",
+                            title = s.doctorCheckIdeMismatchTitle,
                             status = DoctorCheckStatus.WARNING,
-                            message = "检测到 settings.json 中代理配置为「${ideStatus.configuredEndpoint}」，与当前代理服务端口「http://127.0.0.1:$actualPort」不一致，可能导致请求失败。",
-                            suggestion = "点击一键修复将更新为当前端口并自动重启生效，或重置为官方直连模式。",
+                            message = s.doctorCheckIdeMismatchMsg(ideStatus.configuredEndpoint ?: s.commonUnknown, actualPort),
+                            suggestion = s.doctorCheckIdeMismatchSugg,
                             autoFixable = true,
                             fixAction = DoctorFixAction.UpdateIdeSettings
                         )
                     )
                 }
                 ideStatus.isProxyActive -> {
-                    val statusMsg = if (ideStatus.isRunning) "（IDE 正在运行）" else ""
+                    val statusMsg = if (ideStatus.isRunning) s.doctorCheckIdeRunningSuffix else ""
                     items.add(
                         DoctorCheckItem(
                             id = "host.ide.healthy",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity IDE 代理接入正常",
+                            title = s.doctorCheckIdeOkTitle,
                             status = DoctorCheckStatus.PASSED,
-                            message = "settings.json 已正确配置为 http://127.0.0.1:$actualPort $statusMsg。"
+                            message = s.doctorCheckIdeOkMsg(actualPort, statusMsg)
                         )
                     )
                 }
@@ -186,9 +187,9 @@ class DoctorEngine(
                         DoctorCheckItem(
                             id = "host.ide.official",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity IDE 使用官方模式（未接入代理）",
+                            title = s.doctorCheckIdeOfficialTitle,
                             status = DoctorCheckStatus.INFO,
-                            message = "当前直连 Google 官方服务，可直接正常使用。如需在 IDE 中使用自定义模型，可启用代理接入。",
+                            message = s.doctorCheckIdeOfficialMsg,
                             autoFixable = true,
                             fixAction = DoctorFixAction.RepairIdeSettings
                         )
@@ -210,24 +211,24 @@ class DoctorEngine(
                         DoctorCheckItem(
                             id = "host.app.mismatch",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity App 代理环境变量不匹配（待更新）",
+                            title = s.doctorCheckAppMismatchTitle,
                             status = DoctorCheckStatus.WARNING,
-                            message = "检测到环境变量 CLOUD_CODE_URL 当前为「${appStatus.configuredEndpoint}」，与当前代理服务端口「http://127.0.0.1:$actualPort」不一致。",
-                            suggestion = "点击一键修复将更新环境变量并重启 App 生效，或重置为官方模式。",
+                            message = s.doctorCheckAppMismatchMsg(appStatus.configuredEndpoint ?: s.commonUnknown, actualPort),
+                            suggestion = s.doctorCheckAppMismatchSugg,
                             autoFixable = true,
                             fixAction = DoctorFixAction.UpdateAppEnvironment
                         )
                     )
                 }
                 appStatus.isProxyActive -> {
-                    val statusMsg = if (appStatus.isRunning) "（App 正在运行）" else ""
+                    val statusMsg = if (appStatus.isRunning) s.doctorCheckAppRunningSuffix else ""
                     items.add(
                         DoctorCheckItem(
                             id = "host.app.healthy",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity App 代理接入正常",
+                            title = s.doctorCheckAppOkTitle,
                             status = DoctorCheckStatus.PASSED,
-                            message = "环境变量 CLOUD_CODE_URL 已正确配置为 http://127.0.0.1:$actualPort $statusMsg。"
+                            message = s.doctorCheckAppOkMsg(actualPort, statusMsg)
                         )
                     )
                 }
@@ -236,9 +237,9 @@ class DoctorEngine(
                         DoctorCheckItem(
                             id = "host.app.official",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity App 使用官方模式（未接入代理）",
+                            title = s.doctorCheckAppOfficialTitle,
                             status = DoctorCheckStatus.INFO,
-                            message = "当前直连 Google 官方服务。如需在 App 中使用自定义模型，可启用代理接入。",
+                            message = s.doctorCheckAppOfficialMsg,
                             autoFixable = true,
                             fixAction = DoctorFixAction.RepairAppEnvironment
                         )
@@ -260,10 +261,10 @@ class DoctorEngine(
                         DoctorCheckItem(
                             id = "host.cli.mismatch",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity CLI 代理配置不匹配（待更新）",
+                            title = s.doctorCheckCliMismatchTitle,
                             status = DoctorCheckStatus.WARNING,
-                            message = "检测到 CLI 代理配置为「${cliStatus.configuredEndpoint}」，与当前代理服务端口「http://127.0.0.1:$actualPort」不一致。",
-                            suggestion = "点击一键修复更新为当前端口，或重置为官方模式。",
+                            message = s.doctorCheckCliMismatchMsg(cliStatus.configuredEndpoint ?: s.commonUnknown, actualPort),
+                            suggestion = s.doctorCheckCliMismatchSugg,
                             autoFixable = true,
                             fixAction = DoctorFixAction.UpdateCliConfig
                         )
@@ -274,9 +275,9 @@ class DoctorEngine(
                         DoctorCheckItem(
                             id = "host.cli.healthy",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity CLI 代理接入正常",
+                            title = s.doctorCheckCliOkTitle,
                             status = DoctorCheckStatus.PASSED,
-                            message = "已在 CLI 配置文件中配置 cloud_code_url 为 http://127.0.0.1:$actualPort。"
+                            message = s.doctorCheckCliOkMsg(actualPort)
                         )
                     )
                 }
@@ -285,9 +286,9 @@ class DoctorEngine(
                         DoctorCheckItem(
                             id = "host.cli.official",
                             category = DoctorCheckCategory.HOST,
-                            title = "Antigravity CLI 使用官方模式（未接入代理）",
+                            title = s.doctorCheckCliOfficialTitle,
                             status = DoctorCheckStatus.INFO,
-                            message = "CLI 当前处于官方直连模式。"
+                            message = s.doctorCheckCliOfficialMsg
                         )
                     )
                 }
@@ -310,7 +311,8 @@ class DoctorEngine(
     private suspend fun diagnoseProvider(
         provider: Provider,
         providerUpstreams: List<UpstreamModel>,
-        items: MutableList<DoctorCheckItem>
+        items: MutableList<DoctorCheckItem>,
+        s: com.yuzhiqiang.antigravity.i18n.Strings
     ) {
         val adapter = AdapterFactory.getAdapter(provider.protocol)
         val catalogIds = adapter.fetchModels(provider)
@@ -324,10 +326,10 @@ class DoctorEngine(
                 items += DoctorCheckItem(
                     id = "provider.${provider.id}.invalid_models",
                     category = DoctorCheckCategory.PROVIDER,
-                    title = "提供商「${provider.name}」存在失效模型",
+                    title = s.doctorCheckProviderInvalidModelsTitle(provider.name),
                     status = DoctorCheckStatus.FAILED,
-                    message = "上游当前未提供以下模型：${invalidModels.joinToString(", ")}。",
-                    suggestion = "建议清理失效模型，避免请求直接返回模型不存在错误。",
+                    message = s.doctorCheckProviderInvalidModelsMsg(invalidModels.joinToString(", ")),
+                    suggestion = s.doctorCheckProviderInvalidModelsSugg,
                     autoFixable = true,
                     fixAction = DoctorFixAction.PruneInvalidModels(provider.id, invalidModels)
                 )
@@ -335,9 +337,9 @@ class DoctorEngine(
                 items += DoctorCheckItem(
                     id = "provider.${provider.id}.healthy",
                     category = DoctorCheckCategory.PROVIDER,
-                    title = "提供商「${provider.name}」连通正常",
+                    title = s.doctorCheckProviderOkTitle(provider.name),
                     status = DoctorCheckStatus.PASSED,
-                    message = "鉴权成功，已配置的 ${providerUpstreams.size} 个模型均存在于上游目录中。"
+                    message = s.doctorCheckProviderOkMsg(providerUpstreams.size)
                 )
             }
             return
@@ -348,19 +350,19 @@ class DoctorEngine(
             items += DoctorCheckItem(
                 id = "provider.${provider.id}.catalog_unavailable",
                 category = DoctorCheckCategory.PROVIDER,
-                title = "提供商「${provider.name}」可连接但无法验证模型目录",
+                title = s.doctorCheckProviderUnverifiedTitle(provider.name),
                 status = DoctorCheckStatus.WARNING,
-                message = "已建立上游连接，但该协议或端点没有返回可解析的模型目录。",
-                suggestion = "请确认 models endpoint 已配置，并手动核对模型 ID。"
+                message = s.doctorCheckProviderUnverifiedMsg,
+                suggestion = s.doctorCheckProviderUnverifiedSugg
             )
         } else {
             items += DoctorCheckItem(
                 id = "provider.${provider.id}.unreachable",
                 category = DoctorCheckCategory.PROVIDER,
-                title = "提供商「${provider.name}」连通失败",
+                title = s.doctorCheckProviderNoModelsTitle(provider.name),
                 status = DoctorCheckStatus.FAILED,
-                message = "无法连接上游端点或鉴权失败：${connection.error ?: "HTTP ${connection.statusCode}"}。",
-                suggestion = "请检查提供商的 API Key、网络代理或 Base URL 是否正确。"
+                message = s.doctorCheckNetworkFailedMsg(connection.error ?: "HTTP ${connection.statusCode}"),
+                suggestion = s.doctorCheckProviderNoModelsSugg
             )
         }
     }

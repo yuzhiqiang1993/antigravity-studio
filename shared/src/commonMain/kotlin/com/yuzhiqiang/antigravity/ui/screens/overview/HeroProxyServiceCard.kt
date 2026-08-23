@@ -32,6 +32,7 @@ fun HeroProxyServiceCard(
     onStop: () -> Unit,
     onCopyAddress: () -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     var isRecentlyCopied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -52,13 +53,13 @@ fun HeroProxyServiceCard(
                 horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
             ) {
                 Text(
-                    text = "本地代理服务",
+                    text = s.overviewProxyCardTitle,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
                 StatusBadge(
-                    text = if (isRunning) "运行中" else "已停止",
+                    text = if (isRunning) s.overviewProxyRunning else s.overviewProxyStopped,
                     isActive = isRunning,
                     pulse = isRunning
                 )
@@ -70,7 +71,7 @@ fun HeroProxyServiceCard(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
                 ) {
                     Text(
-                        text = "服务地址",
+                        text = s.overviewProxyPort,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -101,7 +102,7 @@ fun HeroProxyServiceCard(
                         )
                         Icon(
                             imageVector = if (isRecentlyCopied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
-                            contentDescription = "复制地址",
+                            contentDescription = s.overviewCopyAddress,
                             tint = if (isRecentlyCopied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(AppTokens.Size.iconSmall)
                         )
@@ -122,7 +123,7 @@ fun HeroProxyServiceCard(
                     )
                     Spacer(Modifier.width(AppTokens.Spacing.xs))
                     Text(
-                        text = "停止代理",
+                        text = s.overviewStopProxy,
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
@@ -139,7 +140,7 @@ fun HeroProxyServiceCard(
                     )
                     Spacer(Modifier.width(AppTokens.Spacing.xs))
                     Text(
-                        text = "启动代理",
+                        text = s.overviewStartProxy,
                         style = MaterialTheme.typography.labelMedium
                     )
                 }

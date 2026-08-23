@@ -24,7 +24,7 @@ val OUTPUT_TOKEN_LIMIT_OPTIONS = listOf(
 )
 
 fun formatTokenDisplay(limit: Long?): String {
-    if (limit == null || limit <= 0L) return "未设置"
+    if (limit == null || limit <= 0L) return com.yuzhiqiang.antigravity.i18n.I18nManager.strings.commonNotSet
     INPUT_TOKEN_LIMIT_OPTIONS.find { it.first == limit }?.let { return it.second.substringBefore(" ") }
     OUTPUT_TOKEN_LIMIT_OPTIONS.find { it.first == limit }?.let { return it.second.substringBefore(" ") }
 

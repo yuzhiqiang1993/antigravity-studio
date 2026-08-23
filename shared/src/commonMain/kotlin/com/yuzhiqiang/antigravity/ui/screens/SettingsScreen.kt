@@ -85,7 +85,7 @@ fun SettingsScreen(
                         onOpenDirectory = {
                             openDirectoryError = openConfigDirectory(viewModel)
                         },
-                        onConfigureHostPath = viewModel::openHostPathDialog,
+                        onConfigureHostPath = { key, title -> viewModel.openHostPathDialog(key, title) },
                         s = s
                     )
                 }
@@ -107,8 +107,8 @@ fun SettingsScreen(
                         portInput = portInput,
                         portError = portError,
                         openDirectoryError = openDirectoryError,
-                        onUpdateLanguage = viewModel::updateLanguage,
-                        onUpdateThemeMode = viewModel::updateThemeMode,
+                        onUpdateLanguage = { viewModel.updateLanguage(it) },
+                        onUpdateThemeMode = { viewModel.updateThemeMode(it) },
                         onPortInputChange = {
                             portInput = it
                             portError = null
@@ -125,7 +125,7 @@ fun SettingsScreen(
                         onOpenDirectory = {
                             openDirectoryError = openConfigDirectory(viewModel)
                         },
-                        onConfigureHostPath = viewModel::openHostPathDialog,
+                        onConfigureHostPath = { key, title -> viewModel.openHostPathDialog(key, title) },
                         s = s,
                         modifier = Modifier.weight(1f)
                     )
@@ -273,6 +273,7 @@ private fun SettingsContent(
 }
 
 private fun openConfigDirectory(viewModel: AppViewModel): String? {
+    val s = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
     return try {
         val dir = viewModel.configStore.configFile.parentFile ?: File(System.getProperty("user.home"))
         if (!dir.exists()) dir.mkdirs()
@@ -301,8 +302,8 @@ private fun openConfigDirectory(viewModel: AppViewModel): String? {
                 }
             }
         }
-        if (opened) null else "当前平台不支持直接打开文件夹"
+        if (opened) null else s.settingsUnsupportedPlatform
     } catch (e: Exception) {
-        "打开配置目录失败：" + (e.message ?: "未知错误")
+        s.settingsOpenDirFailed(e.message ?: s.commonUnknown)
     }
 }

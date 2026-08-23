@@ -48,10 +48,11 @@ class DoctorDelegate(
         scope.launch {
             val success = doctorEngine.autoFix(action)
             onRefreshHostStatus()
+            val s = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
             if (success) {
-                showNotice("已执行自动修复", NoticeKind.SUCCESS)
+                showNotice(s.doctorAutoFixSuccess, NoticeKind.SUCCESS)
             } else {
-                showNotice("自动修复失败，请手动检查", NoticeKind.ERROR)
+                showNotice(s.doctorAutoFixFailed, NoticeKind.ERROR)
             }
             runDoctor()
         }

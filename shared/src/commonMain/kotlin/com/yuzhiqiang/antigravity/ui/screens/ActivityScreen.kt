@@ -175,8 +175,8 @@ fun ActivityScreen(
                 if (displayedLogs.isEmpty()) {
                     EmptyStateView(
                         icon = if (logs.isEmpty()) Icons.Outlined.History else Icons.Outlined.SearchOff,
-                        title = if (logs.isEmpty()) s.activityEmpty else "未找到匹配日志",
-                        description = if (logs.isEmpty()) "当 Antigravity 发起模型代理调用时，此处将实时展示调用明细" else "尝试输入其他关键词或清除筛选条件",
+                        title = if (logs.isEmpty()) s.activityEmpty else s.activityNoMatchingLogs,
+                        description = if (logs.isEmpty()) s.activityEmptyDesc else s.activityNoMatchingDesc,
                         modifier = Modifier.weight(1f)
                     )
                 } else {
@@ -415,9 +415,9 @@ private fun ActivityLogRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val subtitleText = when {
-                        log.modelId != null -> "${log.providerName ?: "未知服务商"} / ${log.modelId}"
+                        log.modelId != null -> "${log.providerName ?: s.activityUnknownProvider} / ${log.modelId}"
                         log.isOfficialPassthrough -> log.providerName ?: "Official Cloud Code"
-                        else -> log.providerName ?: "未知服务商"
+                        else -> log.providerName ?: s.activityUnknownProvider
                     }
                     HighlightedText(
                         text = subtitleText,

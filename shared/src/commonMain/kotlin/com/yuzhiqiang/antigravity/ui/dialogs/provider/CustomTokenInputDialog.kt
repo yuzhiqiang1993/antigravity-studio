@@ -17,6 +17,7 @@ fun CustomTokenInputDialog(
     onConfirm: (Long?) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     var inputText by remember { mutableStateOf(initialValue?.let(::formatTokenDisplay).orEmpty()) }
     val parsedTokens = remember(inputText) { parseCustomTokenInput(inputText) }
 
@@ -44,7 +45,7 @@ fun CustomTokenInputDialog(
                         value = inputText,
                         onValueChange = { inputText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("例如：128K, 1M, 200000") },
+                        placeholder = { Text(s.providerCustomTokenPlaceholder) },
                         singleLine = true,
                         shape = MaterialTheme.shapes.small
                     )
@@ -53,13 +54,13 @@ fun CustomTokenInputDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "支持 128K / 1M / 纯数字 等格式",
+                            text = s.providerCustomTokenHint,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (parsedTokens != null && parsedTokens > 0) {
                             Text(
-                                text = "解析为: $parsedTokens tokens",
+                                text = s.providerCustomTokenParsed(parsedTokens.toString()),
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.primary
@@ -72,7 +73,7 @@ fun CustomTokenInputDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
+                    TextButton(onClick = onDismiss) { Text(s.commonCancel) }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = {
@@ -82,7 +83,7 @@ fun CustomTokenInputDialog(
                         enabled = inputText.isBlank() || (parsedTokens != null && parsedTokens > 0),
                         shape = MaterialTheme.shapes.small
                     ) {
-                        Text("确定")
+                        Text(s.commonConfirm)
                     }
                 }
             }

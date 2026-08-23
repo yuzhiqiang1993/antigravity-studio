@@ -45,13 +45,16 @@ fun ProviderEditorDialog(
     val isSingleModelMode = editingSingleModel != null
     var currentStep by remember {
         mutableStateOf(
-            if (isSingleModelMode || initialProvider != null) ProviderEditStep.SELECT_MODELS
-            else ProviderEditStep.SELECT_PRESET
+            when {
+                isSingleModelMode -> ProviderEditStep.SELECT_MODELS
+                initialProvider != null -> ProviderEditStep.CONFIG_CONNECTION
+                else -> ProviderEditStep.SELECT_PRESET
+            }
         )
     }
 
     val providerId by remember { mutableStateOf(initialProvider?.id ?: "p_${UUID.randomUUID().toString().take(8)}") }
-    var selectedPresetId by remember { mutableStateOf<String?>(null) }
+    var selectedPresetId by remember { mutableStateOf(initialProvider?.let { detectPresetId(it.baseUrl) }) }
     var name by remember { mutableStateOf(initialProvider?.name.orEmpty()) }
     var protocol by remember { mutableStateOf(initialProvider?.protocol ?: ProviderProtocol.OPENAI_CHAT_COMPLETIONS) }
     var baseUrl by remember { mutableStateOf(initialProvider?.baseUrl.orEmpty()) }
@@ -64,7 +67,7 @@ fun ProviderEditorDialog(
     var isDirty by remember { mutableStateOf(false) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
 
-    fun markDirty() { isDirty = true }
+    fun markDirty() { if (!isDirty) isDirty = true }
 
     fun updateSuggestedEndpoints() {
         val (sugModels, sugGen) = suggestedEndpoints(baseUrl, protocol)
@@ -83,7 +86,7 @@ fun ProviderEditorDialog(
 
     var fetchedModelConfigs by remember {
         mutableStateOf(
-            if (editingSingleModel != null) {
+            if (isSingleModelMode && editingSingleModel != null) {
                 listOf(
                     CatalogModelConfig(
                         id = editingSingleModel.upstreamModelId,
@@ -181,7 +184,6 @@ fun ProviderEditorDialog(
             shadowElevation = 24.dp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // 顶部 Header：左侧标题与未保存徽标，中间居中步骤指示器，右侧关闭按钮
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -200,10 +202,10 @@ fun ProviderEditorDialog(
                             Text(
                                 text = when {
                                     isSingleModelMode -> editingSingleModel?.let { model ->
-                                        "编辑模型 · ${model.displayName ?: model.upstreamModelId}"
+                                        "${s.modelsEditModel} · ${model.displayName ?: model.upstreamModelId}"
                                     }.orEmpty()
-                                    initialProvider != null -> "编辑上游服务 · ${initialProvider.name}"
-                                    else -> "添加上游服务"
+                                    initialProvider != null -> "${s.modelsEditProvider} · ${initialProvider.name}"
+                                    else -> s.modelsAddProvider
                                 },
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontSize = 15.sp,
@@ -213,23 +215,6 @@ fun ProviderEditorDialog(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (isDirty) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(statusColors.warningContainer)
-                                        .padding(horizontal = 7.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        "未保存",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.ExtraBold
-                                        ),
-                                        color = statusColors.onWarningContainer
-                                    )
-                                }
-                            }
                         }
                     }
 
@@ -238,10 +223,12 @@ fun ProviderEditorDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            data class StepItem(val step: ProviderEditStep, val num: Int, val label: String)
+
                             listOf(
-                                Triple(ProviderEditStep.SELECT_PRESET, 1, "选择服务"),
-                                Triple(ProviderEditStep.CONFIG_CONNECTION, 2, "连接配置"),
-                                Triple(ProviderEditStep.SELECT_MODELS, 3, "选择模型")
+                                StepItem(ProviderEditStep.SELECT_PRESET, 1, s.providerStepPreset),
+                                StepItem(ProviderEditStep.CONFIG_CONNECTION, 2, s.providerStepConnection),
+                                StepItem(ProviderEditStep.SELECT_MODELS, 3, s.providerStepModels)
                             ).forEach { (step, num, label) ->
                                 val isActive = currentStep == step
                                 val canNavigate = !isFetching &&
@@ -313,7 +300,7 @@ fun ProviderEditorDialog(
                         ) {
                             Icon(
                                 Icons.Outlined.Close,
-                                contentDescription = "关闭",
+                                contentDescription = s.commonClose,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -335,7 +322,8 @@ fun ProviderEditorDialog(
                                     selectedPresetId = selectedPresetId,
                                     onSelectPreset = { preset ->
                                         selectedPresetId = preset.id
-                                        name = preset.name
+                                        val isZh = com.yuzhiqiang.antigravity.i18n.I18nManager.currentLanguage == com.yuzhiqiang.antigravity.i18n.AppLanguage.ZH_CN
+                                        name = preset.displayName(isZh)
                                         protocol = preset.protocol
                                         baseUrl = preset.defaultBaseUrl
                                         updateSuggestedEndpoints()
@@ -437,7 +425,7 @@ fun ProviderEditorDialog(
                                     onClick = { currentStep = ProviderEditStep.SELECT_PRESET },
                                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                                 ) {
-                                    Text("← 重新选择预设", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
+                                    Text(s.providerPrevStep, style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
                                 }
                             } else if (!isSingleModelMode && currentStep == ProviderEditStep.SELECT_MODELS) {
                                 TextButton(
@@ -445,7 +433,7 @@ fun ProviderEditorDialog(
                                     onClick = { currentStep = ProviderEditStep.CONFIG_CONNECTION },
                                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                                 ) {
-                                    Text("← 返回连接配置", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
+                                    Text(s.providerPrevStep, style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
                                 }
                             }
                         }
@@ -456,7 +444,7 @@ fun ProviderEditorDialog(
                         ) {
                             if (currentStep == ProviderEditStep.SELECT_MODELS && !isSingleModelMode) {
                                 Text(
-                                    text = if (selectedModelIds.isNotEmpty()) "已选择 ${selectedModelIds.size} 个模型" else "未选择任何模型",
+                                    text = if (selectedModelIds.isNotEmpty()) s.providerFilterSelected(selectedModelIds.size) else s.providerNoModelsEmpty,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -472,7 +460,7 @@ fun ProviderEditorDialog(
                                     contentColor = MaterialTheme.colorScheme.onSurface
                                 )
                             ) {
-                                Text("取消", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
+                                Text(s.commonCancel, style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
                             }
 
                             if (currentStep == ProviderEditStep.CONFIG_CONNECTION) {
@@ -587,12 +575,12 @@ fun ProviderEditorDialog(
                                                     selectedModelIds = initialModels.map { it.upstreamModelId }.toSet()
                                                     currentStep = ProviderEditStep.SELECT_MODELS
                                                 } else {
-                                                    fetchError = "拉取模型列表失败，请检查 Base URL 与 API Key 是否有效"
+                                                    fetchError = s.providerFetchFailedCheckUrlKey
                                                 }
                                             } catch (error: kotlinx.coroutines.CancellationException) {
                                                 throw error
                                             } catch (error: Exception) {
-                                                fetchError = "拉取模型列表失败：${error.message ?: "未知错误"}"
+                                                fetchError = s.providerFetchFailedWithError(error.message ?: s.commonUnknown)
                                             } finally {
                                                 isFetching = false
                                             }
@@ -615,10 +603,10 @@ fun ProviderEditorDialog(
                                                 strokeWidth = 2.dp,
                                                 color = MaterialTheme.colorScheme.onPrimary
                                             )
-                                            Text("正在获取模型列表...", style = MaterialTheme.typography.labelMedium)
+                                            Text(s.providerTesting, style = MaterialTheme.typography.labelMedium)
                                         }
                                     } else {
-                                        Text("获取模型列表 →", style = MaterialTheme.typography.labelMedium)
+                                        Text(s.modelsFetchModels, style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             } else if (currentStep == ProviderEditStep.SELECT_MODELS) {
@@ -685,7 +673,7 @@ fun ProviderEditorDialog(
                                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                                     )
                                 ) {
-                                    Text(if (isSingleModelMode) "保存模型配置" else "保存上游服务", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
+                                    Text(s.commonSave, style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
                                 }
                             }
                         }
@@ -696,8 +684,8 @@ fun ProviderEditorDialog(
 
     if (showDiscardConfirm) {
         ConfirmDialog(
-            title = "放弃未保存修改",
-            message = "当前编辑器存在未保存的 Provider 或模型修改，确定要放弃吗？",
+            title = s.providerDiscardConfirmTitle,
+            message = s.providerDiscardConfirmMessage,
             isDestructive = true,
             onConfirm = {
                 showDiscardConfirm = false

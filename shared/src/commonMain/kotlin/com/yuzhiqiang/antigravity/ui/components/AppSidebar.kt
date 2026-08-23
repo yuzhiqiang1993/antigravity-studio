@@ -260,6 +260,7 @@ private fun SidebarUnifiedEdgeHandle(
     )
 
     // 箭头平滑旋转动效（从向左 0° 平滑翻转到向右 180°）
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val iconRotation by animateFloatAsState(
         targetValue = if (isCollapsed) 180f else 0f,
         animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.standardEasing)
@@ -316,7 +317,7 @@ private fun SidebarUnifiedEdgeHandle(
         ) {
             Icon(
                 imageVector = Icons.Outlined.ChevronLeft,
-                contentDescription = if (isCollapsed) "展开侧边栏" else "折叠侧边栏",
+                contentDescription = if (isCollapsed) s.sidebarExpand else s.sidebarCollapse,
                 tint = iconTint,
                 modifier = Modifier
                     .size(16.dp)

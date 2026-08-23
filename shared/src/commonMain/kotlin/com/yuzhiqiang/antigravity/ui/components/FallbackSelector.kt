@@ -33,6 +33,7 @@ fun FallbackSelector(
     onSelected: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     var expanded by remember(source.id) { mutableStateOf(false) }
     val target = allVirtualModels.firstOrNull { virtual ->
         virtual.id == source.fallbackVirtualModelId ||
@@ -61,7 +62,7 @@ fun FallbackSelector(
                 Text(
                     text = target?.let { virtual ->
                         virtual.displayName ?: virtual.name.ifBlank { ModelIdentity.catalogKey(virtual) }
-                    } ?: if (candidates.isEmpty()) "无可用入口" else "未设置",
+                    } ?: if (candidates.isEmpty()) s.modelsNoModels else s.modelsNotSet,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (target != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -79,7 +80,7 @@ fun FallbackSelector(
             DropdownMenuItem(
                 text = {
                     Text(
-                        text = "不使用 fallback",
+                        text = s.modelsNoFallback,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )

@@ -73,7 +73,7 @@ fun CustomHostPathDialog(
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text = "配置 $hostTitle 路径",
+                        text = s.hostPathDialogTitle(hostTitle),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
@@ -81,7 +81,7 @@ fun CustomHostPathDialog(
                 }
 
                 Text(
-                    text = "当未检测到默认安装时，可在此输入自定义安装目录（如 .app 目录、安装文件夹）或主可执行文件绝对路径。",
+                    text = s.hostPathDialogDesc,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -89,16 +89,15 @@ fun CustomHostPathDialog(
                 OutlinedTextField(
                     value = pathInput,
                     onValueChange = { pathInput = it },
-                    label = { Text("安装目录或可执行文件路径") },
+                    label = { Text(s.hostPathInputLabel) },
                     placeholder = {
                         val isWin = System.getProperty("os.name", "").lowercase().contains("win")
-                        Text(
-                            when (hostKey) {
-                                "ide" -> if (isWin) "例如: C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity IDE" else "例如: /Applications/Antigravity IDE.app"
-                                "app" -> if (isWin) "例如: C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity" else "例如: /Applications/Antigravity.app"
-                                else -> if (isWin) "例如: C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity\\agy.exe" else "例如: /usr/local/bin/agy"
-                            }
-                        )
+                        val example = when (hostKey) {
+                            "ide" -> if (isWin) "C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity IDE" else "/Applications/Antigravity IDE.app"
+                            "app" -> if (isWin) "C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity" else "/Applications/Antigravity.app"
+                            else -> if (isWin) "C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity\\agy.exe" else "/usr/local/bin/agy"
+                        }
+                        Text(s.reasoningExamplePlaceholder(example))
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -125,7 +124,7 @@ fun CustomHostPathDialog(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "路径已检测到并存在于文件系统中",
+                                text = s.hostPathStatusValid,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFF16A34A)
                             )
@@ -150,7 +149,7 @@ fun CustomHostPathDialog(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "该路径在当前文件系统中不存在，请确认路径无误",
+                                text = s.hostPathStatusNotFound,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -159,7 +158,7 @@ fun CustomHostPathDialog(
 
                     PathStatus.EMPTY -> {
                         Text(
-                            text = "留空并保存将清除自定义配置，恢复为系统默认自动探测。",
+                            text = s.hostPathStatusEmpty,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -178,7 +177,7 @@ fun CustomHostPathDialog(
                             }
                         ) {
                             Text(
-                                text = "重置为默认",
+                                text = s.hostPathResetDefault,
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelMedium
                             )

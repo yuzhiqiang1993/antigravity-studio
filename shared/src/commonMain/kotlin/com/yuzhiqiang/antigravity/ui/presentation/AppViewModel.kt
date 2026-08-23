@@ -179,6 +179,8 @@ class AppViewModel(
     val isSidebarCollapsed: StateFlow<Boolean> = _isSidebarCollapsed.asStateFlow()
     fun toggleSidebar() { _isSidebarCollapsed.value = !_isSidebarCollapsed.value }
 
+    private val s get() = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
+
     private val doctorDelegate = DoctorDelegate(
         scope = viewModelScope,
         doctorEngine = doctorEngine,
@@ -209,32 +211,22 @@ class AppViewModel(
             _isFetchingOfficialModels.value = true
             _officialModelsError.value = null
             try {
-                val currentConfig = configStore.currentConfig
-                val excludedCustomIds = buildSet {
-                    currentConfig.upstreamModels.forEach {
-                        add(it.id)
-                        add(it.upstreamModelId)
-                        it.displayName?.let { name -> if (name.isNotBlank()) add(name) }
-                    }
-                    currentConfig.virtualModels.forEach {
-                        add(it.id)
-                        add(it.upstreamModelId)
-                        it.displayName?.let { name -> if (name.isNotBlank()) add(name) }
-                    }
-                }
+                val excludedCustomIds = configStore.currentConfig.upstreamModels
+                    .map(UpstreamModel::id)
+                    .toSet()
                 val result = OfficialCatalogProbe.fetchOfficialModels(
                     excludedModelIds = excludedCustomIds
                 )
                 result.fold(
                     onSuccess = { models -> _officialModels.value = models },
                     onFailure = { error ->
-                        _officialModelsError.value = error.message ?: "官方模型同步失败"
+                        _officialModelsError.value = error.message ?: s.modelsOfficialSyncFailed(s.commonUnknown)
                     }
                 )
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (error: Exception) {
-                _officialModelsError.value = error.message ?: "官方模型同步失败"
+                _officialModelsError.value = error.message ?: s.modelsOfficialSyncFailed(s.commonUnknown)
             } finally {
                 _isFetchingOfficialModels.value = false
             }
@@ -298,7 +290,7 @@ class AppViewModel(
             current.copy(customHostPaths = updatedPaths)
         }
         refreshHostStatus()
-        showNotice(if (cleanPath != null) "已设置自定义路径并重新检测" else "已重置为默认自动探测路径", NoticeKind.SUCCESS)
+        showNotice(if (cleanPath != null) s.hostPathSavedCustom else s.hostPathResetNotice, NoticeKind.SUCCESS)
         closeHostPathDialog()
     }
 
@@ -315,9 +307,9 @@ class AppViewModel(
             val result = proxyServer.start(configStore.currentConfig.proxyPort)
             refreshHostStatus()
             if (result.isSuccess) {
-                showNotice("本地代理已启动 (${result.getOrThrow()})", NoticeKind.SUCCESS)
+                showNotice(s.proxyStarted(result.getOrThrow()), NoticeKind.SUCCESS)
             } else {
-                showNotice("本地代理启动失败：${result.exceptionOrNull()?.message ?: "未知错误"}", NoticeKind.ERROR)
+                showNotice(s.proxyStartFailed(result.exceptionOrNull()?.message ?: s.commonUnknown), NoticeKind.ERROR)
             }
         }
     }
@@ -326,7 +318,7 @@ class AppViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             proxyServer.stop()
             refreshHostStatus()
-            showNotice("本地代理已停止", NoticeKind.SUCCESS)
+            showNotice(s.proxyStopped, NoticeKind.SUCCESS)
         }
     }
 
@@ -335,9 +327,9 @@ class AppViewModel(
             val result = restartProxyInternal()
             refreshHostStatus()
             if (result.isSuccess) {
-                showNotice("本地代理已重启 (${result.getOrThrow()})", NoticeKind.SUCCESS)
+                showNotice(s.proxyRestarted(result.getOrThrow()), NoticeKind.SUCCESS)
             } else {
-                showNotice("本地代理重启失败：${result.exceptionOrNull()?.message ?: "未知错误"}", NoticeKind.ERROR)
+                showNotice(s.proxyRestartFailed(result.exceptionOrNull()?.message ?: s.commonUnknown), NoticeKind.ERROR)
             }
         }
     }
@@ -354,10 +346,10 @@ class AppViewModel(
         if (isIdeRunning) {
             showConfirmDialog(
                 ConfirmDialogState(
-                    title = "确认重启",
-                    message = "确定要重启 Antigravity IDE 吗？重启会关闭当前运行中的实例并重新启动。是否继续？",
-                    confirmLabel = "重启",
-                    cancelLabel = "取消",
+                    title = s.hostRestartConfirmTitle(s.hostIdeTitle),
+                    message = s.hostRestartConfirmMessage(s.hostIdeTitle),
+                    confirmLabel = s.hostRestart,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { hostDelegate.restartIde(actualProxyPort.value) }
                 )
@@ -381,10 +373,10 @@ class AppViewModel(
         if (isAppRunning) {
             showConfirmDialog(
                 ConfirmDialogState(
-                    title = "确认重启",
-                    message = "确定要重启 Antigravity App 吗？重启会关闭当前运行中的实例并重新启动。是否继续？",
-                    confirmLabel = "重启",
-                    cancelLabel = "取消",
+                    title = s.hostRestartConfirmTitle(s.hostAppTitle),
+                    message = s.hostRestartConfirmMessage(s.hostAppTitle),
+                    confirmLabel = s.hostRestart,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { hostDelegate.restartApp(actualProxyPort.value) }
                 )
@@ -404,9 +396,9 @@ class AppViewModel(
             _connectionTestResult.value = result
             _isTestingConnection.value = false
             if (result.success) {
-                showNotice("代理连接测试成功 (${result.latencyMs}ms)", NoticeKind.SUCCESS)
+                showNotice(s.proxyTestSuccess(result.latencyMs), NoticeKind.SUCCESS)
             } else {
-                showNotice("代理连接测试失败：${result.error ?: "未知错误"}", NoticeKind.ERROR)
+                showNotice(s.proxyTestFailed(result.error ?: s.commonUnknown), NoticeKind.ERROR)
             }
         }
     }
@@ -467,10 +459,10 @@ class AppViewModel(
                     virtualModels = syncResult.virtualModels
                 )
             }
-            showNotice("已保存服务商「${provider.name}」", NoticeKind.SUCCESS)
+            showNotice(s.modelsProviderSaved(provider.name), NoticeKind.SUCCESS)
             true
         } catch (e: Exception) {
-            showNotice("保存服务商失败：${e.message ?: "未知错误"}", NoticeKind.ERROR)
+            showNotice(s.modelsProviderSaveFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
             false
         }
     }
@@ -482,7 +474,7 @@ class AppViewModel(
         val blockers = fallbackBlockers(removedUpstreams, removedVirtualModels)
         if (blockers.isNotEmpty()) {
             throw IllegalStateException(
-                "以下模型仍将待删除模型作为备用入口：${blockers.joinToString("、") { it.name.ifBlank { it.id } }}"
+                s.modelsDeleteBlockers(blockers.joinToString("、") { it.name.ifBlank { it.id } })
             )
         }
         return this
@@ -554,9 +546,9 @@ class AppViewModel(
                     }
                 )
             )
-            showNotice("已删除服务商「${targetProvider.name}」", NoticeKind.SUCCESS)
+            showNotice(s.modelsProviderDeleted(targetProvider.name), NoticeKind.SUCCESS)
         } catch (e: Exception) {
-            showNotice("删除服务商失败：${e.message ?: "未知错误"}", NoticeKind.ERROR)
+            showNotice(s.modelsProviderDeleteFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
         }
     }
 
@@ -576,9 +568,9 @@ class AppViewModel(
                     modelCompressionPolicies = cleaned.modelCompressionPolicies - modelId
                 )
             )
-            showNotice("已删除模型「${targetModel.displayName ?: targetModel.name}」", NoticeKind.SUCCESS)
+            showNotice(s.modelsModelDeleted(targetModel.displayName ?: targetModel.name), NoticeKind.SUCCESS)
         } catch (e: Exception) {
-            showNotice("删除模型失败：${e.message ?: "未知错误"}", NoticeKind.ERROR)
+            showNotice(s.modelsModelDeleteFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
         }
     }
 
@@ -586,7 +578,7 @@ class AppViewModel(
         return try {
             configStore.updateConfig { current ->
                 val provider = current.providers.firstOrNull { item -> item.id == updatedModel.providerId }
-                    ?: throw IllegalArgumentException("模型关联的 Provider 不存在")
+                    ?: throw IllegalArgumentException(s.modelsProviderNotFound)
                 val providerModels = current.upstreamModels.map { model ->
                     if (model.id == updatedModel.id) updatedModel else model
                 }.filter { model -> model.providerId == provider.id }
@@ -607,10 +599,10 @@ class AppViewModel(
                     virtualModels = synchronized.virtualModels
                 )
             }
-            showNotice("已更新模型「${updatedModel.displayName ?: updatedModel.name}」配置", NoticeKind.SUCCESS)
+            showNotice(s.modelsModelUpdated(updatedModel.displayName ?: updatedModel.name), NoticeKind.SUCCESS)
             true
         } catch (e: Exception) {
-            showNotice("更新模型失败：${e.message ?: "未知错误"}", NoticeKind.ERROR)
+            showNotice(s.modelsModelUpdateFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
             false
         }
     }
@@ -622,7 +614,7 @@ class AppViewModel(
         return try {
             configStore.updateConfig { current ->
                 val source = current.virtualModels.firstOrNull { it.id == virtualModelId }
-                    ?: throw IllegalArgumentException("VirtualModel 不存在：" + virtualModelId)
+                    ?: throw IllegalArgumentException(s.modelsVirtualModelNotFound(virtualModelId))
                 val normalizedTarget = fallbackVirtualModelId
                     ?.trim()
                     ?.removePrefix("models/")
@@ -633,10 +625,10 @@ class AppViewModel(
                     }
                 }
                 if (normalizedTarget != null && target == null) {
-                    throw IllegalArgumentException("fallback VirtualModel 不存在：" + normalizedTarget)
+                    throw IllegalArgumentException(s.modelsVirtualModelNotFound(normalizedTarget))
                 }
                 if (target?.id == source.id) {
-                    throw IllegalArgumentException("VirtualModel 不能将自身设置为 fallback")
+                    throw IllegalArgumentException(s.modelsFallbackSelfError)
                 }
                 current.copy(
                     virtualModels = current.virtualModels.map { virtual ->
@@ -649,12 +641,12 @@ class AppViewModel(
                 )
             }
             showNotice(
-                if (fallbackVirtualModelId.isNullOrBlank()) "已清除 fallback" else "fallback 配置已保存",
+                if (fallbackVirtualModelId.isNullOrBlank()) s.modelsFallbackCleared else s.modelsFallbackSaved,
                 NoticeKind.SUCCESS
             )
             true
         } catch (error: Exception) {
-            showNotice("fallback 保存失败：" + (error.message ?: "未知错误"), NoticeKind.ERROR)
+            showNotice(s.modelsFallbackSaveFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
             false
         }
     }
@@ -726,7 +718,7 @@ class AppViewModel(
                     latencyMs = result.latencyMs
                 )
                 showNotice(
-                    "${model.displayName ?: model.upstreamModelId} 测试成功 (${result.latencyMs}ms)",
+                    s.modelsModelTestSuccess(model.displayName ?: model.upstreamModelId, result.latencyMs),
                     NoticeKind.SUCCESS
                 )
             } else {
@@ -735,7 +727,7 @@ class AppViewModel(
                     error = result.error ?: "HTTP ${result.statusCode}"
                 )
                 showNotice(
-                    "${model.displayName ?: model.upstreamModelId} 测试失败: ${result.error ?: result.statusCode}",
+                    s.modelsModelTestFailed(model.displayName ?: model.upstreamModelId, result.error ?: result.statusCode.toString()),
                     NoticeKind.ERROR
                 )
             }
@@ -791,10 +783,10 @@ class AppViewModel(
 
             val total = models.size
             if (successCount == total) {
-                showNotice("服务商测试完成：$successCount/$total 项测试通过", NoticeKind.SUCCESS)
+                showNotice(s.modelsBatchTestSuccess(successCount, total), NoticeKind.SUCCESS)
             } else {
                 showNotice(
-                    "服务商测试完成：$successCount/$total 项通过，${total - successCount} 项失败",
+                    s.modelsBatchTestPartial(successCount, total, total - successCount),
                     NoticeKind.ERROR
                 )
             }
@@ -812,7 +804,7 @@ class AppViewModel(
 
     fun updateProxyPort(port: Int) {
         if (port !in 1024..65535) {
-            showNotice("代理端口必须位于 1024 - 65535 之间", NoticeKind.ERROR)
+            showNotice(s.settingsPortInvalid, NoticeKind.ERROR)
             return
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -821,12 +813,12 @@ class AppViewModel(
                 val result = restartProxyInternal()
                 refreshHostStatus()
                 if (result.isSuccess) {
-                    showNotice("代理端口已更新为 ${result.getOrThrow()}", NoticeKind.SUCCESS)
+                    showNotice(s.settingsPortUpdated(result.getOrThrow()), NoticeKind.SUCCESS)
                 } else {
-                    showNotice("代理端口更新后启动失败：${result.exceptionOrNull()?.message ?: "未知错误"}", NoticeKind.ERROR)
+                    showNotice(s.settingsPortRestartFailed(result.exceptionOrNull()?.message ?: s.commonUnknown), NoticeKind.ERROR)
                 }
             } catch (error: Exception) {
-                showNotice("更新代理端口失败：${error.message ?: "未知错误"}", NoticeKind.ERROR)
+                showNotice(s.settingsPortUpdateFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
             }
         }
     }

@@ -16,6 +16,7 @@ fun createOfficialCardState(
     onOpenReasoningDetail: () -> Unit,
     onOpenInfoDetail: () -> Unit
 ): UniversalModelCardUiState {
+    val s = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
     val allModelIds = group.variants.map { it.model.id }.toSet()
     val isDisabled = allModelIds.any { it in configDisabledModels }
     val item = group.baseItem
@@ -25,8 +26,8 @@ fun createOfficialCardState(
     val compressionLabel = policy?.let {
         val limit = formatTokenDisplay(it.maxTokenLimit)
         val prep = formatTokenDisplay(it.tokenThreshold)
-        "$limit 容量 ($prep 预备)"
-    } ?: "官方默认"
+        s.modelsPolicyCapacityWithPrep(limit, prep)
+    } ?: s.modelsOfficialDefault
     val contextText = item.contextWindow?.let(::formatTokenDisplay)
         ?: item.maxTokens?.let(::formatTokenDisplay)
         ?: "1048K"
@@ -66,6 +67,7 @@ fun createCustomCardState(
     onOpenReasoningDetail: () -> Unit,
     onOpenInfoDetail: () -> Unit
 ): UniversalModelCardUiState {
+    val s = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
     val modelTitle = model.displayName?.takeIf { it.isNotBlank() } ?: model.upstreamModelId
     val customSubtitle = model.displayName
         ?.takeIf { it.isNotBlank() && it != model.upstreamModelId }
@@ -79,8 +81,8 @@ fun createCustomCardState(
     val compressionLabel = policy?.let {
         val limit = formatTokenDisplay(it.maxTokenLimit)
         val prep = formatTokenDisplay(it.tokenThreshold)
-        "$limit 容量 ($prep 预备)"
-    } ?: "官方默认"
+        s.modelsPolicyCapacityWithPrep(limit, prep)
+    } ?: s.modelsOfficialDefault
 
     return UniversalModelCardUiState(
         title = modelTitle,
@@ -92,7 +94,7 @@ fun createCustomCardState(
         onTest = onTestModel,
         onEdit = onEditModel,
         onDelete = onDeleteModel,
-        contextLimitText = model.tokenLimits.contextWindow?.let(::formatTokenDisplay) ?: "未设置",
+        contextLimitText = model.tokenLimits.contextWindow?.let(::formatTokenDisplay) ?: s.commonNotSet,
         outputLimitText = (model.tokenLimits.outputTokenLimit ?: model.maxOutputTokens)
             ?.let(::formatTokenDisplay),
         supportsVision = model.capabilities.supportsVision,

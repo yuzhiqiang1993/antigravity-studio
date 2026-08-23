@@ -41,6 +41,7 @@ fun DoctorDialog(
     viewModel: AppViewModel,
     onDismiss: () -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val report by viewModel.doctorReport.collectAsState()
     val isRunning by viewModel.isDoctorRunning.collectAsState()
 
@@ -84,12 +85,12 @@ fun DoctorDialog(
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                             Text(
-                                text = "系统体检与全链路诊断",
+                                text = s.doctorDialogTitle,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "检测本地代理服务、上游模型连通性与 Antigravity 宿主接入状态",
+                                text = s.doctorDialogSubtitle,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -102,7 +103,7 @@ fun DoctorDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "关闭",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(AppTokens.Size.iconMedium)
                         )
@@ -139,7 +140,7 @@ fun DoctorDialog(
                                         bannerBg = statusColors.successContainer.copy(alpha = 0.5f),
                                         bannerBorder = statusColors.success.copy(alpha = 0.35f),
                                         iconColor = statusColors.success,
-                                        titleText = "全链路状态良好，各项配置已就绪",
+                                        titleText = s.doctorBannerGood,
                                         titleColor = statusColors.onSuccessContainer
                                     )
 
@@ -147,7 +148,7 @@ fun DoctorDialog(
                                         bannerBg = statusColors.warningContainer.copy(alpha = 0.5f),
                                         bannerBorder = statusColors.warning.copy(alpha = 0.35f),
                                         iconColor = statusColors.warning,
-                                        titleText = "部分配置待完善",
+                                        titleText = s.doctorBannerWarning,
                                         titleColor = statusColors.onWarningContainer
                                     )
 
@@ -155,13 +156,12 @@ fun DoctorDialog(
                                         bannerBg = statusColors.errorContainer.copy(alpha = 0.5f),
                                         bannerBorder = statusColors.error.copy(alpha = 0.35f),
                                         iconColor = statusColors.error,
-                                        titleText = "检测到系统运行异常",
+                                        titleText = s.doctorBannerError,
                                         titleColor = statusColors.onErrorContainer
                                     )
                                 }
 
-                                val issueText = if (issueCount > 0) " • " + issueCount + " 项待处理" else ""
-                                val statsText = "共 " + totalCount + " 项检测 • " + passCount + " 项正常" + issueText
+                                val statsText = s.doctorBannerStats(totalCount, passCount, issueCount)
 
                                 val sdf = remember { SimpleDateFormat("HH:mm:ss") }
                                 val timeStr = sdf.format(Date(currentReport.timestamp))
@@ -206,7 +206,7 @@ fun DoctorDialog(
                                     }
 
                                     Text(
-                                        text = "体检于 " + timeStr,
+                                        text = s.doctorCheckedAt(timeStr),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -215,11 +215,11 @@ fun DoctorDialog(
 
                             // 5 个分类渲染
                             val categories = listOf(
-                                DoctorCheckCategory.PROXY to "本地代理服务",
-                                DoctorCheckCategory.NETWORK to "官方服务连通性",
-                                DoctorCheckCategory.CONFIG to "配置完整性",
-                                DoctorCheckCategory.PROVIDER to "模型服务商",
-                                DoctorCheckCategory.HOST to "Antigravity 宿主环境"
+                                DoctorCheckCategory.PROXY to s.doctorCategoryProxy,
+                                DoctorCheckCategory.NETWORK to s.doctorCategoryNetwork,
+                                DoctorCheckCategory.CONFIG to s.doctorCategoryConfig,
+                                DoctorCheckCategory.PROVIDER to s.doctorCategoryProvider,
+                                DoctorCheckCategory.HOST to s.doctorCategoryHost
                             )
 
                             for ((cat, title) in categories) {
@@ -250,7 +250,7 @@ fun DoctorDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isRunning) "正在扫描系统环境..." else "体检结果实时生成",
+                        text = if (isRunning) s.doctorScanningStatus else s.doctorRealtimeStatus,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -263,7 +263,7 @@ fun DoctorDialog(
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
                         ) {
                             Text(
-                                text = "关闭",
+                                text = s.commonClose,
                                 style = MaterialTheme.typography.labelMedium
                             )
                         }
@@ -282,7 +282,7 @@ fun DoctorDialog(
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(Modifier.width(AppTokens.Spacing.xs))
-                                Text("诊断中...", style = MaterialTheme.typography.labelMedium)
+                                Text(s.doctorScanning, style = MaterialTheme.typography.labelMedium)
                             } else {
                                 Icon(
                                     imageVector = Icons.Outlined.Refresh,
@@ -290,7 +290,7 @@ fun DoctorDialog(
                                     modifier = Modifier.size(AppTokens.Size.iconSmall)
                                 )
                                 Spacer(Modifier.width(AppTokens.Spacing.xs))
-                                Text("重新体检", style = MaterialTheme.typography.labelMedium)
+                                Text(s.doctorRunAll, style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
@@ -305,6 +305,7 @@ fun DoctorDialog(
  */
 @Composable
 private fun DoctorScanningView() {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val infiniteTransition = rememberInfiniteTransition()
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -353,12 +354,12 @@ private fun DoctorScanningView() {
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "正在执行全链路健康诊断...",
+                        text = s.doctorScanningTitle,
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "逐项排查代理端口、模型服务商网络握手与宿主接管配置",
+                        text = s.doctorScanningDesc,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -465,6 +466,7 @@ private fun DoctorItemRow(
     item: DoctorCheckItem,
     viewModel: AppViewModel
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     var isActionInProgress by remember { mutableStateOf(false) }
     val statusTone = when (item.status) {
         DoctorCheckStatus.PASSED -> BadgeTone.SUCCESS
@@ -487,20 +489,14 @@ private fun DoctorItemRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)
             ) {
-                val titleAnnotated = remember(item.title) {
+                val suffix = s.doctorCheckIdeRunningSuffix
+                val titleAnnotated = remember(item.title, suffix) {
                     buildAnnotatedString {
-                        if (item.title.contains("（未接入代理）")) {
-                            val parts = item.title.split("（未接入代理）")
+                        if (suffix.isNotBlank() && item.title.contains(suffix)) {
+                            val parts = item.title.split(suffix)
                             append(parts[0])
                             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                                append("（未接入代理）")
-                            }
-                            if (parts.size > 1) append(parts[1])
-                        } else if (item.title.contains("(未接入代理)")) {
-                            val parts = item.title.split("(未接入代理)")
-                            append(parts[0])
-                            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                                append("(未接入代理)")
+                                append(suffix)
                             }
                             if (parts.size > 1) append(parts[1])
                         } else {
@@ -526,15 +522,15 @@ private fun DoctorItemRow(
 
             if (item.autoFixable && item.fixAction != null) {
                 val actionLabel = when (item.fixAction) {
-                    is DoctorFixAction.StartProxy -> "启动代理"
-                    is DoctorFixAction.OpenAddProvider -> "去配置"
-                    is DoctorFixAction.RepairIdeSettings, is DoctorFixAction.RepairAppEnvironment -> "一键接入"
-                    is DoctorFixAction.UpdateIdeSettings, is DoctorFixAction.UpdateAppEnvironment, is DoctorFixAction.UpdateCliConfig -> "更新配置"
-                    is DoctorFixAction.ResetIdeHostToOfficial, is DoctorFixAction.ResetAppHostToOfficial, is DoctorFixAction.ResetCliHostToOfficial -> "重置官方"
-                    is DoctorFixAction.RestartIdeHost -> "重启 IDE"
-                    is DoctorFixAction.RestartAppHost -> "重启 App"
-                    is DoctorFixAction.PruneInvalidModels -> "清理模型"
-                    is DoctorFixAction.RetestNetwork -> "重试"
+                    is DoctorFixAction.StartProxy -> s.doctorFixStartProxy
+                    is DoctorFixAction.OpenAddProvider -> s.doctorFixGoConfigure
+                    is DoctorFixAction.RepairIdeSettings, is DoctorFixAction.RepairAppEnvironment -> s.doctorFixOneClickEnable
+                    is DoctorFixAction.UpdateIdeSettings, is DoctorFixAction.UpdateAppEnvironment, is DoctorFixAction.UpdateCliConfig -> s.doctorFixUpdateConfig
+                    is DoctorFixAction.ResetIdeHostToOfficial, is DoctorFixAction.ResetAppHostToOfficial, is DoctorFixAction.ResetCliHostToOfficial -> s.doctorFixResetOfficial
+                    is DoctorFixAction.RestartIdeHost -> s.doctorFixRestartIde
+                    is DoctorFixAction.RestartAppHost -> s.doctorFixRestartApp
+                    is DoctorFixAction.PruneInvalidModels -> s.doctorFixPruneModels
+                    is DoctorFixAction.RetestNetwork -> s.doctorFixRetry
                 }
 
                 Button(
@@ -569,10 +565,10 @@ private fun DoctorItemRow(
                 }
             } else {
                 val label = when (item.status) {
-                    DoctorCheckStatus.PASSED -> "正常"
-                    DoctorCheckStatus.INFO -> "直连"
-                    DoctorCheckStatus.WARNING -> "警告"
-                    DoctorCheckStatus.FAILED -> "异常"
+                    DoctorCheckStatus.PASSED -> s.doctorPassed
+                    DoctorCheckStatus.INFO -> s.doctorDirect
+                    DoctorCheckStatus.WARNING -> s.doctorWarning
+                    DoctorCheckStatus.FAILED -> s.doctorFailed
                 }
 
                 StatusBadge(
@@ -595,7 +591,7 @@ private fun DoctorItemRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "💡 建议: " + item.suggestion,
+                    text = s.doctorSuggestionPrefix + item.suggestion,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )

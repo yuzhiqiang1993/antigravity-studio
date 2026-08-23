@@ -73,7 +73,7 @@ fun ActivityDetailDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "请求调用详情",
+                                text = s.activityDetailTitle,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -99,7 +99,7 @@ fun ActivityDetailDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "关闭",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(AppTokens.Size.iconMedium)
                         )
@@ -118,25 +118,25 @@ fun ActivityDetailDialog(
                     verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
                 ) {
                     // 1. 核心链路卡片
-                    DetailSectionCard(title = "路由与调用信息") {
-                        DetailItemRow("请求方法", log.method.uppercase())
-                        DetailItemRow("请求完整路径", log.path, isMonospace = true)
-                        DetailItemRow("响应总耗时", log.durationMs.toString() + " ms", highlightColor = MaterialTheme.colorScheme.primary)
-                        DetailItemRow("请求发起时间", formatFullTime(log.timestamp))
+                    DetailSectionCard(title = s.activityDetailRouteSection) {
+                        DetailItemRow(s.activityDetailMethod, log.method.uppercase())
+                        DetailItemRow(s.activityDetailPath, log.path, isMonospace = true)
+                        DetailItemRow(s.activityDetailDuration, log.durationMs.toString() + " ms", highlightColor = MaterialTheme.colorScheme.primary)
+                        DetailItemRow(s.activityDetailTimestamp, formatFullTime(log.timestamp))
                         DetailItemRow(
-                            "路由模式",
-                            if (log.isOfficialPassthrough) "官方直连透传 (Cloud Code Passthrough)" else "三方自定义路由 (BYOK Forward)"
+                            s.activityDetailRouteMode,
+                            if (log.isOfficialPassthrough) s.activityDetailPassthroughMode else s.activityDetailForwardMode
                         )
-                        log.modelId?.let { DetailItemRow("目标匹配模型", it, isMonospace = true) }
+                        log.modelId?.let { DetailItemRow(s.activityDetailTargetModel, it, isMonospace = true) }
                         log.requestedModelId
                             ?.takeIf { it != log.modelId }
-                            ?.let { DetailItemRow("原始请求模型", it, isMonospace = true) }
-                        log.providerName?.let { DetailItemRow("接入服务商", it) }
+                            ?.let { DetailItemRow(s.activityDetailRequestedModel, it, isMonospace = true) }
+                        log.providerName?.let { DetailItemRow(s.activityDetailProvider, it) }
 
                         if (log.fallbackAttempted) {
                             DetailItemRow(
-                                "备用路由 Fallback",
-                                if (log.fallbackSucceeded) "已成功自动回退" else "备用路由回退失败",
+                                s.activityDetailFallback,
+                                if (log.fallbackSucceeded) s.activityDetailFallbackSuccess else s.activityDetailFallbackFailed,
                                 highlightColor = if (log.fallbackSucceeded) AppStatusColors.success else MaterialTheme.colorScheme.error
                             )
                         }
@@ -145,14 +145,14 @@ fun ActivityDetailDialog(
                     // 2. Token 消耗统计 (若存在)
                     val hasTokenInfo = log.totalTokens != null || log.inputTokens != null || log.outputTokens != null
                     if (hasTokenInfo) {
-                        DetailSectionCard(title = "Token 消耗计量 (未脱敏)") {
+                        DetailSectionCard(title = s.activityDetailTokenSection) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                TokenMetricBadge("输入 (Prompt)", log.inputTokens?.toString() ?: "—", Modifier.weight(1f))
-                                TokenMetricBadge("输出 (Completion)", log.outputTokens?.toString() ?: "—", Modifier.weight(1f))
-                                TokenMetricBadge("总计 (Total)", log.totalTokens?.toString() ?: "—", Modifier.weight(1f), isTotal = true)
+                                TokenMetricBadge(s.activityDetailPromptTokens, log.inputTokens?.toString() ?: "—", Modifier.weight(1f))
+                                TokenMetricBadge(s.activityDetailCompletionTokens, log.outputTokens?.toString() ?: "—", Modifier.weight(1f))
+                                TokenMetricBadge(s.activityDetailTotalTokens, log.totalTokens?.toString() ?: "—", Modifier.weight(1f), isTotal = true)
                             }
 
                             if (log.reasoningTokens != null || log.cacheReadTokens != null || log.cacheWriteTokens != null) {
@@ -160,9 +160,9 @@ fun ActivityDetailDialog(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    TokenMetricBadge("推理 (Thinking)", log.reasoningTokens?.toString() ?: "—", Modifier.weight(1f))
-                                    TokenMetricBadge("缓存读取 (Read)", log.cacheReadTokens?.toString() ?: "—", Modifier.weight(1f))
-                                    TokenMetricBadge("缓存写入 (Write)", log.cacheWriteTokens?.toString() ?: "—", Modifier.weight(1f))
+                                    TokenMetricBadge(s.activityDetailReasoningTokens, log.reasoningTokens?.toString() ?: "—", Modifier.weight(1f))
+                                    TokenMetricBadge(s.activityDetailCacheReadTokens, log.cacheReadTokens?.toString() ?: "—", Modifier.weight(1f))
+                                    TokenMetricBadge(s.activityDetailCacheWriteTokens, log.cacheWriteTokens?.toString() ?: "—", Modifier.weight(1f))
                                 }
                             }
                         }
@@ -171,16 +171,16 @@ fun ActivityDetailDialog(
                     // 3. 错误详情与异常响应体 (完整无脱敏)
                     if (!log.errorMessage.isNullOrBlank()) {
                         DetailSectionCard(
-                            title = "错误详情与服务端原始响应",
+                            title = s.activityDetailErrorSection,
                             headerColor = MaterialTheme.colorScheme.error
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f))
-                                    .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
-                                    .padding(12.dp)
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f))
+                                .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                                .padding(12.dp)
                             ) {
                                 Text(
                                     text = log.errorMessage,
@@ -246,7 +246,7 @@ fun ActivityDetailDialog(
                             )
                             Spacer(Modifier.width(5.dp))
                             Text(
-                                text = "复制完整 JSON",
+                                text = s.activityDetailCopyJson,
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                             )
                         }
@@ -255,7 +255,7 @@ fun ActivityDetailDialog(
                             OutlinedButton(
                                 onClick = {
                                     Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(log.errorMessage), null)
-                                    onCopyNotice("已复制错误信息")
+                                    onCopyNotice(s.activityDetailCopiedError)
                                 },
                                 modifier = Modifier.height(32.dp),
                                 shape = RoundedCornerShape(8.dp),
@@ -269,7 +269,7 @@ fun ActivityDetailDialog(
                                 )
                                 Spacer(Modifier.width(5.dp))
                                 Text(
-                                    text = "复制错误信息",
+                                    text = s.activityDetailCopyError,
                                     style = MaterialTheme.typography.labelMedium.copy(
                                         color = MaterialTheme.colorScheme.error,
                                         fontWeight = FontWeight.Medium

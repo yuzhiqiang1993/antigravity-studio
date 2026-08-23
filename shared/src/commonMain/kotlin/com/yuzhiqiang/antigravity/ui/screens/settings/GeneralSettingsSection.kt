@@ -119,8 +119,8 @@ fun GeneralSettingsSection(
 
                 SettingRow(
                     icon = Icons.Outlined.Computer,
-                    title = "宿主安装路径",
-                    description = "自定义 Antigravity IDE、App 及 CLI 的安装或可执行文件路径"
+                    title = s.settingsHostPathsTitle,
+                    description = s.settingsHostPathsDesc
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
@@ -139,7 +139,7 @@ fun GeneralSettingsSection(
                                     .padding(horizontal = AppTokens.Spacing.sm, vertical = AppTokens.Spacing.control)
                             ) {
                                 Text(
-                                    text = if (hasCustom) "$title: 自定义" else "$title: 自动",
+                                    text = if (hasCustom) s.settingsHostPathCustom(title) else s.settingsHostPathAuto(title),
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = if (hasCustom) FontWeight.Bold else FontWeight.Medium,
                                     color = if (hasCustom) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
