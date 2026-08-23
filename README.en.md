@@ -198,9 +198,9 @@ Visit [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/rel
 
 | Operating System & Platform | Recommended Package | Description |
 | :--- | :--- | :--- |
-| **macOS (Apple Silicon)** | `Antigravity-Studio-1.0.1-macos-arm64.dmg` | Native for M1 / M2 / M3 / M4 Macs |
-| **macOS (Intel)** | `Antigravity-Studio-1.0.1-macos-x64.dmg` | Native for Intel x86_64 Macs |
-| **Windows (x64)** | `Antigravity-Studio-1.0.1-windows-x64.exe` | For 64-bit Windows 10/11 |
+| **macOS (Apple Silicon)** | `Antigravity-Studio-1.0.0-macos-arm64.dmg` | Native for M1 / M2 / M3 / M4 Macs |
+| **macOS (Intel)** | `Antigravity-Studio-1.0.0-macos-x64.dmg` | Native for Intel x86_64 Macs |
+| **Windows (x64)** | `Antigravity-Studio-1.0.0-windows-x64.exe` | For 64-bit Windows 10/11 |
 
 #### First Launch on macOS (Unsigned App Workaround)
 
