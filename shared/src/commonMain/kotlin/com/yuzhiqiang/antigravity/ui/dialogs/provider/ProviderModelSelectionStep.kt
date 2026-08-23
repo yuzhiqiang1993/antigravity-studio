@@ -59,7 +59,9 @@ fun ProviderModelSelectionStep(
 
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 22.dp, vertical = 14.dp)
     ) {
         if (!isSingleModelMode) {
             Row(
@@ -249,4 +251,3 @@ fun ProviderModelSelectionStep(
         }
     }
 }
-

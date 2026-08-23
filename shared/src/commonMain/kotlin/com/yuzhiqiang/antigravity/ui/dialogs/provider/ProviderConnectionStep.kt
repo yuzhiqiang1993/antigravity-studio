@@ -63,6 +63,7 @@ fun ProviderConnectionStep(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp, vertical = 16.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -74,7 +75,7 @@ fun ProviderConnectionStep(
                 onValueChange = onNameChange,
                 enabled = !isFetching,
                 label = { Text("上游服务名称") },
-                placeholder = { Text("例如 CPA、公司代理、DeepSeek 官方") },
+                placeholder = { Text("例如 CLIProxyAPI、公司代理、DeepSeek 官方") },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(AppTokens.Radius.medium),
                 colors = fieldColors,
@@ -180,7 +181,7 @@ fun ProviderConnectionStep(
                 )
                 Text(
                     text = when (protocol) {
-                        ProviderProtocol.OPENAI_CHAT_COMPLETIONS -> "适用于 /v1/chat/completions；CPA、Sub2API 及主流 OpenAI 兼容网关。"
+                        ProviderProtocol.OPENAI_CHAT_COMPLETIONS -> "适用于 /v1/chat/completions；CLIProxyAPI、Sub2API 及主流 OpenAI 兼容网关。"
                         ProviderProtocol.ANTHROPIC_MESSAGES -> "适用于 Anthropic /v1/messages 协议。"
                         ProviderProtocol.GEMINI_GENERATE_CONTENT -> "适用于 Google Gemini generateContent 协议。"
                         ProviderProtocol.OPENAI_RESPONSES -> "适用于 OpenAI Responses API；请求与工具调用使用 input 事件模型。"

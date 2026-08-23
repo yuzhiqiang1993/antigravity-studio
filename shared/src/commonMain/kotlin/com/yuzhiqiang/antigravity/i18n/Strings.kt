@@ -227,7 +227,7 @@ object StringsZh : Strings {
     override val modelsRefreshOfficial = "刷新官方模型"
     override val modelsFetchingOfficial = "正在扫描探测语言服务并拉取官方模型…"
 
-    override val activityTitle = "请求调用日志"
+    override val activityTitle = "调用日志"
     override val activityFilterAll = "全部请求"
     override val activityFilterFailed = "仅看失败"
     override val activityClear = "清空日志"

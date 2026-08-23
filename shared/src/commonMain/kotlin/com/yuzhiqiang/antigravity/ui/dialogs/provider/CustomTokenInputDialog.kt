@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.dialogs.provider
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -8,7 +9,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun CustomTokenInputDialog(
@@ -21,12 +21,11 @@ fun CustomTokenInputDialog(
     val parsedTokens = remember(inputText) { parseCustomTokenInput(inputText) }
 
     Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        onDismissRequest = onDismiss
     ) {
         Surface(
             modifier = Modifier.width(420.dp).wrapContentHeight(),
-            shape = MaterialTheme.shapes.medium,
+            shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 8.dp
         ) {
@@ -90,4 +89,3 @@ fun CustomTokenInputDialog(
         }
     }
 }
-

@@ -76,7 +76,7 @@ fun AppSidebar(
 
     // Logo 尺寸连续平滑插值（从 88.dp 平滑过渡到 44.dp）
     val logoSize by animateDpAsState(
-        targetValue = if (isCollapsed) 44.dp else 88.dp,
+        targetValue = if (isCollapsed) 48.dp else 68.dp,
         animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.standardEasing)
     )
 
