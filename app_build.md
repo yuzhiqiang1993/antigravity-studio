@@ -166,11 +166,11 @@ val isRelease = BuildInfo.IS_RELEASE   // true / false
 
 ### 2. 矩阵构建机与产物对照表
 
-| 目标平台与芯片 | Runner 环境 | 输出标准发布安装包 |
+| 目标平台与芯片 | Runner 与 JDK 架构 | 输出标准发布安装包 |
 | :--- | :--- | :--- |
-| **macOS (Apple Silicon M系列)** | `macos-14` (ARM64) | `Antigravity-Studio-1.0.0-macos-arm64.dmg`<br>`Antigravity-Studio-1.0.0-macos-arm64.pkg` |
-| **macOS (Intel 芯片)** | `macos-13` (x86_64) | `Antigravity-Studio-1.0.0-macos-x64.dmg`<br>`Antigravity-Studio-1.0.0-macos-x64.pkg` |
-| **Windows (x64)** | `windows-latest` (x64) | `Antigravity-Studio-1.0.0-windows-x64.msi`<br>`Antigravity-Studio-1.0.0-windows-x64.exe` |
+| **macOS (Apple Silicon M系列)** | `macos-14` (ARM64 JDK) | `Antigravity-Studio-1.0.0-macos-arm64.dmg`<br>`Antigravity-Studio-1.0.0-macos-arm64.pkg` |
+| **macOS (Intel 芯片)** | `macos-14` (x64 JDK 原生交叉构建) | `Antigravity-Studio-1.0.0-macos-x64.dmg`<br>`Antigravity-Studio-1.0.0-macos-x64.pkg` |
+| **Windows (x64)** | `windows-latest` (x64 JDK) | `Antigravity-Studio-1.0.0-windows-x64.msi`<br>`Antigravity-Studio-1.0.0-windows-x64.exe` |
 
 ### 3. 一键发布新版本步骤
 

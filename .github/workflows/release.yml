@@ -29,18 +29,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS Apple Silicon (M1/M2/M3/M4 系列芯片)
+          # macOS Apple Silicon (M1/M2/M3/M4 系列芯片原生构建)
           - os: macos-14
             os_label: macOS-AppleSilicon-arm64
             platform: macos
             arch: arm64
+            jdk_arch: aarch64
             formats: dmg,pkg
 
-          # macOS Intel (x86_64 处理器芯片)
-          - os: macos-13
+          # macOS Intel (在 macos-14 上通过 x64 JDK 原生交叉构建 x86_64 包，秒级出包)
+          - os: macos-14
             os_label: macOS-Intel-x64
             platform: macos
             arch: x64
+            jdk_arch: x64
             formats: dmg,pkg
 
           # Windows x64
@@ -48,17 +50,19 @@ jobs:
             os_label: Windows-x64
             platform: windows
             arch: x64
+            jdk_arch: x64
             formats: msi,exe
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up JDK 21 (${{ matrix.jdk_arch }})
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
+          architecture: ${{ matrix.jdk_arch }}
           cache: 'gradle'
 
       - name: Setup Gradle
