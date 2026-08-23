@@ -1,0 +1,204 @@
+name: Build & Release Multiplatform Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号 (如 1.0.0，不填则默认读取工程配置)'
+        required: false
+        default: ''
+      prerelease:
+        description: '是否标记为预发布 (Pre-release)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 矩阵构建多平台与各 CPU 架构安装包
+  # --------------------------------------------------------------------------
+  build-packages:
+    name: Build (${{ matrix.os_label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS Apple Silicon (M1/M2/M3/M4 系列芯片)
+          - os: macos-14
+            os_label: macOS-AppleSilicon-arm64
+            platform: macos
+            arch: arm64
+            formats: dmg,pkg
+
+          # macOS Intel (x86_64 处理器芯片)
+          - os: macos-13
+            os_label: macOS-Intel-x64
+            platform: macos
+            arch: x64
+            formats: dmg,pkg
+
+          # Windows x64
+          - os: windows-latest
+            os_label: Windows-x64
+            platform: windows
+            arch: x64
+            formats: msi,exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant execute permission for scripts (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x gradlew
+          chmod +x app_build.sh
+
+      # macOS / Linux 构建与打包
+      - name: Build and Package Desktop App (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          ./app_build.sh build --build-type release --formats ${{ matrix.formats }}
+
+      # Windows 构建与打包
+      - name: Build and Package Desktop App (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./gradlew :desktopApp:packageDistributionForCurrentOS -PbuildType=release
+
+      # 规范化重命名与整理产物 (Unix)
+      - name: Organize & Normalize Artifacts (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p release-artifacts
+          VERSION=$(./app_build.sh help | head -n 1 > /dev/null; grep 'packageVersion\s*=' desktopApp/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          ARCH="${{ matrix.arch }}"
+          
+          # DMG
+          if [ -f "desktopApp/build/compose/binaries/main/dmg/Antigravity Studio-$VERSION.dmg" ]; then
+            cp "desktopApp/build/compose/binaries/main/dmg/Antigravity Studio-$VERSION.dmg" "release-artifacts/Antigravity-Studio-$VERSION-macos-$ARCH.dmg"
+          fi
+          # PKG
+          if [ -f "desktopApp/build/compose/binaries/main/pkg/Antigravity Studio-$VERSION.pkg" ]; then
+            cp "desktopApp/build/compose/binaries/main/pkg/Antigravity Studio-$VERSION.pkg" "release-artifacts/Antigravity-Studio-$VERSION-macos-$ARCH.pkg"
+          fi
+
+      # 规范化重命名与整理产物 (Windows)
+      - name: Organize & Normalize Artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-artifacts | Out-Null
+          $gradleContent = Get-Content "desktopApp/build.gradle.kts" -Raw
+          $versionMatch = [regex]::Match($gradleContent, 'packageVersion\s*=\s*"([^"]+)"')
+          $version = if ($versionMatch.Success) { $versionMatch.Groups[1].Value } else { "1.0.0" }
+          
+          # MSI
+          if (Test-Path "desktopApp/build/compose/binaries/main/msi/Antigravity Studio-$version.msi") {
+            Copy-Item "desktopApp/build/compose/binaries/main/msi/Antigravity Studio-$version.msi" "release-artifacts/Antigravity-Studio-$version-windows-x64.msi"
+          }
+          # EXE
+          if (Test-Path "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe") {
+            Copy-Item "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe" "release-artifacts/Antigravity-Studio-$version-windows-x64.exe"
+          }
+
+      # 生成 SHA256 校验和
+      - name: Generate Checksums (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd release-artifacts
+          for f in *; do
+            if [ -f "$f" ]; then
+              shasum -a 256 "$f" > "$f.sha256"
+            fi
+          done
+
+      - name: Generate Checksums (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-ChildItem release-artifacts -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Out-File -FilePath "$($_.FullName).sha256" -Encoding ascii
+          }
+
+      # 上传当前 Job 产物作为 Workflow Artifacts
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os_label }}
+          path: release-artifacts/*
+          retention-days: 7
+
+  # --------------------------------------------------------------------------
+  # 汇总所有平台安装包并创建/更新 GitHub Release
+  # --------------------------------------------------------------------------
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-packages
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Flatten & Collect Release Assets
+        run: |
+          mkdir -p dist
+          find all-artifacts -type f -exec cp {} dist/ \;
+          echo "=== 待发布的安装包与校验文件 ==="
+          ls -lh dist/
+          
+          # 生成统一的 CHECKSUMS.txt
+          cd dist
+          rm -f CHECKSUMS.txt
+          sha256sum * > CHECKSUMS.txt || true
+
+      - name: Determine Tag and Version
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            TAG_NAME="v${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/(v.+) ]]; then
+            TAG_NAME="${BASH_REMATCH[1]}"
+          else
+            VERSION=$(grep 'packageVersion\s*=' desktopApp/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+            TAG_NAME="v$VERSION"
+          fi
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: "Antigravity Studio ${{ steps.vars.outputs.tag_name }}"
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+          generate_release_notes: true
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
