@@ -12,6 +12,7 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)
     implementation(libs.compose.components.uiToolingPreview)
+    implementation(libs.koin.core)
 
     // Ktor Server & Client for Desktop Engine
     implementation(libs.ktor.server.core)

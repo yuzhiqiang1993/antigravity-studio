@@ -11,6 +11,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.yuzhiqiang.antigravity.di.appModule
+import org.koin.core.context.startKoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.awt.event.ComponentAdapter
@@ -84,6 +86,10 @@ fun main() {
     System.setProperty("apple.awt.application.appearance", "system")
     System.setProperty("apple.awt.fullscreencapturable", "true")
     System.setProperty("skiko.vsync", "true")
+
+    startKoin {
+        modules(appModule)
+    }
 
     setupPlatformAppIcon()
 

@@ -21,11 +21,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class AppViewModel(
-    val configStore: ConfigStore = ConfigStore()
+    val configStore: ConfigStore = ConfigStore(),
+    val proxyServer: LocalProxyServer = LocalProxyServer(configStore),
+    val doctorEngine: DoctorEngine = DoctorEngine(configStore, proxyServer)
 ) : ViewModel() {
-
-    val proxyServer = LocalProxyServer(configStore)
-    val doctorEngine = DoctorEngine(configStore, proxyServer)
 
     val config: StateFlow<AppConfig> = configStore.configState
     val configLoadError: StateFlow<String?> = configStore.loadError

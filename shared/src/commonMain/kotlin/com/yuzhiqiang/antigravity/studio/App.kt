@@ -24,10 +24,12 @@ import com.yuzhiqiang.antigravity.ui.screens.ModelsScreen
 import com.yuzhiqiang.antigravity.ui.screens.OverviewScreen
 import com.yuzhiqiang.antigravity.ui.screens.SettingsScreen
 import com.yuzhiqiang.antigravity.ui.theme.AntigravityTheme
+import org.koin.compose.KoinContext
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun App(
-    viewModel: AppViewModel = remember { AppViewModel() }
+    viewModel: AppViewModel = koinViewModel()
 ) {
     val currentLang = I18nManager.currentLanguage
     val currentStrings = if (currentLang == AppLanguage.ZH_CN) StringsZh else StringsEn
@@ -37,6 +39,7 @@ fun App(
     val notice by viewModel.notice.collectAsState()
     val confirmState by viewModel.confirmDialog.collectAsState()
 
+    KoinContext {
     CompositionLocalProvider(LocalStrings provides currentStrings) {
         AntigravityTheme(themeMode = config.themeMode) {
             Surface(
@@ -95,5 +98,6 @@ fun App(
                 }
             }
         }
+    }
     }
 }

@@ -416,6 +416,7 @@ class ConfigStore(
         OfficialCatalogProbe.clearRawOfficialCatalog()
     }
 
+    @Synchronized
     fun updateConfig(transform: (AppConfig) -> AppConfig) {
         val updated = transform(currentConfig)
         saveConfig(updated)
