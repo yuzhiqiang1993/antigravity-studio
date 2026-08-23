@@ -66,22 +66,25 @@ class HostLifecycleDelegate(
         }
     }
 
+    private val s get() = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
+
     fun requestToggleIdeHost(actualPort: Int) {
         val currentStatus = ideDetailedStatusFlow.value
         val isRunning = currentStatus.isRunning
         val needsUpdate = currentStatus.needsUpdate
 
         if (needsUpdate) {
+            val endpoint = currentStatus.configuredEndpoint ?: s.commonUnknown
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "更新 Antigravity IDE 代理配置",
+                    title = s.hostIdeUpdateConfirmTitle,
                     message = if (isRunning) {
-                        "检测到 IDE 当前代理配置（${currentStatus.configuredEndpoint ?: "未知"}）与本地代理端口（$actualPort）不匹配。更新后将自动重启 IDE 使配置生效。是否继续？"
+                        s.hostIdeUpdateConfirmMessageRunning(endpoint, actualPort)
                     } else {
-                        "检测到 IDE 当前代理配置（${currentStatus.configuredEndpoint ?: "未知"}）与本地代理端口（$actualPort）不匹配。是否更新为当前代理端口？"
+                        s.hostIdeUpdateConfirmMessageStopped(endpoint, actualPort)
                     },
-                    confirmLabel = "更新配置",
-                    cancelLabel = "取消",
+                    confirmLabel = s.hostUpdateAction,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { enableIdeHostInternal(isRunning, actualPort, isUpdate = true) }
                 )
@@ -91,16 +94,16 @@ class HostLifecycleDelegate(
 
         val shouldBeActive = !currentStatus.isProxyActive
         if (shouldBeActive && !proxyServer.isRunning.value) {
-            showNotice("请先启动本地代理服务，再接入 Antigravity IDE", NoticeKind.ERROR)
+            showNotice(s.hostStartProxyFirstNotice(s.hostIdeTitle), NoticeKind.ERROR)
             return
         }
         if (shouldBeActive) {
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "确认启用代理模式",
-                    message = if (isRunning) "启用代理模式后，Antigravity IDE 会注入配置的模型并自动重启使配置生效。是否继续？" else "启用代理模式将使 Antigravity IDE 在启动时连接本地代理。是否继续？",
-                    confirmLabel = "启用代理",
-                    cancelLabel = "取消",
+                    title = s.hostIdeEnableConfirmTitle,
+                    message = if (isRunning) s.hostIdeEnableConfirmMessageRunning else s.hostIdeEnableConfirmMessageStopped,
+                    confirmLabel = s.hostEnable,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { enableIdeHostInternal(isRunning, actualPort, isUpdate = false) }
                 )
@@ -108,10 +111,10 @@ class HostLifecycleDelegate(
         } else {
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "确认停用代理接入",
-                    message = if (isRunning) "将停用 Antigravity IDE 的代理接入并重启恢复官方直连模式。是否继续？" else "将停用 Antigravity IDE 的代理接入，恢复官方直连模式。是否继续？",
-                    confirmLabel = "恢复直连",
-                    cancelLabel = "取消",
+                    title = s.hostIdeDisableConfirmTitle,
+                    message = if (isRunning) s.hostIdeDisableConfirmMessageRunning else s.hostIdeDisableConfirmMessageStopped,
+                    confirmLabel = s.hostDisable,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { disableIdeHostInternal(isRunning, actualPort) }
                 )
@@ -134,11 +137,11 @@ class HostLifecycleDelegate(
                 ideHostErrorFlow.value = if (succeeded) null else "host_update_failed"
                 showNotice(
                     when {
-                        succeeded && isCurrentlyRunning && isUpdate -> "Antigravity IDE 代理配置已更新并完成重启"
-                        succeeded && isCurrentlyRunning -> "Antigravity IDE 已启用代理模式并完成重启"
-                        succeeded -> "Antigravity IDE 已启用代理模式，启动后生效"
-                        operationSucceeded && !restartSucceeded -> "Antigravity IDE 配置已更新，但自动重启失败"
-                        else -> "Antigravity IDE 代理接入配置失败"
+                        succeeded && isCurrentlyRunning && isUpdate -> s.hostIdeUpdatedAndRestarted
+                        succeeded && isCurrentlyRunning -> s.hostIdeEnabledAndRestarted
+                        succeeded -> s.hostIdeEnabledPendingStart
+                        operationSucceeded && !restartSucceeded -> s.hostIdeConfigUpdatedRestartFailed
+                        else -> s.hostIdeEnableFailed
                     },
                     if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
                 )
@@ -164,10 +167,10 @@ class HostLifecycleDelegate(
                 ideHostErrorFlow.value = if (succeeded) null else "host_update_failed"
                 showNotice(
                     when {
-                        succeeded && isCurrentlyRunning -> "Antigravity IDE 已恢复官方直连并完成重启"
-                        succeeded -> "Antigravity IDE 已恢复官方直连"
-                        operationSucceeded && !restartSucceeded -> "Antigravity IDE 配置已更新，但自动重启失败"
-                        else -> "Antigravity IDE 停用代理接入失败"
+                        succeeded && isCurrentlyRunning -> s.hostIdeRestoredAndRestarted
+                        succeeded -> s.hostIdeRestored
+                        operationSucceeded && !restartSucceeded -> s.hostIdeConfigUpdatedRestartFailed
+                        else -> s.hostIdeDisableFailed
                     },
                     if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
                 )
@@ -181,23 +184,24 @@ class HostLifecycleDelegate(
     fun requestToggleAppHost(actualPort: Int) {
         val currentStatus = appDetailedStatusFlow.value
         if (!currentStatus.isInstalled) {
-            showNotice("未检测到 Antigravity App 安装", NoticeKind.ERROR)
+            showNotice(s.hostAppNotInstalled, NoticeKind.ERROR)
             return
         }
         val isRunning = currentStatus.isRunning
         val needsUpdate = currentStatus.needsUpdate
 
         if (needsUpdate) {
+            val endpoint = currentStatus.configuredEndpoint ?: s.commonUnknown
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "更新 Antigravity App 代理配置",
+                    title = s.hostAppUpdateConfirmTitle,
                     message = if (isRunning) {
-                        "检测到 App 当前代理环境变量（${currentStatus.configuredEndpoint ?: "未知"}）与本地代理端口（$actualPort）不匹配。更新后将自动重启 App 使配置生效。是否继续？"
+                        s.hostAppUpdateConfirmMessageRunning(endpoint, actualPort)
                     } else {
-                        "检测到 App 当前代理环境变量（${currentStatus.configuredEndpoint ?: "未知"}）与本地代理端口（$actualPort）不匹配。是否更新为当前代理端口？"
+                        s.hostAppUpdateConfirmMessageStopped(endpoint, actualPort)
                     },
-                    confirmLabel = "更新配置",
-                    cancelLabel = "取消",
+                    confirmLabel = s.hostUpdateAction,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { enableAppHostInternal(isRunning, actualPort, isUpdate = true) }
                 )
@@ -207,16 +211,16 @@ class HostLifecycleDelegate(
 
         val shouldBeActive = !currentStatus.isProxyActive
         if (shouldBeActive && !proxyServer.isRunning.value) {
-            showNotice("请先启动本地代理服务，再接入 Antigravity App", NoticeKind.ERROR)
+            showNotice(s.hostStartProxyFirstNotice(s.hostAppTitle), NoticeKind.ERROR)
             return
         }
         if (shouldBeActive) {
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "确认启用代理模式",
-                    message = if (isRunning) "启用代理模式后，Antigravity App 会注入配置的模型并自动重启使配置生效。是否继续？" else "启用代理模式将使 Antigravity App 在启动时连接本地代理。是否继续？",
-                    confirmLabel = "启用代理",
-                    cancelLabel = "取消",
+                    title = s.hostAppEnableConfirmTitle,
+                    message = if (isRunning) s.hostAppEnableConfirmMessageRunning else s.hostAppEnableConfirmMessageStopped,
+                    confirmLabel = s.hostEnable,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { enableAppHostInternal(isRunning, actualPort, isUpdate = false) }
                 )
@@ -224,10 +228,10 @@ class HostLifecycleDelegate(
         } else {
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "确认停用代理接入",
-                    message = if (isRunning) "将停用 Antigravity App 的代理接入并重启恢复官方直连模式。是否继续？" else "将停用 Antigravity App 的代理接入，恢复官方直连模式。是否继续？",
-                    confirmLabel = "恢复直连",
-                    cancelLabel = "取消",
+                    title = s.hostAppDisableConfirmTitle,
+                    message = if (isRunning) s.hostAppDisableConfirmMessageRunning else s.hostAppDisableConfirmMessageStopped,
+                    confirmLabel = s.hostDisable,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { disableAppHostInternal(isRunning, actualPort) }
                 )
@@ -249,11 +253,11 @@ class HostLifecycleDelegate(
                 val succeeded = operationSucceeded && restartSucceeded && newStatus.isProxyActive
                 showNotice(
                     when {
-                        succeeded && isCurrentlyRunning && isUpdate -> "Antigravity App 代理配置已更新并完成重启"
-                        succeeded && isCurrentlyRunning -> "Antigravity App 已启用代理模式并完成重启"
-                        succeeded -> "Antigravity App 已启用代理模式，启动后生效"
-                        operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
-                        else -> "Antigravity App 代理接入配置失败"
+                        succeeded && isCurrentlyRunning && isUpdate -> s.hostAppUpdatedAndRestarted
+                        succeeded && isCurrentlyRunning -> s.hostAppEnabledAndRestarted
+                        succeeded -> s.hostAppEnabledPendingStart
+                        operationSucceeded && !restartSucceeded -> s.hostAppConfigUpdatedRestartFailed
+                        else -> s.hostAppEnableFailed
                     },
                     if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
                 )
@@ -278,10 +282,10 @@ class HostLifecycleDelegate(
                 val succeeded = operationSucceeded && restartSucceeded && !newStatus.isProxyActive
                 showNotice(
                     when {
-                        succeeded && isCurrentlyRunning -> "Antigravity App 已恢复官方直连并完成重启"
-                        succeeded -> "Antigravity App 已恢复官方直连"
-                        operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
-                        else -> "Antigravity App 停用代理接入失败"
+                        succeeded && isCurrentlyRunning -> s.hostAppRestoredAndRestarted
+                        succeeded -> s.hostAppRestored
+                        operationSucceeded && !restartSucceeded -> s.hostAppConfigUpdatedRestartFailed
+                        else -> s.hostAppDisableFailed
                     },
                     if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
                 )
@@ -295,17 +299,18 @@ class HostLifecycleDelegate(
     fun requestToggleCliHost(actualPort: Int) {
         val currentStatus = cliDetailedStatusFlow.value
         if (!currentStatus.isInstalled) {
-            showNotice("未检测到 agy CLI 安装", NoticeKind.ERROR)
+            showNotice(s.hostCliNotInstalled, NoticeKind.ERROR)
             return
         }
         val needsUpdate = currentStatus.needsUpdate
         if (needsUpdate) {
+            val endpoint = currentStatus.configuredEndpoint ?: s.commonUnknown
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "更新 Antigravity CLI 代理配置",
-                    message = "检测到 CLI 当前代理配置（${currentStatus.configuredEndpoint ?: "未知"}）与本地代理端口（$actualPort）不匹配。更新后请完全退出并重新打开终端应用生效。是否继续？",
-                    confirmLabel = "更新配置",
-                    cancelLabel = "取消",
+                    title = s.hostCliUpdateConfirmTitle,
+                    message = s.hostCliUpdateConfirmMessage(endpoint, actualPort),
+                    confirmLabel = s.hostUpdateAction,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { enableCliHostInternal(actualPort) }
                 )
@@ -315,16 +320,16 @@ class HostLifecycleDelegate(
 
         val shouldBeActive = !currentStatus.isProxyActive
         if (shouldBeActive && !proxyServer.isRunning.value) {
-            showNotice("请先启动本地代理服务，再接入 Antigravity CLI", NoticeKind.ERROR)
+            showNotice(s.hostStartProxyFirstNotice(s.hostCliTitle), NoticeKind.ERROR)
             return
         }
         if (shouldBeActive) {
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "确认启用代理模式",
-                    message = "启用代理模式后会在用户环境中配置 CLOUD_CODE_URL；完全退出并重新打开终端应用后生效。是否继续？",
-                    confirmLabel = "启用代理",
-                    cancelLabel = "取消",
+                    title = s.hostCliEnableConfirmTitle,
+                    message = s.hostCliEnableConfirmMessage,
+                    confirmLabel = s.hostEnable,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { enableCliHostInternal(actualPort) }
                 )
@@ -332,10 +337,10 @@ class HostLifecycleDelegate(
         } else {
             showConfirmDialog(
                 AppViewModel.ConfirmDialogState(
-                    title = "确认停用代理接入",
-                    message = "将停用 CLI 的代理接入并恢复官方直连模式；完全退出并重新打开终端应用后生效。是否继续？",
-                    confirmLabel = "恢复直连",
-                    cancelLabel = "取消",
+                    title = s.hostCliDisableConfirmTitle,
+                    message = s.hostCliDisableConfirmMessage,
+                    confirmLabel = s.hostDisable,
+                    cancelLabel = s.commonCancel,
                     isDestructive = false,
                     onConfirm = { disableCliHostInternal(actualPort) }
                 )
@@ -347,9 +352,9 @@ class HostLifecycleDelegate(
         val success = CliHostManager.enable(actualPort)
         isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
         if (success) {
-            showNotice("CLI 已启用代理模式；请完全退出并重新打开终端应用", NoticeKind.SUCCESS)
+            showNotice(s.hostCliEnabledNotice, NoticeKind.SUCCESS)
         } else {
-            showNotice("CLI 代理接入配置失败", NoticeKind.ERROR)
+            showNotice(s.hostCliEnableFailed, NoticeKind.ERROR)
         }
         refreshHostStatus(actualPort)
     }
@@ -358,9 +363,9 @@ class HostLifecycleDelegate(
         val success = CliHostManager.disable()
         isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
         if (success) {
-            showNotice("CLI 代理接入已停用；请完全退出并重新打开终端应用", NoticeKind.SUCCESS)
+            showNotice(s.hostCliDisabledNotice, NoticeKind.SUCCESS)
         } else {
-            showNotice("CLI 停用代理接入失败", NoticeKind.ERROR)
+            showNotice(s.hostCliDisableFailed, NoticeKind.ERROR)
         }
         refreshHostStatus(actualPort)
     }
@@ -370,17 +375,17 @@ class HostLifecycleDelegate(
      */
     fun requestForceResetHost(hostKey: String, actualPort: Int) {
         val hostName = when (hostKey) {
-            "ide" -> "Antigravity IDE"
-            "app" -> "Antigravity App"
-            "cli" -> "Antigravity CLI"
+            "ide" -> s.hostIdeTitle
+            "app" -> s.hostAppTitle
+            "cli" -> s.hostCliTitle
             else -> hostKey
         }
         showConfirmDialog(
             AppViewModel.ConfirmDialogState(
-                title = "强制重置 $hostName 为官方模式",
-                message = "此操作将强制清除 $hostName 的所有代理配置、环境变量与托管记录，恢复为最干净的官方直连模式。若应用正在运行将自动重启生效。是否确认重置？",
-                confirmLabel = "强制重置",
-                cancelLabel = "取消",
+                title = s.hostForceResetConfirmTitle(hostName),
+                message = s.hostForceResetConfirmMessage(hostName),
+                confirmLabel = s.hostForceReset,
+                cancelLabel = s.commonCancel,
                 isDestructive = true,
                 onConfirm = { forceResetHostInternal(hostKey, actualPort) }
             )
@@ -399,7 +404,7 @@ class HostLifecycleDelegate(
                         if (isRunning) {
                             IdeHostManager.restart(customPath)
                         }
-                        showNotice("Antigravity IDE 已强制重置为官方直连模式", NoticeKind.SUCCESS)
+                        showNotice(s.hostForceResetSuccess(s.hostIdeTitle), NoticeKind.SUCCESS)
                     }
                     "app" -> {
                         val isRunning = AppHostManager.isRunning()
@@ -408,11 +413,11 @@ class HostLifecycleDelegate(
                         if (isRunning) {
                             AppHostManager.restart(customPath, null)
                         }
-                        showNotice("Antigravity App 已强制重置为官方直连模式", NoticeKind.SUCCESS)
+                        showNotice(s.hostForceResetSuccess(s.hostAppTitle), NoticeKind.SUCCESS)
                     }
                     "cli" -> {
                         CliHostManager.forceReset()
-                        showNotice("Antigravity CLI 已强制重置为官方直连模式", NoticeKind.SUCCESS)
+                        showNotice(s.hostForceResetSuccess(s.hostCliTitle), NoticeKind.SUCCESS)
                     }
                 }
                 refreshHostStatus(actualPort)
@@ -429,9 +434,9 @@ class HostLifecycleDelegate(
                 val customInstallation = configStore.currentConfig.customHostPaths["ide"]
                 val ok = IdeHostManager.restart(customInstallation)
                 if (ok) {
-                    showNotice("已重启 Antigravity IDE", NoticeKind.SUCCESS)
+                    showNotice(s.hostRestartSuccess(s.hostIdeTitle), NoticeKind.SUCCESS)
                 } else {
-                    showNotice("重启 Antigravity IDE 失败", NoticeKind.ERROR)
+                    showNotice(s.hostRestartFailed(s.hostIdeTitle), NoticeKind.ERROR)
                 }
                 refreshHostStatus(actualPort)
             } finally {
@@ -442,14 +447,14 @@ class HostLifecycleDelegate(
 
     fun launchIde(actualPort: Int) {
         if (IdeHostManager.isActive(actualPort) && !proxyServer.isRunning.value) {
-            showNotice("当前 IDE 已接入代理，请先启动本地代理", NoticeKind.ERROR)
+            showNotice(s.hostLaunchProxyNotRunning(s.hostIdeTitle), NoticeKind.ERROR)
             return
         }
         val ok = IdeHostManager.launch(configStore.currentConfig.customHostPaths["ide"])
         if (ok) {
-            showNotice("已打开 Antigravity IDE", NoticeKind.SUCCESS)
+            showNotice(s.hostLaunchSuccess(s.hostIdeTitle), NoticeKind.SUCCESS)
         } else {
-            showNotice("打开 Antigravity IDE 失败", NoticeKind.ERROR)
+            showNotice(s.hostLaunchFailed(s.hostIdeTitle), NoticeKind.ERROR)
         }
         refreshHostStatus(actualPort)
     }
@@ -461,9 +466,9 @@ class HostLifecycleDelegate(
                 val customInstallation = configStore.currentConfig.customHostPaths["app"]
                 val ok = AppHostManager.restart(customInstallation, actualPort)
                 if (ok) {
-                    showNotice("已重启 Antigravity App", NoticeKind.SUCCESS)
+                    showNotice(s.hostRestartSuccess(s.hostAppTitle), NoticeKind.SUCCESS)
                 } else {
-                    showNotice("重启 Antigravity App 失败", NoticeKind.ERROR)
+                    showNotice(s.hostRestartFailed(s.hostAppTitle), NoticeKind.ERROR)
                 }
                 refreshHostStatus(actualPort)
             } finally {
@@ -474,14 +479,14 @@ class HostLifecycleDelegate(
 
     fun launchApp(actualPort: Int) {
         if (AppHostManager.isActive(actualPort) && !proxyServer.isRunning.value) {
-            showNotice("当前 App 已接入代理，请先启动本地代理", NoticeKind.ERROR)
+            showNotice(s.hostLaunchProxyNotRunning(s.hostAppTitle), NoticeKind.ERROR)
             return
         }
         val ok = AppHostManager.launch(configStore.currentConfig.customHostPaths["app"], actualPort)
         if (ok) {
-            showNotice("已打开 Antigravity App", NoticeKind.SUCCESS)
+            showNotice(s.hostLaunchSuccess(s.hostAppTitle), NoticeKind.SUCCESS)
         } else {
-            showNotice("打开 Antigravity App 失败", NoticeKind.ERROR)
+            showNotice(s.hostLaunchFailed(s.hostAppTitle), NoticeKind.ERROR)
         }
         refreshHostStatus(actualPort)
     }

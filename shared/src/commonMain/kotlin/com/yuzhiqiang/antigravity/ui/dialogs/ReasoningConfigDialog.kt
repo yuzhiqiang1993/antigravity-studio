@@ -54,6 +54,7 @@ fun ReasoningConfigDialog(
     onDismiss: () -> Unit,
     onConfirm: (ReasoningConfigDraft) -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     var enabled by remember { mutableStateOf(initialDraft.enabled) }
     var selectedLevels by remember { mutableStateOf(initialDraft.levels) }
     var customValue by remember { mutableStateOf(initialDraft.customValue.orEmpty()) }
@@ -86,7 +87,7 @@ fun ReasoningConfigDialog(
         if (value.isBlank()) return null
         val parsed = value.toIntOrNull()
         if (parsed == null) {
-            validationError = "${label}必须是整数"
+            validationError = s.reasoningMustBeInteger(label)
             return null
         }
         return parsed
@@ -108,31 +109,31 @@ fun ReasoningConfigDialog(
             )
             return
         }
-        val budget = parseBudget(thinkingBudget, "思考预算")
+        val budget = parseBudget(thinkingBudget, s.reasoningBudget)
         if (validationError != null) return
-        val minBudget = parseBudget(minThinkingBudget, "最小思考预算")
+        val minBudget = parseBudget(minThinkingBudget, s.reasoningMinBudget)
         if (validationError != null) return
         if (protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT) {
             if (budget != null && budget < -1) {
-                validationError = "Gemini 思考预算只能为 -1、0 或正整数"
+                validationError = s.reasoningGeminiBudgetValidation
                 return
             }
             if (minBudget != null && minBudget <= 0) {
-                validationError = "最小思考预算必须大于 0"
+                validationError = s.reasoningMinBudgetMustPositive
                 return
             }
             if (budget != null && budget > 0 && minBudget != null && minBudget > budget) {
-                validationError = "最小思考预算不能大于思考预算"
+                validationError = s.reasoningMinBudgetExceedsBudget
                 return
             }
         }
         if (protocol != ProviderProtocol.GEMINI_GENERATE_CONTENT && (budget != null || minBudget != null)) {
-            validationError = "只有 Gemini 协议支持模型级思考预算"
+            validationError = s.reasoningOnlyGeminiSupportsBudget
             return
         }
         val custom = customValue.trim().takeIf { it.isNotEmpty() }
         if (custom != null && ReasoningMappingSupport.customMapping(protocol, custom, outputTokenLimit) == null) {
-            validationError = "Custom reasoning 值不符合当前协议或输出上限约束"
+            validationError = s.reasoningCustomValueInvalid
             return
         }
         val invalidLevel = selectedLevels.firstOrNull { level ->
@@ -145,11 +146,11 @@ fun ReasoningConfigDialog(
             mapping == null
         }
         if (invalidLevel != null) {
-            validationError = "推理档位 ${invalidLevel.label} 不符合当前协议或输出上限约束"
+            validationError = s.reasoningLevelInvalid(invalidLevel.label)
             return
         }
         if (selectedLevels.isEmpty() && custom == null && budget == null && minBudget == null) {
-            validationError = "请至少选择一个推理档位，或填写思考预算"
+            validationError = s.reasoningSelectAtLeastOne
             return
         }
         onConfirm(
@@ -207,7 +208,7 @@ fun ReasoningConfigDialog(
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                text = "配置深度思考",
+                                text = s.reasoningDialogTitle,
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
@@ -229,7 +230,7 @@ fun ReasoningConfigDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "关闭",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
@@ -271,7 +272,7 @@ fun ReasoningConfigDialog(
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    text = "启用深度思考 (Reasoning)",
+                                    text = s.reasoningEnableTitle,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -279,7 +280,7 @@ fun ReasoningConfigDialog(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "为当前模型开启并配置推理档位及思维预算",
+                                    text = s.reasoningEnableSubtitle,
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -298,7 +299,7 @@ fun ReasoningConfigDialog(
                         // 可用推理档位选择组（2 列精致网格）
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                text = "可用推理档位",
+                                text = s.reasoningAvailableLevels,
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -344,7 +345,7 @@ fun ReasoningConfigDialog(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    text = "Custom reasoning 覆盖值",
+                                    text = s.reasoningCustomValue,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontSize = 12.5.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -358,7 +359,7 @@ fun ReasoningConfigDialog(
                                         .padding(horizontal = 5.dp, vertical = 1.5.dp)
                                 ) {
                                     Text(
-                                        text = "选填",
+                                        text = s.reasoningOptional,
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontSize = 10.5.sp,
                                             fontWeight = FontWeight.Medium
@@ -375,13 +376,13 @@ fun ReasoningConfigDialog(
                                 },
                                 placeholder = when (protocol) {
                                     ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
-                                    ProviderProtocol.OPENAI_RESPONSES -> "例如 high 或 xhigh"
-                                    ProviderProtocol.ANTHROPIC_MESSAGES -> "例如 adaptive 或 16384"
-                                    ProviderProtocol.GEMINI_GENERATE_CONTENT -> "例如 high 或 8192"
+                                    ProviderProtocol.OPENAI_RESPONSES -> s.reasoningExamplePlaceholder("high / xhigh")
+                                    ProviderProtocol.ANTHROPIC_MESSAGES -> s.reasoningExamplePlaceholder("adaptive / 16384")
+                                    ProviderProtocol.GEMINI_GENERATE_CONTENT -> s.reasoningExamplePlaceholder("high / 8192")
                                 }
                             )
                             Text(
-                                text = "如需使用上游特定的 reasoning 档位字符串，可在此覆盖输入",
+                                text = s.reasoningCustomValueDesc,
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                             )
@@ -398,7 +399,7 @@ fun ReasoningConfigDialog(
                                     verticalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Text(
-                                        text = "默认思考预算 (选填)",
+                                        text = s.reasoningDefaultBudget,
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium
@@ -411,7 +412,7 @@ fun ReasoningConfigDialog(
                                             thinkingBudget = it
                                             validationError = null
                                         },
-                                        placeholder = "-1 表示动态预算"
+                                        placeholder = s.reasoningDynamicBudgetPlaceholder
                                     )
                                 }
                                 Column(
@@ -419,7 +420,7 @@ fun ReasoningConfigDialog(
                                     verticalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Text(
-                                        text = "最小思考预算 (选填)",
+                                        text = s.reasoningMinBudgetTitle,
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium
@@ -432,7 +433,7 @@ fun ReasoningConfigDialog(
                                             minThinkingBudget = it
                                             validationError = null
                                         },
-                                        placeholder = "例如 1024"
+                                        placeholder = s.reasoningExamplePlaceholder("1024")
                                     )
                                 }
                             }
@@ -485,7 +486,7 @@ fun ReasoningConfigDialog(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                     ) {
-                        Text("取消", style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold))
+                        Text(s.commonCancel, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold))
                     }
                     Spacer(Modifier.width(10.dp))
                     Button(
@@ -497,7 +498,7 @@ fun ReasoningConfigDialog(
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     ) {
-                        Text("确认", style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold))
+                        Text(s.commonConfirm, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold))
                     }
                 }
             }

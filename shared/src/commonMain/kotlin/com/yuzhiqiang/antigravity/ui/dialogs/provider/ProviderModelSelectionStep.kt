@@ -57,11 +57,12 @@ fun ProviderModelSelectionStep(
         }
     }
 
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 22.dp, vertical = 14.dp)
+            .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
         if (!isSingleModelMode) {
             Row(
@@ -76,7 +77,7 @@ fun ProviderModelSelectionStep(
                     StudioSearchField(
                         value = modelSearchQuery,
                         onValueChange = { modelSearchQuery = it },
-                        placeholder = "搜索模型名称或 ID...",
+                        placeholder = s.providerSearchModelsPlaceholder,
                         modifier = Modifier.width(220.dp)
                     )
 
@@ -92,9 +93,9 @@ fun ProviderModelSelectionStep(
                         val unselCount = totalCount - selCount
 
                         listOf(
-                            ModelSelectionFilter.ALL to "全部 ($totalCount)",
-                            ModelSelectionFilter.SELECTED to "已选 ($selCount)",
-                            ModelSelectionFilter.UNSELECTED to "未选 ($unselCount)"
+                            ModelSelectionFilter.ALL to s.providerFilterAll(totalCount),
+                            ModelSelectionFilter.SELECTED to s.providerFilterSelected(selCount),
+                            ModelSelectionFilter.UNSELECTED to s.providerFilterUnselected(unselCount)
                         ).forEach { (filter, label) ->
                             val isTabActive = modelFilterTab == filter
                             Box(
@@ -149,7 +150,7 @@ fun ProviderModelSelectionStep(
                         )
                     ) {
                         Text(
-                            if (isAllSelected) "取消全选" else "全选 (${filteredFetchedModels.size})",
+                            if (isAllSelected) s.providerUnselectAll else s.providerSelectAll(filteredFetchedModels.size),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp)
                         )
                     }
@@ -175,7 +176,7 @@ fun ProviderModelSelectionStep(
                         modifier = Modifier.size(36.dp)
                     )
                     Text(
-                        text = if (modelSearchQuery.isNotBlank()) "未搜索到匹配「$modelSearchQuery」的模型" else "当前筛选下暂无模型",
+                        text = if (modelSearchQuery.isNotBlank()) s.providerNoModelsFound(modelSearchQuery) else s.providerNoModelsEmpty,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -240,7 +241,7 @@ fun ProviderModelSelectionStep(
                                     modelConfig.copy(
                                         isTesting = false,
                                         isTestSuccess = result.success,
-                                        testStatusText = if (result.success) "${result.latencyMs}ms" else "失败"
+                                        testStatusText = if (result.success) "${result.latencyMs}ms" else s.providerTestFailed
                                     )
                                 )
                             }

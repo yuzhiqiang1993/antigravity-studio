@@ -107,14 +107,15 @@ fun main() {
         val trayIcon = AppIconCache.trayIconPainter ?: appIcon
 
         if (trayIcon != null) {
+            val s = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
             Tray(
                 icon = trayIcon,
-                tooltip = "Antigravity Studio",
+                tooltip = s.appName,
                 onAction = { isVisible = true },
                 menu = {
-                    Item("显示主窗口", onClick = { isVisible = true })
+                    Item(s.trayShowMainWindow, onClick = { isVisible = true })
                     Separator()
-                    Item("退出应用", onClick = ::exitApplication)
+                    Item(s.trayQuitApplication, onClick = ::exitApplication)
                 }
             )
         }

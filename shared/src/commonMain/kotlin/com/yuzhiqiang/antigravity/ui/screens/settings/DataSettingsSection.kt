@@ -59,14 +59,14 @@ fun DataSettingsSection(
 
             SettingRow(
                 icon = Icons.Outlined.Folder,
-                title = "配置文件目录",
-                description = "查看或备份本地持久化的服务商配置与策略数据"
+                title = s.settingsConfigDir,
+                description = s.settingsStorageDescription
             ) {
                 OutlinedButton(
                     onClick = onOpenDirectory,
                     shape = RoundedCornerShape(AppTokens.Radius.medium)
                 ) {
-                    Text("打开目录", style = MaterialTheme.typography.labelMedium)
+                    Text(s.settingsOpenDirectory, style = MaterialTheme.typography.labelMedium)
                 }
             }
 

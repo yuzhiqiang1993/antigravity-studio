@@ -55,17 +55,27 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
+import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.dialogs.provider.formatTokenDisplay
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
-private enum class ByokPresetTab(val label: String, val minCapacity: Long?) {
-    DEFAULT("官方默认", null),
-    CONTEXT_256K("256K", 256_000L),
-    CONTEXT_372K("372K", 372_000L),
-    CONTEXT_500K("500K", 500_000L),
-    CONTEXT_1M("1M", 1_000_000L),
-    CUSTOM("自定义", null)
+private enum class ByokPresetTab(val minCapacity: Long?) {
+    DEFAULT(null),
+    CONTEXT_256K(256_000L),
+    CONTEXT_372K(372_000L),
+    CONTEXT_500K(500_000L),
+    CONTEXT_1M(1_000_000L),
+    CUSTOM(null);
+
+    fun label(s: Strings): String = when (this) {
+        DEFAULT -> s.policyPresetDefault
+        CONTEXT_256K -> "256K"
+        CONTEXT_372K -> "372K"
+        CONTEXT_500K -> "500K"
+        CONTEXT_1M -> "1M"
+        CUSTOM -> s.policyPresetCustom
+    }
 }
 
 /**
@@ -149,19 +159,17 @@ fun PolicyEditorDialog(
     val displayLimit = if (isDefaultMode) defaultNativeLimit else (maxLimitText.toLongOrNull() ?: 0L)
     val displayReserve = if (isDefaultMode) defaultNativeReserve else (reserveText.toLongOrNull() ?: 0L)
 
-    // 新标准文案的边界校验
-    val validationError: String? = when {
-        isDefaultMode -> null
-        displayLimit <= 0L -> "会话上下文容量必须大于 0"
-        displayThreshold <= 0L -> "自动存档点必须大于 0"
-        displayReserve <= 0L -> "输出预留必须大于 0"
-        contextWindow != null && displayLimit > contextWindow -> "会话上下文容量 (${formatTokenDisplay(displayLimit)}) 不能超过模型上下文 (${formatTokenDisplay(contextWindow)})"
-        displayThreshold >= displayLimit -> "自动存档点 (${formatTokenDisplay(displayThreshold)}) 必须小于会话上下文容量 (${formatTokenDisplay(displayLimit)})"
-        displayThreshold + displayReserve > displayLimit -> "自动存档点与输出预留之和 (${formatTokenDisplay(displayThreshold + displayReserve)}) 超过了会话上下文容量 (${formatTokenDisplay(displayLimit)})"
+    // 校验规则 (生命周期三阶段：0 < Threshold < Limit - Reserve)
+    val validationError = when {
+        displayLimit <= 0L -> s.policyLimitMustPositive
+        displayThreshold <= 0L -> s.policyThresholdMustPositive
+        displayReserve <= 0L -> s.policyReserveMustPositive
+        contextWindow != null && displayLimit > contextWindow -> s.policyLimitExceedsContext(formatTokenDisplay(displayLimit), formatTokenDisplay(contextWindow))
+        displayThreshold >= displayLimit -> s.policyThresholdExceedsLimit(formatTokenDisplay(displayThreshold), formatTokenDisplay(displayLimit))
+        displayThreshold + displayReserve > displayLimit -> s.policySumExceedsLimit(formatTokenDisplay(displayThreshold + displayReserve), formatTokenDisplay(displayLimit))
         else -> null
     }
-
-    val isValid = validationError == null
+    val isValid = isDefaultMode || validationError == null
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -169,70 +177,71 @@ fun PolicyEditorDialog(
     ) {
         Surface(
             modifier = Modifier
-                .width(760.dp)
-                .wrapContentHeight()
-                .padding(vertical = 16.dp),
+                .widthIn(min = 680.dp, max = 800.dp)
+                .fillMaxWidth(0.92f)
+                .wrapContentHeight(),
             shape = RoundedCornerShape(12.dp),
             color = Color.White,
             border = BorderStroke(1.dp, byokBorder),
-            shadowElevation = 20.dp
+            shadowElevation = 16.dp
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // 1. 顶部 Header
+                // 1. Header 顶栏 (.policy-modal-header)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                        .padding(horizontal = 24.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = cleanDisplayName,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = byokTextMain
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 360.dp)
-                        )
-
-                        // 模型上下文 Badge
-                        if (contextWindow != null && contextWindow > 0) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = s.modelsCompressionPolicy,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = byokTextMain
+                                )
+                            )
                             Box(
                                 modifier = Modifier
-                                    .height(24.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .border(1.dp, Color(0xFF10B981).copy(alpha = 0.24f), RoundedCornerShape(6.dp))
-                                    .background(Color(0xFF10B981).copy(alpha = 0.08f))
-                                    .padding(horizontal = 8.dp),
-                                contentAlignment = Alignment.Center
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFEFF6FF))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = "模型上下文 · ${formatTokenDisplay(contextWindow)}",
+                                    text = cleanDisplayName,
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF047857)
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = byokAccent
                                     )
                                 )
                             }
                         }
+
+                        if (contextWindow != null) {
+                            Text(
+                                text = s.policyModelContext(formatTokenDisplay(contextWindow)),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 12.sp,
+                                    color = byokTextSecondary
+                                )
+                            )
+                        }
                     }
 
-                    // 关闭按钮
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp))
+                        modifier = Modifier.size(30.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "关闭",
+                            contentDescription = s.commonClose,
                             tint = byokTextSecondary,
                             modifier = Modifier.size(16.dp)
                         )
@@ -315,7 +324,7 @@ fun PolicyEditorDialog(
                                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                             Text(
-                                                text = tab.label,
+                                                text = tab.label(s),
                                                 style = MaterialTheme.typography.labelSmall.copy(
                                                     fontSize = 12.5.sp,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
@@ -334,7 +343,7 @@ fun PolicyEditorDialog(
                                                         .padding(horizontal = 4.dp, vertical = 1.dp)
                                                 ) {
                                                     Text(
-                                                        text = "推荐",
+                                                        text = s.policyRecommended,
                                                         style = MaterialTheme.typography.labelSmall.copy(
                                                             fontSize = 10.sp,
                                                             fontWeight = FontWeight.Bold,
@@ -352,9 +361,9 @@ fun PolicyEditorDialog(
                         // 新版清晰副标说明
                         Text(
                             text = when {
-                                isDefaultMode -> "不设置自定义覆盖，遵循官方目录返回的原生 Checkpointer 策略。"
-                                isCustomMode -> "可点击百分比快速设定，也可以手动输入具体 Token 值进行精准调整。"
-                                else -> "先选择会话上下文容量档位：固定值可以直接使用，也可以切换为自定义策略。"
+                                isDefaultMode -> s.policyDefaultDesc
+                                isCustomMode -> s.policyCustomDesc
+                                else -> s.policyPresetDesc
                             },
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontSize = 12.sp,
@@ -367,7 +376,7 @@ fun PolicyEditorDialog(
                     if (!isDefaultMode) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                text = "负责压缩的执行模型",
+                                text = s.policyCompressorModel,
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
@@ -398,7 +407,7 @@ fun PolicyEditorDialog(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "跟随当前模型",
+                                            text = s.policyFollowCurrent,
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontSize = 12.5.sp,
                                                 fontWeight = if (optSame) FontWeight.Bold else FontWeight.Medium,
@@ -417,7 +426,7 @@ fun PolicyEditorDialog(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "官方默认",
+                                            text = s.policyOfficialDefault,
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontSize = 12.5.sp,
                                                 fontWeight = if (!optSame) FontWeight.Bold else FontWeight.Medium,
@@ -438,19 +447,19 @@ fun PolicyEditorDialog(
                             horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             ByokMetricCard(
-                                title = "自动存档点",
+                                title = s.policyCheckpoint,
                                 value = displayThreshold,
                                 badgeText = formatTokenDisplay(displayThreshold),
                                 modifier = Modifier.weight(1f)
                             )
                             ByokMetricCard(
-                                title = "会话上下文容量",
+                                title = s.policyContextLimit,
                                 value = displayLimit,
                                 badgeText = formatTokenDisplay(displayLimit),
                                 modifier = Modifier.weight(1f)
                             )
                             ByokMetricCard(
-                                title = "输出预留",
+                                title = s.policyOutputReserve,
                                 value = displayReserve,
                                 badgeText = formatTokenDisplay(displayReserve),
                                 modifier = Modifier.weight(1f)
@@ -465,11 +474,11 @@ fun PolicyEditorDialog(
                             // 卡片 1：自动存档点
                             val thresholdPct = if (displayLimit > 0) (displayThreshold.toDouble() / displayLimit * 100).toInt() else 0
                             ByokCustomFieldCard(
-                                title = "自动存档点",
+                                title = s.policyCheckpoint,
                                 badgeText = "${formatTokenDisplay(displayThreshold)} ($thresholdPct%)",
                                 isPercentMode = thresholdModeByPercent,
                                 onModeChange = { thresholdModeByPercent = it },
-                                modeTabLabels = "按百分比" to "精准 Token",
+                                modeTabLabels = s.policyByPercentage to s.policyExactTokens,
                                 rawInputValue = thresholdText,
                                 onValueChange = { thresholdText = it },
                                 percentContent = {
@@ -485,11 +494,11 @@ fun PolicyEditorDialog(
 
                             // 卡片 2：会话上下文容量
                             ByokCustomFieldCard(
-                                title = "会话上下文容量",
+                                title = s.policyContextLimit,
                                 badgeText = formatTokenDisplay(displayLimit),
                                 isPercentMode = limitModeByPercent,
                                 onModeChange = { limitModeByPercent = it },
-                                modeTabLabels = "按百分比" to "精准 Token",
+                                modeTabLabels = s.policyByPercentage to s.policyExactTokens,
                                 rawInputValue = maxLimitText,
                                 onValueChange = { maxLimitText = it },
                                 percentContent = {
@@ -505,11 +514,11 @@ fun PolicyEditorDialog(
 
                             // 卡片 3：输出预留
                             ByokCustomFieldCard(
-                                title = "输出预留",
+                                title = s.policyOutputReserve,
                                 badgeText = formatTokenDisplay(displayReserve),
                                 isPercentMode = reserveModeByPreset,
                                 onModeChange = { reserveModeByPreset = it },
-                                modeTabLabels = "快捷预设" to "精准 Token",
+                                modeTabLabels = s.policyQuickPreset to s.policyExactTokens,
                                 rawInputValue = reserveText,
                                 onValueChange = { reserveText = it },
                                 percentContent = {
@@ -616,7 +625,7 @@ fun PolicyEditorDialog(
                             modifier = Modifier.height(32.dp)
                         ) {
                             Text(
-                                text = "保存",
+                                text = s.commonSave,
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1027,6 +1036,7 @@ private fun ByokCapacityBarCard(
     val compressPct = (limitPct - thresholdPct).coerceAtLeast(0f)
     val reservePct = (1.0f - limitPct).coerceAtLeast(0f)
 
+    val s = strings()
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
@@ -1044,7 +1054,7 @@ private fun ByokCapacityBarCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "上下文容量分布",
+                    text = s.policyDistribution,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
@@ -1057,9 +1067,9 @@ private fun ByokCapacityBarCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    ByokLegendDot(color = Color(0xFF10B981), label = "正常对话区")
-                    ByokLegendDot(color = Color(0xFFF59E0B), label = "自动存档区 (不删内容)")
-                    ByokLegendDot(color = Color(0xFF94A3B8), label = "模型未用容量")
+                    ByokLegendDot(color = Color(0xFF10B981), label = s.policyLegendNormal)
+                    ByokLegendDot(color = Color(0xFFF59E0B), label = s.policyLegendArchive)
+                    ByokLegendDot(color = Color(0xFF94A3B8), label = s.policyLegendUnused)
                 }
             }
 

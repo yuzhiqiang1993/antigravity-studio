@@ -116,7 +116,7 @@ fun OverviewScreen(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "一键体检",
+                        text = s.overviewDiagnostics,
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }
@@ -131,7 +131,7 @@ fun OverviewScreen(
             onStop = { viewModel.stopProxy() },
             onCopyAddress = {
                 copyToClipboard("http://$address")
-                viewModel.showNotice("已复制代理地址")
+                viewModel.showNotice(s.overviewCopiedProxyAddress)
             }
         )
 
@@ -140,16 +140,16 @@ fun OverviewScreen(
             isIdeActive, isIdeRunning, isIdeInstalled, ideDetailedStatus,
             isAppActive, isAppRunning, isAppInstalled, appDetailedStatus,
             isCliActive, isCliInstalled, cliDetailedStatus,
-            operatingHostKeys, config.customHostPaths, actualPort
+            operatingHostKeys, config.customHostPaths, actualPort, s
         ) {
             listOf(
                 HostCardData(
                     title = "Antigravity IDE",
                     statusLabel = when {
-                        ideDetailedStatus.needsUpdate -> "待更新"
-                        isIdeActive || isIdeRunning -> "运行中"
-                        isIdeInstalled -> "已就绪"
-                        else -> "未安装"
+                        ideDetailedStatus.needsUpdate -> s.hostStatusNeedsUpdate
+                        isIdeActive || isIdeRunning -> s.hostStatusRunning
+                        isIdeInstalled -> s.hostStatusReady
+                        else -> s.hostStatusNotInstalled
                     },
                     statusTone = when {
                         ideDetailedStatus.needsUpdate -> BadgeTone.WARNING
@@ -158,22 +158,22 @@ fun OverviewScreen(
                         else -> BadgeTone.NEUTRAL
                     },
                     desc = when {
-                        ideDetailedStatus.needsUpdate -> "检测到代理配置与当前端口不一致（${ideDetailedStatus.configuredEndpoint}）"
-                        isIdeRunning -> "Antigravity IDE 正在运行并已配置"
-                        isIdeInstalled -> "Antigravity IDE 已安装就绪"
-                        else -> "未检测到 Antigravity IDE 安装目录"
+                        ideDetailedStatus.needsUpdate -> s.hostIdePortMismatch(ideDetailedStatus.configuredEndpoint ?: s.commonUnknown)
+                        isIdeRunning -> s.hostIdeRunningAndConfigured
+                        isIdeInstalled -> s.hostIdeReady
+                        else -> s.hostIdeNotDetected
                     },
                     isProxyActive = isIdeActive,
                     needsUpdate = ideDetailedStatus.needsUpdate,
                     configuredEndpoint = ideDetailedStatus.configuredEndpoint,
                     targetEndpoint = ideDetailedStatus.targetEndpoint,
                     integrationDetail = when {
-                        ideDetailedStatus.needsUpdate -> "代理配置待更新为 http://127.0.0.1:$actualPort"
-                        isIdeActive -> "settings.json 代理接入生效中"
-                        else -> "当前使用官方直连模式"
+                        ideDetailedStatus.needsUpdate -> s.hostIdePendingUpdate(actualPort)
+                        isIdeActive -> s.hostIdeActiveDesc
+                        else -> s.hostOfficialDirectDesc
                     },
                     onToggle = { viewModel.toggleIdeHost() },
-                    actionLabel = if (isIdeRunning) "重启" else if (isIdeInstalled) "打开" else null,
+                    actionLabel = if (isIdeRunning) s.hostRestart else if (isIdeInstalled) s.hostLaunch else null,
                     onAction = if (isIdeInstalled) ({ viewModel.requestRestartOrLaunchIde(isIdeRunning) }) else null,
                     onRefresh = { viewModel.refreshHostStatus() },
                     onForceReset = { viewModel.forceResetHost("ide") },
@@ -184,10 +184,10 @@ fun OverviewScreen(
                 HostCardData(
                     title = "Antigravity App",
                     statusLabel = when {
-                        appDetailedStatus.needsUpdate -> "待更新"
-                        isAppActive || isAppRunning -> "运行中"
-                        isAppInstalled -> "已安装"
-                        else -> "未安装"
+                        appDetailedStatus.needsUpdate -> s.hostStatusNeedsUpdate
+                        isAppActive || isAppRunning -> s.hostStatusRunning
+                        isAppInstalled -> s.hostStatusInstalled
+                        else -> s.hostStatusNotInstalled
                     },
                     statusTone = when {
                         appDetailedStatus.needsUpdate -> BadgeTone.WARNING
@@ -196,22 +196,22 @@ fun OverviewScreen(
                         else -> BadgeTone.NEUTRAL
                     },
                     desc = when {
-                        appDetailedStatus.needsUpdate -> "检测到环境变量与当前端口不一致（${appDetailedStatus.configuredEndpoint}）"
-                        isAppRunning -> "Antigravity App 正在运行"
-                        isAppInstalled -> "Antigravity App 已安装就绪"
-                        else -> "未检测到 Antigravity App 应用安装"
+                        appDetailedStatus.needsUpdate -> s.hostAppPortMismatch(appDetailedStatus.configuredEndpoint ?: s.commonUnknown)
+                        isAppRunning -> s.hostAppRunning
+                        isAppInstalled -> s.hostAppReady
+                        else -> s.hostAppNotDetected
                     },
                     isProxyActive = isAppActive,
                     needsUpdate = appDetailedStatus.needsUpdate,
                     configuredEndpoint = appDetailedStatus.configuredEndpoint,
                     targetEndpoint = appDetailedStatus.targetEndpoint,
                     integrationDetail = when {
-                        appDetailedStatus.needsUpdate -> "环境变量待更新为 http://127.0.0.1:$actualPort"
-                        isAppActive -> "环境变量 CLOUD_CODE_URL 代理生效中"
-                        else -> "当前使用官方直连模式"
+                        appDetailedStatus.needsUpdate -> s.hostAppPendingUpdate(actualPort)
+                        isAppActive -> s.hostAppActiveDesc
+                        else -> s.hostOfficialDirectDesc
                     },
                     onToggle = { viewModel.toggleAppHost() },
-                    actionLabel = if (isAppRunning) "重启" else if (isAppInstalled) "打开" else null,
+                    actionLabel = if (isAppRunning) s.hostRestart else if (isAppInstalled) s.hostLaunch else null,
                     onAction = if (isAppInstalled) ({ viewModel.requestRestartOrLaunchApp(isAppRunning) }) else null,
                     onRefresh = { viewModel.refreshHostStatus() },
                     onForceReset = { viewModel.forceResetHost("app") },
@@ -222,10 +222,10 @@ fun OverviewScreen(
                 HostCardData(
                     title = "Antigravity CLI",
                     statusLabel = when {
-                        cliDetailedStatus.needsUpdate -> "待更新"
-                        isCliActive -> "已接入"
-                        isCliInstalled -> "已安装"
-                        else -> "未安装"
+                        cliDetailedStatus.needsUpdate -> s.hostStatusNeedsUpdate
+                        isCliActive -> s.hostStatusActive
+                        isCliInstalled -> s.hostStatusInstalled
+                        else -> s.hostStatusNotInstalled
                     },
                     statusTone = when {
                         cliDetailedStatus.needsUpdate -> BadgeTone.WARNING
@@ -234,18 +234,18 @@ fun OverviewScreen(
                         else -> BadgeTone.NEUTRAL
                     },
                     desc = when {
-                        cliDetailedStatus.needsUpdate -> "检测到 CLI 代理配置与当前端口不一致（${cliDetailedStatus.configuredEndpoint}）"
-                        isCliInstalled -> "Antigravity CLI (agy) 已安装"
-                        else -> "未检测到 agy CLI 配置文件"
+                        cliDetailedStatus.needsUpdate -> s.hostCliPortMismatch(cliDetailedStatus.configuredEndpoint ?: s.commonUnknown)
+                        isCliInstalled -> s.hostCliInstalledDesc
+                        else -> s.hostCliNotDetected
                     },
                     isProxyActive = isCliActive,
                     needsUpdate = cliDetailedStatus.needsUpdate,
                     configuredEndpoint = cliDetailedStatus.configuredEndpoint,
                     targetEndpoint = cliDetailedStatus.targetEndpoint,
                     integrationDetail = when {
-                        cliDetailedStatus.needsUpdate -> "CLI 配置待更新为 http://127.0.0.1:$actualPort"
-                        isCliActive -> "CLI 配置文件代理接入生效中"
-                        else -> "CLI 当前处于官方直连模式"
+                        cliDetailedStatus.needsUpdate -> s.hostCliPendingUpdate(actualPort)
+                        isCliActive -> s.hostCliActiveDesc
+                        else -> s.hostCliOfficialDirectDesc
                     },
                     onToggle = { viewModel.toggleCliHost() },
                     actionLabel = null,

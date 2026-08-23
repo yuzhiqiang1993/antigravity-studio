@@ -1,8 +1,13 @@
 package com.yuzhiqiang.antigravity.ui.screens.overview
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -12,15 +17,19 @@ import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.ui.components.BadgeTone
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
 @Immutable
@@ -49,17 +58,36 @@ fun HostCardItem(
     data: HostCardData,
     modifier: Modifier = Modifier
 ) {
-    val warningColor = Color(0xFFD97706)
-    val successColor = Color(0xFF16A34A)
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    StudioCard(
-        modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surface
+    val warningColor = AppStatusColors.warning
+    val successColor = AppStatusColors.success
+
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            data.needsUpdate -> warningColor.copy(alpha = 0.5f)
+            data.isProxyActive -> successColor.copy(alpha = 0.45f)
+            isHovered -> if (isDark) Color(0xFF475569) else Color(0xFFCBD5E1)
+            else -> if (isDark) Color(0xFF1E293B) else Color(0xFFE2E8F0)
+        },
+        animationSpec = tween(AppTokens.Motion.durationMedium)
+    )
+
+    Surface(
+        modifier = modifier
+            .hoverable(interactionSource),
+        shape = RoundedCornerShape(AppTokens.Radius.large),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, borderColor),
+        shadowElevation = if (isHovered) 2.dp else 0.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(AppTokens.Spacing.card),
+                .padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.card),
             verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
         ) {
             Row(
@@ -69,14 +97,9 @@ fun HostCardItem(
             ) {
                 Text(
                     text = data.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f, fill = false)
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-
-                Spacer(Modifier.width(AppTokens.Spacing.sm))
-
                 StatusBadge(
                     text = data.statusLabel,
                     tone = data.statusTone
@@ -94,7 +117,7 @@ fun HostCardItem(
 
             if (!data.customPath.isNullOrBlank()) {
                 Text(
-                    text = "自定义路径: ${data.customPath}",
+                    text = s.hostCustomPath(data.customPath),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1
@@ -127,16 +150,16 @@ fun HostCardItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "代理模式",
+                        text = s.hostProxyMode,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     StatusBadge(
                         text = when {
-                            data.needsUpdate -> "待更新"
-                            data.isProxyActive -> "已接入"
-                            else -> "官方直连"
+                            data.needsUpdate -> s.hostStatusNeedsUpdate
+                            data.isProxyActive -> s.hostStatusActive
+                            else -> s.hostStatusInactive
                         },
                         tone = when {
                             data.needsUpdate -> BadgeTone.WARNING
@@ -185,7 +208,7 @@ fun HostCardItem(
                                     Spacer(Modifier.width(5.dp))
                                 }
                                 Text(
-                                    text = "更新配置",
+                                    text = s.hostUpdateAction,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                                 )
                             }
@@ -212,7 +235,7 @@ fun HostCardItem(
                                     Spacer(Modifier.width(5.dp))
                                 }
                                 Text(
-                                    text = "恢复官方直连",
+                                    text = s.hostDisable,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                                 )
                             }
@@ -234,7 +257,7 @@ fun HostCardItem(
                                     Spacer(Modifier.width(5.dp))
                                 }
                                 Text(
-                                    text = "接入代理",
+                                    text = s.hostEnable,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                                 )
                             }
@@ -254,7 +277,7 @@ fun HostCardItem(
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                             )
                         }
-                    } else if (data.onConfigurePath != null && data.statusLabel == "未安装") {
+                    } else if (data.onConfigurePath != null && data.statusLabel == s.hostStatusNotInstalled) {
                         OutlinedButton(
                             onClick = data.onConfigurePath,
                             enabled = !data.isLoading,
@@ -263,7 +286,7 @@ fun HostCardItem(
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                         ) {
                             Text(
-                                text = "配置路径",
+                                text = s.hostConfigurePath,
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                             )
                         }
@@ -286,7 +309,7 @@ fun HostCardItem(
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "重置为官方模式",
+                                contentDescription = s.hostForceReset,
                                 modifier = Modifier.size(15.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -303,7 +326,7 @@ fun HostCardItem(
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.FolderOpen,
-                                contentDescription = "配置路径",
+                                contentDescription = s.hostConfigurePath,
                                 modifier = Modifier.size(15.dp)
                             )
                         }
@@ -318,7 +341,7 @@ fun HostCardItem(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Refresh,
-                            contentDescription = "刷新",
+                            contentDescription = s.commonRefresh,
                             modifier = Modifier.size(15.dp)
                         )
                     }
@@ -327,4 +350,3 @@ fun HostCardItem(
         }
     }
 }
-

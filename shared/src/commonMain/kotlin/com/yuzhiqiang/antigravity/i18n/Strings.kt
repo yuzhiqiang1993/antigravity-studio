@@ -4,14 +4,16 @@ interface Strings {
     val appName: String
     val appSubtitle: String
 
-    // Navigation
+    // Navigation & Sidebar
     val navOverview: String
     val navModels: String
     val navActivity: String
     val navSettings: String
     val navDoctor: String
+    val sidebarCollapse: String
+    val sidebarExpand: String
 
-    // Overview
+    // Overview & Proxy Card
     val overviewProxyCardTitle: String
     val overviewProxyRunning: String
     val overviewProxyStopped: String
@@ -27,8 +29,10 @@ interface Strings {
     val overviewDisabledMetric: String
     val overviewHostSection: String
     val overviewNotice: String
+    val overviewCopiedProxyAddress: String
     val hostUpdateFailed: String
 
+    // Host Titles & Descriptions
     val hostIdeTitle: String
     val hostIdeDesc: String
     val hostAppTitle: String
@@ -36,15 +40,129 @@ interface Strings {
     val hostCliTitle: String
     val hostCliDesc: String
 
+    // Host Status Labels
     val hostStatusActive: String
     val hostStatusInactive: String
     val hostStatusNotInstalled: String
+    val hostStatusReady: String
+    val hostStatusInstalled: String
+    val hostStatusRunning: String
+    val hostStatusNeedsUpdate: String
+    val hostStatusMismatch: String
+
+    // Host Actions
     val hostEnable: String
     val hostDisable: String
     val hostRestartNotice: String
     val hostLaunch: String
+    val hostRestart: String
+    val hostUpdateAction: String
+    val hostConfigurePath: String
+    val hostForceReset: String
+    fun hostCustomPath(path: String): String
+    val hostProxyMode: String
 
-    // Models
+    // Host Detail Status Text
+    fun hostIdePortMismatch(endpoint: String): String
+    val hostIdeRunningAndConfigured: String
+    val hostIdeReady: String
+    val hostIdeNotDetected: String
+    fun hostIdePendingUpdate(port: Int): String
+    val hostIdeActiveDesc: String
+    val hostOfficialDirectDesc: String
+
+    fun hostAppPortMismatch(endpoint: String): String
+    val hostAppRunning: String
+    val hostAppReady: String
+    val hostAppNotDetected: String
+    fun hostAppPendingUpdate(port: Int): String
+    val hostAppActiveDesc: String
+
+    fun hostCliPortMismatch(endpoint: String): String
+    val hostCliInstalledDesc: String
+    val hostCliNotDetected: String
+    fun hostCliPendingUpdate(port: Int): String
+    val hostCliActiveDesc: String
+    val hostCliOfficialDirectDesc: String
+
+    // Host Confirm Dialogs & Notices
+    val hostIdeUpdateConfirmTitle: String
+    fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int): String
+    fun hostIdeUpdateConfirmMessageStopped(endpoint: String, port: Int): String
+    val hostIdeEnableConfirmTitle: String
+    val hostIdeEnableConfirmMessageRunning: String
+    val hostIdeEnableConfirmMessageStopped: String
+    val hostIdeDisableConfirmTitle: String
+    val hostIdeDisableConfirmMessageRunning: String
+    val hostIdeDisableConfirmMessageStopped: String
+    val hostIdeUpdatedAndRestarted: String
+    val hostIdeEnabledAndRestarted: String
+    val hostIdeEnabledPendingStart: String
+    val hostIdeConfigUpdatedRestartFailed: String
+    val hostIdeEnableFailed: String
+    val hostIdeRestoredAndRestarted: String
+    val hostIdeRestored: String
+    val hostIdeDisableFailed: String
+
+    val hostAppUpdateConfirmTitle: String
+    fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int): String
+    fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int): String
+    val hostAppEnableConfirmTitle: String
+    val hostAppEnableConfirmMessageRunning: String
+    val hostAppEnableConfirmMessageStopped: String
+    val hostAppDisableConfirmTitle: String
+    val hostAppDisableConfirmMessageRunning: String
+    val hostAppDisableConfirmMessageStopped: String
+    val hostAppUpdatedAndRestarted: String
+    val hostAppEnabledAndRestarted: String
+    val hostAppEnabledPendingStart: String
+    val hostAppConfigUpdatedRestartFailed: String
+    val hostAppEnableFailed: String
+    val hostAppRestoredAndRestarted: String
+    val hostAppRestored: String
+    val hostAppDisableFailed: String
+    val hostAppNotInstalled: String
+
+    val hostCliUpdateConfirmTitle: String
+    fun hostCliUpdateConfirmMessage(endpoint: String, port: Int): String
+    val hostCliEnableConfirmTitle: String
+    val hostCliEnableConfirmMessage: String
+    val hostCliDisableConfirmTitle: String
+    val hostCliDisableConfirmMessage: String
+    val hostCliEnabledNotice: String
+    val hostCliDisabledNotice: String
+    val hostCliEnableFailed: String
+    val hostCliDisableFailed: String
+    val hostCliNotInstalled: String
+
+    fun hostStartProxyFirstNotice(hostName: String): String
+    fun hostForceResetConfirmTitle(hostName: String): String
+    fun hostForceResetConfirmMessage(hostName: String): String
+    fun hostForceResetSuccess(hostName: String): String
+    fun hostRestartConfirmTitle(hostName: String): String
+    fun hostRestartConfirmMessage(hostName: String): String
+    fun hostRestartSuccess(hostName: String): String
+    fun hostRestartFailed(hostName: String): String
+    fun hostLaunchSuccess(hostName: String): String
+    fun hostLaunchFailed(hostName: String): String
+    fun hostLaunchProxyNotRunning(hostName: String): String
+
+    // Custom Host Path Dialog
+    fun hostPathDialogTitle(hostTitle: String): String
+    val hostPathDialogDesc: String
+    val hostPathInputLabel: String
+    val hostPathStatusValid: String
+    val hostPathStatusNotFound: String
+    val hostPathStatusEmpty: String
+    val hostPathResetDefault: String
+    val hostPathSavedCustom: String
+    val hostPathResetNotice: String
+
+    // Models Screen & Views
+    val modelsTitle: String
+    val modelsSubtitle: String
+    val modelsOfficialTab: String
+    val modelsCustomTab: String
     val modelsOfficialTitle: String
     val modelsOfficialSubtitle: String
     val modelsCustomTitle: String
@@ -56,9 +174,6 @@ interface Strings {
     val modelsNoProviders: String
     val modelsCompressionPolicy: String
     val modelsReasoningConfig: String
-    val modelsSubtitle: String
-    val modelsOfficialTab: String
-    val modelsCustomTab: String
     val modelsCollapse: String
     val modelsExpand: String
     val modelsContext: String
@@ -71,16 +186,224 @@ interface Strings {
     val modelsConnectionFailed: String
     val modelsRefreshOfficial: String
     val modelsFetchingOfficial: String
+    fun modelsOfficialSyncFailed(error: String): String
+    val modelsOfficialSyncing: String
+    val modelsOfficialSynced: String
+    val modelsOfficialWaitingSync: String
+    val modelsRawJson: String
+    val modelsModifiedJson: String
+    val modelsNoOfficialDetected: String
+    val modelsNoOfficialHint: String
+    val modelsCopiedProviderUrl: String
+    val modelsCopiedJson: String
+    fun modelsPassedCount(passed: Int, total: Int): String
+    fun modelsPassedWithFailed(passed: Int, total: Int, failed: Int): String
+    fun modelsRetryFailed(count: Int): String
+    val modelsBatchTest: String
+    val modelsEditConfig: String
+    val modelsNoModelsHint: String
+    val modelsDeleteProviderConfirmTitle: String
+    fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int): String
+    val modelsDeleteModelConfirmTitle: String
+    fun modelsDeleteModelConfirmMessage(modelName: String): String
+    val modelsRawJsonTitle: String
+    val modelsModifiedJsonTitle: String
+    val modelsJsonData: String
+    fun modelsPolicyCapacityWithPrep(limit: String, prep: String): String
+    val modelsOfficialDefault: String
+    val modelsVisionDesc: String
+    val modelsToolsDesc: String
+    val modelsSpecsDesc: String
+    fun modelsTestSuccess(latency: String): String
+    val modelsTestFailed: String
+    val modelsEnabledDesc: String
+    val modelsDisabledDesc: String
+    val modelsEditModel: String
+    val modelsDeleteModel: String
+    val modelsReasoningLevelLabel: String
+    val modelsCompressionPolicyLabel: String
+    val modelsEditPolicy: String
+    val modelsCopyJson: String
+    val modelsNotSet: String
 
-    // Activity
+    // Models Presentation Notices & Exceptions
+    fun modelsProviderSaved(name: String): String
+    fun modelsProviderSaveFailed(error: String): String
+    fun modelsProviderDeleted(name: String): String
+    fun modelsProviderDeleteFailed(error: String): String
+    fun modelsModelDeleted(name: String): String
+    fun modelsModelDeleteFailed(error: String): String
+    fun modelsModelUpdated(name: String): String
+    fun modelsModelUpdateFailed(error: String): String
+    val modelsFallbackCleared: String
+    val modelsFallbackSaved: String
+    fun modelsFallbackSaveFailed(error: String): String
+    fun modelsModelTestSuccess(modelName: String, latencyMs: Long): String
+    fun modelsModelTestFailed(modelName: String, error: String): String
+    fun modelsBatchTestSuccess(passed: Int, total: Int): String
+    fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int): String
+    fun modelsDeleteBlockers(blockerList: String): String
+    val modelsProviderNotFound: String
+    fun modelsVirtualModelNotFound(id: String): String
+    val modelsFallbackSelfError: String
+    val modelsNoFallback: String
+    val providerPresetCustomName: String
+    val providerPresetCustomDesc: String
+
+    // Model Capability & Specs Dialogs
+    val modelReasoningTitle: String
+    val modelReasoningDesc: String
+    fun modelReasoningLevel(level: String): String
+    val modelReasoningHighDesc: String
+    val modelReasoningMediumDesc: String
+    val modelReasoningLowDesc: String
+    val modelReasoningAdaptiveDesc: String
+    val modelVisionTitle: String
+    val modelVisionDesc: String
+    val modelVisionImageTitle: String
+    val modelVisionImageDesc: String
+    val modelVisionDocTitle: String
+    val modelVisionDocDesc: String
+    val modelToolsFunctionTitle: String
+    val modelToolsFunctionDesc: String
+    val modelSpecsTitle: String
+    val modelSpecsId: String
+    val modelSpecsContextWindow: String
+    val modelSpecsDynamicConfig: String
+    val modelSpecsMaxOutput: String
+    val modelSpecsDefaultLimit: String
+    val modelSpecsRoles: String
+
+    // Policy Editor Dialog
+    val policyPresetDefault: String
+    val policyPresetCustom: String
+    val policyRecommended: String
+    val policyDefaultDesc: String
+    val policyCustomDesc: String
+    val policyPresetDesc: String
+    val policyCompressorModel: String
+    val policyFollowCurrent: String
+    val policyOfficialDefault: String
+    val policyCheckpoint: String
+    val policyContextLimit: String
+    val policyOutputReserve: String
+    val policyByPercentage: String
+    val policyExactTokens: String
+    val policyQuickPreset: String
+    val policyDistribution: String
+    val policyLegendNormal: String
+    val policyLegendArchive: String
+    val policyLegendUnused: String
+    fun policyModelContext(context: String): String
+    val policyLimitMustPositive: String
+    val policyThresholdMustPositive: String
+    val policyReserveMustPositive: String
+    fun policyLimitExceedsContext(limit: String, context: String): String
+    fun policyThresholdExceedsLimit(threshold: String, limit: String): String
+    fun policySumExceedsLimit(sum: String, limit: String): String
+
+    // Reasoning Config Dialog
+    val reasoningDialogTitle: String
+    val reasoningEnableTitle: String
+    val reasoningEnableSubtitle: String
+    val reasoningAvailableLevels: String
+    val reasoningCustomValue: String
+    val reasoningOptional: String
+    val reasoningCustomValueDesc: String
+    val reasoningDefaultBudget: String
+    val reasoningDynamicBudgetPlaceholder: String
+    val reasoningMinBudgetTitle: String
+    fun reasoningExamplePlaceholder(example: String): String
+    val reasoningBudget: String
+    val reasoningMinBudget: String
+    fun reasoningMustBeInteger(label: String): String
+    val reasoningGeminiBudgetValidation: String
+    val reasoningMinBudgetMustPositive: String
+    val reasoningMinBudgetExceedsBudget: String
+    val reasoningOnlyGeminiSupportsBudget: String
+    val reasoningCustomValueInvalid: String
+    fun reasoningLevelInvalid(level: String): String
+    val reasoningSelectAtLeastOne: String
+
+    // Provider Editor & Steps
+    val providerPresetCategoryAll: String
+    val providerPresetCategoryAggregator: String
+    val providerPresetCategoryRecommended: String
+    val providerPresetCategoryOfficial: String
+    val providerPresetCategoryLocalCustom: String
+    val providerSearchPlaceholder: String
+    val providerTagOfficial: String
+    val providerTagAggregator: String
+    val providerTagLocal: String
+    val providerTagCustom: String
+    val providerNameLabel: String
+    val providerNamePlaceholder: String
+    val providerNameDesc: String
+    val providerProtocolLabel: String
+    val providerProtocolOpenAIChatDesc: String
+    val providerProtocolAnthropicDesc: String
+    val providerProtocolGeminiDesc: String
+    val providerProtocolOpenAIResponsesDesc: String
+    val providerBaseUrlLabel: String
+    val providerBaseUrlPlaceholder: String
+    val providerBaseUrlDesc: String
+    val providerApiKeyLabel: String
+    val providerApiKeyPlaceholder: String
+    val providerApiKeyDesc: String
+    val providerAdvancedSettings: String
+    val providerAdvancedAutoGenerated: String
+    val providerAdvancedCollapse: String
+    val providerCustomModelsEndpoint: String
+    val providerCustomCompletionsEndpoint: String
+    val providerEndpointAutoInferPlaceholder: String
+    val providerStepPreset: String
+    val providerStepConnection: String
+    val providerStepModels: String
+    val providerNextStep: String
+    val providerPrevStep: String
+    val providerSearchModelsPlaceholder: String
+    fun providerFilterAll(count: Int): String
+    fun providerFilterSelected(count: Int): String
+    fun providerFilterUnselected(count: Int): String
+    fun providerSelectAll(count: Int): String
+    val providerUnselectAll: String
+    fun providerNoModelsFound(query: String): String
+    val providerNoModelsEmpty: String
+    fun providerTestLatency(latencyMs: Long): String
+    val providerTestFailed: String
+    val providerTokenLimitNotSet: String
+    fun providerCustomInputTokenTitle(model: String): String
+    fun providerCustomOutputTokenTitle(model: String): String
+    val providerUnprobedCatalog: String
+    val providerTesting: String
+    val providerTestBtn: String
+    fun providerInputTokenPrefix(label: String): String
+    fun providerOutputTokenPrefix(label: String): String
+    val providerCustomTokenOption: String
+    val providerClearTokenOption: String
+    val providerCustomTokenDialogTitle: String
+    val providerCustomTokenPlaceholder: String
+    val providerCustomTokenHint: String
+    fun providerCustomTokenParsed(tokens: String): String
+    val providerFetchFailedCheckUrlKey: String
+    fun providerFetchFailedWithError(error: String): String
+    val providerDiscardConfirmTitle: String
+    val providerDiscardConfirmMessage: String
+
+    // Activity Screen & Detail Dialog
     val activityTitle: String
+    val activitySubtitle: String
     val activityFilterAll: String
     val activityFilterFailed: String
     val activityClear: String
     val activityEmpty: String
+    val activityEmptyDesc: String
+    val activityNoMatchingLogs: String
+    val activityNoMatchingDesc: String
     val activityPassthrough: String
     val activityRouted: String
-    val activitySubtitle: String
+    val activityFallback: String
+    val activityFallbackFailed: String
     val activitySearchPlaceholder: String
     val activityRecent: String
     val activityTotal: String
@@ -89,71 +412,167 @@ interface Strings {
     val activityInMemory: String
     val activityHealthy: String
     val activityHasErrors: String
-    val activityFallback: String
-    val activityFallbackFailed: String
+    val activityUnknownProvider: String
+    val activityDetailTitle: String
+    val activityDetailRouteSection: String
+    val activityDetailMethod: String
+    val activityDetailPath: String
+    val activityDetailDuration: String
+    val activityDetailTimestamp: String
+    val activityDetailRouteMode: String
+    val activityDetailPassthroughMode: String
+    val activityDetailForwardMode: String
+    val activityDetailTargetModel: String
+    val activityDetailRequestedModel: String
+    val activityDetailProvider: String
+    val activityDetailFallback: String
+    val activityDetailFallbackSuccess: String
+    val activityDetailFallbackFailed: String
+    val activityDetailTokenSection: String
+    val activityDetailPromptTokens: String
+    val activityDetailCompletionTokens: String
+    val activityDetailTotalTokens: String
+    val activityDetailReasoningTokens: String
+    val activityDetailCacheReadTokens: String
+    val activityDetailCacheWriteTokens: String
+    val activityDetailErrorSection: String
+    val activityDetailCopyJson: String
+    val activityDetailCopyError: String
+    val activityDetailCopiedError: String
 
-    // Settings
+    // Settings Screen & Sections
     val settingsTitle: String
-    val settingsLanguage: String
-    val settingsTheme: String
-    val settingsThemeSystem: String
-    val settingsThemeLight: String
-    val settingsThemeDark: String
-    val settingsPort: String
-    val settingsStoragePath: String
-    val settingsAbout: String
     val settingsSubtitle: String
     val settingsGeneral: String
     val settingsNetwork: String
     val settingsData: String
     val settingsAboutSection: String
+    val settingsLanguage: String
     val settingsLanguageDescription: String
+    val settingsTheme: String
     val settingsThemeDescription: String
+    val settingsThemeSystem: String
+    val settingsThemeLight: String
+    val settingsThemeDark: String
+    val settingsPort: String
     val settingsPortDescription: String
+    val settingsPortInvalid: String
+    fun settingsPortUpdated(port: Int): String
+    fun settingsPortRestartFailed(error: String): String
+    fun settingsPortUpdateFailed(error: String): String
+    val settingsHostPathsTitle: String
+    val settingsHostPathsDesc: String
+    fun settingsHostPathCustom(title: String): String
+    fun settingsHostPathAuto(title: String): String
+    val settingsStoragePath: String
     val settingsStorageDescription: String
     val settingsOpenDirectory: String
-    val settingsAboutDescription: String
-    val settingsPortInvalid: String
     val settingsDirectoryOpenError: String
+    val settingsUnsupportedPlatform: String
+    fun settingsOpenDirFailed(error: String): String
+    val settingsAbout: String
+    val settingsAboutDescription: String
     val settingsVersion: String
+    val settingsRepo: String
+    val settingsConfigDir: String
+    val settingsOpenConfigDir: String
+    val settingsDeveloper: String
+    val settingsFeedback: String
+    val settingsFeedbackDesc: String
 
-    // Doctor
+    // Doctor Diagnostics
     val doctorTitle: String
     val doctorSubtitle: String
     val doctorRunAll: String
-    val doctorNetworkCheck: String
-    val doctorConfigCheck: String
-    val doctorProxyCheck: String
-    val doctorHostCheck: String
+    val doctorScanning: String
     val doctorPassed: String
     val doctorFailed: String
     val doctorWarning: String
+    val doctorDirect: String
     val doctorFixSuggestions: String
+    val doctorDialogTitle: String
+    val doctorDialogSubtitle: String
+    val doctorBannerGood: String
+    val doctorBannerWarning: String
+    val doctorBannerError: String
+    fun doctorBannerIssueCount(count: Int): String
+    fun doctorBannerStats(total: Int, passed: Int, issues: Int): String
+    fun doctorCheckedAt(time: String): String
+    val doctorCategoryProxy: String
+    val doctorCategoryNetwork: String
+    val doctorCategoryConfig: String
+    val doctorCategoryProvider: String
+    val doctorCategoryHost: String
+    val doctorScanningStatus: String
+    val doctorRealtimeStatus: String
+    val doctorScanningTitle: String
+    val doctorScanningDesc: String
+    val doctorFixStartProxy: String
+    val doctorFixGoConfigure: String
+    val doctorFixOneClickEnable: String
+    val doctorFixUpdateConfig: String
+    val doctorFixResetOfficial: String
+    val doctorFixRestartIde: String
+    val doctorFixRestartApp: String
+    val doctorFixPruneModels: String
+    val doctorFixRetry: String
+    val doctorSuggestionPrefix: String
+    val doctorAutoFixSuccess: String
+    val doctorAutoFixFailed: String
 
-    // Connection Test
-    val connectionTestTitle: String
-    val connectionTestRunning: String
-    val connectionTestSuccess: String
-    val connectionTestFailed: String
-    val connectionTestLatency: String
+    // Doctor Engine Checks
+    val doctorCheckProxyStoppedTitle: String
+    fun doctorCheckProxyStoppedMsg(port: Int): String
+    val doctorCheckProxyStoppedSugg: String
+    val doctorCheckProxyOkTitle: String
+    fun doctorCheckProxyOkMsg(port: Int): String
+    val doctorCheckProxyUnreachableTitle: String
+    fun doctorCheckProxyUnreachableMsg(port: Int): String
+    val doctorCheckProxyUnreachableSugg: String
+    val doctorCheckNetworkOkTitle: String
+    fun doctorCheckNetworkOkMsg(latencyMs: Long): String
+    val doctorCheckNetworkFailedTitle: String
+    fun doctorCheckNetworkFailedMsg(error: String): String
+    val doctorCheckNetworkFailedSugg: String
+    val doctorCheckNoProvidersTitle: String
+    val doctorCheckNoProvidersMsg: String
+    val doctorCheckNoProvidersSugg: String
+    fun doctorCheckProviderNoModelsTitle(provider: String): String
+    val doctorCheckProviderNoModelsMsg: String
+    val doctorCheckProviderNoModelsSugg: String
+    val doctorCheckIdeMismatchTitle: String
+    fun doctorCheckIdeMismatchMsg(current: String, targetPort: Int): String
+    val doctorCheckIdeMismatchSugg: String
+    val doctorCheckIdeRunningSuffix: String
+    val doctorCheckIdeOkTitle: String
+    fun doctorCheckIdeOkMsg(port: Int, runningSuffix: String): String
+    val doctorCheckIdeOfficialTitle: String
+    val doctorCheckIdeOfficialMsg: String
+    val doctorCheckAppMismatchTitle: String
+    fun doctorCheckAppMismatchMsg(current: String, targetPort: Int): String
+    val doctorCheckAppMismatchSugg: String
+    val doctorCheckAppRunningSuffix: String
+    val doctorCheckAppOkTitle: String
+    fun doctorCheckAppOkMsg(port: Int, runningSuffix: String): String
+    val doctorCheckAppOfficialTitle: String
+    val doctorCheckAppOfficialMsg: String
+    val doctorCheckCliMismatchTitle: String
+    fun doctorCheckCliMismatchMsg(current: String, targetPort: Int): String
+    val doctorCheckCliMismatchSugg: String
+    val doctorCheckCliOkTitle: String
+    fun doctorCheckCliOkMsg(port: Int): String
+    val doctorCheckCliOfficialTitle: String
+    val doctorCheckCliOfficialMsg: String
+    fun doctorCheckProviderInvalidModelsTitle(provider: String): String
+    fun doctorCheckProviderInvalidModelsMsg(models: String): String
+    val doctorCheckProviderInvalidModelsSugg: String
+    fun doctorCheckProviderOkTitle(provider: String): String
+    fun doctorCheckProviderOkMsg(count: Int): String
+    fun doctorCheckProviderUnverifiedTitle(provider: String): String
+    val doctorCheckProviderUnverifiedMsg: String
+    val doctorCheckProviderUnverifiedSugg: String
 
-    // Host Confirm
-    val hostEnableConfirmTitle: String
-    val hostEnableConfirmMessage: String
-    val hostDisableConfirmTitle: String
-    val hostDisableConfirmMessage: String
-    val hostCliNotInstalled: String
-    val hostAppNotInstalled: String
-    val hostAppNeedRestart: String
-    val hostStatusNeedsUpdate: String
-    val hostStatusMismatch: String
-    val hostUpdateAction: String
-    val hostForceReset: String
-    val hostForceResetConfirmTitle: String
-    val hostForceResetConfirmMessage: String
-    val hostForceResetSuccess: String
-
-    // Common
+    // Common Feedback & Tray
     val commonSave: String
     val commonCancel: String
     val commonConfirm: String
@@ -163,6 +582,28 @@ interface Strings {
     val commonSuccess: String
     val commonError: String
     val commonCopied: String
+    val commonGotIt: String
+    val commonRefresh: String
+    val commonRetry: String
+    val commonSearch: String
+    val commonClear: String
+    val commonSelectAll: String
+    val commonUnselectAll: String
+    val commonNotSet: String
+    val commonUnknown: String
+    val commonOptional: String
+    val commonUnsaved: String
+    val trayShowMainWindow: String
+    val trayQuitApplication: String
+
+    // Local Proxy Server Notices
+    fun proxyStarted(port: Int): String
+    fun proxyStartFailed(error: String): String
+    val proxyStopped: String
+    fun proxyRestarted(port: Int): String
+    fun proxyRestartFailed(error: String): String
+    fun proxyTestSuccess(latencyMs: Long): String
+    fun proxyTestFailed(error: String): String
 }
 
 object StringsZh : Strings {
@@ -174,22 +615,25 @@ object StringsZh : Strings {
     override val navActivity = "调用日志"
     override val navSettings = "应用设置"
     override val navDoctor = "全链路体检"
+    override val sidebarCollapse = "折叠侧边栏"
+    override val sidebarExpand = "展开侧边栏"
 
     override val overviewProxyCardTitle = "本地代理服务"
-    override val overviewProxyRunning = "代理服务正在运行"
-    override val overviewProxyStopped = "代理服务已停止"
-    override val overviewProxyPort = "监听地址"
+    override val overviewProxyRunning = "运行中"
+    override val overviewProxyStopped = "已停止"
+    override val overviewProxyPort = "服务地址"
     override val overviewStartProxy = "启动代理"
     override val overviewStopProxy = "停止代理"
     override val overviewRestartProxy = "重启服务"
     override val overviewSubtitle = "统一管理本地代理、宿主接入与模型路由"
     override val overviewCopyAddress = "复制地址"
-    override val overviewDiagnostics = "运行诊断"
+    override val overviewDiagnostics = "一键体检"
     override val overviewProviderMetric = "自定义服务商"
     override val overviewModelMetric = "可用模型"
     override val overviewDisabledMetric = "隐藏官方模型"
     override val overviewHostSection = "宿主环境接入"
     override val overviewNotice = "切换宿主接入后，请重启对应应用使配置生效。"
+    override val overviewCopiedProxyAddress = "已复制代理地址"
     override val hostUpdateFailed = "宿主接入配置失败，请检查设置文件权限"
 
     override val hostIdeTitle = "Antigravity IDE"
@@ -199,28 +643,134 @@ object StringsZh : Strings {
     override val hostCliTitle = "Antigravity CLI"
     override val hostCliDesc = "接管终端 CLI 命令，管理用户级 CLOUD_CODE_URL 环境变量"
 
-    override val hostStatusActive = "已接入代理"
-    override val hostStatusInactive = "官方直连模式"
-    override val hostStatusNotInstalled = "未检测到安装"
-    override val hostEnable = "启用代理接入"
-    override val hostDisable = "恢复官方默认"
-    override val hostRestartNotice = "切换后请重启对应宿主应用以完全生效"
-    override val hostLaunch = "打开应用"
+    override val hostStatusActive = "已接入"
+    override val hostStatusInactive = "官方直连"
+    override val hostStatusNotInstalled = "未安装"
+    override val hostStatusReady = "已就绪"
+    override val hostStatusInstalled = "已安装"
+    override val hostStatusRunning = "运行中"
+    override val hostStatusNeedsUpdate = "待更新"
+    override val hostStatusMismatch = "代理端口不匹配"
 
+    override val hostEnable = "接入代理"
+    override val hostDisable = "恢复官方直连"
+    override val hostRestartNotice = "切换后请重启对应宿主应用以完全生效"
+    override val hostLaunch = "打开"
+    override val hostRestart = "重启"
+    override val hostUpdateAction = "更新配置"
+    override val hostConfigurePath = "配置路径"
+    override val hostForceReset = "重置为官方模式"
+    override fun hostCustomPath(path: String) = "自定义路径: $path"
+    override val hostProxyMode = "代理模式"
+
+    override fun hostIdePortMismatch(endpoint: String) = "检测到代理配置与当前端口不一致（$endpoint）"
+    override val hostIdeRunningAndConfigured = "Antigravity IDE 正在运行并已配置"
+    override val hostIdeReady = "Antigravity IDE 已安装就绪"
+    override val hostIdeNotDetected = "未检测到 Antigravity IDE 安装目录"
+    override fun hostIdePendingUpdate(port: Int) = "代理配置待更新为 http://127.0.0.1:$port"
+    override val hostIdeActiveDesc = "settings.json 代理接入生效中"
+    override val hostOfficialDirectDesc = "当前使用官方直连模式"
+
+    override fun hostAppPortMismatch(endpoint: String) = "检测到环境变量与当前端口不一致（$endpoint）"
+    override val hostAppRunning = "Antigravity App 正在运行"
+    override val hostAppReady = "Antigravity App 已安装就绪"
+    override val hostAppNotDetected = "未检测到 Antigravity App 应用安装"
+    override fun hostAppPendingUpdate(port: Int) = "环境变量待更新为 http://127.0.0.1:$port"
+    override val hostAppActiveDesc = "环境变量 CLOUD_CODE_URL 代理生效中"
+
+    override fun hostCliPortMismatch(endpoint: String) = "检测到 CLI 代理配置与当前端口不一致（$endpoint）"
+    override val hostCliInstalledDesc = "Antigravity CLI (agy) 已安装"
+    override val hostCliNotDetected = "未检测到 agy CLI 配置文件"
+    override fun hostCliPendingUpdate(port: Int) = "CLI 配置待更新为 http://127.0.0.1:$port"
+    override val hostCliActiveDesc = "CLI 配置文件代理接入生效中"
+    override val hostCliOfficialDirectDesc = "CLI 当前处于官方直连模式"
+
+    override val hostIdeUpdateConfirmTitle = "更新 Antigravity IDE 代理配置"
+    override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) = "检测到 IDE 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 IDE 使配置生效。是否继续？"
+    override fun hostIdeUpdateConfirmMessageStopped(endpoint: String, port: Int) = "检测到 IDE 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
+    override val hostIdeEnableConfirmTitle = "确认启用代理模式"
+    override val hostIdeEnableConfirmMessageRunning = "启用代理模式后，Antigravity IDE 会注入配置的模型并自动重启使配置生效。是否继续？"
+    override val hostIdeEnableConfirmMessageStopped = "启用代理模式将使 Antigravity IDE 在启动时连接本地代理。是否继续？"
+    override val hostIdeDisableConfirmTitle = "确认停用代理接入"
+    override val hostIdeDisableConfirmMessageRunning = "将停用 Antigravity IDE 的代理接入并重启恢复官方直连模式。是否继续？"
+    override val hostIdeDisableConfirmMessageStopped = "将停用 Antigravity IDE 的代理接入，恢复官方直连模式。是否继续？"
+    override val hostIdeUpdatedAndRestarted = "Antigravity IDE 代理配置已更新并完成重启"
+    override val hostIdeEnabledAndRestarted = "Antigravity IDE 已启用代理模式并完成重启"
+    override val hostIdeEnabledPendingStart = "Antigravity IDE 已启用代理模式，启动后生效"
+    override val hostIdeConfigUpdatedRestartFailed = "Antigravity IDE 配置已更新，但自动重启失败"
+    override val hostIdeEnableFailed = "Antigravity IDE 代理接入配置失败"
+    override val hostIdeRestoredAndRestarted = "Antigravity IDE 已恢复官方直连并完成重启"
+    override val hostIdeRestored = "Antigravity IDE 已恢复官方直连"
+    override val hostIdeDisableFailed = "Antigravity IDE 停用代理接入失败"
+
+    override val hostAppUpdateConfirmTitle = "更新 Antigravity App 代理配置"
+    override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) = "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 App 使配置生效。是否继续？"
+    override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) = "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
+    override val hostAppEnableConfirmTitle = "确认启用代理模式"
+    override val hostAppEnableConfirmMessageRunning = "启用代理模式后，Antigravity App 会注入配置的模型并自动重启使配置生效。是否继续？"
+    override val hostAppEnableConfirmMessageStopped = "启用代理模式将使 Antigravity App 在启动时连接本地代理。是否继续？"
+    override val hostAppDisableConfirmTitle = "确认停用代理接入"
+    override val hostAppDisableConfirmMessageRunning = "将停用 Antigravity App 的代理接入并重启恢复官方直连模式。是否继续？"
+    override val hostAppDisableConfirmMessageStopped = "将停用 Antigravity App 的代理接入，恢复官方直连模式。是否继续？"
+    override val hostAppUpdatedAndRestarted = "Antigravity App 代理配置已更新并完成重启"
+    override val hostAppEnabledAndRestarted = "Antigravity App 已启用代理模式并完成重启"
+    override val hostAppEnabledPendingStart = "Antigravity App 已启用代理模式，启动后生效"
+    override val hostAppConfigUpdatedRestartFailed = "Antigravity App 配置已更新，但自动重启失败"
+    override val hostAppEnableFailed = "Antigravity App 代理接入配置失败"
+    override val hostAppRestoredAndRestarted = "Antigravity App 已恢复官方直连并完成重启"
+    override val hostAppRestored = "Antigravity App 已恢复官方直连"
+    override val hostAppDisableFailed = "Antigravity App 停用代理接入失败"
+    override val hostAppNotInstalled = "未检测到 Antigravity App 安装"
+
+    override val hostCliUpdateConfirmTitle = "更新 Antigravity CLI 代理配置"
+    override fun hostCliUpdateConfirmMessage(endpoint: String, port: Int) = "检测到 CLI 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。更新后请完全退出并重新打开终端应用生效。是否继续？"
+    override val hostCliEnableConfirmTitle = "确认启用代理模式"
+    override val hostCliEnableConfirmMessage = "启用代理模式后会在用户环境中配置 CLOUD_CODE_URL；完全退出并重新打开终端应用后生效。是否继续？"
+    override val hostCliDisableConfirmTitle = "确认停用代理接入"
+    override val hostCliDisableConfirmMessage = "将停用 CLI 的代理接入并恢复官方直连模式；完全退出并重新打开终端应用后生效。是否继续？"
+    override val hostCliEnabledNotice = "CLI 已启用代理模式；请完全退出并重新打开终端应用"
+    override val hostCliDisabledNotice = "CLI 代理接入已停用；请完全退出并重新打开终端应用"
+    override val hostCliEnableFailed = "CLI 代理接入配置失败"
+    override val hostCliDisableFailed = "CLI 停用代理接入失败"
+    override val hostCliNotInstalled = "未检测到 agy CLI 安装"
+
+    override fun hostStartProxyFirstNotice(hostName: String) = "请先启动本地代理服务，再接入 $hostName"
+    override fun hostForceResetConfirmTitle(hostName: String) = "强制重置 $hostName 为官方模式"
+    override fun hostForceResetConfirmMessage(hostName: String) = "此操作将强制清除 $hostName 的所有代理配置、环境变量与托管记录，恢复为最干净的官方直连模式。若应用正在运行将自动重启生效。是否确认重置？"
+    override fun hostForceResetSuccess(hostName: String) = "$hostName 已强制重置为官方直连模式"
+    override fun hostRestartConfirmTitle(hostName: String) = "确认重启 $hostName"
+    override fun hostRestartConfirmMessage(hostName: String) = "确定要重启 $hostName 吗？重启会关闭当前运行中的实例并重新启动。是否继续？"
+    override fun hostRestartSuccess(hostName: String) = "已重启 $hostName"
+    override fun hostRestartFailed(hostName: String) = "重启 $hostName 失败"
+    override fun hostLaunchSuccess(hostName: String) = "已打开 $hostName"
+    override fun hostLaunchFailed(hostName: String) = "打开 $hostName 失败"
+    override fun hostLaunchProxyNotRunning(hostName: String) = "当前 $hostName 已接入代理，请先启动本地代理"
+
+    override fun hostPathDialogTitle(hostTitle: String) = "配置 $hostTitle 路径"
+    override val hostPathDialogDesc = "当未检测到默认安装时，可在此输入自定义安装目录（如 .app 目录、安装文件夹）或主可执行文件绝对路径。"
+    override val hostPathInputLabel = "安装目录或可执行文件路径"
+    override val hostPathStatusValid = "路径已检测到并存在于文件系统中"
+    override val hostPathStatusNotFound = "该路径在当前文件系统中不存在，请确认路径无误"
+    override val hostPathStatusEmpty = "留空并保存将清除自定义配置，恢复为系统默认自动探测。"
+    override val hostPathResetDefault = "重置为默认"
+    override val hostPathSavedCustom = "已设置自定义路径并重新检测"
+    override val hostPathResetNotice = "已重置为默认自动探测路径"
+
+    override val modelsTitle = "模型管理"
+    override val modelsSubtitle = "统一调度 Google 官方原生模型与三方自建模型，灵活配置上下文压缩与思考预算"
+    override val modelsOfficialTab = "官方原生"
+    override val modelsCustomTab = "自定义服务"
     override val modelsOfficialTitle = "官方原生模型"
     override val modelsOfficialSubtitle = "管理 Antigravity 内置模型，可针对不需要的模型进行隐藏或禁用"
     override val modelsCustomTitle = "自定义 Provider 服务商"
     override val modelsAddProvider = "添加上游服务"
     override val modelsEditProvider = "编辑服务商"
     override val modelsDeleteProvider = "删除服务商"
-    override val modelsTestConnection = "测试连通性"
+    override val modelsTestConnection = "测试连接"
     override val modelsFetchModels = "拉取模型列表"
     override val modelsNoProviders = "暂无配置的 Provider，点击右上角添加"
     override val modelsCompressionPolicy = "上下文压缩策略"
     override val modelsReasoningConfig = "思考推理档位"
-    override val modelsSubtitle = "管理官方模型与自定义 BYOK 服务商"
-    override val modelsOfficialTab = "官方原生"
-    override val modelsCustomTab = "自定义服务"
     override val modelsCollapse = "收起"
     override val modelsExpand = "展开"
     override val modelsContext = "上下文"
@@ -233,15 +783,218 @@ object StringsZh : Strings {
     override val modelsConnectionFailed = "连接失败"
     override val modelsRefreshOfficial = "刷新官方模型"
     override val modelsFetchingOfficial = "正在扫描探测语言服务并拉取官方模型…"
+    override fun modelsOfficialSyncFailed(error: String) = "官方模型同步失败：$error"
+    override val modelsOfficialSyncing = "正在同步官方模型数据..."
+    override val modelsOfficialSynced = "官方模型数据已同步"
+    override val modelsOfficialWaitingSync = "等待同步官方模型数据"
+    override val modelsRawJson = "原始 JSON"
+    override val modelsModifiedJson = "修改后 JSON"
+    override val modelsNoOfficialDetected = "当前未探测到官方原生模型"
+    override val modelsNoOfficialHint = "请确认已在「运行概览」中打开 Antigravity IDE 或 App，随后点击「刷新」"
+    override val modelsCopiedProviderUrl = "已复制服务地址"
+    override val modelsCopiedJson = "已复制 JSON 数据"
+    override fun modelsPassedCount(passed: Int, total: Int) = "$passed/$total 项通过"
+    override fun modelsPassedWithFailed(passed: Int, total: Int, failed: Int) = "$passed/$total 项通过 ($failed 失败)"
+    override fun modelsRetryFailed(count: Int) = "重试失败项 ($count)"
+    override val modelsBatchTest = "批量测试"
+    override val modelsEditConfig = "编辑配置"
+    override val modelsNoModelsHint = "该服务商尚未添加模型，点击「编辑配置」添加或拉取"
+    override val modelsDeleteProviderConfirmTitle = "删除服务商"
+    override fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int) = "确定要删除服务商「$providerName」吗？关联的 $modelCount 个模型配置将一并移除。"
+    override val modelsDeleteModelConfirmTitle = "删除模型"
+    override fun modelsDeleteModelConfirmMessage(modelName: String) = "确定要删除模型「$modelName」吗？"
+    override val modelsRawJsonTitle = "官方模型原始 JSON 数据"
+    override val modelsModifiedJsonTitle = "官方模型修改后（下发给 IDE）JSON 数据"
+    override val modelsJsonData = "JSON 数据"
+    override fun modelsPolicyCapacityWithPrep(limit: String, prep: String) = "$limit 容量 ($prep 预备)"
+    override val modelsOfficialDefault = "官方默认"
+    override val modelsVisionDesc = "多模态视觉能力 (Vision)"
+    override val modelsToolsDesc = "原生工具调用 (Tool Call)"
+    override val modelsSpecsDesc = "查看模型规格与参数"
+    override fun modelsTestSuccess(latency: String) = "测试成功 ($latency)"
+    override val modelsTestFailed = "测试失败"
+    override val modelsEnabledDesc = "已启用（点击禁用）"
+    override val modelsDisabledDesc = "已禁用（点击启用）"
+    override val modelsEditModel = "编辑模型配置"
+    override val modelsDeleteModel = "删除此模型"
+    override val modelsReasoningLevelLabel = "推理等级"
+    override val modelsCompressionPolicyLabel = "压缩策略"
+    override val modelsEditPolicy = "编辑策略"
+    override val modelsCopyJson = "复制 JSON"
+    override val modelsNotSet = "未设置"
+
+    override fun modelsProviderSaved(name: String) = "已保存服务商「$name」"
+    override fun modelsProviderSaveFailed(error: String) = "保存服务商失败：$error"
+    override fun modelsProviderDeleted(name: String) = "已删除服务商「$name」"
+    override fun modelsProviderDeleteFailed(error: String) = "删除服务商失败：$error"
+    override fun modelsModelDeleted(name: String) = "已删除模型「$name」"
+    override fun modelsModelDeleteFailed(error: String) = "删除模型失败：$error"
+    override fun modelsModelUpdated(name: String) = "已更新模型「$name」配置"
+    override fun modelsModelUpdateFailed(error: String) = "更新模型失败：$error"
+    override val modelsFallbackCleared = "已清除 fallback"
+    override val modelsFallbackSaved = "fallback 配置已保存"
+    override fun modelsFallbackSaveFailed(error: String) = "fallback 保存失败：$error"
+    override fun modelsModelTestSuccess(modelName: String, latencyMs: Long) = "$modelName 测试成功 (${latencyMs}ms)"
+    override fun modelsModelTestFailed(modelName: String, error: String) = "$modelName 测试失败: $error"
+    override fun modelsBatchTestSuccess(passed: Int, total: Int) = "服务商测试完成：$passed/$total 项测试通过"
+    override fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int) = "服务商测试完成：$passed/$total 项通过，${failed} 项失败"
+    override fun modelsDeleteBlockers(blockerList: String) = "以下模型仍将待删除模型作为备用入口：$blockerList"
+    override val modelsProviderNotFound = "模型关联的 Provider 不存在"
+    override fun modelsVirtualModelNotFound(id: String) = "VirtualModel 不存在：$id"
+    override val modelsFallbackSelfError = "VirtualModel 不能将自身设置为 fallback"
+    override val modelsNoFallback = "不使用 Fallback"
+    override val providerPresetCustomName = "自定义"
+    override val providerPresetCustomDesc = "手动配置任意 OpenAI 兼容、Anthropic 或 Gemini 服务"
+
+    override val modelReasoningTitle = "深度思考与推理能力"
+    override val modelReasoningDesc = "该模型支持深度思考/推理模式。在与 IDE 协同对话时，模型可开启思考链，分析复杂逻辑与架构代码："
+    override fun modelReasoningLevel(level: String) = "档位: $level"
+    override val modelReasoningHighDesc = "高预算思考 (适合极度复杂的算法与重构方案)"
+    override val modelReasoningMediumDesc = "标准思考 (平衡推理深度与响应延迟)"
+    override val modelReasoningLowDesc = "轻量思考 (快速给出思考结论)"
+    override val modelReasoningAdaptiveDesc = "模型原生自适应深度思考"
+    override val modelVisionTitle = "多模态输入支持"
+    override val modelVisionDesc = "多模态能力允许模型直接理解视觉截图、设计图纸、架构图与代码引用："
+    override val modelVisionImageTitle = "图像解析 (Vision)"
+    override val modelVisionImageDesc = "支持上传 PNG / JPEG / WEBP 设计图、UI 报错截图进行直接分析"
+    override val modelVisionDocTitle = "文档理解 (Document)"
+    override val modelVisionDocDesc = "支持原生阅读 PDF / 文本规范文档并提取代码上下文"
+    override val modelToolsFunctionTitle = "工具调用 (Function Calling)"
+    override val modelToolsFunctionDesc = "支持 IDE 工具自动化执行与终端命令联动"
+    override val modelSpecsTitle = "模型规格与元数据"
+    override val modelSpecsId = "模型标识 (ID)"
+    override val modelSpecsContextWindow = "上下文总窗口"
+    override val modelSpecsDynamicConfig = "官方动态配置"
+    override val modelSpecsMaxOutput = "单次最大输出"
+    override val modelSpecsDefaultLimit = "官方默认限制"
+    override val modelSpecsRoles = "分配角色"
+
+    override val policyPresetDefault = "官方默认"
+    override val policyPresetCustom = "自定义"
+    override val policyRecommended = "推荐"
+    override val policyDefaultDesc = "不设置自定义覆盖，遵循官方目录返回的原生 Checkpointer 策略。"
+    override val policyCustomDesc = "可点击百分比快速设定，也可以手动输入具体 Token 值进行精准调整。"
+    override val policyPresetDesc = "先选择会话上下文容量档位：固定值可以直接使用，也可以切换为自定义策略。"
+    override val policyCompressorModel = "负责压缩的执行模型"
+    override val policyFollowCurrent = "跟随当前模型"
+    override val policyOfficialDefault = "官方默认"
+    override val policyCheckpoint = "自动存档点"
+    override val policyContextLimit = "会话上下文容量"
+    override val policyOutputReserve = "输出预留"
+    override val policyByPercentage = "按百分比"
+    override val policyExactTokens = "精准 Token"
+    override val policyQuickPreset = "快捷预设"
+    override val policyDistribution = "上下文容量分布"
+    override val policyLegendNormal = "正常对话区"
+    override val policyLegendArchive = "自动存档区 (不删内容)"
+    override val policyLegendUnused = "模型未用容量"
+    override fun policyModelContext(context: String) = "模型上下文 · $context"
+    override val policyLimitMustPositive = "会话上下文容量必须大于 0"
+    override val policyThresholdMustPositive = "自动存档点必须大于 0"
+    override val policyReserveMustPositive = "输出预留必须大于 0"
+    override fun policyLimitExceedsContext(limit: String, context: String) = "会话上下文容量 ($limit) 不能超过模型上下文 ($context)"
+    override fun policyThresholdExceedsLimit(threshold: String, limit: String) = "自动存档点 ($threshold) 必须小于会话上下文容量 ($limit)"
+    override fun policySumExceedsLimit(sum: String, limit: String) = "自动存档点与输出预留之和 ($sum) 超过了会话上下文容量 ($limit)"
+
+    override val reasoningDialogTitle = "配置深度思考"
+    override val reasoningEnableTitle = "启用深度思考 (Reasoning)"
+    override val reasoningEnableSubtitle = "为当前模型开启并配置推理档位及思维预算"
+    override val reasoningAvailableLevels = "可用推理档位"
+    override val reasoningCustomValue = "Custom reasoning 覆盖值"
+    override val reasoningOptional = "选填"
+    override val reasoningCustomValueDesc = "如需使用上游特定的 reasoning 档位字符串，可在此覆盖输入"
+    override val reasoningDefaultBudget = "默认思考预算 (选填)"
+    override val reasoningDynamicBudgetPlaceholder = "-1 表示动态预算"
+    override val reasoningMinBudgetTitle = "最小思考预算 (选填)"
+    override fun reasoningExamplePlaceholder(example: String) = "例如 $example"
+    override val reasoningBudget = "思考预算"
+    override val reasoningMinBudget = "最小思考预算"
+    override fun reasoningMustBeInteger(label: String) = "${label}必须是整数"
+    override val reasoningGeminiBudgetValidation = "Gemini 思考预算只能为 -1、0 或正整数"
+    override val reasoningMinBudgetMustPositive = "最小思考预算必须大于 0"
+    override val reasoningMinBudgetExceedsBudget = "最小思考预算不能大于思考预算"
+    override val reasoningOnlyGeminiSupportsBudget = "只有 Gemini 协议支持模型级思考预算"
+    override val reasoningCustomValueInvalid = "Custom reasoning 值不符合当前协议或输出上限约束"
+    override fun reasoningLevelInvalid(level: String) = "推理档位 $level 不符合当前协议或输出上限约束"
+    override val reasoningSelectAtLeastOne = "请至少选择一个推理档位，或填写思考预算"
+
+    override val providerPresetCategoryAll = "全部"
+    override val providerPresetCategoryAggregator = "聚合网关"
+    override val providerPresetCategoryRecommended = "常用推荐"
+    override val providerPresetCategoryOfficial = "官方厂商"
+    override val providerPresetCategoryLocalCustom = "本地/自定义"
+    override val providerSearchPlaceholder = "搜索服务..."
+    override val providerTagOfficial = "官方"
+    override val providerTagAggregator = "网关"
+    override val providerTagLocal = "本地"
+    override val providerTagCustom = "自由配置"
+    override val providerNameLabel = "上游服务名称"
+    override val providerNamePlaceholder = "例如 CLIProxyAPI、公司代理、DeepSeek"
+    override val providerNameDesc = "自定义显示名称，用于在路由和模型列表区分服务来源"
+    override val providerProtocolLabel = "API 协议"
+    override val providerProtocolOpenAIChatDesc = "适用于 /v1/chat/completions；CLIProxyAPI、Sub2API 及标准兼容网关"
+    override val providerProtocolAnthropicDesc = "适用于 Anthropic 官方 /v1/messages 协议"
+    override val providerProtocolGeminiDesc = "适用于 Google Gemini 官方 generateContent 协议"
+    override val providerProtocolOpenAIResponsesDesc = "适用于 OpenAI Responses API 原生结构协议"
+    override val providerBaseUrlLabel = "API 地址 (Base URL)"
+    override val providerBaseUrlPlaceholder = "例如 https://api.openai.com/v1"
+    override val providerBaseUrlDesc = "输入根地址后系统将自动推断补全模型列表与生成响应接口"
+    override val providerApiKeyLabel = "API Key"
+    override val providerApiKeyPlaceholder = "输入 API Key（无鉴权则留空）"
+    override val providerApiKeyDesc = "如服务无需鉴权可留空"
+    override val providerAdvancedSettings = "高级设置（自定义端点 URL）"
+    override val providerAdvancedAutoGenerated = "默认由 Base URL 自动生成"
+    override val providerAdvancedCollapse = "收起"
+    override val providerCustomModelsEndpoint = "模型列表接口 (自定义)"
+    override val providerCustomCompletionsEndpoint = "生成补全接口 (自定义)"
+    override val providerEndpointAutoInferPlaceholder = "留空自动推断"
+    override val providerStepPreset = "选择预设"
+    override val providerStepConnection = "连接配置"
+    override val providerStepModels = "模型选择"
+    override val providerNextStep = "下一步"
+    override val providerPrevStep = "上一步"
+    override val providerSearchModelsPlaceholder = "搜索模型名称或 ID..."
+    override fun providerFilterAll(count: Int) = "全部 ($count)"
+    override fun providerFilterSelected(count: Int) = "已选 ($count)"
+    override fun providerFilterUnselected(count: Int) = "未选 ($count)"
+    override fun providerSelectAll(count: Int) = "全选 ($count)"
+    override val providerUnselectAll = "取消全选"
+    override fun providerNoModelsFound(query: String) = "未搜索到匹配「$query」的模型"
+    override val providerNoModelsEmpty = "当前筛选下暂无模型"
+    override fun providerTestLatency(latencyMs: Long) = "${latencyMs}ms"
+    override val providerTestFailed = "失败"
+    override val providerTokenLimitNotSet = "未设置"
+    override fun providerCustomInputTokenTitle(model: String) = "自定义输入 Token 上限 · $model"
+    override fun providerCustomOutputTokenTitle(model: String) = "自定义输出 Token 上限 · $model"
+    override val providerUnprobedCatalog = "目录未探活"
+    override val providerTesting = "测试中"
+    override val providerTestBtn = "测试"
+    override fun providerInputTokenPrefix(label: String) = "输入: $label"
+    override fun providerOutputTokenPrefix(label: String) = "输出: $label"
+    override val providerCustomTokenOption = "自定义输入..."
+    override val providerClearTokenOption = "清除 (设为未设置)"
+    override val providerCustomTokenDialogTitle = "自定义 Token 上限"
+    override val providerCustomTokenPlaceholder = "例如：128K, 1M, 200000"
+    override val providerCustomTokenHint = "支持 128K / 1M / 纯数字 等格式"
+    override fun providerCustomTokenParsed(tokens: String) = "解析为: $tokens tokens"
+    override val providerFetchFailedCheckUrlKey = "未能拉取到模型列表，请检查 Base URL 与 API Key 是否正确"
+    override fun providerFetchFailedWithError(error: String) = "拉取模型列表失败: $error"
+    override val providerDiscardConfirmTitle = "放弃未保存的更改？"
+    override val providerDiscardConfirmMessage = "当前正在编辑的提供商配置尚未保存，退出后更改将丢失。"
 
     override val activityTitle = "调用日志"
+    override val activitySubtitle = "查看请求状态、路由来源与响应耗时"
     override val activityFilterAll = "全部请求"
     override val activityFilterFailed = "仅看失败"
     override val activityClear = "清空日志"
     override val activityEmpty = "暂无请求日志"
+    override val activityEmptyDesc = "当 Antigravity 发起模型代理调用时，此处将实时展示调用明细"
+    override val activityNoMatchingLogs = "未找到匹配日志"
+    override val activityNoMatchingDesc = "尝试输入其他关键词或清除筛选条件"
     override val activityPassthrough = "官方透传"
     override val activityRouted = "自定义路由"
-    override val activitySubtitle = "查看请求状态、路由来源与响应耗时"
+    override val activityFallback = "备用路由"
+    override val activityFallbackFailed = "备用路由失败"
     override val activitySearchPlaceholder = "搜索模型或 Provider"
     override val activityRecent = "最近日志"
     override val activityTotal = "总请求量"
@@ -250,65 +1003,162 @@ object StringsZh : Strings {
     override val activityInMemory = "内存日志"
     override val activityHealthy = "运行正常"
     override val activityHasErrors = "存在错误"
-    override val activityFallback = "备用路由"
-    override val activityFallbackFailed = "备用路由失败"
+    override val activityUnknownProvider = "未知服务商"
+    override val activityDetailTitle = "请求调用详情"
+    override val activityDetailRouteSection = "路由与调用信息"
+    override val activityDetailMethod = "请求方法"
+    override val activityDetailPath = "请求完整路径"
+    override val activityDetailDuration = "响应总耗时"
+    override val activityDetailTimestamp = "请求发起时间"
+    override val activityDetailRouteMode = "路由模式"
+    override val activityDetailPassthroughMode = "官方直连透传 (Cloud Code Passthrough)"
+    override val activityDetailForwardMode = "三方自定义路由 (BYOK Forward)"
+    override val activityDetailTargetModel = "目标匹配模型"
+    override val activityDetailRequestedModel = "原始请求模型"
+    override val activityDetailProvider = "接入服务商"
+    override val activityDetailFallback = "备用路由 Fallback"
+    override val activityDetailFallbackSuccess = "已成功自动回退"
+    override val activityDetailFallbackFailed = "备用路由回退失败"
+    override val activityDetailTokenSection = "Token 消耗计量 (未脱敏)"
+    override val activityDetailPromptTokens = "输入 (Prompt)"
+    override val activityDetailCompletionTokens = "输出 (Completion)"
+    override val activityDetailTotalTokens = "总计 (Total)"
+    override val activityDetailReasoningTokens = "推理 (Thinking)"
+    override val activityDetailCacheReadTokens = "缓存读取 (Read)"
+    override val activityDetailCacheWriteTokens = "缓存写入 (Write)"
+    override val activityDetailErrorSection = "错误详情与服务端原始响应"
+    override val activityDetailCopyJson = "复制完整 JSON"
+    override val activityDetailCopyError = "复制错误信息"
+    override val activityDetailCopiedError = "已复制错误信息"
 
     override val settingsTitle = "应用偏好与配置"
-    override val settingsLanguage = "界面语言"
-    override val settingsTheme = "外观主题"
-    override val settingsThemeSystem = "跟随系统"
-    override val settingsThemeLight = "浅色模式"
-    override val settingsThemeDark = "深色模式"
-    override val settingsPort = "本地代理默认端口"
-    override val settingsStoragePath = "配置文件存储路径"
-    override val settingsAbout = "关于 Antigravity Studio"
     override val settingsSubtitle = "管理语言、外观、代理端口与数据存储"
     override val settingsGeneral = "常规偏好"
     override val settingsNetwork = "网络代理"
     override val settingsData = "数据存储"
     override val settingsAboutSection = "关于应用"
+    override val settingsLanguage = "界面语言"
     override val settingsLanguageDescription = "切换应用显示语言"
+    override val settingsTheme = "外观主题"
     override val settingsThemeDescription = "选择系统、浅色或深色外观"
+    override val settingsThemeSystem = "跟随系统"
+    override val settingsThemeLight = "浅色模式"
+    override val settingsThemeDark = "深色模式"
+    override val settingsPort = "本地代理默认端口"
     override val settingsPortDescription = "修改后会重启本地代理服务"
-    override val settingsStorageDescription = "配置会以原子方式写入本地文件"
-    override val settingsOpenDirectory = "打开目录"
-    override val settingsAboutDescription = "Kotlin Multiplatform 与 Compose Desktop 驱动的本地模型接入工具。"
     override val settingsPortInvalid = "端口必须在 1024 到 65535 之间"
+    override fun settingsPortUpdated(port: Int) = "代理端口已更新为 $port"
+    override fun settingsPortRestartFailed(error: String) = "代理端口更新后启动失败：$error"
+    override fun settingsPortUpdateFailed(error: String) = "更新代理端口失败：$error"
+    override val settingsHostPathsTitle = "宿主安装路径"
+    override val settingsHostPathsDesc = "自定义 Antigravity IDE、App 及 CLI 的安装或可执行文件路径"
+    override fun settingsHostPathCustom(title: String) = "$title: 自定义"
+    override fun settingsHostPathAuto(title: String) = "$title: 自动"
+    override val settingsStoragePath = "配置文件目录"
+    override val settingsStorageDescription = "查看或备份本地持久化的服务商配置与策略数据"
+    override val settingsOpenDirectory = "打开目录"
     override val settingsDirectoryOpenError = "目录打开失败"
+    override val settingsUnsupportedPlatform = "当前平台不支持直接打开文件夹"
+    override fun settingsOpenDirFailed(error: String) = "打开配置目录失败：$error"
+    override val settingsAbout = "关于 Antigravity Studio"
+    override val settingsAboutDescription = "Kotlin Multiplatform 与 Compose Desktop 驱动的本地模型接入工具。"
     override val settingsVersion = "Antigravity Studio v1.0.0 · Kotlin Multiplatform & Compose Desktop"
+    override val settingsRepo = "开源仓库"
+    override val settingsConfigDir = "配置目录"
+    override val settingsOpenConfigDir = "打开数据与模型配置文件"
+    override val settingsDeveloper = "开发者"
+    override val settingsFeedback = "反馈建议"
+    override val settingsFeedbackDesc = "提交 Issue 或加入交流群"
 
     override val doctorTitle = "Doctor 全链路健康体检"
     override val doctorSubtitle = "一键诊断网络连通性、本地配置、宿主接管与代理服务健康度"
-    override val doctorRunAll = "重新执行体检"
-    override val doctorNetworkCheck = "上游网络连通性"
-    override val doctorConfigCheck = "本地配置完整度"
-    override val doctorProxyCheck = "本地代理监听状态"
-    override val doctorHostCheck = "宿主环境接管一致性"
+    override val doctorRunAll = "重新体检"
+    override val doctorScanning = "诊断中..."
     override val doctorPassed = "正常"
     override val doctorFailed = "异常"
     override val doctorWarning = "警告"
+    override val doctorDirect = "直连"
     override val doctorFixSuggestions = "修复建议"
+    override val doctorDialogTitle = "系统体检与全链路诊断"
+    override val doctorDialogSubtitle = "检测本地代理服务、上游模型连通性与 Antigravity 宿主接入状态"
+    override val doctorBannerGood = "全链路状态良好，各项配置已就绪"
+    override val doctorBannerWarning = "部分配置待完善"
+    override val doctorBannerError = "检测到系统运行异常"
+    override fun doctorBannerIssueCount(count: Int) = " • $count 项待处理"
+    override fun doctorBannerStats(total: Int, passed: Int, issues: Int) = "共 $total 项检测 • $passed 项正常" + if (issues > 0) " • $issues 项待处理" else ""
+    override fun doctorCheckedAt(time: String) = "体检于 $time"
+    override val doctorCategoryProxy = "本地代理服务"
+    override val doctorCategoryNetwork = "官方服务连通性"
+    override val doctorCategoryConfig = "配置完整性"
+    override val doctorCategoryProvider = "模型服务商"
+    override val doctorCategoryHost = "Antigravity 宿主环境"
+    override val doctorScanningStatus = "正在扫描系统环境..."
+    override val doctorRealtimeStatus = "体检结果实时生成"
+    override val doctorScanningTitle = "正在执行全链路健康诊断..."
+    override val doctorScanningDesc = "逐项排查代理端口、模型服务商网络握手与宿主接管配置"
+    override val doctorFixStartProxy = "启动代理"
+    override val doctorFixGoConfigure = "去配置"
+    override val doctorFixOneClickEnable = "一键接入"
+    override val doctorFixUpdateConfig = "更新配置"
+    override val doctorFixResetOfficial = "重置官方"
+    override val doctorFixRestartIde = "重启 IDE"
+    override val doctorFixRestartApp = "重启 App"
+    override val doctorFixPruneModels = "清理模型"
+    override val doctorFixRetry = "重试"
+    override val doctorSuggestionPrefix = "💡 建议: "
+    override val doctorAutoFixSuccess = "已执行自动修复"
+    override val doctorAutoFixFailed = "自动修复失败，请手动检查"
 
-    override val connectionTestTitle = "连接测试"
-    override val connectionTestRunning = "正在测试代理连接…"
-    override val connectionTestSuccess = "代理连接正常"
-    override val connectionTestFailed = "代理连接失败"
-    override val connectionTestLatency = "延迟"
-
-    override val hostEnableConfirmTitle = "启用代理接入"
-    override val hostEnableConfirmMessage = "此操作将配置该宿主通过本地代理发送请求。确认继续？"
-    override val hostDisableConfirmTitle = "恢复官方默认"
-    override val hostDisableConfirmMessage = "此操作将恢复该宿主为官方直连模式，自定义模型将不可用。确认继续？"
-    override val hostCliNotInstalled = "未检测到 agy CLI 安装，请先安装后重试"
-    override val hostAppNotInstalled = "未检测到 Antigravity App 安装"
-    override val hostAppNeedRestart = "配置已更新，需要重启 Antigravity App 以生效"
-    override val hostStatusNeedsUpdate = "配置待更新"
-    override val hostStatusMismatch = "代理端口不匹配"
-    override val hostUpdateAction = "更新配置"
-    override val hostForceReset = "重置为官方模式"
-    override val hostForceResetConfirmTitle = "确认重置为官方直连模式"
-    override val hostForceResetConfirmMessage = "此操作将彻底清除该宿主的所有代理设置与历史托管记录，恢复为干净的官方直连模式。是否继续？"
-    override val hostForceResetSuccess = "已重置为官方直连模式"
+    override val doctorCheckProxyStoppedTitle = "本地代理服务未运行"
+    override fun doctorCheckProxyStoppedMsg(port: Int) = "代理服务处于停止状态，无法拦截转发请求（配置端口：$port）。"
+    override val doctorCheckProxyStoppedSugg = "请启动本地代理服务。"
+    override val doctorCheckProxyOkTitle = "本地代理服务运行正常"
+    override fun doctorCheckProxyOkMsg(port: Int) = "代理已就绪并正常监听 http://127.0.0.1:$port。"
+    override val doctorCheckProxyUnreachableTitle = "本地代理端点无法连通"
+    override fun doctorCheckProxyUnreachableMsg(port: Int) = "无法连接 127.0.0.1:$port，请检查端口占用或权限。"
+    override val doctorCheckProxyUnreachableSugg = "尝试重启代理服务。"
+    override val doctorCheckNetworkOkTitle = "连接官方服务"
+    override fun doctorCheckNetworkOkMsg(latencyMs: Long) = "官方 Cloud Code 服务可建立网络通信（${latencyMs}ms）。"
+    override val doctorCheckNetworkFailedTitle = "连接官方服务失败"
+    override fun doctorCheckNetworkFailedMsg(error: String) = "无法连通 Google 官方服务：$error。"
+    override val doctorCheckNetworkFailedSugg = "请检查网络与代理配置；如直连正常但 Studio 仍失败，请重启 Studio 后重新检测。"
+    override val doctorCheckNoProvidersTitle = "未配置或未启用任何提供商"
+    override val doctorCheckNoProvidersMsg = "当前没有已启用的 Provider，所有模型请求将被拦截或直接失败。"
+    override val doctorCheckNoProvidersSugg = "前往「模型管理」添加 Provider。"
+    override fun doctorCheckProviderNoModelsTitle(provider: String) = "提供商「$provider」未配置模型"
+    override val doctorCheckProviderNoModelsMsg = "该提供商已启用，但尚未关联任何上游模型。"
+    override val doctorCheckProviderNoModelsSugg = "请在模型管理中配置上游模型。"
+    override val doctorCheckIdeMismatchTitle = "Antigravity IDE 代理配置不匹配（待更新）"
+    override fun doctorCheckIdeMismatchMsg(current: String, targetPort: Int) = "检测到 settings.json 中代理配置为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致，可能导致请求失败。"
+    override val doctorCheckIdeMismatchSugg = "点击一键修复将更新为当前端口并自动重启生效，或重置为官方直连模式。"
+    override val doctorCheckIdeRunningSuffix = "（IDE 正在运行）"
+    override val doctorCheckIdeOkTitle = "Antigravity IDE 代理接入正常"
+    override fun doctorCheckIdeOkMsg(port: Int, runningSuffix: String) = "settings.json 已正确配置为 http://127.0.0.1:$port $runningSuffix。"
+    override val doctorCheckIdeOfficialTitle = "Antigravity IDE 使用官方模式（未接入代理）"
+    override val doctorCheckIdeOfficialMsg = "当前直连 Google 官方服务，可直接正常使用。如需在 IDE 中使用自定义模型，可启用代理接入。"
+    override val doctorCheckAppMismatchTitle = "Antigravity App 代理环境变量不匹配（待更新）"
+    override fun doctorCheckAppMismatchMsg(current: String, targetPort: Int) = "检测到环境变量 CLOUD_CODE_URL 当前为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致。"
+    override val doctorCheckAppMismatchSugg = "点击一键修复将更新环境变量并重启 App 生效，或重置为官方模式。"
+    override val doctorCheckAppRunningSuffix = "（App 正在运行）"
+    override val doctorCheckAppOkTitle = "Antigravity App 代理接入正常"
+    override fun doctorCheckAppOkMsg(port: Int, runningSuffix: String) = "环境变量 CLOUD_CODE_URL 已正确配置为 http://127.0.0.1:$port $runningSuffix。"
+    override val doctorCheckAppOfficialTitle = "Antigravity App 使用官方模式（未接入代理）"
+    override val doctorCheckAppOfficialMsg = "当前直连 Google 官方服务。如需在 App 中使用自定义模型，可启用代理接入。"
+    override val doctorCheckCliMismatchTitle = "Antigravity CLI 代理配置不匹配（待更新）"
+    override fun doctorCheckCliMismatchMsg(current: String, targetPort: Int) = "检测到 CLI 代理配置为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致。"
+    override val doctorCheckCliMismatchSugg = "点击一键修复更新为当前端口，或重置为官方模式。"
+    override val doctorCheckCliOkTitle = "Antigravity CLI 代理接入正常"
+    override fun doctorCheckCliOkMsg(port: Int) = "已在 CLI 配置文件中配置 cloud_code_url 为 http://127.0.0.1:$port。"
+    override val doctorCheckCliOfficialTitle = "Antigravity CLI 使用官方模式（未接入代理）"
+    override val doctorCheckCliOfficialMsg = "CLI 当前处于官方直连模式。"
+    override fun doctorCheckProviderInvalidModelsTitle(provider: String) = "提供商「$provider」存在失效模型"
+    override fun doctorCheckProviderInvalidModelsMsg(models: String) = "上游当前未提供以下模型：$models。"
+    override val doctorCheckProviderInvalidModelsSugg = "建议清理失效模型，避免请求直接返回模型不存在错误。"
+    override fun doctorCheckProviderOkTitle(provider: String) = "提供商「$provider」连通正常"
+    override fun doctorCheckProviderOkMsg(count: Int) = "鉴权成功，已配置的 $count 个模型均存在于上游目录中。"
+    override fun doctorCheckProviderUnverifiedTitle(provider: String) = "提供商「$provider」可连接但无法验证模型目录"
+    override val doctorCheckProviderUnverifiedMsg = "已建立上游连接，但该协议或端点没有返回可解析的模型目录。"
+    override val doctorCheckProviderUnverifiedSugg = "请确认 models endpoint 已配置，并手动核对模型 ID。"
 
     override val commonSave = "保存配置"
     override val commonCancel = "取消"
@@ -319,6 +1169,27 @@ object StringsZh : Strings {
     override val commonSuccess = "操作成功"
     override val commonError = "操作失败"
     override val commonCopied = "已复制到剪贴板"
+    override val commonGotIt = "知道了"
+    override val commonRefresh = "刷新"
+    override val commonRetry = "重试"
+    override val commonSearch = "搜索..."
+    override val commonClear = "清除"
+    override val commonSelectAll = "全选"
+    override val commonUnselectAll = "取消全选"
+    override val commonNotSet = "未设置"
+    override val commonUnknown = "未知"
+    override val commonOptional = "选填"
+    override val commonUnsaved = "未保存"
+    override val trayShowMainWindow = "显示主窗口"
+    override val trayQuitApplication = "退出应用"
+
+    override fun proxyStarted(port: Int) = "本地代理已启动 ($port)"
+    override fun proxyStartFailed(error: String) = "本地代理启动失败：$error"
+    override val proxyStopped = "本地代理已停止"
+    override fun proxyRestarted(port: Int) = "本地代理已重启 ($port)"
+    override fun proxyRestartFailed(error: String) = "本地代理重启失败：$error"
+    override fun proxyTestSuccess(latencyMs: Long) = "代理连接测试成功 (${latencyMs}ms)"
+    override fun proxyTestFailed(error: String) = "代理连接测试失败：$error"
 }
 
 object StringsEn : Strings {
@@ -330,22 +1201,25 @@ object StringsEn : Strings {
     override val navActivity = "Activity"
     override val navSettings = "Settings"
     override val navDoctor = "Doctor"
+    override val sidebarCollapse = "Collapse sidebar"
+    override val sidebarExpand = "Expand sidebar"
 
     override val overviewProxyCardTitle = "Local Proxy Server"
-    override val overviewProxyRunning = "Proxy is running"
-    override val overviewProxyStopped = "Proxy is stopped"
+    override val overviewProxyRunning = "Running"
+    override val overviewProxyStopped = "Stopped"
     override val overviewProxyPort = "Listening Address"
     override val overviewStartProxy = "Start Proxy"
     override val overviewStopProxy = "Stop Proxy"
     override val overviewRestartProxy = "Restart Server"
     override val overviewSubtitle = "Manage the local proxy, host integrations and model routes"
     override val overviewCopyAddress = "Copy address"
-    override val overviewDiagnostics = "Run diagnostics"
+    override val overviewDiagnostics = "Run Diagnostics"
     override val overviewProviderMetric = "Custom providers"
     override val overviewModelMetric = "Available models"
     override val overviewDisabledMetric = "Hidden official"
     override val overviewHostSection = "Host integrations"
     override val overviewNotice = "Restart the host application after changing an integration."
+    override val overviewCopiedProxyAddress = "Proxy address copied to clipboard"
     override val hostUpdateFailed = "Host integration failed; check settings file permissions"
 
     override val hostIdeTitle = "Antigravity IDE"
@@ -355,18 +1229,127 @@ object StringsEn : Strings {
     override val hostCliTitle = "Antigravity CLI"
     override val hostCliDesc = "Intercept CLI commands via user CLOUD_CODE_URL"
 
-    override val hostStatusActive = "Proxy Active"
+    override val hostStatusActive = "Active"
     override val hostStatusInactive = "Official Direct"
     override val hostStatusNotInstalled = "Not Detected"
+    override val hostStatusReady = "Ready"
+    override val hostStatusInstalled = "Installed"
+    override val hostStatusRunning = "Running"
+    override val hostStatusNeedsUpdate = "Needs Update"
+    override val hostStatusMismatch = "Port Mismatch"
+
     override val hostEnable = "Enable Proxy"
     override val hostDisable = "Restore Official"
     override val hostRestartNotice = "Please restart host application to take full effect"
-    override val hostLaunch = "Launch Client"
+    override val hostLaunch = "Launch"
+    override val hostRestart = "Restart"
+    override val hostUpdateAction = "Update Config"
+    override val hostConfigurePath = "Configure Path"
+    override val hostForceReset = "Reset to Official"
+    override fun hostCustomPath(path: String) = "Custom path: $path"
+    override val hostProxyMode = "Proxy Mode"
 
-    override val modelsOfficialTitle = "Official Models"
+    override fun hostIdePortMismatch(endpoint: String) = "Proxy config differs from current port ($endpoint)"
+    override val hostIdeRunningAndConfigured = "Antigravity IDE is running and configured"
+    override val hostIdeReady = "Antigravity IDE is installed and ready"
+    override val hostIdeNotDetected = "Antigravity IDE installation not detected"
+    override fun hostIdePendingUpdate(port: Int) = "Proxy config pending update to http://127.0.0.1:$port"
+    override val hostIdeActiveDesc = "settings.json proxy integration active"
+    override val hostOfficialDirectDesc = "Currently using official direct mode"
+
+    override fun hostAppPortMismatch(endpoint: String) = "Environment variable differs from current port ($endpoint)"
+    override val hostAppRunning = "Antigravity App is running"
+    override val hostAppReady = "Antigravity App is installed and ready"
+    override val hostAppNotDetected = "Antigravity App installation not detected"
+    override fun hostAppPendingUpdate(port: Int) = "Environment variable pending update to http://127.0.0.1:$port"
+    override val hostAppActiveDesc = "CLOUD_CODE_URL environment proxy active"
+
+    override fun hostCliPortMismatch(endpoint: String) = "CLI proxy config differs from current port ($endpoint)"
+    override val hostCliInstalledDesc = "Antigravity CLI (agy) is installed"
+    override val hostCliNotDetected = "agy CLI config file not detected"
+    override fun hostCliPendingUpdate(port: Int) = "CLI config pending update to http://127.0.0.1:$port"
+    override val hostCliActiveDesc = "CLI config proxy integration active"
+    override val hostCliOfficialDirectDesc = "CLI currently in official direct mode"
+
+    override val hostIdeUpdateConfirmTitle = "Update Antigravity IDE Proxy Config"
+    override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) = "Detected IDE proxy endpoint ($endpoint) differs from local proxy port ($port). Updating will restart IDE to apply changes. Continue?"
+    override fun hostIdeUpdateConfirmMessageStopped(endpoint: String, port: Int) = "Detected IDE proxy endpoint ($endpoint) differs from local proxy port ($port). Update to current proxy port?"
+    override val hostIdeEnableConfirmTitle = "Enable Proxy Mode for IDE"
+    override val hostIdeEnableConfirmMessageRunning = "Enabling proxy mode will inject configured models and restart Antigravity IDE to apply changes. Continue?"
+    override val hostIdeEnableConfirmMessageStopped = "Enabling proxy mode will configure Antigravity IDE to connect to the local proxy when started. Continue?"
+    override val hostIdeDisableConfirmTitle = "Disable Proxy Mode for IDE"
+    override val hostIdeDisableConfirmMessageRunning = "Disabling proxy mode will restore official direct connection and restart Antigravity IDE. Continue?"
+    override val hostIdeDisableConfirmMessageStopped = "Disabling proxy mode will restore official direct connection for Antigravity IDE. Continue?"
+    override val hostIdeUpdatedAndRestarted = "Antigravity IDE proxy config updated and restarted"
+    override val hostIdeEnabledAndRestarted = "Antigravity IDE proxy mode enabled and restarted"
+    override val hostIdeEnabledPendingStart = "Antigravity IDE proxy mode enabled; will apply on launch"
+    override val hostIdeConfigUpdatedRestartFailed = "Antigravity IDE config updated, but auto-restart failed"
+    override val hostIdeEnableFailed = "Failed to configure Antigravity IDE proxy integration"
+    override val hostIdeRestoredAndRestarted = "Antigravity IDE restored to official direct mode and restarted"
+    override val hostIdeRestored = "Antigravity IDE restored to official direct mode"
+    override val hostIdeDisableFailed = "Failed to disable proxy integration for Antigravity IDE"
+
+    override val hostAppUpdateConfirmTitle = "Update Antigravity App Proxy Config"
+    override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) = "Detected App proxy environment ($endpoint) differs from local proxy port ($port). Updating will restart App to apply changes. Continue?"
+    override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) = "Detected App proxy environment ($endpoint) differs from local proxy port ($port). Update to current proxy port?"
+    override val hostAppEnableConfirmTitle = "Enable Proxy Mode for App"
+    override val hostAppEnableConfirmMessageRunning = "Enabling proxy mode will inject configured models and restart Antigravity App to apply changes. Continue?"
+    override val hostAppEnableConfirmMessageStopped = "Enabling proxy mode will configure Antigravity App to connect to the local proxy when started. Continue?"
+    override val hostAppDisableConfirmTitle = "Disable Proxy Mode for App"
+    override val hostAppDisableConfirmMessageRunning = "Disabling proxy mode will restore official direct connection and restart Antigravity App. Continue?"
+    override val hostAppDisableConfirmMessageStopped = "Disabling proxy mode will restore official direct connection for Antigravity App. Continue?"
+    override val hostAppUpdatedAndRestarted = "Antigravity App proxy config updated and restarted"
+    override val hostAppEnabledAndRestarted = "Antigravity App proxy mode enabled and restarted"
+    override val hostAppEnabledPendingStart = "Antigravity App proxy mode enabled; will apply on launch"
+    override val hostAppConfigUpdatedRestartFailed = "Antigravity App config updated, but auto-restart failed"
+    override val hostAppEnableFailed = "Failed to configure Antigravity App proxy integration"
+    override val hostAppRestoredAndRestarted = "Antigravity App restored to official direct mode and restarted"
+    override val hostAppRestored = "Antigravity App restored to official direct mode"
+    override val hostAppDisableFailed = "Failed to disable proxy integration for Antigravity App"
+    override val hostAppNotInstalled = "Antigravity App not detected"
+
+    override val hostCliUpdateConfirmTitle = "Update Antigravity CLI Proxy Config"
+    override fun hostCliUpdateConfirmMessage(endpoint: String, port: Int) = "Detected CLI proxy config ($endpoint) differs from local proxy port ($port). Please restart your terminal application after updating. Continue?"
+    override val hostCliEnableConfirmTitle = "Enable Proxy Mode for CLI"
+    override val hostCliEnableConfirmMessage = "Enabling proxy mode will configure CLOUD_CODE_URL in your user environment; restart your terminal to apply. Continue?"
+    override val hostCliDisableConfirmTitle = "Disable Proxy Mode for CLI"
+    override val hostCliDisableConfirmMessage = "Disabling proxy mode will restore official direct connection; restart your terminal to apply. Continue?"
+    override val hostCliEnabledNotice = "CLI proxy mode enabled; please restart your terminal application"
+    override val hostCliDisabledNotice = "CLI proxy mode disabled; please restart your terminal application"
+    override val hostCliEnableFailed = "Failed to configure CLI proxy integration"
+    override val hostCliDisableFailed = "Failed to disable CLI proxy integration"
+    override val hostCliNotInstalled = "agy CLI not detected"
+
+    override fun hostStartProxyFirstNotice(hostName: String) = "Please start the local proxy server before integrating with $hostName"
+    override fun hostForceResetConfirmTitle(hostName: String) = "Force Reset $hostName to Official Mode"
+    override fun hostForceResetConfirmMessage(hostName: String) = "This will forcefully clear all proxy settings, environment variables and receipts for $hostName to restore clean official direct mode. The application will be restarted if running. Continue?"
+    override fun hostForceResetSuccess(hostName: String) = "$hostName has been reset to official direct mode"
+    override fun hostRestartConfirmTitle(hostName: String) = "Confirm Restart $hostName"
+    override fun hostRestartConfirmMessage(hostName: String) = "Are you sure you want to restart $hostName? This will close running instances and launch a new process. Continue?"
+    override fun hostRestartSuccess(hostName: String) = "Restarted $hostName"
+    override fun hostRestartFailed(hostName: String) = "Failed to restart $hostName"
+    override fun hostLaunchSuccess(hostName: String) = "Launched $hostName"
+    override fun hostLaunchFailed(hostName: String) = "Failed to launch $hostName"
+    override fun hostLaunchProxyNotRunning(hostName: String) = "$hostName is configured for proxy mode; please start the local proxy first"
+
+    override fun hostPathDialogTitle(hostTitle: String) = "Configure $hostTitle Path"
+    override val hostPathDialogDesc = "When auto-detection fails, enter the custom installation directory (e.g. .app bundle or install folder) or main executable path."
+    override val hostPathInputLabel = "Installation Directory or Executable Path"
+    override val hostPathStatusValid = "Path detected and exists on filesystem"
+    override val hostPathStatusNotFound = "Path does not exist on filesystem; please check the path"
+    override val hostPathStatusEmpty = "Leaving empty and saving will clear custom configuration and restore system auto-detection."
+    override val hostPathResetDefault = "Reset to Default"
+    override val hostPathSavedCustom = "Custom path configured; re-scanning host"
+    override val hostPathResetNotice = "Reset to default auto-detection path"
+
+    override val modelsTitle = "Models"
+    override val modelsSubtitle = "Orchestrate Google official models & custom BYOK upstream providers with context compression and reasoning budgets"
+    override val modelsOfficialTab = "Official"
+    override val modelsCustomTab = "Custom Services"
+    override val modelsOfficialTitle = "Official Native Models"
     override val modelsOfficialSubtitle = "Manage built-in Antigravity models, disable unwanted models"
     override val modelsCustomTitle = "Custom Model Providers"
-    override val modelsAddProvider = "Add upstream service"
+    override val modelsAddProvider = "Add Upstream Provider"
     override val modelsEditProvider = "Edit Provider"
     override val modelsDeleteProvider = "Delete Provider"
     override val modelsTestConnection = "Test Connection"
@@ -374,9 +1357,6 @@ object StringsEn : Strings {
     override val modelsNoProviders = "No providers configured. Click top right to add."
     override val modelsCompressionPolicy = "Compression Policy"
     override val modelsReasoningConfig = "Reasoning Config"
-    override val modelsSubtitle = "Manage official models and custom BYOK providers"
-    override val modelsOfficialTab = "Official"
-    override val modelsCustomTab = "Custom services"
     override val modelsCollapse = "Collapse"
     override val modelsExpand = "Expand"
     override val modelsContext = "Context"
@@ -389,15 +1369,218 @@ object StringsEn : Strings {
     override val modelsConnectionFailed = "Connection failed"
     override val modelsRefreshOfficial = "Refresh Official Models"
     override val modelsFetchingOfficial = "Probing language server and fetching official models…"
+    override fun modelsOfficialSyncFailed(error: String) = "Official model sync failed: $error"
+    override val modelsOfficialSyncing = "Syncing official model catalog..."
+    override val modelsOfficialSynced = "Official model catalog synchronized"
+    override val modelsOfficialWaitingSync = "Waiting to sync official model catalog"
+    override val modelsRawJson = "Raw JSON"
+    override val modelsModifiedJson = "Modified JSON"
+    override val modelsNoOfficialDetected = "No official models detected"
+    override val modelsNoOfficialHint = "Ensure Antigravity IDE or App is opened in Overview, then click Refresh"
+    override val modelsCopiedProviderUrl = "Provider endpoint copied to clipboard"
+    override val modelsCopiedJson = "JSON data copied to clipboard"
+    override fun modelsPassedCount(passed: Int, total: Int) = "$passed/$total passed"
+    override fun modelsPassedWithFailed(passed: Int, total: Int, failed: Int) = "$passed/$total passed ($failed failed)"
+    override fun modelsRetryFailed(count: Int) = "Retry Failed ($count)"
+    override val modelsBatchTest = "Batch Test"
+    override val modelsEditConfig = "Edit Config"
+    override val modelsNoModelsHint = "No models configured for this provider. Click Edit Config to add or fetch."
+    override val modelsDeleteProviderConfirmTitle = "Delete Provider"
+    override fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int) = "Are you sure you want to delete provider \"$providerName\"? All $modelCount associated models will be removed."
+    override val modelsDeleteModelConfirmTitle = "Delete Model"
+    override fun modelsDeleteModelConfirmMessage(modelName: String) = "Are you sure you want to delete model \"$modelName\"?"
+    override val modelsRawJsonTitle = "Official Models Raw JSON Data"
+    override val modelsModifiedJsonTitle = "Modified Official Models (Injected to IDE) JSON Data"
+    override val modelsJsonData = "JSON Data"
+    override fun modelsPolicyCapacityWithPrep(limit: String, prep: String) = "$limit capacity ($prep reserve)"
+    override val modelsOfficialDefault = "Official Default"
+    override val modelsVisionDesc = "Multimodal Vision Capability"
+    override val modelsToolsDesc = "Native Tool / Function Calling"
+    override val modelsSpecsDesc = "View Model Specifications"
+    override fun modelsTestSuccess(latency: String) = "Test Succeeded ($latency)"
+    override val modelsTestFailed = "Test Failed"
+    override val modelsEnabledDesc = "Enabled (Click to disable)"
+    override val modelsDisabledDesc = "Disabled (Click to enable)"
+    override val modelsEditModel = "Edit Model Config"
+    override val modelsDeleteModel = "Delete Model"
+    override val modelsReasoningLevelLabel = "Reasoning Level"
+    override val modelsCompressionPolicyLabel = "Compression Policy"
+    override val modelsEditPolicy = "Edit Policy"
+    override val modelsCopyJson = "Copy JSON"
+    override val modelsNotSet = "Not Set"
+
+    override fun modelsProviderSaved(name: String) = "Saved provider \"$name\""
+    override fun modelsProviderSaveFailed(error: String) = "Failed to save provider: $error"
+    override fun modelsProviderDeleted(name: String) = "Deleted provider \"$name\""
+    override fun modelsProviderDeleteFailed(error: String) = "Failed to delete provider: $error"
+    override fun modelsModelDeleted(name: String) = "Deleted model \"$name\""
+    override fun modelsModelDeleteFailed(error: String) = "Failed to delete model: $error"
+    override fun modelsModelUpdated(name: String) = "Updated model \"$name\" configuration"
+    override fun modelsModelUpdateFailed(error: String) = "Failed to update model: $error"
+    override val modelsFallbackCleared = "Fallback cleared"
+    override val modelsFallbackSaved = "Fallback configuration saved"
+    override fun modelsFallbackSaveFailed(error: String) = "Failed to save fallback: $error"
+    override fun modelsModelTestSuccess(modelName: String, latencyMs: Long) = "$modelName test succeeded (${latencyMs}ms)"
+    override fun modelsModelTestFailed(modelName: String, error: String) = "$modelName test failed: $error"
+    override fun modelsBatchTestSuccess(passed: Int, total: Int) = "Provider test complete: $passed/$total tests passed"
+    override fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int) = "Provider test complete: $passed/$total passed, $failed failed"
+    override fun modelsDeleteBlockers(blockerList: String) = "The following models still reference this model as a fallback route: $blockerList"
+    override val modelsProviderNotFound = "Associated provider not found for this model"
+    override fun modelsVirtualModelNotFound(id: String) = "VirtualModel not found: $id"
+    override val modelsFallbackSelfError = "A model cannot set itself as a fallback route"
+    override val modelsNoFallback = "No fallback"
+    override val providerPresetCustomName = "Custom"
+    override val providerPresetCustomDesc = "Manually configure any OpenAI-compatible, Anthropic or Gemini service"
+
+    override val modelReasoningTitle = "Deep Thinking & Reasoning"
+    override val modelReasoningDesc = "This model supports deep thinking / reasoning chains. During collaborative sessions with the IDE, the model can reason through complex architecture and logic:"
+    override fun modelReasoningLevel(level: String) = "Level: $level"
+    override val modelReasoningHighDesc = "High budget thinking (Best for complex algorithms & large refactoring)"
+    override val modelReasoningMediumDesc = "Standard thinking (Balanced reasoning depth and latency)"
+    override val modelReasoningLowDesc = "Lightweight thinking (Fast response with concise reasoning)"
+    override val modelReasoningAdaptiveDesc = "Native adaptive deep thinking"
+    override val modelVisionTitle = "Multimodal Input Support"
+    override val modelVisionDesc = "Multimodal capability enables direct analysis of visual screenshots, design assets, diagrams and code references:"
+    override val modelVisionImageTitle = "Image Analysis (Vision)"
+    override val modelVisionImageDesc = "Upload PNG / JPEG / WEBP designs and UI error screenshots for direct analysis"
+    override val modelVisionDocTitle = "Document Understanding"
+    override val modelVisionDocDesc = "Native reading of PDF / text specifications to extract code context"
+    override val modelToolsFunctionTitle = "Function Calling"
+    override val modelToolsFunctionDesc = "Automated execution of IDE tools and terminal command orchestration"
+    override val modelSpecsTitle = "Model Specifications & Metadata"
+    override val modelSpecsId = "Model Identifier (ID)"
+    override val modelSpecsContextWindow = "Total Context Window"
+    override val modelSpecsDynamicConfig = "Official Dynamic Config"
+    override val modelSpecsMaxOutput = "Max Output Tokens"
+    override val modelSpecsDefaultLimit = "Official Default Limit"
+    override val modelSpecsRoles = "Assigned Roles"
+
+    override val policyPresetDefault = "Official Default"
+    override val policyPresetCustom = "Custom"
+    override val policyRecommended = "Recommended"
+    override val policyDefaultDesc = "No custom override; follows native Checkpointer policy from official catalog."
+    override val policyCustomDesc = "Click percentages for quick setup or enter exact token numbers for fine-tuned control."
+    override val policyPresetDesc = "Choose a context limit tier: fixed presets are ready to use, or switch to custom policy."
+    override val policyCompressorModel = "Compression Execution Model"
+    override val policyFollowCurrent = "Follow Current Model"
+    override val policyOfficialDefault = "Official Default"
+    override val policyCheckpoint = "Auto Checkpoint"
+    override val policyContextLimit = "Context Capacity"
+    override val policyOutputReserve = "Output Reserve"
+    override val policyByPercentage = "By Percentage"
+    override val policyExactTokens = "Exact Tokens"
+    override val policyQuickPreset = "Quick Presets"
+    override val policyDistribution = "Context Capacity Distribution"
+    override val policyLegendNormal = "Active Conversation Area"
+    override val policyLegendArchive = "Auto Checkpoint Area (No deletion)"
+    override val policyLegendUnused = "Unallocated Model Capacity"
+    override fun policyModelContext(context: String) = "Model Context · $context"
+    override val policyLimitMustPositive = "Context capacity must be greater than 0"
+    override val policyThresholdMustPositive = "Auto checkpoint must be greater than 0"
+    override val policyReserveMustPositive = "Output reserve must be greater than 0"
+    override fun policyLimitExceedsContext(limit: String, context: String) = "Context capacity ($limit) cannot exceed model context ($context)"
+    override fun policyThresholdExceedsLimit(threshold: String, limit: String) = "Auto checkpoint ($threshold) must be less than context capacity ($limit)"
+    override fun policySumExceedsLimit(sum: String, limit: String) = "Sum of checkpoint and reserve ($sum) exceeds context capacity ($limit)"
+
+    override val reasoningDialogTitle = "Configure Deep Thinking"
+    override val reasoningEnableTitle = "Enable Deep Thinking (Reasoning)"
+    override val reasoningEnableSubtitle = "Enable and configure reasoning tiers and thinking budgets for this model"
+    override val reasoningAvailableLevels = "Available Reasoning Levels"
+    override val reasoningCustomValue = "Custom Reasoning Override"
+    override val reasoningOptional = "Optional"
+    override val reasoningCustomValueDesc = "Override with custom upstream reasoning strings if required"
+    override val reasoningDefaultBudget = "Default Thinking Budget (Optional)"
+    override val reasoningDynamicBudgetPlaceholder = "-1 for dynamic budget"
+    override val reasoningMinBudgetTitle = "Min Thinking Budget (Optional)"
+    override fun reasoningExamplePlaceholder(example: String) = "e.g. $example"
+    override val reasoningBudget = "Thinking Budget"
+    override val reasoningMinBudget = "Minimum Thinking Budget"
+    override fun reasoningMustBeInteger(label: String) = "$label must be an integer"
+    override val reasoningGeminiBudgetValidation = "Gemini thinking budget must be -1, 0 or a positive integer"
+    override val reasoningMinBudgetMustPositive = "Minimum thinking budget must be greater than 0"
+    override val reasoningMinBudgetExceedsBudget = "Minimum thinking budget cannot exceed thinking budget"
+    override val reasoningOnlyGeminiSupportsBudget = "Only Gemini protocol supports model-level thinking budget"
+    override val reasoningCustomValueInvalid = "Custom reasoning value does not conform to protocol or output constraints"
+    override fun reasoningLevelInvalid(level: String) = "Reasoning level $level does not conform to protocol or output constraints"
+    override val reasoningSelectAtLeastOne = "Please select at least one reasoning level or specify a thinking budget"
+
+    override val providerPresetCategoryAll = "All"
+    override val providerPresetCategoryAggregator = "Gateways"
+    override val providerPresetCategoryRecommended = "Recommended"
+    override val providerPresetCategoryOfficial = "Official Vendors"
+    override val providerPresetCategoryLocalCustom = "Local / Custom"
+    override val providerSearchPlaceholder = "Search providers..."
+    override val providerTagOfficial = "Official"
+    override val providerTagAggregator = "Gateway"
+    override val providerTagLocal = "Local"
+    override val providerTagCustom = "Custom"
+    override val providerNameLabel = "Upstream Provider Name"
+    override val providerNamePlaceholder = "e.g. CLIProxyAPI, Company Gateway, DeepSeek"
+    override val providerNameDesc = "Custom display name used to identify the source in routes and model lists"
+    override val providerProtocolLabel = "API Protocol"
+    override val providerProtocolOpenAIChatDesc = "For /v1/chat/completions; CLIProxyAPI, Sub2API and standard gateways"
+    override val providerProtocolAnthropicDesc = "For Anthropic official /v1/messages protocol"
+    override val providerProtocolGeminiDesc = "For Google Gemini official generateContent protocol"
+    override val providerProtocolOpenAIResponsesDesc = "For OpenAI Responses API native structure protocol"
+    override val providerBaseUrlLabel = "API Base URL"
+    override val providerBaseUrlPlaceholder = "e.g. https://api.openai.com/v1"
+    override val providerBaseUrlDesc = "Entering base URL automatically infers model list and generation endpoints"
+    override val providerApiKeyLabel = "API Key"
+    override val providerApiKeyPlaceholder = "Enter API Key (leave blank if no auth required)"
+    override val providerApiKeyDesc = "Leave blank if upstream service requires no authentication"
+    override val providerAdvancedSettings = "Advanced Settings (Custom Endpoint URLs)"
+    override val providerAdvancedAutoGenerated = "Auto-generated from Base URL by default"
+    override val providerAdvancedCollapse = "Collapse"
+    override val providerCustomModelsEndpoint = "Model List Endpoint (Custom)"
+    override val providerCustomCompletionsEndpoint = "Completions Endpoint (Custom)"
+    override val providerEndpointAutoInferPlaceholder = "Leave blank to auto-infer"
+    override val providerStepPreset = "Select Preset"
+    override val providerStepConnection = "Connection"
+    override val providerStepModels = "Select Models"
+    override val providerNextStep = "Next"
+    override val providerPrevStep = "Back"
+    override val providerSearchModelsPlaceholder = "Search model name or ID..."
+    override fun providerFilterAll(count: Int) = "All ($count)"
+    override fun providerFilterSelected(count: Int) = "Selected ($count)"
+    override fun providerFilterUnselected(count: Int) = "Unselected ($count)"
+    override fun providerSelectAll(count: Int) = "Select All ($count)"
+    override val providerUnselectAll = "Deselect All"
+    override fun providerNoModelsFound(query: String) = "No models matched \"$query\""
+    override val providerNoModelsEmpty = "No models in current filter"
+    override fun providerTestLatency(latencyMs: Long) = "${latencyMs}ms"
+    override val providerTestFailed = "Failed"
+    override val providerTokenLimitNotSet = "Not Set"
+    override fun providerCustomInputTokenTitle(model: String) = "Custom Input Token Limit · $model"
+    override fun providerCustomOutputTokenTitle(model: String) = "Custom Output Token Limit · $model"
+    override val providerUnprobedCatalog = "Unprobed"
+    override val providerTesting = "Testing"
+    override val providerTestBtn = "Test"
+    override fun providerInputTokenPrefix(label: String) = "Input: $label"
+    override fun providerOutputTokenPrefix(label: String) = "Output: $label"
+    override val providerCustomTokenOption = "Custom value..."
+    override val providerClearTokenOption = "Clear (Set to Not Set)"
+    override val providerCustomTokenDialogTitle = "Custom Token Limit"
+    override val providerCustomTokenPlaceholder = "e.g. 128K, 1M, 200000"
+    override val providerCustomTokenHint = "Supports 128K / 1M / numeric formats"
+    override fun providerCustomTokenParsed(tokens: String) = "Parsed as: $tokens tokens"
+    override val providerFetchFailedCheckUrlKey = "Failed to fetch model catalog. Please check Base URL and API Key"
+    override fun providerFetchFailedWithError(error: String) = "Failed to fetch models: $error"
+    override val providerDiscardConfirmTitle = "Discard unsaved changes?"
+    override val providerDiscardConfirmMessage = "The provider configuration has not been saved. Changes will be lost upon exit."
 
     override val activityTitle = "Activity Logs"
+    override val activitySubtitle = "Inspect request status, route source and response latency"
     override val activityFilterAll = "All Requests"
     override val activityFilterFailed = "Failed Only"
     override val activityClear = "Clear Logs"
     override val activityEmpty = "No activity recorded"
+    override val activityEmptyDesc = "When Antigravity routes requests through the proxy, detailed logs will appear here in real-time"
+    override val activityNoMatchingLogs = "No matching logs found"
+    override val activityNoMatchingDesc = "Try searching with different keywords or clearing active filters"
     override val activityPassthrough = "Official Passthrough"
     override val activityRouted = "Custom Route"
-    override val activitySubtitle = "Inspect request status, route source and response latency"
+    override val activityFallback = "Fallback Route"
+    override val activityFallbackFailed = "Fallback Failed"
     override val activitySearchPlaceholder = "Search model or provider"
     override val activityRecent = "Recent logs"
     override val activityTotal = "Total requests"
@@ -406,65 +1589,162 @@ object StringsEn : Strings {
     override val activityInMemory = "In-memory log"
     override val activityHealthy = "Healthy"
     override val activityHasErrors = "Errors found"
-    override val activityFallback = "Fallback route"
-    override val activityFallbackFailed = "Fallback failed"
+    override val activityUnknownProvider = "Unknown Provider"
+    override val activityDetailTitle = "Request Activity Details"
+    override val activityDetailRouteSection = "Route & Invocation Details"
+    override val activityDetailMethod = "HTTP Method"
+    override val activityDetailPath = "Full Request Path"
+    override val activityDetailDuration = "Total Response Latency"
+    override val activityDetailTimestamp = "Request Start Time"
+    override val activityDetailRouteMode = "Route Mode"
+    override val activityDetailPassthroughMode = "Official Direct (Cloud Code Passthrough)"
+    override val activityDetailForwardMode = "Custom Forward (BYOK Forward)"
+    override val activityDetailTargetModel = "Target Model"
+    override val activityDetailRequestedModel = "Requested Model"
+    override val activityDetailProvider = "Upstream Provider"
+    override val activityDetailFallback = "Fallback Routing"
+    override val activityDetailFallbackSuccess = "Successfully routed via fallback"
+    override val activityDetailFallbackFailed = "Fallback routing failed"
+    override val activityDetailTokenSection = "Token Usage Metrics (Unmasked)"
+    override val activityDetailPromptTokens = "Prompt Tokens"
+    override val activityDetailCompletionTokens = "Completion Tokens"
+    override val activityDetailTotalTokens = "Total Tokens"
+    override val activityDetailReasoningTokens = "Thinking Tokens"
+    override val activityDetailCacheReadTokens = "Cache Read Tokens"
+    override val activityDetailCacheWriteTokens = "Cache Write Tokens"
+    override val activityDetailErrorSection = "Error Details & Upstream Response"
+    override val activityDetailCopyJson = "Copy Full JSON"
+    override val activityDetailCopyError = "Copy Error Message"
+    override val activityDetailCopiedError = "Error message copied to clipboard"
 
     override val settingsTitle = "Preferences & Settings"
+    override val settingsSubtitle = "Manage language, appearance, proxy port and storage"
+    override val settingsGeneral = "General"
+    override val settingsNetwork = "Network Proxy"
+    override val settingsData = "Data Storage"
+    override val settingsAboutSection = "About App"
     override val settingsLanguage = "Language"
+    override val settingsLanguageDescription = "Choose the application display language"
     override val settingsTheme = "Appearance Theme"
+    override val settingsThemeDescription = "Use the system, light or dark appearance"
     override val settingsThemeSystem = "System Default"
     override val settingsThemeLight = "Light Theme"
     override val settingsThemeDark = "Dark Theme"
-    override val settingsPort = "Proxy Default Port"
-    override val settingsStoragePath = "Config File Location"
-    override val settingsAbout = "About Antigravity Studio"
-    override val settingsSubtitle = "Manage language, appearance, proxy port and storage"
-    override val settingsGeneral = "General"
-    override val settingsNetwork = "Network proxy"
-    override val settingsData = "Data storage"
-    override val settingsAboutSection = "About app"
-    override val settingsLanguageDescription = "Choose the application display language"
-    override val settingsThemeDescription = "Use the system, light or dark appearance"
-    override val settingsPortDescription = "The local proxy restarts after saving"
-    override val settingsStorageDescription = "Configuration is written atomically"
-    override val settingsOpenDirectory = "Open directory"
-    override val settingsAboutDescription = "A local model access tool built with Kotlin Multiplatform and Compose Desktop."
+    override val settingsPort = "Local Proxy Default Port"
+    override val settingsPortDescription = "The local proxy server will restart after saving"
     override val settingsPortInvalid = "Port must be between 1024 and 65535"
+    override fun settingsPortUpdated(port: Int) = "Proxy port updated to $port"
+    override fun settingsPortRestartFailed(error: String) = "Failed to restart proxy on new port: $error"
+    override fun settingsPortUpdateFailed(error: String) = "Failed to update proxy port: $error"
+    override val settingsHostPathsTitle = "Host Installation Paths"
+    override val settingsHostPathsDesc = "Custom installation or executable paths for Antigravity IDE, App and CLI"
+    override fun settingsHostPathCustom(title: String) = "$title: Custom"
+    override fun settingsHostPathAuto(title: String) = "$title: Auto"
+    override val settingsStoragePath = "Config File Location"
+    override val settingsStorageDescription = "Inspect or back up persisted providers and compression policies"
+    override val settingsOpenDirectory = "Open Directory"
     override val settingsDirectoryOpenError = "Unable to open directory"
+    override val settingsUnsupportedPlatform = "Opening folder is not supported on this platform"
+    override fun settingsOpenDirFailed(error: String) = "Failed to open config directory: $error"
+    override val settingsAbout = "About Antigravity Studio"
+    override val settingsAboutDescription = "A local model access tool built with Kotlin Multiplatform and Compose Desktop."
     override val settingsVersion = "Antigravity Studio v1.0.0 · Kotlin Multiplatform & Compose Desktop"
+    override val settingsRepo = "GitHub Repository"
+    override val settingsConfigDir = "Config Directory"
+    override val settingsOpenConfigDir = "Open data and model configuration files"
+    override val settingsDeveloper = "Developer"
+    override val settingsFeedback = "Feedback & Issues"
+    override val settingsFeedbackDesc = "Submit issues or join community discussions"
 
     override val doctorTitle = "Doctor Health Diagnostics"
     override val doctorSubtitle = "Full-stack diagnostics for network, configs, host and proxy"
     override val doctorRunAll = "Run All Checks"
-    override val doctorNetworkCheck = "Upstream Network"
-    override val doctorConfigCheck = "Configuration Integrity"
-    override val doctorProxyCheck = "Local Proxy Status"
-    override val doctorHostCheck = "Host Environment State"
+    override val doctorScanning = "Diagnosing..."
     override val doctorPassed = "Passed"
     override val doctorFailed = "Failed"
     override val doctorWarning = "Warning"
+    override val doctorDirect = "Direct"
     override val doctorFixSuggestions = "Fix Suggestions"
+    override val doctorDialogTitle = "System Health & Diagnostic Suite"
+    override val doctorDialogSubtitle = "Check local proxy, upstream connectivity and Antigravity host integration"
+    override val doctorBannerGood = "All systems operational and ready"
+    override val doctorBannerWarning = "Some configurations need attention"
+    override val doctorBannerError = "System issues detected"
+    override fun doctorBannerIssueCount(count: Int) = " • $count issue(s) pending"
+    override fun doctorBannerStats(total: Int, passed: Int, issues: Int) = "Total $total checks • $passed healthy" + if (issues > 0) " • $issues pending" else ""
+    override fun doctorCheckedAt(time: String) = "Checked at $time"
+    override val doctorCategoryProxy = "Local Proxy Server"
+    override val doctorCategoryNetwork = "Official Service Connectivity"
+    override val doctorCategoryConfig = "Configuration Integrity"
+    override val doctorCategoryProvider = "Model Providers"
+    override val doctorCategoryHost = "Antigravity Host Environments"
+    override val doctorScanningStatus = "Scanning system environment..."
+    override val doctorRealtimeStatus = "Diagnostics generated in real-time"
+    override val doctorScanningTitle = "Executing full-stack health diagnostics..."
+    override val doctorScanningDesc = "Checking proxy ports, provider handshakes and host integration configs"
+    override val doctorFixStartProxy = "Start Proxy"
+    override val doctorFixGoConfigure = "Configure"
+    override val doctorFixOneClickEnable = "Enable Proxy"
+    override val doctorFixUpdateConfig = "Update Config"
+    override val doctorFixResetOfficial = "Reset Official"
+    override val doctorFixRestartIde = "Restart IDE"
+    override val doctorFixRestartApp = "Restart App"
+    override val doctorFixPruneModels = "Prune Models"
+    override val doctorFixRetry = "Retry"
+    override val doctorSuggestionPrefix = "💡 Suggestion: "
+    override val doctorAutoFixSuccess = "Auto-fix applied successfully"
+    override val doctorAutoFixFailed = "Auto-fix failed; please check manually"
 
-    override val connectionTestTitle = "Connection Test"
-    override val connectionTestRunning = "Testing proxy connection…"
-    override val connectionTestSuccess = "Proxy connection OK"
-    override val connectionTestFailed = "Proxy connection failed"
-    override val connectionTestLatency = "Latency"
-
-    override val hostEnableConfirmTitle = "Enable Proxy Integration"
-    override val hostEnableConfirmMessage = "This will configure the host to route requests through the local proxy. Continue?"
-    override val hostDisableConfirmTitle = "Restore Official Default"
-    override val hostDisableConfirmMessage = "This will restore official direct connection; custom models will be unavailable. Continue?"
-    override val hostCliNotInstalled = "agy CLI not detected; please install it first"
-    override val hostAppNotInstalled = "Antigravity App not detected"
-    override val hostAppNeedRestart = "Configuration updated; restart Antigravity App to apply"
-    override val hostStatusNeedsUpdate = "Needs Update"
-    override val hostStatusMismatch = "Port Mismatch"
-    override val hostUpdateAction = "Update Config"
-    override val hostForceReset = "Reset to Official"
-    override val hostForceResetConfirmTitle = "Reset to Official Direct Connection"
-    override val hostForceResetConfirmMessage = "This will clear all host proxy settings and receipts to restore clean official mode. Continue?"
-    override val hostForceResetSuccess = "Reset to official direct mode"
+    override val doctorCheckProxyStoppedTitle = "Local proxy server is not running"
+    override fun doctorCheckProxyStoppedMsg(port: Int) = "The proxy server is stopped and cannot intercept requests (configured port: $port)."
+    override val doctorCheckProxyStoppedSugg = "Please start the local proxy server."
+    override val doctorCheckProxyOkTitle = "Local proxy server is running"
+    override fun doctorCheckProxyOkMsg(port: Int) = "Proxy is ready and listening on http://127.0.0.1:$port."
+    override val doctorCheckProxyUnreachableTitle = "Local proxy endpoint unreachable"
+    override fun doctorCheckProxyUnreachableMsg(port: Int) = "Cannot connect to 127.0.0.1:$port; check port conflicts or permissions."
+    override val doctorCheckProxyUnreachableSugg = "Try restarting the proxy server."
+    override val doctorCheckNetworkOkTitle = "Official service connectivity"
+    override fun doctorCheckNetworkOkMsg(latencyMs: Long) = "Google Cloud Code service is reachable (${latencyMs}ms)."
+    override val doctorCheckNetworkFailedTitle = "Failed to connect to official service"
+    override fun doctorCheckNetworkFailedMsg(error: String) = "Cannot reach Google official services: $error."
+    override val doctorCheckNetworkFailedSugg = "Check network and proxy settings; restart Studio if direct connection works."
+    override val doctorCheckNoProvidersTitle = "No model providers configured or enabled"
+    override val doctorCheckNoProvidersMsg = "No active providers; all custom model requests will be blocked."
+    override val doctorCheckNoProvidersSugg = "Go to Models screen to add a provider."
+    override fun doctorCheckProviderNoModelsTitle(provider: String) = "Provider \"$provider\" has no models configured"
+    override val doctorCheckProviderNoModelsMsg = "This provider is enabled but has no upstream models associated."
+    override val doctorCheckProviderNoModelsSugg = "Configure upstream models in Models screen."
+    override val doctorCheckIdeMismatchTitle = "Antigravity IDE proxy config mismatch (Needs update)"
+    override fun doctorCheckIdeMismatchMsg(current: String, targetPort: Int) = "Detected settings.json proxy is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
+    override val doctorCheckIdeMismatchSugg = "Click auto-fix to update to current port and restart IDE, or reset to official mode."
+    override val doctorCheckIdeRunningSuffix = "(IDE is running)"
+    override val doctorCheckIdeOkTitle = "Antigravity IDE proxy integration is active"
+    override fun doctorCheckIdeOkMsg(port: Int, runningSuffix: String) = "settings.json is properly configured to http://127.0.0.1:$port $runningSuffix."
+    override val doctorCheckIdeOfficialTitle = "Antigravity IDE is in official mode (No proxy)"
+    override val doctorCheckIdeOfficialMsg = "Directly connected to Google official service. Enable proxy integration to use custom models in IDE."
+    override val doctorCheckAppMismatchTitle = "Antigravity App proxy environment mismatch (Needs update)"
+    override fun doctorCheckAppMismatchMsg(current: String, targetPort: Int) = "Detected CLOUD_CODE_URL is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
+    override val doctorCheckAppMismatchSugg = "Click auto-fix to update environment variable and restart App, or reset to official mode."
+    override val doctorCheckAppRunningSuffix = "(App is running)"
+    override val doctorCheckAppOkTitle = "Antigravity App proxy integration is active"
+    override fun doctorCheckAppOkMsg(port: Int, runningSuffix: String) = "CLOUD_CODE_URL is properly configured to http://127.0.0.1:$port $runningSuffix."
+    override val doctorCheckAppOfficialTitle = "Antigravity App is in official mode (No proxy)"
+    override val doctorCheckAppOfficialMsg = "Directly connected to Google official service. Enable proxy integration to use custom models in App."
+    override val doctorCheckCliMismatchTitle = "Antigravity CLI proxy config mismatch (Needs update)"
+    override fun doctorCheckCliMismatchMsg(current: String, targetPort: Int) = "Detected CLI proxy is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
+    override val doctorCheckCliMismatchSugg = "Click auto-fix to update to current port, or reset to official mode."
+    override val doctorCheckCliOkTitle = "Antigravity CLI proxy integration is active"
+    override fun doctorCheckCliOkMsg(port: Int) = "cloud_code_url in CLI config is properly configured to http://127.0.0.1:$port."
+    override val doctorCheckCliOfficialTitle = "Antigravity CLI is in official mode (No proxy)"
+    override val doctorCheckCliOfficialMsg = "CLI is currently in official direct mode."
+    override fun doctorCheckProviderInvalidModelsTitle(provider: String) = "Provider \"$provider\" has invalid models"
+    override fun doctorCheckProviderInvalidModelsMsg(models: String) = "Upstream does not provide the following models: $models."
+    override val doctorCheckProviderInvalidModelsSugg = "Prune invalid models to avoid request errors."
+    override fun doctorCheckProviderOkTitle(provider: String) = "Provider \"$provider\" connected successfully"
+    override fun doctorCheckProviderOkMsg(count: Int) = "Authentication verified; all $count models are available in upstream catalog."
+    override fun doctorCheckProviderUnverifiedTitle(provider: String) = "Provider \"$provider\" reachable but catalog unverified"
+    override val doctorCheckProviderUnverifiedMsg = "Connected to upstream, but endpoint returned no parseable model catalog."
+    override val doctorCheckProviderUnverifiedSugg = "Verify models endpoint configuration and check model IDs manually."
 
     override val commonSave = "Save"
     override val commonCancel = "Cancel"
@@ -475,4 +1755,25 @@ object StringsEn : Strings {
     override val commonSuccess = "Success"
     override val commonError = "Error"
     override val commonCopied = "Copied to clipboard"
+    override val commonGotIt = "Got it"
+    override val commonRefresh = "Refresh"
+    override val commonRetry = "Retry"
+    override val commonSearch = "Search..."
+    override val commonClear = "Clear"
+    override val commonSelectAll = "Select All"
+    override val commonUnselectAll = "Deselect All"
+    override val commonNotSet = "Not Set"
+    override val commonUnknown = "Unknown"
+    override val commonOptional = "Optional"
+    override val commonUnsaved = "Unsaved"
+    override val trayShowMainWindow = "Show Main Window"
+    override val trayQuitApplication = "Quit"
+
+    override fun proxyStarted(port: Int) = "Local proxy started ($port)"
+    override fun proxyStartFailed(error: String) = "Failed to start local proxy: $error"
+    override val proxyStopped = "Local proxy stopped"
+    override fun proxyRestarted(port: Int) = "Local proxy restarted ($port)"
+    override fun proxyRestartFailed(error: String) = "Failed to restart local proxy: $error"
+    override fun proxyTestSuccess(latencyMs: Long) = "Proxy connection test succeeded (${latencyMs}ms)"
+    override fun proxyTestFailed(error: String) = "Proxy connection test failed: $error"
 }

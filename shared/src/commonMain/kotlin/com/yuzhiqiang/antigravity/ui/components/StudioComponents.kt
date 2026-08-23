@@ -269,9 +269,11 @@ fun EmptyStateView(
 fun StudioSearchField(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String = "搜索...",
+    placeholder: String? = null,
     modifier: Modifier = Modifier
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
+    val effectivePlaceholder = placeholder ?: s.commonSearch
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -299,7 +301,7 @@ fun StudioSearchField(
                 Box(modifier = Modifier.weight(1f)) {
                     if (value.isEmpty()) {
                         Text(
-                            text = placeholder,
+                            text = effectivePlaceholder,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                             maxLines = 1
@@ -310,7 +312,7 @@ fun StudioSearchField(
                 if (value.isNotEmpty()) {
                     Icon(
                         imageVector = Icons.Outlined.Close,
-                        contentDescription = "清除",
+                        contentDescription = s.commonClear,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .size(AppTokens.Size.iconSmall)

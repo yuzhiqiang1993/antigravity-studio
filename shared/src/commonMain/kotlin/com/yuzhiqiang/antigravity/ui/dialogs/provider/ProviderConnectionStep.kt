@@ -53,6 +53,7 @@ fun ProviderConnectionStep(
     isFetching: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     var protocolMenuExpanded by remember { mutableStateOf(false) }
     var showApiKey by remember { mutableStateOf(false) }
     var showAdvancedEndpoints by remember { mutableStateOf(modelsEndpoint.isNotBlank() || generateEndpoint.isNotBlank()) }
@@ -86,7 +87,7 @@ fun ProviderConnectionStep(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "上游服务名称",
+                        text = s.providerNameLabel,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
@@ -102,11 +103,11 @@ fun ProviderConnectionStep(
                 StudioCustomTextField(
                     value = name,
                     onValueChange = onNameChange,
-                    placeholder = "例如 CLIProxyAPI、公司代理、DeepSeek",
+                    placeholder = s.providerNamePlaceholder,
                     enabled = !isFetching
                 )
                 Text(
-                    text = "自定义显示名称，用于在路由和模型列表区分服务来源",
+                    text = s.providerNameDesc,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
@@ -117,7 +118,7 @@ fun ProviderConnectionStep(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = "API 协议",
+                    text = s.providerProtocolLabel,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
@@ -193,10 +194,10 @@ fun ProviderConnectionStep(
                 }
                 Text(
                     text = when (protocol) {
-                        ProviderProtocol.OPENAI_CHAT_COMPLETIONS -> "适用于 /v1/chat/completions；CLIProxyAPI、Sub2API 及标准兼容网关"
-                        ProviderProtocol.ANTHROPIC_MESSAGES -> "适用于 Anthropic 官方 /v1/messages 协议"
-                        ProviderProtocol.GEMINI_GENERATE_CONTENT -> "适用于 Google Gemini 官方 generateContent 协议"
-                        ProviderProtocol.OPENAI_RESPONSES -> "适用于 OpenAI Responses API 原生结构协议"
+                        ProviderProtocol.OPENAI_CHAT_COMPLETIONS -> s.providerProtocolOpenAIChatDesc
+                        ProviderProtocol.ANTHROPIC_MESSAGES -> s.providerProtocolAnthropicDesc
+                        ProviderProtocol.GEMINI_GENERATE_CONTENT -> s.providerProtocolGeminiDesc
+                        ProviderProtocol.OPENAI_RESPONSES -> s.providerProtocolOpenAIResponsesDesc
                     },
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
@@ -218,7 +219,7 @@ fun ProviderConnectionStep(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "API 地址 (Base URL)",
+                        text = s.providerBaseUrlLabel,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
@@ -234,11 +235,11 @@ fun ProviderConnectionStep(
                 StudioCustomTextField(
                     value = baseUrl,
                     onValueChange = onBaseUrlChange,
-                    placeholder = "例如 https://api.openai.com/v1",
+                    placeholder = s.providerBaseUrlPlaceholder,
                     enabled = !isFetching
                 )
                 Text(
-                    text = "输入根地址后系统将自动推断补全模型列表与生成响应接口",
+                    text = s.providerBaseUrlDesc,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
@@ -253,7 +254,7 @@ fun ProviderConnectionStep(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "API Key",
+                        text = s.providerApiKeyLabel,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
@@ -267,7 +268,7 @@ fun ProviderConnectionStep(
                             .padding(horizontal = 5.dp, vertical = 1.5.dp)
                     ) {
                         Text(
-                            text = "选填",
+                            text = s.reasoningOptional,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Medium
@@ -279,7 +280,7 @@ fun ProviderConnectionStep(
                 StudioCustomTextField(
                     value = apiKey,
                     onValueChange = onApiKeyChange,
-                    placeholder = "输入 API Key（无鉴权则留空）",
+                    placeholder = s.providerApiKeyPlaceholder,
                     enabled = !isFetching,
                     isPassword = true,
                     showPasswordToggle = true,
@@ -287,7 +288,7 @@ fun ProviderConnectionStep(
                     onPasswordToggle = { showApiKey = !showApiKey }
                 )
                 Text(
-                    text = "如服务无需鉴权可留空",
+                    text = s.providerApiKeyDesc,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
@@ -335,7 +336,7 @@ fun ProviderConnectionStep(
                                 .graphicsLayer { rotationZ = chevronRotation }
                         )
                         Text(
-                            "高级设置（自定义端点 URL）",
+                            s.providerAdvancedSettings,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -344,7 +345,7 @@ fun ProviderConnectionStep(
                         )
                     }
                     Text(
-                        text = if (showAdvancedEndpoints) "收起" else "默认由 Base URL 自动生成",
+                        text = if (showAdvancedEndpoints) s.providerAdvancedCollapse else s.providerAdvancedAutoGenerated,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                     )
@@ -369,7 +370,7 @@ fun ProviderConnectionStep(
                             verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Text(
-                                text = "模型列表接口 (自定义)",
+                                text = s.providerCustomModelsEndpoint,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
@@ -379,7 +380,7 @@ fun ProviderConnectionStep(
                             StudioCustomTextField(
                                 value = modelsEndpoint,
                                 onValueChange = onModelsEndpointChange,
-                                placeholder = "留空自动推断",
+                                placeholder = s.providerEndpointAutoInferPlaceholder,
                                 enabled = !isFetching
                             )
                         }
@@ -389,7 +390,7 @@ fun ProviderConnectionStep(
                             verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Text(
-                                text = "生成响应接口 (自定义)",
+                                text = s.providerCustomCompletionsEndpoint,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
@@ -399,7 +400,7 @@ fun ProviderConnectionStep(
                             StudioCustomTextField(
                                 value = generateEndpoint,
                                 onValueChange = onGenerateEndpointChange,
-                                placeholder = "留空自动推断",
+                                placeholder = s.providerEndpointAutoInferPlaceholder,
                                 enabled = !isFetching
                             )
                         }
@@ -516,13 +517,14 @@ private fun StudioCustomTextField(
                     innerTextField()
                 }
                 if (showPasswordToggle && onPasswordToggle != null) {
+                    val s = com.yuzhiqiang.antigravity.i18n.strings()
                     IconButton(
                         onClick = onPasswordToggle,
                         modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = if (isPasswordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                            contentDescription = if (isPasswordVisible) "隐藏密码" else "显示密码",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
@@ -544,6 +546,7 @@ private fun StudioSelectField(
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
@@ -594,7 +597,7 @@ private fun StudioSelectField(
             )
             Icon(
                 imageVector = Icons.Outlined.ExpandMore,
-                contentDescription = "选择",
+                contentDescription = null,
                 tint = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .size(18.dp)

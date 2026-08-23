@@ -56,13 +56,14 @@ fun OfficialCatalogDebugDialog(
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    val s = com.yuzhiqiang.antigravity.i18n.strings()
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier.size(AppTokens.Size.compactControlHeight)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "关闭",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(AppTokens.Size.iconMedium)
                         )
@@ -89,12 +90,13 @@ fun OfficialCatalogDebugDialog(
                     )
                 }
 
+                val s = com.yuzhiqiang.antigravity.i18n.strings()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) { Text("关闭") }
+                    TextButton(onClick = onDismiss) { Text(s.commonClose) }
                     Spacer(Modifier.width(AppTokens.Spacing.control))
                     Button(
                         onClick = onCopy,
@@ -111,7 +113,7 @@ fun OfficialCatalogDebugDialog(
                             modifier = Modifier.size(AppTokens.Size.iconSmall)
                         )
                         Spacer(Modifier.width(AppTokens.Spacing.compact))
-                        Text("复制 JSON", style = MaterialTheme.typography.labelLarge)
+                        Text(s.modelsCopyJson, style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }

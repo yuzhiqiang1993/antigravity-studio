@@ -18,6 +18,9 @@ enum class AppLanguage(val code: String, val displayName: String) {
 
 object I18nManager {
     var currentLanguage: AppLanguage by mutableStateOf(AppLanguage.ZH_CN)
+
+    val strings: Strings
+        get() = if (currentLanguage == AppLanguage.ZH_CN) StringsZh else StringsEn
 }
 
 val LocalStrings = compositionLocalOf<Strings> { StringsZh }

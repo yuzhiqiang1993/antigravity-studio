@@ -41,6 +41,7 @@ fun ReasoningDetailDialog(
     reasoningLevels: List<String>,
     onDismiss: () -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
@@ -83,7 +84,7 @@ fun ReasoningDetailDialog(
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                             Text(
-                                text = "深度思考与推理能力",
+                                text = s.modelReasoningTitle,
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -100,7 +101,7 @@ fun ReasoningDetailDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "关闭",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(AppTokens.Size.iconMedium)
                         )
@@ -110,7 +111,7 @@ fun ReasoningDetailDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Text(
-                    text = "该模型支持深度思考/推理模式。在与 IDE 协同对话时，模型可开启思考链，分析复杂逻辑与架构代码：",
+                    text = s.modelReasoningDesc,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -137,17 +138,17 @@ fun ReasoningDetailDialog(
                             )
                             Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                                 Text(
-                                    text = "档位: $level",
+                                    text = s.modelReasoningLevel(level),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = when (level.lowercase()) {
-                                        "high", "max" -> "高预算思考 (适合极度复杂的算法与重构方案)"
-                                        "medium" -> "标准思考 (平衡推理深度与响应延迟)"
-                                        "low" -> "轻量思考 (快速给出思考结论)"
-                                        else -> "模型原生自适应深度思考"
+                                        "high", "max" -> s.modelReasoningHighDesc
+                                        "medium" -> s.modelReasoningMediumDesc
+                                        "low" -> s.modelReasoningLowDesc
+                                        else -> s.modelReasoningAdaptiveDesc
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -166,7 +167,7 @@ fun ReasoningDetailDialog(
                         shape = RoundedCornerShape(AppTokens.Radius.medium),
                         contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.xs)
                     ) {
-                        Text("知道了", style = MaterialTheme.typography.labelMedium)
+                        Text(s.commonGotIt, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -183,6 +184,7 @@ fun MultimodalDetailDialog(
     supportsVision: Boolean,
     onDismiss: () -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
@@ -224,7 +226,7 @@ fun MultimodalDetailDialog(
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                             Text(
-                                text = "多模态输入支持",
+                                text = s.modelVisionTitle,
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -241,7 +243,7 @@ fun MultimodalDetailDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "关闭",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(AppTokens.Size.iconMedium)
                         )
@@ -251,7 +253,7 @@ fun MultimodalDetailDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Text(
-                    text = "多模态能力允许模型直接理解视觉截图、设计图纸、架构图与代码引用：",
+                    text = s.modelVisionDesc,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -259,20 +261,20 @@ fun MultimodalDetailDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)) {
                     ModalityItem(
                         icon = Icons.Outlined.Image,
-                        title = "图像解析 (Vision)",
-                        desc = "支持上传 PNG / JPEG / WEBP 设计图、UI 报错截图进行直接分析",
+                        title = s.modelVisionImageTitle,
+                        desc = s.modelVisionImageDesc,
                         enabled = supportsVision
                     )
                     ModalityItem(
                         icon = Icons.Outlined.Description,
-                        title = "文档理解 (Document)",
-                        desc = "支持原生阅读 PDF / 文本规范文档并提取代码上下文",
+                        title = s.modelVisionDocTitle,
+                        desc = s.modelVisionDocDesc,
                         enabled = true
                     )
                     ModalityItem(
                         icon = Icons.Outlined.Build,
-                        title = "工具调用 (Function Calling)",
-                        desc = "支持 IDE 工具自动化执行与终端命令联动",
+                        title = s.modelToolsFunctionTitle,
+                        desc = s.modelToolsFunctionDesc,
                         enabled = true
                     )
                 }
@@ -286,7 +288,7 @@ fun MultimodalDetailDialog(
                         shape = RoundedCornerShape(AppTokens.Radius.medium),
                         contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.xs)
                     ) {
-                        Text("知道了", style = MaterialTheme.typography.labelMedium)
+                        Text(s.commonGotIt, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -301,53 +303,59 @@ private fun ModalityItem(
     desc: String,
     enabled: Boolean
 ) {
-    val container = if (enabled) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    val iconBg = if (enabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-    val iconTint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-    val textTitleColor = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(AppTokens.Radius.medium))
-            .background(container)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(AppTokens.Radius.medium))
+            .background(
+                if (enabled) MaterialTheme.colorScheme.surfaceVariant
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            )
+            .border(
+                1.dp,
+                if (enabled) MaterialTheme.colorScheme.outlineVariant
+                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                RoundedCornerShape(AppTokens.Radius.medium)
+            )
             .padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.content),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(36.dp)
                 .clip(RoundedCornerShape(AppTokens.Radius.small))
-                .background(iconBg),
+                .background(
+                    if (enabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
+                ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = iconTint,
+                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(AppTokens.Size.iconMedium)
             )
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
+        Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = textTitleColor
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
             Text(
                 text = desc,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
             )
         }
     }
 }
 
 /**
- * 模型上下文限制与元数据详情弹窗
+ * 模型参数详情弹窗
  */
 @Composable
 fun ModelInfoDialog(
@@ -358,6 +366,7 @@ fun ModelInfoDialog(
     roles: List<String>,
     onDismiss: () -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
@@ -399,7 +408,7 @@ fun ModelInfoDialog(
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                             Text(
-                                text = "模型规格与元数据",
+                                text = s.modelSpecsTitle,
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -416,7 +425,7 @@ fun ModelInfoDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "关闭",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(AppTokens.Size.iconMedium)
                         )
@@ -434,10 +443,10 @@ fun ModelInfoDialog(
                         .padding(AppTokens.Spacing.card),
                     verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
                 ) {
-                    InfoRow("模型标识 (ID)", modelId, isMonospace = true)
-                    InfoRow("上下文总窗口", if (contextLimit != null && contextLimit > 0) "${contextLimit / 1000}K Tokens (${contextLimit} tokens)" else "官方动态配置")
-                    InfoRow("单次最大输出", if (outputLimit != null && outputLimit > 0) "${outputLimit / 1000}K Tokens (${outputLimit} tokens)" else "官方默认限制")
-                    InfoRow("分配角色", if (roles.isNotEmpty()) roles.joinToString(", ") else "Agent, Code Assistance")
+                    InfoRow(s.modelSpecsId, modelId, isMonospace = true)
+                    InfoRow(s.modelSpecsContextWindow, if (contextLimit != null && contextLimit > 0) "${contextLimit / 1000}K Tokens (${contextLimit} tokens)" else s.modelSpecsDynamicConfig)
+                    InfoRow(s.modelSpecsMaxOutput, if (outputLimit != null && outputLimit > 0) "${outputLimit / 1000}K Tokens (${outputLimit} tokens)" else s.modelSpecsDefaultLimit)
+                    InfoRow(s.modelSpecsRoles, if (roles.isNotEmpty()) roles.joinToString(", ") else "Agent, Code Assistance")
                 }
 
                 Row(
@@ -449,7 +458,7 @@ fun ModelInfoDialog(
                         shape = RoundedCornerShape(AppTokens.Radius.medium),
                         contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.xs)
                     ) {
-                        Text("确定", style = MaterialTheme.typography.labelMedium)
+                        Text(s.commonGotIt, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }

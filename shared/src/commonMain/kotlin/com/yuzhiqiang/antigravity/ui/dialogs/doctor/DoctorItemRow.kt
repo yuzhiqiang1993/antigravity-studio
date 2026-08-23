@@ -27,6 +27,7 @@ fun DoctorItemRow(
     item: DoctorCheckItem,
     onRunFix: (DoctorFixAction) -> Unit
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     var isActionInProgress by remember { mutableStateOf(false) }
     val statusTone = when (item.status) {
         DoctorCheckStatus.PASSED -> BadgeTone.SUCCESS
@@ -49,20 +50,15 @@ fun DoctorItemRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)
             ) {
-                val titleAnnotated = remember(item.title) {
+                val s = com.yuzhiqiang.antigravity.i18n.strings()
+                val suffix = s.doctorCheckIdeRunningSuffix
+                val titleAnnotated = remember(item.title, suffix) {
                     buildAnnotatedString {
-                        if (item.title.contains("（未接入代理）")) {
-                            val parts = item.title.split("（未接入代理）")
+                        if (suffix.isNotBlank() && item.title.contains(suffix)) {
+                            val parts = item.title.split(suffix)
                             append(parts[0])
                             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                                append("（未接入代理）")
-                            }
-                            if (parts.size > 1) append(parts[1])
-                        } else if (item.title.contains("(未接入代理)")) {
-                            val parts = item.title.split("(未接入代理)")
-                            append(parts[0])
-                            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                                append("(未接入代理)")
+                                append(suffix)
                             }
                             if (parts.size > 1) append(parts[1])
                         } else {
@@ -89,15 +85,15 @@ fun DoctorItemRow(
 
             if (item.autoFixable && item.fixAction != null) {
                 val actionLabel = when (item.fixAction) {
-                    is DoctorFixAction.StartProxy -> "启动代理"
-                    is DoctorFixAction.OpenAddProvider -> "去配置"
-                    is DoctorFixAction.RepairIdeSettings, is DoctorFixAction.RepairAppEnvironment -> "一键接入"
-                    is DoctorFixAction.UpdateIdeSettings, is DoctorFixAction.UpdateAppEnvironment, is DoctorFixAction.UpdateCliConfig -> "更新配置"
-                    is DoctorFixAction.ResetIdeHostToOfficial, is DoctorFixAction.ResetAppHostToOfficial, is DoctorFixAction.ResetCliHostToOfficial -> "重置官方"
-                    is DoctorFixAction.RestartIdeHost -> "重启 IDE"
-                    is DoctorFixAction.RestartAppHost -> "重启 App"
-                    is DoctorFixAction.PruneInvalidModels -> "清理模型"
-                    is DoctorFixAction.RetestNetwork -> "重试"
+                    is DoctorFixAction.StartProxy -> s.doctorFixStartProxy
+                    is DoctorFixAction.OpenAddProvider -> s.doctorFixGoConfigure
+                    is DoctorFixAction.RepairIdeSettings, is DoctorFixAction.RepairAppEnvironment -> s.doctorFixOneClickEnable
+                    is DoctorFixAction.UpdateIdeSettings, is DoctorFixAction.UpdateAppEnvironment, is DoctorFixAction.UpdateCliConfig -> s.doctorFixUpdateConfig
+                    is DoctorFixAction.ResetIdeHostToOfficial, is DoctorFixAction.ResetAppHostToOfficial, is DoctorFixAction.ResetCliHostToOfficial -> s.doctorFixResetOfficial
+                    is DoctorFixAction.RestartIdeHost -> s.doctorFixRestartIde
+                    is DoctorFixAction.RestartAppHost -> s.doctorFixRestartApp
+                    is DoctorFixAction.PruneInvalidModels -> s.doctorFixPruneModels
+                    is DoctorFixAction.RetestNetwork -> s.doctorFixRetry
                 }
 
                 FilledTonalButton(
@@ -124,10 +120,10 @@ fun DoctorItemRow(
                 }
             } else {
                 val label = when (item.status) {
-                    DoctorCheckStatus.PASSED -> "正常"
-                    DoctorCheckStatus.INFO -> "直连"
-                    DoctorCheckStatus.WARNING -> "警告"
-                    DoctorCheckStatus.FAILED -> "异常"
+                    DoctorCheckStatus.PASSED -> s.doctorPassed
+                    DoctorCheckStatus.INFO -> s.doctorDirect
+                    DoctorCheckStatus.WARNING -> s.doctorWarning
+                    DoctorCheckStatus.FAILED -> s.doctorFailed
                 }
 
                 StatusBadge(
@@ -149,7 +145,7 @@ fun DoctorItemRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "💡 建议: " + item.suggestion,
+                    text = s.doctorSuggestionPrefix + item.suggestion,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )

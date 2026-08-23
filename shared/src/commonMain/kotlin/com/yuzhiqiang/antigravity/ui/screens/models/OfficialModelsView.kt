@@ -37,9 +37,14 @@ fun OfficialModelsView(
     onEditPolicy: (String) -> Unit,
     onOpenVisionDetail: (String, Boolean) -> Unit,
     onOpenReasoningDetail: (String, List<String>) -> Unit,
-    onOpenInfoDetail: (ModelMetaInfo) -> Unit
+    onOpenInfoDetail: (ModelMetaInfo) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -60,10 +65,10 @@ fun OfficialModelsView(
             ) {
                 val hasError = fetchError != null || (testSummary != null && !isTestSuccess)
                 val statusText = testSummary
-                    ?: fetchError?.let { error -> "官方模型同步失败：$error" }
-                    ?: if (isFetching) "正在同步官方模型数据..."
-                    else if (groupedModels.isNotEmpty()) "官方模型数据已同步"
-                    else "等待同步官方模型数据"
+                    ?: fetchError?.let { error -> s.modelsOfficialSyncFailed(error) }
+                    ?: if (isFetching) s.modelsOfficialSyncing
+                    else if (groupedModels.isNotEmpty()) s.modelsOfficialSynced
+                    else s.modelsOfficialWaitingSync
                 val statusColor = when {
                     isTesting || isFetching -> AppStatusColors.warning
                     hasError -> MaterialTheme.colorScheme.error
@@ -91,24 +96,24 @@ fun OfficialModelsView(
             ) {
                 ModernToolButton(
                     icon = Icons.Outlined.Sensors,
-                    text = if (isTesting) "测试中..." else "测试连接",
+                    text = if (isTesting) s.modelsTesting else s.modelsTestConnection,
                     onClick = onTestConnection,
                     enabled = !isTesting
                 )
                 ModernToolButton(
                     icon = Icons.Outlined.Refresh,
-                    text = if (isFetching) "刷新中..." else "刷新",
+                    text = if (isFetching) s.modelsFetchingOfficial else s.commonRefresh,
                     onClick = onRefresh,
                     enabled = !isFetching
                 )
                 ModernToolButton(
                     icon = Icons.Outlined.Code,
-                    text = "原始 JSON",
+                    text = s.modelsRawJson,
                     onClick = onViewRawJson
                 )
                 ModernToolButton(
                     icon = Icons.Outlined.Visibility,
-                    text = "修改后 JSON",
+                    text = s.modelsModifiedJson,
                     onClick = onViewModifiedJson
                 )
             }
@@ -150,12 +155,12 @@ fun OfficialModelsView(
                         modifier = Modifier.size(40.dp)
                     )
                     Text(
-                        text = "当前未探测到官方原生模型",
+                        text = s.modelsNoOfficialDetected,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "请确认已在「运行概览」中打开 Antigravity IDE 或 App，随后点击「刷新」",
+                        text = s.modelsNoOfficialHint,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -168,7 +173,7 @@ fun OfficialModelsView(
                     ) {
                         Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
                         Spacer(Modifier.width(AppTokens.Spacing.xs))
-                        Text("刷新官方模型", style = MaterialTheme.typography.labelMedium)
+                        Text(s.modelsRefreshOfficial, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }

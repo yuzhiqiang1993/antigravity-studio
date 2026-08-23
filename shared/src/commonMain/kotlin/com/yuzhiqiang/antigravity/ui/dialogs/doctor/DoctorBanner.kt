@@ -36,6 +36,7 @@ private data class DoctorStatusStyle(
 
 @Composable
 fun DoctorBanner(report: DoctorReport) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     val totalCount = report.items.size
     val passCount = report.items.count {
         it.status == DoctorCheckStatus.PASSED || it.status == DoctorCheckStatus.INFO
@@ -48,27 +49,26 @@ fun DoctorBanner(report: DoctorReport) {
             bannerBg = statusColors.successContainer,
             bannerBorder = statusColors.success.copy(alpha = 0.3f),
             iconColor = statusColors.success,
-            titleText = "全链路状态良好，各项配置已就绪",
+            titleText = s.doctorBannerGood,
             titleColor = statusColors.onSuccessContainer
         )
         DoctorCheckStatus.WARNING -> DoctorStatusStyle(
             bannerBg = statusColors.warningContainer,
             bannerBorder = statusColors.warning.copy(alpha = 0.3f),
             iconColor = statusColors.warning,
-            titleText = "部分配置待完善",
+            titleText = s.doctorBannerWarning,
             titleColor = statusColors.onWarningContainer
         )
         DoctorCheckStatus.FAILED -> DoctorStatusStyle(
             bannerBg = statusColors.errorContainer,
             bannerBorder = statusColors.error.copy(alpha = 0.3f),
             iconColor = statusColors.error,
-            titleText = "检测到系统运行异常",
+            titleText = s.doctorBannerError,
             titleColor = statusColors.onErrorContainer
         )
     }
 
-    val issueText = if (issueCount > 0) " • " + issueCount + " 项待处理" else ""
-    val statsText = "共 " + totalCount + " 项检测 • " + passCount + " 项正常" + issueText
+    val statsText = s.doctorBannerStats(totalCount, passCount, issueCount)
 
     val sdf = remember { SimpleDateFormat("HH:mm:ss") }
     val timeStr = sdf.format(Date(report.timestamp))
@@ -113,7 +113,7 @@ fun DoctorBanner(report: DoctorReport) {
         }
 
         Text(
-            text = "体检时间: " + timeStr,
+            text = s.doctorCheckedAt(timeStr),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
