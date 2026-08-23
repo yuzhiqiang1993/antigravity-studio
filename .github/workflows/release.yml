@@ -29,29 +29,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS Apple Silicon (M1/M2/M3/M4 系列芯片原生构建)
+          # macOS Apple Silicon (M1/M2/M3/M4 系列芯片原生 DMG)
           - os: macos-14
             os_label: macOS-AppleSilicon-arm64
             platform: macos
             arch: arm64
             jdk_arch: aarch64
-            formats: dmg,pkg
+            formats: dmg
 
-          # macOS Intel (在 macos-14 上通过 x64 JDK 原生交叉构建 x86_64 包，秒级出包)
+          # macOS Intel (在 macos-14 上通过 x64 JDK 原生构建 Intel DMG)
           - os: macos-14
             os_label: macOS-Intel-x64
             platform: macos
             arch: x64
             jdk_arch: x64
-            formats: dmg,pkg
+            formats: dmg
 
-          # Windows x64
+          # Windows x64 (原生 EXE 安装器)
           - os: windows-latest
             os_label: Windows-x64
             platform: windows
             arch: x64
             jdk_arch: x64
-            formats: msi,exe
+            formats: exe
 
     steps:
       - name: Checkout repository
@@ -74,18 +74,18 @@ jobs:
           chmod +x gradlew
           chmod +x app_build.sh
 
-      # macOS / Linux 构建与打包
+      # macOS 构建与打包 (只打 DMG)
       - name: Build and Package Desktop App (Unix)
         if: runner.os != 'Windows'
         run: |
-          ./app_build.sh build --build-type release --formats ${{ matrix.formats }}
+          ./app_build.sh build --build-type release --formats dmg
 
-      # Windows 构建与打包
+      # Windows 构建与打包 (只打 EXE)
       - name: Build and Package Desktop App (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          ./gradlew :desktopApp:packageDistributionForCurrentOS -PbuildType=release
+          ./gradlew :desktopApp:packageExe -PbuildType=release
 
       # 规范化重命名与整理产物 (Unix)
       - name: Organize & Normalize Artifacts (Unix)
@@ -95,13 +95,9 @@ jobs:
           VERSION=$(./app_build.sh help | head -n 1 > /dev/null; grep 'packageVersion\s*=' desktopApp/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
           ARCH="${{ matrix.arch }}"
           
-          # DMG
+          # DMG 推荐安装包
           if [ -f "desktopApp/build/compose/binaries/main/dmg/Antigravity Studio-$VERSION.dmg" ]; then
             cp "desktopApp/build/compose/binaries/main/dmg/Antigravity Studio-$VERSION.dmg" "release-artifacts/Antigravity-Studio-$VERSION-macos-$ARCH.dmg"
-          fi
-          # PKG
-          if [ -f "desktopApp/build/compose/binaries/main/pkg/Antigravity Studio-$VERSION.pkg" ]; then
-            cp "desktopApp/build/compose/binaries/main/pkg/Antigravity Studio-$VERSION.pkg" "release-artifacts/Antigravity-Studio-$VERSION-macos-$ARCH.pkg"
           fi
 
       # 规范化重命名与整理产物 (Windows)
@@ -114,33 +110,9 @@ jobs:
           $versionMatch = [regex]::Match($gradleContent, 'packageVersion\s*=\s*"([^"]+)"')
           $version = if ($versionMatch.Success) { $versionMatch.Groups[1].Value } else { "1.0.0" }
           
-          # MSI
-          if (Test-Path "desktopApp/build/compose/binaries/main/msi/Antigravity Studio-$version.msi") {
-            Copy-Item "desktopApp/build/compose/binaries/main/msi/Antigravity Studio-$version.msi" "release-artifacts/Antigravity-Studio-$version-windows-x64.msi"
-          }
-          # EXE
+          # EXE 推荐安装包
           if (Test-Path "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe") {
             Copy-Item "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe" "release-artifacts/Antigravity-Studio-$version-windows-x64.exe"
-          }
-
-      # 生成 SHA256 校验和
-      - name: Generate Checksums (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          cd release-artifacts
-          for f in *; do
-            if [ -f "$f" ]; then
-              shasum -a 256 "$f" > "$f.sha256"
-            fi
-          done
-
-      - name: Generate Checksums (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Get-ChildItem release-artifacts -File | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($_.Name)" | Out-File -FilePath "$($_.FullName).sha256" -Encoding ascii
           }
 
       # 上传当前 Job 产物作为 Workflow Artifacts

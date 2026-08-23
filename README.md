@@ -1,6 +1,6 @@
 # Antigravity Studio (AGY Studio)
 
-简体中文 · [English](README.en.md)
+简体中文 · [English](README.en.md) · [更新日志](CHANGELOG.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: macOS | Windows](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey.svg)](#安装指南)
@@ -173,9 +173,9 @@ Antigravity IDE / App / CLI
 
 | 操作系统与平台 | 推荐安装包格式 | 说明 |
 | :--- | :--- | :--- |
-| **macOS (Apple Silicon)** | `Antigravity-Studio-1.0.0-macos-arm64.dmg` / `.pkg` | 原生适配 M1/M2/M3/M4 系列芯片 Mac |
-| **macOS (Intel)** | `Antigravity-Studio-1.0.0-macos-x64.dmg` / `.pkg` | 原生适配 Intel x86_64 架构 Mac |
-| **Windows (x64)** | `Antigravity-Studio-1.0.0-windows-x64.msi` / `.exe` | 适配 64 位 Windows 10/11 |
+| **macOS (Apple Silicon)** | `Antigravity-Studio-1.0.0-macos-arm64.dmg` | 原生适配 M1/M2/M3/M4 系列芯片 Mac |
+| **macOS (Intel)** | `Antigravity-Studio-1.0.0-macos-x64.dmg` | 原生适配 Intel x86_64 架构 Mac |
+| **Windows (x64)** | `Antigravity-Studio-1.0.0-windows-x64.exe` | 适配 64 位 Windows 10/11 |
 
 #### macOS 首次打开提示未签名或损坏？
 

@@ -1,6 +1,6 @@
 # Antigravity Studio (AGY Studio)
 
-[简体中文](README.md) · English
+[简体中文](README.md) · English · [Changelog](CHANGELOG.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: macOS | Windows](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey.svg)](#installation)
@@ -173,9 +173,9 @@ Visit [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/rel
 
 | Operating System & Platform | Recommended Package | Description |
 | :--- | :--- | :--- |
-| **macOS (Apple Silicon)** | `Antigravity-Studio-1.0.0-macos-arm64.dmg` / `.pkg` | Native for M1 / M2 / M3 / M4 Macs |
-| **macOS (Intel)** | `Antigravity-Studio-1.0.0-macos-x64.dmg` / `.pkg` | Native for Intel x86_64 Macs |
-| **Windows (x64)** | `Antigravity-Studio-1.0.0-windows-x64.msi` / `.exe` | For 64-bit Windows 10/11 |
+| **macOS (Apple Silicon)** | `Antigravity-Studio-1.0.0-macos-arm64.dmg` | Native for M1 / M2 / M3 / M4 Macs |
+| **macOS (Intel)** | `Antigravity-Studio-1.0.0-macos-x64.dmg` | Native for Intel x86_64 Macs |
+| **Windows (x64)** | `Antigravity-Studio-1.0.0-windows-x64.exe` | For 64-bit Windows 10/11 |
 
 #### First Launch on macOS (Unsigned App Workaround)
 
