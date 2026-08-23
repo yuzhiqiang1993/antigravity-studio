@@ -331,15 +331,24 @@ object HostOwnershipStore {
         return prefix + separator + "  \"$IDE_SETTING_KEY\": \"$endpoint\"\n" + suffix
     }
 
-   private fun removeIdeEndpoint(content: String): String? {
-       var updated = content.replace(
-           Regex("[ \t]*\"$IDE_SETTING_KEY\"\s*:\s*\"[^\"]*\"\s*,?[ \t]*\r?\n?"),
-           ""
-       )
-       updated = updated.replace(Regex(",([ \t\r\n]*})"), "$1")
-       updated = updated.replace(Regex("(\{[ \t\r\n]*),"), "$1")
-       return updated
-   }
+    private fun removeIdeEndpoint(content: String): String? {
+        val lineMatch = IDE_LINE_REGEX.find(content)
+        var updated = if (lineMatch != null) {
+            content.removeRange(lineMatch.range)
+        } else {
+            val inlineMatch = IDE_ENDPOINT_REGEX.find(content)
+            if (inlineMatch != null) {
+                content.removeRange(inlineMatch.range)
+            } else {
+                content
+            }
+        }
+        val trailingCommaRegex = Regex(""",(\s*\})""")
+        updated = trailingCommaRegex.replace(updated, "$1")
+        val leadingCommaRegex = Regex("""(\{\s*),""")
+        updated = leadingCommaRegex.replace(updated, "$1")
+        return updated
+    }
 
     private fun environmentReceiptFile(): File {
         return integrationRoot().resolve(ENVIRONMENT_RECEIPT_FILE)
@@ -491,3 +500,4 @@ object HostOwnershipStore {
         "(?m)^[ \\t]*\\\"$IDE_SETTING_KEY\\\"\\s*:\\s*\\\"[^\\\"]*\\\"\\s*,?[ \\t]*\\r?\\n?"
     )
 }
+
