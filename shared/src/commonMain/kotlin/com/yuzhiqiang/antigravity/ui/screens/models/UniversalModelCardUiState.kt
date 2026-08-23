@@ -1,11 +1,14 @@
 package com.yuzhiqiang.antigravity.ui.screens.models
 
+import androidx.compose.runtime.Immutable
+
 import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
 import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
 import com.yuzhiqiang.antigravity.ui.dialogs.provider.formatTokenDisplay
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 
+@Immutable
 data class UniversalModelCardUiState(
     val title: String,
     val subtitle: String? = null,

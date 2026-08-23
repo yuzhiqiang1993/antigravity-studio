@@ -77,34 +77,12 @@ class LocalProxyServer(
                     allowHeaders { true }
                 }
                 routing {
-                    get("/health") {
-                        call.respondText(
-                            "{\"status\":\"ok\",\"product\":\"antigravity-studio\",\"port\":$availablePort,\"capabilities\":{\"models\":true,\"generate\":true,\"stream\":true}}",
-                            ContentType.Application.Json
-                        )
+                    options("/{...}") {
+                        call.respond(HttpStatusCode.OK)
                     }
-                    get("/healthz") {
-                        call.respondText(
-                            "{\"status\":\"ok\",\"product\":\"antigravity-studio\",\"port\":$availablePort}",
-                            ContentType.Application.Json
-                        )
-                    }
-                    get("/v1beta/models") {
-                        controlPlaneSemaphore.withPermit { respondModelCatalog(call) }
-                    }
-                    get("/v1/models") {
-                        controlPlaneSemaphore.withPermit { respondModelCatalog(call) }
-                    }
-                    get("/antigravity/official-catalog") {
-                        controlPlaneSemaphore.withPermit { respondPureOfficialCatalog(call) }
-                    }
-                    post("/health") { respondMethodNotAllowed(call) }
-                    post("/healthz") { respondMethodNotAllowed(call) }
-                    post("/v1/models") { respondMethodNotAllowed(call) }
-                    post("/v1beta/models") { respondMethodNotAllowed(call) }
                     post("/{...}") {
                         val normalizedPath = normalizeProxyPath(call.request.path())
-                        when {
+                                                when {
                             isFixedGetPath(normalizedPath) -> respondMethodNotAllowed(call)
                             isOfficialCatalogFetchPath(normalizedPath) -> {
                                 controlPlaneSemaphore.withPermit { handleChatRequest(call) }
@@ -118,12 +96,12 @@ class LocalProxyServer(
                     get("/{...}") {
                         val normalizedPath = normalizeProxyPath(call.request.path())
                         when (normalizedPath) {
-                           "/health" -> call.respondText(
-                                "{\"status\":\"ok\",\"product\":\"antigravity-studio\",\"port\":$availablePort,\"capabilities\":{\"models\":true,\"generate\":true,\"stream\":true}}",
+                            "/health" -> call.respondText(
+                                """{"status":"ok","product":"antigravity-studio","port":$availablePort,"capabilities":{"models":true,"generate":true,"stream":true}}""",
                                 ContentType.Application.Json
                             )
                             "/healthz" -> call.respondText(
-                                "{\"status\":\"ok\",\"product\":\"antigravity-studio\",\"port\":$availablePort}",
+                                """{"status":"ok","product":"antigravity-studio","port":$availablePort}""",
                                 ContentType.Application.Json
                             )
                             "/v1/models", "/v1beta/models" -> {
@@ -139,21 +117,17 @@ class LocalProxyServer(
                             }
                         }
                     }
-                    options("/{...}") {
-                        call.respond(HttpStatusCode.OK)
+                    delete("/{...}") {
+                        controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
-                    route("/{...}") {
-                        handle {
-                            val normalizedPath = normalizeProxyPath(call.request.path())
-                            when {
-                                isFixedGetPath(normalizedPath) ||
-                                        isOfficialCatalogFetchPath(normalizedPath) ||
-                                        isGenerationPath(normalizedPath) -> respondMethodNotAllowed(call)
-                                else -> controlPlaneSemaphore.withPermit {
-                                    handlePassthroughRequest(call)
-                                }
-                            }
-                        }
+                    put("/{...}") {
+                        controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
+                    }
+                    patch("/{...}") {
+                        controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
+                    }
+                    head("/{...}") {
+                        controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                 }
             }
@@ -373,6 +347,7 @@ class LocalProxyServer(
             isOfficialPassthrough = false
         )
         call.respondText(responseJson.toString(), ContentType.Application.Json, HttpStatusCode.OK)
+        
     }
 
     private suspend fun respondPureOfficialCatalog(call: ApplicationCall) {

@@ -1,7 +1,13 @@
 package com.yuzhiqiang.antigravity.ui.components
 
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.hoverable
+import androidx.compose.ui.text.withStyle
+
 import antigravity_studio.shared.generated.resources.Res
-import antigravity_studio.shared.generated.resources.app_icon
+import antigravity_studio.shared.generated.resources.logo_transparent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Search
+
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
@@ -33,7 +40,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,8 +53,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import org.jetbrains.compose.resources.painterResource
+
+
 
 /**
  * Material Design 3 页面统一顶栏 Header。
@@ -62,15 +74,18 @@ fun PageHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
+                ),
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -84,11 +99,11 @@ fun PageHeader(
 @Composable
 fun StudioCard(
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(AppTokens.Radius.large),
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
     containerColor: Color = MaterialTheme.colorScheme.surface,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
     borderWidth: Dp = 1.dp,
-    elevation: Dp = AppTokens.Elevation.level0,
+    elevation: Dp = 1.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
@@ -179,27 +194,19 @@ fun SectionLabel(
 }
 
 /**
- * 品牌 Icon 包装器。
+ * 品牌 Icon 包装器 (纯透明底，无卡片白底，高清 88x88).
  */
 @Composable
 fun BrandMark(
     modifier: Modifier = Modifier,
-    size: Dp = AppTokens.Size.brandMark
+    size: Dp = 88.dp
 ) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(AppTokens.Radius.medium))
-            .background(MaterialTheme.colorScheme.primaryContainer),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(Res.drawable.app_icon),
-            contentDescription = "Antigravity Studio",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-    }
+    Image(
+        painter = painterResource(Res.drawable.logo_transparent),
+        contentDescription = "Antigravity Studio",
+        contentScale = ContentScale.Fit,
+        modifier = modifier.size(size)
+    )
 }
 
 /**
@@ -316,3 +323,119 @@ fun StudioSearchField(
     )
 }
 
+
+/**
+ * 现代高亮文本组件（用于搜索词精准高亮）
+ */
+@Composable
+fun HighlightedText(
+    text: String,
+    query: String,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    highlightColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    highlightTextColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    maxLines: Int = Int.MAX_VALUE,
+    modifier: Modifier = Modifier
+) {
+    if (query.isBlank() || !text.contains(query, ignoreCase = true)) {
+        Text(
+            text = text,
+            style = style,
+            color = color,
+            maxLines = maxLines,
+            overflow = if (maxLines != Int.MAX_VALUE) TextOverflow.Ellipsis else TextOverflow.Clip,
+            modifier = modifier
+        )
+        return
+    }
+
+    val annotatedString = androidx.compose.ui.text.buildAnnotatedString {
+        var currentIndex = 0
+        val lowerText = text.lowercase()
+        val lowerQuery = query.lowercase()
+
+        while (currentIndex < text.length) {
+            val startIndex = lowerText.indexOf(lowerQuery, currentIndex)
+            if (startIndex == -1) {
+                append(text.substring(currentIndex))
+                break
+            }
+            if (startIndex > currentIndex) {
+                append(text.substring(currentIndex, startIndex))
+            }
+            val endIndex = startIndex + query.length
+            pushStyle(
+                androidx.compose.ui.text.SpanStyle(
+                    background = highlightColor,
+                    color = highlightTextColor,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+            append(text.substring(startIndex, endIndex))
+            pop()
+            currentIndex = endIndex
+        }
+    }
+
+    Text(
+        text = annotatedString,
+        style = style,
+        color = color,
+        maxLines = maxLines,
+        overflow = if (maxLines != Int.MAX_VALUE) TextOverflow.Ellipsis else TextOverflow.Clip,
+        modifier = modifier
+    )
+}
+
+/**
+ * 优雅骨架屏加载卡片
+ */
+@Composable
+fun SkeletonCard(
+    modifier: Modifier = Modifier,
+    height: Dp = 72.dp
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(RoundedCornerShape(AppTokens.Radius.medium))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(AppTokens.Radius.medium))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(AppTokens.Spacing.card),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(AppTokens.Radius.small))
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.4f)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(AppTokens.Radius.xs))
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(AppTokens.Radius.xs))
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                )
+            }
+        }
+    }
+}

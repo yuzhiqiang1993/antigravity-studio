@@ -11,6 +11,7 @@ dependencies {
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)
+    implementation(libs.kotlinx.datetime)
     implementation(libs.compose.components.uiToolingPreview)
     implementation(libs.koin.core)
 
@@ -25,6 +26,7 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.logging)
     implementation(libs.ktor.serialization.kotlinx.json)
+    implementation("org.slf4j:slf4j-nop:2.0.16")
 }
 
 compose.desktop {

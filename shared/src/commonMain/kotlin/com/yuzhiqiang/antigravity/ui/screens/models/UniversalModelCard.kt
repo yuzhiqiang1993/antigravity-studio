@@ -10,7 +10,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -31,7 +35,14 @@ fun UniversalModelCard(
     state: UniversalModelCardUiState,
     modifier: Modifier = Modifier
 ) {
-    val cardAlpha = if (state.isEnabled) 1f else 0.55f
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (state.isEnabled) 1f else 0.55f,
+        animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.standardEasing)
+    )
+    val cardElevation by animateDpAsState(
+        targetValue = if (state.isEnabled) 1.dp else 0.dp,
+        animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.standardEasing)
+    )
 
     Card(
         modifier = modifier
@@ -39,7 +50,7 @@ fun UniversalModelCard(
             .alpha(cardAlpha),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (state.isEnabled) 1.dp else 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
     ) {
         Column(

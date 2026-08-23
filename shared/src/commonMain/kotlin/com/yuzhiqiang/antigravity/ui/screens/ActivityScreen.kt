@@ -1,20 +1,15 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,20 +18,8 @@ import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SearchOff
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,20 +27,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
-import com.yuzhiqiang.antigravity.ui.components.BadgeTone
-import com.yuzhiqiang.antigravity.ui.components.EmptyStateView
-import com.yuzhiqiang.antigravity.ui.components.PageHeader
-import com.yuzhiqiang.antigravity.ui.components.StatusBadge
-import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.components.*
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun ActivityScreen(
@@ -104,17 +81,19 @@ fun ActivityScreen(
             action = {
                 OutlinedButton(
                     onClick = { viewModel.clearActivityLogs() },
-                    shape = RoundedCornerShape(AppTokens.Radius.medium)
+                    modifier = Modifier.height(32.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.DeleteSweep,
                         contentDescription = null,
-                        modifier = Modifier.size(AppTokens.Size.iconMedium)
+                        modifier = Modifier.size(15.dp)
                     )
-                    Spacer(Modifier.width(AppTokens.Spacing.xs))
+                    Spacer(Modifier.width(5.dp))
                     Text(
                         text = s.activityClear,
-                        style = MaterialTheme.typography.labelMedium
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                     )
                 }
             }
@@ -130,59 +109,45 @@ fun ActivityScreen(
                     .fillMaxSize()
                     .padding(AppTokens.Spacing.card)
             ) {
-                // 搜索与过滤筛选栏
+                // 顶部工具栏：紧凑搜索框 + 紧凑分段筛选
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedTextField(
+                    StudioSearchField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = {
-                            Text(
-                                text = s.activitySearchPlaceholder,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Search,
-                                contentDescription = null,
-                                modifier = Modifier.size(AppTokens.Size.iconMedium)
-                            )
-                        },
-                        modifier = Modifier.width(AppTokens.Size.modelSearchFieldWidth),
-                        shape = RoundedCornerShape(AppTokens.Radius.medium),
-                        singleLine = true
+                        placeholder = s.activitySearchPlaceholder,
+                        modifier = Modifier.width(320.dp)
                     )
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)) {
-                        FilterChip(
+                    // 紧凑分段筛选器
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        LogFilterTab(
+                            title = "${s.activityFilterAll} (${logs.size})",
                             selected = !filterOnlyFailed,
-                            onClick = { filterOnlyFailed = false },
-                            label = {
-                                Text(
-                                    text = "${s.activityFilterAll} (${logs.size})",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
+                            onClick = { filterOnlyFailed = false }
                         )
-                        FilterChip(
+                        LogFilterTab(
+                            title = "${s.activityFilterFailed} ($failedCount)",
                             selected = filterOnlyFailed,
-                            onClick = { filterOnlyFailed = true },
-                            label = {
-                                Text(
-                                    text = "${s.activityFilterFailed} ($failedCount)",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
+                            isError = failedCount > 0,
+                            onClick = { filterOnlyFailed = true }
                         )
                     }
                 }
 
                 Spacer(Modifier.height(AppTokens.Spacing.md))
 
+                // 指标卡片
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
@@ -195,6 +160,7 @@ fun ActivityScreen(
                     ActivityMetricCard(
                         label = s.activityFailedTotal,
                         value = failedCount.toString(),
+                        isWarning = failedCount > 0,
                         modifier = Modifier.weight(1f)
                     )
                     ActivityMetricCard(
@@ -218,12 +184,13 @@ fun ActivityScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(displayedLogs, key = { it.id }) { log ->
                             ActivityLogRow(
                                 log = log,
                                 s = s,
+                                searchQuery = searchQuery,
                                 onClick = { selectedLog = log }
                             )
                         }
@@ -243,29 +210,82 @@ fun ActivityScreen(
 }
 
 @Composable
+private fun LogFilterTab(
+    title: String,
+    selected: Boolean,
+    isError: Boolean = false,
+    onClick: () -> Unit
+) {
+    val bg by animateColorAsState(
+        targetValue = when {
+            selected && isError -> MaterialTheme.colorScheme.errorContainer
+            selected -> MaterialTheme.colorScheme.surface
+            else -> Color.Transparent
+        },
+        animationSpec = tween(150)
+    )
+    val textCol by animateColorAsState(
+        targetValue = when {
+            selected && isError -> MaterialTheme.colorScheme.onErrorContainer
+            selected -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tween(150)
+    )
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            ),
+            color = textCol
+        )
+    }
+}
+
+@Composable
 private fun ActivityMetricCard(
     label: String,
     value: String,
+    isWarning: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     OutlinedCard(
         modifier = modifier,
-        shape = RoundedCornerShape(AppTokens.Radius.medium)
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (isWarning) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isWarning) MaterialTheme.colorScheme.error.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
     ) {
         Column(
-            modifier = Modifier.padding(AppTokens.Spacing.content),
-            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isWarning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                ),
+                color = if (isWarning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -275,8 +295,12 @@ private fun ActivityMetricCard(
 private fun ActivityLogRow(
     log: ActivityLog,
     s: Strings,
+    searchQuery: String,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
     val statusColors = AppStatusColors
     val isSuccess = log.statusCode in 200..399
     val statusColor = if (isSuccess) statusColors.success else statusColors.error
@@ -297,8 +321,16 @@ private fun ActivityLogRow(
     OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(AppTokens.Radius.medium)
+            .hoverable(interactionSource = interactionSource)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -308,15 +340,15 @@ private fun ActivityLogRow(
         ) {
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(3.5.dp)
                     .fillMaxHeight()
                     .background(statusColor)
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.content),
-                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -326,25 +358,38 @@ private fun ActivityLogRow(
                     Row(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = log.method.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = log.method.uppercase(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+
+                        HighlightedText(
                             text = log.path,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            query = searchQuery,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.5.sp
+                            ),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1
                         )
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
                             text = time,
@@ -353,8 +398,7 @@ private fun ActivityLogRow(
                         )
                         Text(
                             text = "${log.durationMs} ms",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.primary
                         )
                         StatusBadge(
@@ -375,24 +419,42 @@ private fun ActivityLogRow(
                         log.isOfficialPassthrough -> log.providerName ?: "Official Cloud Code"
                         else -> log.providerName ?: "未知服务商"
                     }
-                    Text(
+                    HighlightedText(
                         text = subtitleText,
-                        style = MaterialTheme.typography.bodySmall,
+                        query = searchQuery,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = routeLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (log.totalTokens != null && log.totalTokens > 0) {
+                            Text(
+                                text = "Tokens: ${log.totalTokens}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                            )
+                        }
+                        Text(
+                            text = routeLabel,
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 if (!log.errorMessage.isNullOrBlank()) {
-                    Text(
+                    HighlightedText(
                         text = log.errorMessage,
-                        style = MaterialTheme.typography.bodySmall,
+                        query = searchQuery,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.5.sp
+                        ),
                         color = MaterialTheme.colorScheme.error,
-                        maxLines = 2
+                        maxLines = 3
                     )
                 }
             }
@@ -402,12 +464,8 @@ private fun ActivityLogRow(
 
 private fun formatLogTime(timestampMs: Long): String {
     return try {
-        val instant = Instant.fromEpochMilliseconds(timestampMs)
-        val ldt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-        val h = ldt.hour.toString().padStart(2, '0')
-        val m = ldt.minute.toString().padStart(2, '0')
-        val s = ldt.second.toString().padStart(2, '0')
-        "$h:$m:$s"
+        val sdf = java.text.SimpleDateFormat("HH:mm:ss.SSS")
+        sdf.format(java.util.Date(timestampMs))
     } catch (_: Exception) {
         "-"
     }

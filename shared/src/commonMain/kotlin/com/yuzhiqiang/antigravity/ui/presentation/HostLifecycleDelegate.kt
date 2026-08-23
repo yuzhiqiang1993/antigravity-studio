@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 class HostLifecycleDelegate(
+    val operatingHostKeys: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet()),
     private val scope: CoroutineScope,
     private val configStore: ConfigStore,
     private val proxyServer: LocalProxyServer,
@@ -78,6 +79,8 @@ class HostLifecycleDelegate(
 
     fun enableIdeHostInternal(wasRunning: Boolean, actualPort: Int) {
         scope.launch(Dispatchers.IO) {
+            operatingHostKeys.value = operatingHostKeys.value + "ide"
+            try {
             val customInstallation = configStore.currentConfig.customHostPaths["ide"]
             val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning()
             val operationSucceeded = IdeHostManager.enable(actualPort)
@@ -96,11 +99,16 @@ class HostLifecycleDelegate(
                 if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
             )
             refreshHostStatus(actualPort)
+            } finally {
+                operatingHostKeys.value = operatingHostKeys.value - "ide"
+            }
         }
     }
 
     fun disableIdeHostInternal(wasRunning: Boolean, actualPort: Int) {
         scope.launch(Dispatchers.IO) {
+            operatingHostKeys.value = operatingHostKeys.value + "ide"
+            try {
             val customInstallation = configStore.currentConfig.customHostPaths["ide"]
             val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning()
             val operationSucceeded = IdeHostManager.disable(actualPort)
@@ -119,6 +127,9 @@ class HostLifecycleDelegate(
                 if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
             )
             refreshHostStatus(actualPort)
+            } finally {
+                operatingHostKeys.value = operatingHostKeys.value - "ide"
+            }
         }
     }
 
@@ -160,6 +171,8 @@ class HostLifecycleDelegate(
 
     fun enableAppHostInternal(wasRunning: Boolean, actualPort: Int) {
         scope.launch(Dispatchers.IO) {
+            operatingHostKeys.value = operatingHostKeys.value + "app"
+            try {
             val customInstallation = configStore.currentConfig.customHostPaths["app"]
             val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
             val operationSucceeded = AppHostManager.enable(actualPort)
@@ -176,11 +189,16 @@ class HostLifecycleDelegate(
                 if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
             )
             refreshHostStatus(actualPort)
+            } finally {
+                operatingHostKeys.value = operatingHostKeys.value - "app"
+            }
         }
     }
 
     fun disableAppHostInternal(wasRunning: Boolean, actualPort: Int) {
         scope.launch(Dispatchers.IO) {
+            operatingHostKeys.value = operatingHostKeys.value + "app"
+            try {
             val customInstallation = configStore.currentConfig.customHostPaths["app"]
             val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
             val operationSucceeded = AppHostManager.disable()
@@ -197,6 +215,9 @@ class HostLifecycleDelegate(
                 if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
             )
             refreshHostStatus(actualPort)
+            } finally {
+                operatingHostKeys.value = operatingHostKeys.value - "app"
+            }
         }
     }
 
@@ -259,6 +280,8 @@ class HostLifecycleDelegate(
 
     fun restartIde(actualPort: Int) {
         scope.launch(Dispatchers.IO) {
+            operatingHostKeys.value = operatingHostKeys.value + "ide"
+            try {
             val customInstallation = configStore.currentConfig.customHostPaths["ide"]
             val ok = IdeHostManager.restart(customInstallation)
             if (ok) {
@@ -267,6 +290,9 @@ class HostLifecycleDelegate(
                 showNotice("重启 Antigravity IDE 失败", NoticeKind.ERROR)
             }
             refreshHostStatus(actualPort)
+            } finally {
+                operatingHostKeys.value = operatingHostKeys.value - "ide"
+            }
         }
     }
 
@@ -286,6 +312,8 @@ class HostLifecycleDelegate(
 
     fun restartApp(actualPort: Int) {
         scope.launch(Dispatchers.IO) {
+            operatingHostKeys.value = operatingHostKeys.value + "app"
+            try {
             val customInstallation = configStore.currentConfig.customHostPaths["app"]
             val ok = AppHostManager.restart(customInstallation)
             if (ok) {
@@ -294,6 +322,9 @@ class HostLifecycleDelegate(
                 showNotice("重启 Antigravity App 失败", NoticeKind.ERROR)
             }
             refreshHostStatus(actualPort)
+            } finally {
+                operatingHostKeys.value = operatingHostKeys.value - "app"
+            }
         }
     }
 

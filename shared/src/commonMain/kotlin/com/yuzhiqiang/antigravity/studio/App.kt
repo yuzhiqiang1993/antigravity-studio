@@ -1,5 +1,9 @@
 package com.yuzhiqiang.antigravity.studio
 
+import androidx.compose.animation.core.animateDpAsState
+
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
@@ -7,6 +11,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.toArgb
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
@@ -24,6 +29,7 @@ import com.yuzhiqiang.antigravity.ui.screens.ModelsScreen
 import com.yuzhiqiang.antigravity.ui.screens.OverviewScreen
 import com.yuzhiqiang.antigravity.ui.screens.SettingsScreen
 import com.yuzhiqiang.antigravity.ui.theme.AntigravityTheme
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import org.koin.compose.KoinContext
 import org.koin.compose.viewmodel.koinViewModel
 import java.awt.Window as AwtWindow
@@ -70,16 +76,28 @@ fun App(
                                 .fillMaxHeight()
                                 .background(MaterialTheme.colorScheme.background)
                         ) {
-                            when (currentTab) {
-                                NavTab.OVERVIEW -> OverviewScreen(viewModel = viewModel)
-                                NavTab.MODELS -> ModelsScreen(viewModel = viewModel)
-                                NavTab.ACTIVITY -> ActivityScreen(viewModel = viewModel)
-                                NavTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
+                            AnimatedContent(
+                                targetState = currentTab,
+                                transitionSpec = {
+                                    (fadeIn(animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.decelerateEasing)) +
+                                            slideInVertically(animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.decelerateEasing)) { 14 })
+                                        .togetherWith(
+                                            fadeOut(animationSpec = tween(AppTokens.Motion.durationShort, easing = AppTokens.Motion.accelerateEasing))
+                                        )
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            ) { tab ->
+                                when (tab) {
+                                    NavTab.OVERVIEW -> OverviewScreen(viewModel = viewModel)
+                                    NavTab.MODELS -> ModelsScreen(viewModel = viewModel)
+                                    NavTab.ACTIVITY -> ActivityScreen(viewModel = viewModel)
+                                    NavTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
+                                }
                             }
                         }
                     }
 
-                    // 全局 Toast 通知 — 对标 agy-byok 的 NoticeBar
+                    // 全局 Toast 通知
                     AppSnackbarHost(
                         notice = notice,
                         onDismiss = { viewModel.dismissNotice() },
@@ -95,7 +113,7 @@ fun App(
                     )
                 }
 
-                // 通用确认对话框 — 对标 agy-byok 的 ConfirmModal
+                // 通用确认对话框
                 confirmState?.let { state ->
                     ConfirmDialog(
                         title = state.title,

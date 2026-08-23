@@ -83,6 +83,7 @@ fun OverviewScreen(
     val isAppActive by viewModel.isAppHostActive.collectAsState()
     val isAppRunning by viewModel.isAppRunning.collectAsState()
     val isAppInstalled by viewModel.isAppInstalled.collectAsState()
+    val operatingHostKeys by viewModel.operatingHostKeys.collectAsState()
     val scrollState = rememberScrollState()
     val address = "127.0.0.1:$actualPort"
 
@@ -100,18 +101,19 @@ fun OverviewScreen(
             action = {
                 Button(
                     onClick = { viewModel.openDoctorDialog() },
-                    shape = RoundedCornerShape(AppTokens.Radius.medium),
-                    contentPadding = PaddingValues(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.content)
+                    modifier = Modifier.height(34.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.HealthAndSafety,
                         contentDescription = null,
-                        modifier = Modifier.size(AppTokens.Size.iconMedium)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(Modifier.width(AppTokens.Spacing.sm))
+                    Spacer(Modifier.width(6.dp))
                     Text(
                         text = "一键体检",
-                        style = MaterialTheme.typography.labelLarge
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }
             }
@@ -133,7 +135,7 @@ fun OverviewScreen(
         val hostCardItems = remember(
             isIdeActive, isIdeRunning, isIdeInstalled,
             isAppActive, isAppRunning, isAppInstalled,
-            isCliActive, isCliInstalled
+            isCliActive, isCliInstalled, operatingHostKeys
         ) {
             listOf(
                 HostCardData(
@@ -146,7 +148,8 @@ fun OverviewScreen(
                     onToggle = { viewModel.toggleIdeHost() },
                     actionLabel = if (isIdeRunning) "重启" else if (isIdeInstalled) "打开" else null,
                     onAction = if (isIdeInstalled) ({ viewModel.requestRestartOrLaunchIde(isIdeRunning) }) else null,
-                    onRefresh = { viewModel.refreshHostStatus() }
+                    onRefresh = { viewModel.refreshHostStatus() },
+                    isLoading = "ide" in operatingHostKeys
                 ),
                 HostCardData(
                     title = "Antigravity App",
@@ -158,7 +161,8 @@ fun OverviewScreen(
                     onToggle = { viewModel.toggleAppHost() },
                     actionLabel = if (isAppRunning) "重启" else if (isAppInstalled) "打开" else null,
                     onAction = if (isAppInstalled) ({ viewModel.requestRestartOrLaunchApp(isAppRunning) }) else null,
-                    onRefresh = { viewModel.refreshHostStatus() }
+                    onRefresh = { viewModel.refreshHostStatus() },
+                    isLoading = "app" in operatingHostKeys
                 ),
                 HostCardData(
                     title = "Antigravity CLI",
@@ -170,7 +174,8 @@ fun OverviewScreen(
                     onToggle = { viewModel.toggleCliHost() },
                     actionLabel = null,
                     onAction = null,
-                    onRefresh = { viewModel.refreshHostStatus() }
+                    onRefresh = { viewModel.refreshHostStatus() },
+                    isLoading = "cli" in operatingHostKeys
                 )
             )
         }

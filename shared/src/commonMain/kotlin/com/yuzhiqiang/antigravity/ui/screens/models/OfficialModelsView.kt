@@ -115,16 +115,19 @@ fun OfficialModelsView(
         }
 
         if (groupedModels.isEmpty() && isFetching) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(AppTokens.Size.emptyStateHeight),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(AppTokens.Size.iconLarge)
-                )
+                repeat(3) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        com.yuzhiqiang.antigravity.ui.components.SkeletonCard(modifier = Modifier.weight(1f), height = 180.dp)
+                        com.yuzhiqiang.antigravity.ui.components.SkeletonCard(modifier = Modifier.weight(1f), height = 180.dp)
+                    }
+                }
             }
         } else if (groupedModels.isEmpty()) {
             Box(
