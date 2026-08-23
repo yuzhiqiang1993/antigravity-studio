@@ -13,7 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.SettingsBackupRestore
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -301,7 +301,7 @@ fun HostCardItem(
                 ) {
                     if (data.onForceReset != null) {
                         HostSquareIconButton(
-                            icon = Icons.Outlined.RestartAlt,
+                            icon = Icons.Outlined.SettingsBackupRestore,
                             tooltip = s.hostForceReset,
                             onClick = data.onForceReset,
                             enabled = !data.isLoading

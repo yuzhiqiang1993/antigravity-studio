@@ -509,6 +509,13 @@ interface Strings {
     val settingsDeveloperModeDesc: String
     val settingsDeveloperModeEnabled: String
     val settingsDeveloperModeDisabled: String
+    val developerModeDialogTitle: String
+    val developerModeUnlockPrompt: String
+    val developerModeTurnOn: String
+    val developerModeTurnOff: String
+    val developerModeWrongPassword: String
+    val developerModeKeepEnabled: String
+    val developerModeCancel: String
 
     // Doctor Diagnostics
     val doctorTitle: String
@@ -1129,6 +1136,13 @@ object StringsZh : Strings {
     override val settingsDeveloperModeDesc = "显示官方模型原始 JSON、修改后 JSON 等协议调试入口"
     override val settingsDeveloperModeEnabled = "已开启开发者调试模式"
     override val settingsDeveloperModeDisabled = "已关闭开发者调试模式"
+    override val developerModeDialogTitle = "开发者调试模式"
+    override val developerModeUnlockPrompt = "请输入密码确认开启开发者调试模式："
+    override val developerModeTurnOn = "确认开启"
+    override val developerModeTurnOff = "关闭开发者模式"
+    override val developerModeWrongPassword = "密码错误，请重新输入"
+    override val developerModeKeepEnabled = "保持开启"
+    override val developerModeCancel = "取消"
 
     override val doctorTitle = "Doctor 全链路健康体检"
     override val doctorSubtitle = "一键诊断网络连通性、本地配置、宿主接管与代理服务健康度"
@@ -1745,6 +1759,13 @@ object StringsEn : Strings {
     override val settingsDeveloperModeDesc = "Show raw JSON and modified JSON protocol inspection tools"
     override val settingsDeveloperModeEnabled = "Developer debug mode enabled"
     override val settingsDeveloperModeDisabled = "Developer debug mode disabled"
+    override val developerModeDialogTitle = "Developer Debug Mode"
+    override val developerModeUnlockPrompt = "Enter password to unlock developer debug mode:"
+    override val developerModeTurnOn = "Enable"
+    override val developerModeTurnOff = "Disable Developer Mode"
+    override val developerModeWrongPassword = "Incorrect password, please try again"
+    override val developerModeKeepEnabled = "Keep Enabled"
+    override val developerModeCancel = "Cancel"
 
     override val doctorTitle = "Doctor Health Diagnostics"
     override val doctorSubtitle = "Full-stack diagnostics for network, configs, host and proxy"

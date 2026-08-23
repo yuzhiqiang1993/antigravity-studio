@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -28,11 +30,12 @@ fun DataSettingsSection(
 ) {
     StudioCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AppTokens.Spacing.card),
-            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
+            modifier = Modifier.padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
         ) {
             SettingsCardTitle(Icons.Outlined.Folder, s.settingsData)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(Modifier.height(2.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
             if (loadError != null) {
                 Row(
@@ -60,13 +63,20 @@ fun DataSettingsSection(
             SettingRow(
                 icon = Icons.Outlined.Folder,
                 title = s.settingsConfigDir,
-                description = s.settingsStorageDescription
+                description = s.settingsStorageDescription,
+                modifier = Modifier.padding(vertical = 4.dp)
             ) {
                 OutlinedButton(
                     onClick = onOpenDirectory,
-                    shape = RoundedCornerShape(AppTokens.Radius.medium)
+                    shape = RoundedCornerShape(AppTokens.Radius.small),
+                    modifier = Modifier.height(32.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
                 ) {
-                    Text(s.settingsOpenDirectory, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        text = s.settingsOpenDirectory,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
 
@@ -74,7 +84,8 @@ fun DataSettingsSection(
                 Text(
                     text = openDirectoryError,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(start = AppTokens.Spacing.card)
                 )
             }
         }

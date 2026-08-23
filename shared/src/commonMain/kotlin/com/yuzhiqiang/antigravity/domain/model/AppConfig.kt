@@ -35,8 +35,5 @@ data class AppConfig(
     val developerMode: Boolean = false
 ) {
     val isDebugMode: Boolean
-        get() = developerMode ||
-                com.yuzhiqiang.antigravity.BuildInfo.DEBUG ||
-                System.getProperty("app.debug")?.toBoolean() == true ||
-                System.getenv("APP_DEBUG")?.toBoolean() == true
+        get() = developerMode
 }

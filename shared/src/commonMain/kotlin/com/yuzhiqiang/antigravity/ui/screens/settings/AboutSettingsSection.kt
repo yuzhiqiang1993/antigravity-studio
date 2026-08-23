@@ -28,15 +28,138 @@ import com.yuzhiqiang.antigravity.update.model.UpdateState
 import java.awt.Desktop
 import java.net.URI
 
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.*
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+
 @Composable
 fun AboutSettingsSection(
     updateState: UpdateState,
+    isDeveloperMode: Boolean = false,
     onCheckUpdate: () -> Unit,
     onOpenUpdateDialog: () -> Unit,
-    onToggleDeveloperMode: () -> Unit = {},
+    onSetDeveloperMode: (Boolean) -> Unit = {},
     onOpenConfigDirectory: () -> Unit,
     s: Strings
 ) {
+    var clickCount by remember { mutableStateOf(0) }
+    var lastClickTime by remember { mutableStateOf(0L) }
+    var showEasterEggDialog by remember { mutableStateOf(false) }
+    var passwordInput by remember { mutableStateOf("") }
+    var isPasswordError by remember { mutableStateOf(false) }
+
+    if (showEasterEggDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showEasterEggDialog = false
+                passwordInput = ""
+                isPasswordError = false
+            },
+            title = {
+                Text(
+                    text = s.developerModeDialogTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isDeveloperMode) {
+                        Text(
+                            text = s.settingsDeveloperModeEnabled,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = s.settingsDeveloperModeDesc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = s.developerModeUnlockPrompt,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        OutlinedTextField(
+                            value = passwordInput,
+                            onValueChange = {
+                                passwordInput = it
+                                isPasswordError = false
+                            },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            isError = isPasswordError,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(AppTokens.Radius.small),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                if (passwordInput.trim().equals("debug", ignoreCase = true)) {
+                                    onSetDeveloperMode(true)
+                                    showEasterEggDialog = false
+                                    passwordInput = ""
+                                } else {
+                                    isPasswordError = true
+                                }
+                            })
+                        )
+                        if (isPasswordError) {
+                            Text(
+                                text = s.developerModeWrongPassword,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (isDeveloperMode) {
+                    Button(
+                        onClick = {
+                            onSetDeveloperMode(false)
+                            showEasterEggDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text(s.developerModeTurnOff)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            if (passwordInput.trim().equals("debug", ignoreCase = true)) {
+                                onSetDeveloperMode(true)
+                                showEasterEggDialog = false
+                                passwordInput = ""
+                            } else {
+                                isPasswordError = true
+                            }
+                        }
+                    ) {
+                        Text(s.developerModeTurnOn)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showEasterEggDialog = false
+                        passwordInput = ""
+                        isPasswordError = false
+                    }
+                ) {
+                    Text(if (isDeveloperMode) s.developerModeKeepEnabled else s.developerModeCancel)
+                }
+            }
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)) {
         StudioCard(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -46,7 +169,29 @@ fun AboutSettingsSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.lg)
             ) {
-                BrandMark(size = 56.dp)
+                Box(
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastClickTime > 2000L) {
+                            clickCount = 1
+                        } else {
+                            clickCount++
+                        }
+                        lastClickTime = now
+
+                        if (clickCount >= 8) {
+                            clickCount = 0
+                            showEasterEggDialog = true
+                            passwordInput = ""
+                            isPasswordError = false
+                        }
+                    }
+                ) {
+                    BrandMark(size = 56.dp)
+                }
 
                 Column(
                     modifier = Modifier.weight(1f),
@@ -65,7 +210,6 @@ fun AboutSettingsSection(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(AppTokens.Radius.pill))
                                 .background(MaterialTheme.colorScheme.primaryContainer)
-                                .clickable(onClick = onToggleDeveloperMode)
                                 .padding(horizontal = AppTokens.Spacing.sm, vertical = 2.dp)
                         ) {
                             Text(

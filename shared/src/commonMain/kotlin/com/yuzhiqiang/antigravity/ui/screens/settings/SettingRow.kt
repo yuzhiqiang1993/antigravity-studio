@@ -16,10 +16,11 @@ fun SettingRow(
     icon: ImageVector,
     title: String,
     description: String,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
