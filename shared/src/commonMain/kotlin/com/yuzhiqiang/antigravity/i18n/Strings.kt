@@ -500,6 +500,16 @@ interface Strings {
     val updateIgnoredNotice: String
     fun updateCheckFailed(error: String): String
     val updateNoChangelog: String
+    fun updateDownloadProgress(downloaded: String, total: String, percent: Int): String
+    fun updateDownloadSpeed(speed: String): String
+    val updateDownloading: String
+    val updateDownloadCompleted: String
+    val updateInstallNow: String
+    val updateShowInFolder: String
+    fun updateDownloadFailed(error: String): String
+    val updateRetryDownload: String
+    val updateOpenInBrowser: String
+    val updateCancelDownload: String
     val settingsAutoCheckUpdate: String
     val settingsAutoCheckUpdateDesc: String
     val settingsCheckUpdateBtn: String
@@ -1129,6 +1139,16 @@ object StringsZh : Strings {
     override val updateIgnoredNotice = "已忽略此版本的后续启动提醒"
     override fun updateCheckFailed(error: String) = "检查更新失败：$error"
     override val updateNoChangelog = "暂无详细发布说明。"
+    override fun updateDownloadProgress(downloaded: String, total: String, percent: Int) = "$downloaded / $total ($percent%)"
+    override fun updateDownloadSpeed(speed: String) = "$speed/s"
+    override val updateDownloading = "正在下载更新…"
+    override val updateDownloadCompleted = "下载完成，正在打开安装器…"
+    override val updateInstallNow = "立即安装"
+    override val updateShowInFolder = "打开文件位置"
+    override fun updateDownloadFailed(error: String) = "下载失败：$error"
+    override val updateRetryDownload = "重试下载"
+    override val updateOpenInBrowser = "在浏览器中下载"
+    override val updateCancelDownload = "取消"
     override val settingsAutoCheckUpdate = "启动时自动检查更新"
     override val settingsAutoCheckUpdateDesc = "应用启动时在后台静默检查是否有新版本，并在有更新时提醒"
     override val settingsCheckUpdateBtn = "检查更新"
@@ -1754,6 +1774,16 @@ object StringsEn : Strings {
     override val updateIgnoredNotice = "This version will be skipped in future startup checks"
     override fun updateCheckFailed(error: String) = "Failed to check for updates: $error"
     override val updateNoChangelog = "No release notes provided."
+    override fun updateDownloadProgress(downloaded: String, total: String, percent: Int) = "$downloaded / $total ($percent%)"
+    override fun updateDownloadSpeed(speed: String) = "$speed/s"
+    override val updateDownloading = "Downloading update…"
+    override val updateDownloadCompleted = "Download complete. Opening installer…"
+    override val updateInstallNow = "Install Now"
+    override val updateShowInFolder = "Show in Folder"
+    override fun updateDownloadFailed(error: String) = "Download failed: $error"
+    override val updateRetryDownload = "Retry Download"
+    override val updateOpenInBrowser = "Download in Browser"
+    override val updateCancelDownload = "Cancel"
     override val settingsAutoCheckUpdate = "Check for updates on startup"
     override val settingsAutoCheckUpdateDesc = "Silently check for new versions on startup and notify when updates are available"
     override val settingsCheckUpdateBtn = "Check Updates"

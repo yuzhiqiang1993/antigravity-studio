@@ -17,6 +17,7 @@ import com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer
 import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.components.NoticeState
 import com.yuzhiqiang.antigravity.update.engine.UpdateChecker
+import com.yuzhiqiang.antigravity.update.model.AppUpdateDownloadState
 import com.yuzhiqiang.antigravity.update.model.AppVersion
 import com.yuzhiqiang.antigravity.update.model.ReleaseInfo
 import com.yuzhiqiang.antigravity.update.model.UpdateState
@@ -191,6 +192,10 @@ class AppViewModel(
 
     private val _activeRelease = MutableStateFlow<ReleaseInfo?>(null)
     val activeRelease: StateFlow<ReleaseInfo?> = _activeRelease.asStateFlow()
+
+    private val _downloadState = MutableStateFlow<AppUpdateDownloadState>(AppUpdateDownloadState.Idle)
+    val downloadState: StateFlow<AppUpdateDownloadState> = _downloadState.asStateFlow()
+    private var downloadJob: kotlinx.coroutines.Job? = null
 
     private val s get() = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
 
@@ -894,6 +899,79 @@ class AppViewModel(
         } else {
             checkForUpdates(isManual = true)
         }
+    }
+
+    fun startDownloadUpdate(release: ReleaseInfo) {
+        val downloadUrl = release.resolvePlatformDownloadUrl()
+        val filename = downloadUrl.substringAfterLast("/").takeIf { it.isNotBlank() && it.contains(".") }
+            ?: "Antigravity-Studio-${release.cleanVersion}.dmg"
+        val targetFile = com.yuzhiqiang.antigravity.update.engine.AppUpdateDownloader.resolveTargetFile(filename)
+
+        downloadJob?.cancel()
+        downloadJob = viewModelScope.launch {
+            _downloadState.value = AppUpdateDownloadState.Downloading(
+                bytesDownloaded = 0L,
+                totalBytes = -1L,
+                progressRatio = 0f,
+                speedBytesPerSec = 0L
+            )
+            try {
+                com.yuzhiqiang.antigravity.update.engine.AppUpdateDownloader.download(downloadUrl, targetFile).collect { progress ->
+                    when (progress) {
+                        is com.yuzhiqiang.antigravity.update.engine.DownloadProgress.Progress -> {
+                            _downloadState.value = AppUpdateDownloadState.Downloading(
+                                bytesDownloaded = progress.bytesDownloaded,
+                                totalBytes = progress.totalBytes,
+                                progressRatio = progress.progressRatio,
+                                speedBytesPerSec = progress.speedBytesPerSec
+                            )
+                        }
+                        is com.yuzhiqiang.antigravity.update.engine.DownloadProgress.Completed -> {
+                            _downloadState.value = AppUpdateDownloadState.Completed(progress.targetFile)
+                            showNotice(s.updateDownloadCompleted, NoticeKind.SUCCESS)
+                            // 下载完成自动预览挂载/打开，不强杀当前进程
+                            installUpdate(progress.targetFile, exitCurrentApp = false)
+                        }
+                    }
+                }
+            } catch (ce: kotlinx.coroutines.CancellationException) {
+                _downloadState.value = AppUpdateDownloadState.Idle
+            } catch (e: Exception) {
+                val errMsg = e.message ?: s.commonUnknown
+                _downloadState.value = AppUpdateDownloadState.Failed(errMsg)
+                showNotice(s.updateDownloadFailed(errMsg), NoticeKind.ERROR)
+            }
+        }
+    }
+
+    fun cancelDownloadUpdate() {
+        downloadJob?.cancel()
+        downloadJob = null
+        _downloadState.value = AppUpdateDownloadState.Idle
+    }
+
+    fun installUpdate(file: java.io.File, exitCurrentApp: Boolean = true) {
+        viewModelScope.launch {
+            val result = com.yuzhiqiang.antigravity.update.engine.AppUpdateInstaller.launchInstaller(
+                file = file,
+                exitCurrentApp = exitCurrentApp
+            )
+            result.onFailure { error ->
+                showNotice(s.updateDownloadFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
+            }
+        }
+    }
+
+    fun showDownloadedFileInFolder(file: java.io.File) {
+        viewModelScope.launch {
+            com.yuzhiqiang.antigravity.update.engine.AppUpdateInstaller.showInFolder(file)
+        }
+    }
+
+    fun resetDownloadState() {
+        downloadJob?.cancel()
+        downloadJob = null
+        _downloadState.value = AppUpdateDownloadState.Idle
     }
 
     fun ignoreUpdateVersion(version: String) {
