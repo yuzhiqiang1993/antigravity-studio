@@ -15,14 +15,20 @@ object HostProcessManager {
     /**
      * 检测指定特征的进程是否在运行。
      */
-    fun isProcessRunning(matchPatterns: List<String>): Boolean {
-        return findProcessPids(matchPatterns).isNotEmpty()
+    fun isProcessRunning(
+        matchPatterns: List<String>,
+        excludePatterns: List<String> = emptyList()
+    ): Boolean {
+        return findProcessPids(matchPatterns, excludePatterns).isNotEmpty()
     }
 
     /**
-     * 查找符合匹配特征的所有进程 PID（排除 studio 自身与 grep 过滤进程）。
+     * 查找符合匹配特征的所有进程 PID（排除 studio 自身与 grep 过滤进程，且支持排除特定模式）。
      */
-    fun findProcessPids(matchPatterns: List<String>): List<Long> {
+    fun findProcessPids(
+        matchPatterns: List<String>,
+        excludePatterns: List<String> = emptyList()
+    ): List<Long> {
         if (matchPatterns.isEmpty()) return emptyList()
         return try {
             if (isWindows) {
@@ -35,7 +41,17 @@ object HostProcessManager {
                     if (parts.size >= 2) {
                         val imageName = parts[0]
                         val pidStr = parts[1]
-                        if (matchPatterns.any { pattern -> imageName.contains(pattern, ignoreCase = true) }) {
+                        val matches = matchPatterns.any { pattern ->
+                            if (pattern.endsWith(".exe", ignoreCase = true)) {
+                                imageName.equals(pattern, ignoreCase = true)
+                            } else {
+                                imageName.contains(pattern, ignoreCase = true)
+                            }
+                        }
+                        val excluded = excludePatterns.any { exclude ->
+                            imageName.contains(exclude, ignoreCase = true)
+                        }
+                        if (matches && !excluded) {
                             pidStr.toLongOrNull()?.let { pids.add(it) }
                         }
                     }
@@ -62,7 +78,10 @@ object HostProcessManager {
                         val matches = matchPatterns.any { pattern ->
                             cmd.contains(pattern, ignoreCase = true)
                         }
-                        if (matches) {
+                        val excluded = excludePatterns.any { exclude ->
+                            cmd.contains(exclude, ignoreCase = true)
+                        }
+                        if (matches && !excluded) {
                             pids.add(pid)
                         }
                     }
@@ -75,11 +94,13 @@ object HostProcessManager {
     }
 
     /**
-     * 优雅终止宿主及其子进程树（含语言服务器），超时则强制 SIGKILL。
+     * 优雅终止宿主及其子进程树，超时则强制 SIGKILL。
      */
     suspend fun terminateApplication(
         bundleId: String?,
         matchPatterns: List<String>,
+        excludePatterns: List<String> = emptyList(),
+        languageServerPatterns: List<String> = emptyList(),
         label: String
     ): Boolean {
         try {
@@ -90,15 +111,17 @@ object HostProcessManager {
                     }
                 }
                 delay(500)
-                if (isProcessRunning(matchPatterns)) {
+                if (isProcessRunning(matchPatterns, excludePatterns)) {
                     matchPatterns.forEach { pattern ->
                         runCatching {
                             ProcessBuilder("taskkill", "/F", "/T", "/IM", pattern).start().waitFor()
                         }
                     }
                 }
-                stopLanguageServer()
-                return !isProcessRunning(matchPatterns)
+                if (languageServerPatterns.isNotEmpty()) {
+                    stopLanguageServer(languageServerPatterns, excludePatterns)
+                }
+                return !isProcessRunning(matchPatterns, excludePatterns)
             }
 
             // macOS 处理流程
@@ -111,12 +134,12 @@ object HostProcessManager {
             }
 
             // 轮询等待优雅退出，最多 1.5 秒
-            var remainingPids = findProcessPids(matchPatterns)
+            var remainingPids = findProcessPids(matchPatterns, excludePatterns)
             var waited = 0
             while (remainingPids.isNotEmpty() && waited < 1500) {
                 delay(200)
                 waited += 200
-                remainingPids = findProcessPids(matchPatterns)
+                remainingPids = findProcessPids(matchPatterns, excludePatterns)
             }
 
             // 若仍有残留 PID，发送 SIGTERM (kill -15)
@@ -125,7 +148,7 @@ object HostProcessManager {
                     runCatching { ProcessBuilder("kill", "-15", pid.toString()).start().waitFor() }
                 }
                 delay(500)
-                remainingPids = findProcessPids(matchPatterns)
+                remainingPids = findProcessPids(matchPatterns, excludePatterns)
             }
 
             // 若仍有残留 PID，强杀 SIGKILL (kill -9)
@@ -136,25 +159,32 @@ object HostProcessManager {
                 delay(300)
             }
 
-            // 确保清理孤儿 language_server
-            stopLanguageServer()
-            return findProcessPids(matchPatterns).isEmpty()
+            // 仅按宿主专属模式清理孤儿 language_server，严防误伤其他宿主
+            if (languageServerPatterns.isNotEmpty()) {
+                stopLanguageServer(languageServerPatterns, excludePatterns)
+            }
+            return findProcessPids(matchPatterns, excludePatterns).isEmpty()
         } catch (_: Exception) {
             return false
         }
     }
 
     /**
-     * 深度清理关联的 language_server 进程。
+     * 深度清理指定宿主专属的 language_server 进程。
      */
-    fun stopLanguageServer() {
+    fun stopLanguageServer(
+        patterns: List<String>,
+        excludePatterns: List<String> = emptyList()
+    ) {
+        if (patterns.isEmpty()) return
         try {
             if (isWindows) {
-                runCatching {
-                    ProcessBuilder("taskkill", "/F", "/IM", "language_server.exe").start().waitFor()
+                val serverPids = findProcessPids(patterns, excludePatterns)
+                serverPids.forEach { pid ->
+                    runCatching { ProcessBuilder("taskkill", "/F", "/PID", pid.toString()).start().waitFor() }
                 }
             } else {
-                val serverPids = findProcessPids(listOf("language_server", "Antigravity/Contents/Resources/bin/language_server"))
+                val serverPids = findProcessPids(patterns, excludePatterns)
                 serverPids.forEach { pid ->
                     runCatching { ProcessBuilder("kill", "-9", pid.toString()).start().waitFor() }
                 }

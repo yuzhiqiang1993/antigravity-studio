@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -33,6 +34,8 @@ data class HostCardData(
     val actionLabel: String? = null,
     val onAction: (() -> Unit)? = null,
     val onRefresh: () -> Unit,
+    val onConfigurePath: (() -> Unit)? = null,
+    val customPath: String? = null,
     val isLoading: Boolean = false
 )
 
@@ -80,6 +83,15 @@ fun HostCardItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 minLines = 1
             )
+
+            if (!data.customPath.isNullOrBlank()) {
+                Text(
+                    text = "自定义路径: ${data.customPath}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
+            }
 
             Column(
                 modifier = Modifier
@@ -187,23 +199,57 @@ fun HostCardItem(
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                             )
                         }
+                    } else if (data.onConfigurePath != null && data.statusLabel == "未安装") {
+                        OutlinedButton(
+                            onClick = data.onConfigurePath,
+                            enabled = !data.isLoading,
+                            modifier = Modifier.height(32.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = "配置路径",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
+                            )
+                        }
                     }
                 }
 
                 Spacer(Modifier.weight(1f))
 
-                OutlinedButton(
-                    onClick = data.onRefresh,
-                    enabled = !data.isLoading,
-                    modifier = Modifier.size(32.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(0.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Refresh,
-                        contentDescription = "刷新",
-                        modifier = Modifier.size(15.dp)
-                    )
+                    if (data.onConfigurePath != null) {
+                        OutlinedButton(
+                            onClick = data.onConfigurePath,
+                            enabled = !data.isLoading,
+                            modifier = Modifier.size(32.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.FolderOpen,
+                                contentDescription = "配置路径",
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = data.onRefresh,
+                        enabled = !data.isLoading,
+                        modifier = Modifier.size(32.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Refresh,
+                            contentDescription = "刷新",
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                 }
             }
         }

@@ -29,6 +29,7 @@ fun GeneralSettingsSection(
     config: AppConfig,
     onUpdateLanguage: (AppLanguage) -> Unit,
     onUpdateThemeMode: (String) -> Unit,
+    onConfigureHostPath: ((String, String) -> Unit)? = null,
     s: Strings
 ) {
     StudioCard(modifier = Modifier.fillMaxWidth()) {
@@ -108,6 +109,42 @@ fun GeneralSettingsSection(
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                 color = text
                             )
+                        }
+                    }
+                }
+            }
+
+            if (onConfigureHostPath != null) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                SettingRow(
+                    icon = Icons.Outlined.Computer,
+                    title = "宿主安装路径",
+                    description = "自定义 Antigravity IDE、App 及 CLI 的安装或可执行文件路径"
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
+                    ) {
+                        listOf(
+                            Triple("ide", "IDE", config.customHostPaths["ide"]),
+                            Triple("app", "App", config.customHostPaths["app"]),
+                            Triple("cli", "CLI", config.customHostPaths["cli"])
+                        ).forEach { (key, title, customPath) ->
+                            val hasCustom = !customPath.isNullOrBlank()
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                    .background(if (hasCustom) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { onConfigureHostPath(key, "Antigravity $title") }
+                                    .padding(horizontal = AppTokens.Spacing.sm, vertical = AppTokens.Spacing.control)
+                            ) {
+                                Text(
+                                    text = if (hasCustom) "$title: 自定义" else "$title: 自动",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (hasCustom) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (hasCustom) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }

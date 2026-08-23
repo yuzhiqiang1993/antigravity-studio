@@ -85,6 +85,7 @@ fun SettingsScreen(
                         onOpenDirectory = {
                             openDirectoryError = openConfigDirectory(viewModel)
                         },
+                        onConfigureHostPath = viewModel::openHostPathDialog,
                         s = s
                     )
                 }
@@ -124,6 +125,7 @@ fun SettingsScreen(
                         onOpenDirectory = {
                             openDirectoryError = openConfigDirectory(viewModel)
                         },
+                        onConfigureHostPath = viewModel::openHostPathDialog,
                         s = s,
                         modifier = Modifier.weight(1f)
                     )
@@ -236,6 +238,7 @@ private fun SettingsContent(
     onPortInputChange: (String) -> Unit,
     onSavePort: () -> Unit,
     onOpenDirectory: () -> Unit,
+    onConfigureHostPath: ((String, String) -> Unit)? = null,
     s: Strings,
     modifier: Modifier = Modifier
 ) {
@@ -245,6 +248,7 @@ private fun SettingsContent(
                 config = config,
                 onUpdateLanguage = onUpdateLanguage,
                 onUpdateThemeMode = onUpdateThemeMode,
+                onConfigureHostPath = onConfigureHostPath,
                 s = s
             )
             SettingsSection.NETWORK -> NetworkSettingsSection(

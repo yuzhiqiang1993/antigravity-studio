@@ -75,6 +75,13 @@ object IdeHostManager {
     }
 
     fun isInstalled(customInstallation: String? = null): Boolean {
+        if (!customInstallation.isNullOrBlank()) {
+            val file = File(customInstallation.trim())
+            if (file.exists()) {
+                if (file.isFile) return true
+                if (isInstallationComplete(file)) return true
+            }
+        }
         return getCandidateInstallations(customInstallation).any(::isInstallationComplete)
     }
 
@@ -91,49 +98,55 @@ object IdeHostManager {
         return HostOwnershipStore.disableIde(getSettingsFile(), proxyPort).isSuccess
     }
 
-   /**
-    * 检测 Antigravity IDE 进程是否正在运行（零子进程开销内存查询）。
-    */
-   fun isRunning(): Boolean {
-       return if (System.getProperty("os.name", "").lowercase().contains("win")) {
-           HostProcessManager.isProcessRunning(listOf("Antigravity IDE.exe"))
-       } else {
-           HostProcessManager.isProcessRunning(listOf("Antigravity IDE.app", "/MacOS/Electron", "Antigravity IDE"))
-       }
-   }
+    private val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
 
-   /**
-    * 一键启动 Antigravity IDE 客户端。
-    */
-   fun launch(customInstallation: String? = null): Boolean {
+    private val ideMatchPatterns = if (isWindows) {
+        listOf("Antigravity IDE.exe")
+    } else {
+        listOf("Antigravity IDE.app", "Antigravity IDE")
+    }
+
+    private val ideExcludePatterns = emptyList<String>()
+
+    private val ideLanguageServerPatterns = if (isWindows) {
+        listOf("Antigravity IDE\\resources\\app\\extensions\\antigravity\\bin", "Antigravity IDE/resources/app/extensions/antigravity/bin")
+    } else {
+        listOf("Antigravity IDE.app/Contents/Resources/app/extensions/antigravity/bin")
+    }
+
+    /**
+     * 检测 Antigravity IDE 进程是否正在运行（精确匹配 IDE 进程）。
+     */
+    fun isRunning(): Boolean {
+        return HostProcessManager.isProcessRunning(ideMatchPatterns, ideExcludePatterns)
+    }
+
+    /**
+     * 一键启动 Antigravity IDE 客户端。
+     */
+    fun launch(customInstallation: String? = null): Boolean {
         return HostProcessManager.launch(
             installationPath = customInstallation,
             defaultMacApp = "Antigravity IDE",
             defaultWinExe = "Antigravity IDE.exe"
         )
-   }
+    }
 
-   /**
-    * 重启 Antigravity IDE 客户端。
-    */
-   suspend fun restart(customInstallation: String? = null): Boolean {
-       val terminated = HostProcessManager.terminateApplication(
-           bundleId = "com.google.antigravity-ide",
-           matchPatterns = if (System.getProperty("os.name", "").lowercase().contains("win")) {
-               listOf("Antigravity IDE.exe")
-           } else {
-               listOf("Antigravity IDE.app", "/MacOS/Electron", "Antigravity IDE")
-           },
-           label = "Antigravity IDE"
-       )
-       if (!terminated) return false
-       delay(300)
-       return launch(customInstallation)
-   }
-
-   private fun stopLanguageServer() {
-       HostProcessManager.stopLanguageServer()
-   }
+    /**
+     * 重启 Antigravity IDE 客户端（仅终止与重启 IDE 自身，绝不干扰 App）。
+     */
+    suspend fun restart(customInstallation: String? = null): Boolean {
+        val terminated = HostProcessManager.terminateApplication(
+            bundleId = "com.google.antigravity-ide",
+            matchPatterns = ideMatchPatterns,
+            excludePatterns = ideExcludePatterns,
+            languageServerPatterns = ideLanguageServerPatterns,
+            label = "Antigravity IDE"
+        )
+        if (!terminated) return false
+        delay(300)
+        return launch(customInstallation)
+    }
 
    private fun discoverMacApplications(bundleId: String): List<File> {
         return try {

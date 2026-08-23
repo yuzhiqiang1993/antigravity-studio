@@ -206,7 +206,7 @@ class DoctorEngine(
         }
 
         // (3) CLI 诊断
-        if (CliHostManager.isInstalled()) {
+        if (CliHostManager.isInstalled(config.customHostPaths["cli"])) {
             val cliActive = CliHostManager.isActive(actualPort)
             if (cliActive) {
                 items.add(

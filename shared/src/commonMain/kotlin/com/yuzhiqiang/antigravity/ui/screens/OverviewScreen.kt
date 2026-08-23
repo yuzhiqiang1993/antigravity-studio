@@ -83,6 +83,7 @@ fun OverviewScreen(
     val isAppActive by viewModel.isAppHostActive.collectAsState()
     val isAppRunning by viewModel.isAppRunning.collectAsState()
     val isAppInstalled by viewModel.isAppInstalled.collectAsState()
+    val config by viewModel.config.collectAsState()
     val operatingHostKeys by viewModel.operatingHostKeys.collectAsState()
     val scrollState = rememberScrollState()
     val address = "127.0.0.1:$actualPort"
@@ -135,7 +136,8 @@ fun OverviewScreen(
         val hostCardItems = remember(
             isIdeActive, isIdeRunning, isIdeInstalled,
             isAppActive, isAppRunning, isAppInstalled,
-            isCliActive, isCliInstalled, operatingHostKeys
+            isCliActive, isCliInstalled, operatingHostKeys,
+            config.customHostPaths
         ) {
             listOf(
                 HostCardData(
@@ -149,6 +151,8 @@ fun OverviewScreen(
                     actionLabel = if (isIdeRunning) "重启" else if (isIdeInstalled) "打开" else null,
                     onAction = if (isIdeInstalled) ({ viewModel.requestRestartOrLaunchIde(isIdeRunning) }) else null,
                     onRefresh = { viewModel.refreshHostStatus() },
+                    onConfigurePath = { viewModel.openHostPathDialog("ide", "Antigravity IDE") },
+                    customPath = config.customHostPaths["ide"],
                     isLoading = "ide" in operatingHostKeys
                 ),
                 HostCardData(
@@ -162,6 +166,8 @@ fun OverviewScreen(
                     actionLabel = if (isAppRunning) "重启" else if (isAppInstalled) "打开" else null,
                     onAction = if (isAppInstalled) ({ viewModel.requestRestartOrLaunchApp(isAppRunning) }) else null,
                     onRefresh = { viewModel.refreshHostStatus() },
+                    onConfigurePath = { viewModel.openHostPathDialog("app", "Antigravity App") },
+                    customPath = config.customHostPaths["app"],
                     isLoading = "app" in operatingHostKeys
                 ),
                 HostCardData(
@@ -175,6 +181,8 @@ fun OverviewScreen(
                     actionLabel = null,
                     onAction = null,
                     onRefresh = { viewModel.refreshHostStatus() },
+                    onConfigurePath = { viewModel.openHostPathDialog("cli", "Antigravity CLI") },
+                    customPath = config.customHostPaths["cli"],
                     isLoading = "cli" in operatingHostKeys
                 )
             )
