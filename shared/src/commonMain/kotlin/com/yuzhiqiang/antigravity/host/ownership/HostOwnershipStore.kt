@@ -575,10 +575,19 @@ object HostOwnershipStore {
             val temp = File.createTempFile("${file.name}-", ".tmp", parent)
             try {
                 temp.writeText(content, Charsets.UTF_8)
-                try {
-                    Files.move(temp.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
-                } catch (_: AtomicMoveNotSupportedException) {
-                    Files.move(temp.toPath(), file.toPath(), REPLACE_EXISTING)
+                val moved = try {
+                    try {
+                        Files.move(temp.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+                    } catch (_: AtomicMoveNotSupportedException) {
+                        Files.move(temp.toPath(), file.toPath(), REPLACE_EXISTING)
+                    }
+                    true
+                } catch (_: Exception) {
+                    // Windows 下当目标文件被 IDE/进程占用时，Files.move 可能会报错；回退为直接写入
+                    false
+                }
+                if (!moved) {
+                    file.writeText(content, Charsets.UTF_8)
                 }
                 originalPermissions?.let { permissions: Set<PosixFilePermission> ->
                     runCatching { Files.setPosixFilePermissions(file.toPath(), permissions) }

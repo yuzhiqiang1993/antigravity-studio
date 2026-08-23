@@ -386,7 +386,7 @@ object OfficialCatalogProbe {
         val candidates = mutableListOf<LanguageServerCandidate>()
         try {
             val process = ProcessBuilder(
-                "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
                 "Get-CimInstance Win32_Process -Filter \"Name LIKE '%language_server%'\" | ForEach-Object { \$_.ProcessId.ToString() + ' ' + \$_.CommandLine }"
             ).start()
             val lines = BufferedReader(InputStreamReader(process.inputStream)).readLines()
@@ -403,14 +403,49 @@ object OfficialCatalogProbe {
                 val csrf = extractFlagValue(command, "--csrf_token") ?: continue
                 val source = extractFlagValue(command, "--subclient_type") ?: "ide"
                 val httpsPort = extractFlagValue(command, "--https_server_port")?.toIntOrNull()
-
+                val ports = mutableListOf<Int>()
                 if (httpsPort != null && httpsPort > 0) {
-                    candidates.add(LanguageServerCandidate(pid, source, csrf, httpsPort))
+                    ports.add(httpsPort)
+                }
+                if (ports.isEmpty()) {
+                    ports.addAll(getListeningPortsWindows(pid))
+                }
+
+                for (port in ports) {
+                    if (port > 0 && candidates.none { it.port == port }) {
+                        candidates.add(LanguageServerCandidate(pid, source, csrf, port))
+                    }
                 }
             }
         } catch (_: Exception) {
         }
         return candidates
+    }
+
+    private fun getListeningPortsWindows(pid: Long): List<Int> {
+        val ports = mutableListOf<Int>()
+        try {
+            val process = ProcessBuilder("netstat", "-ano", "-p", "tcp").start()
+            val lines = BufferedReader(InputStreamReader(process.inputStream)).readLines()
+            process.waitFor()
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (!trimmed.startsWith("TCP", ignoreCase = true)) continue
+                val parts = trimmed.split(Regex("\\s+"))
+                if (parts.size >= 5 && parts[3].equals("LISTENING", ignoreCase = true)) {
+                    val linePid = parts[4].toLongOrNull()
+                    if (linePid == pid) {
+                        val localAddress = parts[1]
+                        val port = localAddress.substringAfterLast(':', "").toIntOrNull()
+                        if (port != null && port > 0) {
+                            ports.add(port)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return ports
     }
 
     private fun getListeningPortsByLsof(pid: Long): List<Int> {

@@ -79,9 +79,15 @@ private fun setupPlatformAppIcon() {
 }
 
 fun main() {
-    // macOS 原生 Skiko Metal 硬件加速与系统外观同步
-    System.setProperty("skiko.renderApi", "METAL")
-    System.setProperty("apple.awt.application.appearance", "system")
+    val osName = System.getProperty("os.name", "").lowercase()
+    if (osName.contains("mac")) {
+        // macOS 原生 Skiko Metal 硬件加速与系统外观同步
+        System.setProperty("skiko.renderApi", "METAL")
+        System.setProperty("apple.awt.application.appearance", "system")
+    } else if (osName.contains("win")) {
+        // Windows 原生 Direct3D 加速
+        System.setProperty("skiko.renderApi", "DIRECT3D")
+    }
     System.setProperty("skiko.vsync", "true")
 
     startKoin {

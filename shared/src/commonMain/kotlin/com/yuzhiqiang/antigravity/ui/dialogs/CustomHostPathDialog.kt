@@ -91,11 +91,12 @@ fun CustomHostPathDialog(
                     onValueChange = { pathInput = it },
                     label = { Text("安装目录或可执行文件路径") },
                     placeholder = {
+                        val isWin = System.getProperty("os.name", "").lowercase().contains("win")
                         Text(
                             when (hostKey) {
-                                "ide" -> "例如: /Applications/Antigravity IDE.app"
-                                "app" -> "例如: /Applications/Antigravity.app"
-                                else -> "例如: /usr/local/bin/agy"
+                                "ide" -> if (isWin) "例如: C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity IDE" else "例如: /Applications/Antigravity IDE.app"
+                                "app" -> if (isWin) "例如: C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity" else "例如: /Applications/Antigravity.app"
+                                else -> if (isWin) "例如: C:\\Users\\user\\AppData\\Local\\Programs\\Antigravity\\agy.exe" else "例如: /usr/local/bin/agy"
                             }
                         )
                     },

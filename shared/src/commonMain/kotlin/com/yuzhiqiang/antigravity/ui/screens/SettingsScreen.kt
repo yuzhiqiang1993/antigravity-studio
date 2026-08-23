@@ -276,12 +276,32 @@ private fun openConfigDirectory(viewModel: AppViewModel): String? {
     return try {
         val dir = viewModel.configStore.configFile.parentFile ?: File(System.getProperty("user.home"))
         if (!dir.exists()) dir.mkdirs()
+        var opened = false
         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-            Desktop.getDesktop().open(dir)
-            null
-        } else {
-            "当前平台不支持直接打开文件夹"
+            try {
+                Desktop.getDesktop().open(dir)
+                opened = true
+            } catch (_: Exception) {
+            }
         }
+        if (!opened) {
+            val osName = System.getProperty("os.name", "").lowercase()
+            when {
+                osName.contains("win") -> {
+                    ProcessBuilder("explorer.exe", dir.absolutePath).start()
+                    opened = true
+                }
+                osName.contains("mac") -> {
+                    ProcessBuilder("/usr/bin/open", dir.absolutePath).start()
+                    opened = true
+                }
+                else -> {
+                    ProcessBuilder("xdg-open", dir.absolutePath).start()
+                    opened = true
+                }
+            }
+        }
+        if (opened) null else "当前平台不支持直接打开文件夹"
     } catch (e: Exception) {
         "打开配置目录失败：" + (e.message ?: "未知错误")
     }
