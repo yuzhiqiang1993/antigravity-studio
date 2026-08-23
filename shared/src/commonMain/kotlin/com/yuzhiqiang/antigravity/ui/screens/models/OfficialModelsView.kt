@@ -38,6 +38,7 @@ fun OfficialModelsView(
     onOpenVisionDetail: (String, Boolean) -> Unit,
     onOpenReasoningDetail: (String, List<String>) -> Unit,
     onOpenInfoDetail: (ModelMetaInfo) -> Unit,
+    isDebugMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val s = com.yuzhiqiang.antigravity.i18n.strings()
@@ -106,16 +107,18 @@ fun OfficialModelsView(
                     onClick = onRefresh,
                     enabled = !isFetching
                 )
-                ModernToolButton(
-                    icon = Icons.Outlined.Code,
-                    text = s.modelsRawJson,
-                    onClick = onViewRawJson
-                )
-                ModernToolButton(
-                    icon = Icons.Outlined.Visibility,
-                    text = s.modelsModifiedJson,
-                    onClick = onViewModifiedJson
-                )
+                if (isDebugMode) {
+                    ModernToolButton(
+                        icon = Icons.Outlined.Code,
+                        text = s.modelsRawJson,
+                        onClick = onViewRawJson
+                    )
+                    ModernToolButton(
+                        icon = Icons.Outlined.Visibility,
+                        text = s.modelsModifiedJson,
+                        onClick = onViewModifiedJson
+                    )
+                }
             }
         }
 

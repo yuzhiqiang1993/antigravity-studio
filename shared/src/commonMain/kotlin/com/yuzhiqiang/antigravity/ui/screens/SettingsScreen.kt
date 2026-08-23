@@ -72,6 +72,8 @@ fun SettingsScreen(
                         onUpdateLanguage = viewModel::updateLanguage,
                         onUpdateThemeMode = viewModel::updateThemeMode,
                         onUpdateAutoCheckUpdate = viewModel::updateAutoCheckUpdate,
+                        onUpdateDeveloperMode = viewModel::updateDeveloperMode,
+                        onToggleDeveloperMode = viewModel::toggleDeveloperMode,
                         updateState = updateState,
                         onCheckUpdate = { viewModel.checkForUpdates(isManual = true) },
                         onOpenUpdateDialog = { viewModel.openUpdateDialog() },
@@ -116,6 +118,8 @@ fun SettingsScreen(
                         onUpdateLanguage = { viewModel.updateLanguage(it) },
                         onUpdateThemeMode = { viewModel.updateThemeMode(it) },
                         onUpdateAutoCheckUpdate = { viewModel.updateAutoCheckUpdate(it) },
+                        onUpdateDeveloperMode = { viewModel.updateDeveloperMode(it) },
+                        onToggleDeveloperMode = { viewModel.toggleDeveloperMode() },
                         updateState = updateState,
                         onCheckUpdate = { viewModel.checkForUpdates(isManual = true) },
                         onOpenUpdateDialog = { viewModel.openUpdateDialog() },
@@ -246,6 +250,8 @@ private fun SettingsContent(
     onUpdateLanguage: (com.yuzhiqiang.antigravity.i18n.AppLanguage) -> Unit,
     onUpdateThemeMode: (String) -> Unit,
     onUpdateAutoCheckUpdate: (Boolean) -> Unit,
+    onUpdateDeveloperMode: (Boolean) -> Unit,
+    onToggleDeveloperMode: () -> Unit,
     updateState: com.yuzhiqiang.antigravity.update.model.UpdateState,
     onCheckUpdate: () -> Unit,
     onOpenUpdateDialog: () -> Unit,
@@ -263,6 +269,7 @@ private fun SettingsContent(
                 onUpdateLanguage = onUpdateLanguage,
                 onUpdateThemeMode = onUpdateThemeMode,
                 onUpdateAutoCheckUpdate = onUpdateAutoCheckUpdate,
+                onUpdateDeveloperMode = onUpdateDeveloperMode,
                 onConfigureHostPath = onConfigureHostPath,
                 s = s
             )
@@ -283,6 +290,7 @@ private fun SettingsContent(
                 updateState = updateState,
                 onCheckUpdate = onCheckUpdate,
                 onOpenUpdateDialog = onOpenUpdateDialog,
+                onToggleDeveloperMode = onToggleDeveloperMode,
                 onOpenConfigDirectory = onOpenDirectory,
                 s = s
             )

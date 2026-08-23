@@ -230,7 +230,8 @@ fun ModelsScreen(
                 },
                 onOpenInfoDetail = { meta ->
                     activeModelMetaInfo = meta
-                }
+                },
+                isDebugMode = config.isDebugMode
             )
         } else {
             val currentProvider = config.providers.find { it.id == selectedTabId }

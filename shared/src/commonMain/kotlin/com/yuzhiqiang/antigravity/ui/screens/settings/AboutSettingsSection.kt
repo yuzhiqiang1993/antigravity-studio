@@ -33,6 +33,7 @@ fun AboutSettingsSection(
     updateState: UpdateState,
     onCheckUpdate: () -> Unit,
     onOpenUpdateDialog: () -> Unit,
+    onToggleDeveloperMode: () -> Unit = {},
     onOpenConfigDirectory: () -> Unit,
     s: Strings
 ) {
@@ -64,6 +65,7 @@ fun AboutSettingsSection(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(AppTokens.Radius.pill))
                                 .background(MaterialTheme.colorScheme.primaryContainer)
+                                .clickable(onClick = onToggleDeveloperMode)
                                 .padding(horizontal = AppTokens.Spacing.sm, vertical = 2.dp)
                         ) {
                             Text(

@@ -30,5 +30,13 @@ data class AppConfig(
     @SerialName("ignored_version")
     val ignoredVersion: String? = null,
     @SerialName("last_check_update_timestamp")
-    val lastCheckUpdateTimestamp: Long = 0L
-)
+    val lastCheckUpdateTimestamp: Long = 0L,
+    @SerialName("developer_mode")
+    val developerMode: Boolean = false
+) {
+    val isDebugMode: Boolean
+        get() = developerMode ||
+                com.yuzhiqiang.antigravity.BuildInfo.DEBUG ||
+                System.getProperty("app.debug")?.toBoolean() == true ||
+                System.getenv("APP_DEBUG")?.toBoolean() == true
+}
