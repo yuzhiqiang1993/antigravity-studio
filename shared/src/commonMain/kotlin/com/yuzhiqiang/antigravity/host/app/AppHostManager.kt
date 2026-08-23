@@ -58,10 +58,18 @@ object AppHostManager {
     private val appMatchPatterns = if (isWindows) {
         listOf("Antigravity.exe")
     } else {
-        listOf("Antigravity.app", "/MacOS/Antigravity")
+        listOf("Antigravity.app/", "/Antigravity.app", "/MacOS/Antigravity")
     }
 
-    private val appExcludePatterns = listOf("Antigravity IDE", "Antigravity-IDE", "Antigravity IDE.exe")
+    private val appExcludePatterns = listOf(
+        "Antigravity IDE",
+        "Antigravity-IDE",
+        "Antigravity IDE.exe",
+        "Antigravity Studio",
+        "antigravity-studio",
+        "Antigravity Studio.app",
+        "antigravity-ide-cockpit"
+    )
 
     private val appLanguageServerPatterns = if (isWindows) {
         listOf("Programs\\Antigravity\\resources\\bin\\language_server.exe", "Programs/Antigravity/resources/bin/language_server.exe")
@@ -72,8 +80,18 @@ object AppHostManager {
     /**
      * 检测 Antigravity App 是否正在运行（精确匹配 App 进程并排除 IDE 进程）。
      */
-    fun isRunning(): Boolean {
-        return HostProcessManager.isProcessRunning(appMatchPatterns, appExcludePatterns)
+    fun isRunning(customInstallation: String? = null): Boolean {
+        val patterns = buildList {
+            addAll(appMatchPatterns)
+            if (!customInstallation.isNullOrBlank()) {
+                val file = File(customInstallation.trim())
+                add(file.name)
+                if (file.name.endsWith(".app", ignoreCase = true)) {
+                    add(file.name + "/")
+                }
+            }
+        }.distinct()
+        return HostProcessManager.isProcessRunning(patterns, appExcludePatterns)
     }
 
     /**
@@ -92,7 +110,7 @@ object AppHostManager {
         customInstallation: String? = null
     ): com.yuzhiqiang.antigravity.host.model.HostDetailedStatus {
         val installed = isInstalled(customInstallation)
-        val running = installed && isRunning()
+        val running = installed && isRunning(customInstallation)
         val inspect = HostOwnershipStore.inspectEnvironmentIntegration(
             HostOwnershipStore.EnvironmentOwner.APP,
             proxyPort
