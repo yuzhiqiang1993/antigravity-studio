@@ -72,6 +72,107 @@ object HostOwnershipStore {
         val originalContent: String
     )
 
+    data class IntegrationInspectResult(
+        val state: com.yuzhiqiang.antigravity.host.model.ClientIntegrationState,
+        val configuredEndpoint: String?,
+        val endpointMatches: Boolean,
+        val canDisable: Boolean
+    )
+
+    /** 详细探测指定 IDE settings 的代理集成状态与端点。 */
+    fun inspectIdeIntegration(settingsFile: File, proxyPort: Int): IntegrationInspectResult {
+        val target = localEndpoint(proxyPort)
+        val content = readText(settingsFile).getOrNull()
+            ?: return IntegrationInspectResult(
+                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL,
+                null,
+                false,
+                false
+            )
+        val endpoint = extractIdeEndpoint(content)
+            ?: return IntegrationInspectResult(
+                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL,
+                null,
+                false,
+                false
+            )
+        val matches = endpoint == target
+        val receipt = readIdeReceipt().getOrNull()
+        val isManaged = receipt?.managedEndpoint == endpoint &&
+                receipt.settingsPath == settingsFile.absoluteFile.normalize().path
+        val state = when {
+            matches && isManaged -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
+            matches -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL
+            else -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
+        }
+        return IntegrationInspectResult(
+            state = state,
+            configuredEndpoint = endpoint,
+            endpointMatches = matches,
+            canDisable = true
+        )
+    }
+
+    /** 详细探测系统共享环境变量的代理集成状态与端点。 */
+    fun inspectEnvironmentIntegration(owner: EnvironmentOwner, proxyPort: Int): IntegrationInspectResult {
+        val target = localEndpoint(proxyPort)
+        val endpoint = readEnvironmentEndpoint().getOrNull()
+            ?: return IntegrationInspectResult(
+                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL,
+                null,
+                false,
+                false
+            )
+        val matches = endpoint == target
+        val receipt = readEnvironmentReceipt().getOrNull()
+        val isManaged = receipt?.managedEndpoint == endpoint && receipt.hasOwner(owner)
+        val state = when {
+            matches && isManaged -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
+            matches -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL
+            else -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
+        }
+        return IntegrationInspectResult(
+            state = state,
+            configuredEndpoint = endpoint,
+            endpointMatches = matches,
+            canDisable = true
+        )
+    }
+
+    /** 强制重置 IDE 代理配置至官方直连（无视 receipt 记录，直接剔除配置并清理 receipt）。 */
+    fun forceResetIde(settingsFile: File): Result<Unit> {
+        removeReceipt(ideReceiptFile())
+        removeReceipt(integrationRoot().resolve("ide-receipt.json"))
+        removeReceipt(integrationRoot().resolve("ide-setting-ownership.json"))
+        removeReceipt(integrationRoot().resolve("ide-settings-ownership.json"))
+        val candidateFiles = (com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getCandidateSettingsFiles() + listOf(settingsFile)).distinct()
+        for (file in candidateFiles) {
+            if (!file.exists()) continue
+            val content = readText(file).getOrNull() ?: continue
+            val updated = removeIdeEndpoint(content)
+            if (updated != null && updated != content) {
+                writeTextAtomically(file, updated)
+            }
+        }
+        return Result.success(Unit)
+    }
+
+    /** 强制重置共享环境变量至官方模式（彻底清除 launchctl/注册表环境变量与 receipt）。 */
+    fun forceResetEnvironment(): Result<Unit> {
+        removeReceipt(environmentReceiptFile())
+        removeReceipt(integrationRoot().resolve("environment-receipt.json"))
+        removeReceipt(integrationRoot().resolve("environment-ownership.json"))
+        unsetEnvironmentEndpoint()
+        return Result.success(Unit)
+    }
+
+    /** 强制重置所有宿主接入状态至干净的官方模式。 */
+    fun forceResetAll(): Result<Unit> {
+        forceResetEnvironment()
+        forceResetIde(com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getSettingsFile())
+        return Result.success(Unit)
+    }
+
     /** 判断指定代理端口当前是否已经写入宿主环境变量。 */
     fun isEnvironmentConfigured(proxyPort: Int): Boolean {
         val endpoint = readEnvironmentEndpoint().getOrNull()

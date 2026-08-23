@@ -42,7 +42,7 @@ class LocalProxyServer(
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
-    private val _actualPort = MutableStateFlow(12345)
+    private val _actualPort = MutableStateFlow(8321)
     val actualPort: StateFlow<Int> = _actualPort.asStateFlow()
 
     private val generationSemaphore = Semaphore(256)

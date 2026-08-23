@@ -145,6 +145,13 @@ interface Strings {
     val hostCliNotInstalled: String
     val hostAppNotInstalled: String
     val hostAppNeedRestart: String
+    val hostStatusNeedsUpdate: String
+    val hostStatusMismatch: String
+    val hostUpdateAction: String
+    val hostForceReset: String
+    val hostForceResetConfirmTitle: String
+    val hostForceResetConfirmMessage: String
+    val hostForceResetSuccess: String
 
     // Common
     val commonSave: String
@@ -295,6 +302,13 @@ object StringsZh : Strings {
     override val hostCliNotInstalled = "未检测到 agy CLI 安装，请先安装后重试"
     override val hostAppNotInstalled = "未检测到 Antigravity App 安装"
     override val hostAppNeedRestart = "配置已更新，需要重启 Antigravity App 以生效"
+    override val hostStatusNeedsUpdate = "配置待更新"
+    override val hostStatusMismatch = "代理端口不匹配"
+    override val hostUpdateAction = "更新配置"
+    override val hostForceReset = "重置为官方模式"
+    override val hostForceResetConfirmTitle = "确认重置为官方直连模式"
+    override val hostForceResetConfirmMessage = "此操作将彻底清除该宿主的所有代理设置与历史托管记录，恢复为干净的官方直连模式。是否继续？"
+    override val hostForceResetSuccess = "已重置为官方直连模式"
 
     override val commonSave = "保存配置"
     override val commonCancel = "取消"
@@ -444,6 +458,13 @@ object StringsEn : Strings {
     override val hostCliNotInstalled = "agy CLI not detected; please install it first"
     override val hostAppNotInstalled = "Antigravity App not detected"
     override val hostAppNeedRestart = "Configuration updated; restart Antigravity App to apply"
+    override val hostStatusNeedsUpdate = "Needs Update"
+    override val hostStatusMismatch = "Port Mismatch"
+    override val hostUpdateAction = "Update Config"
+    override val hostForceReset = "Reset to Official"
+    override val hostForceResetConfirmTitle = "Reset to Official Direct Connection"
+    override val hostForceResetConfirmMessage = "This will clear all host proxy settings and receipts to restore clean official mode. Continue?"
+    override val hostForceResetSuccess = "Reset to official direct mode"
 
     override val commonSave = "Save"
     override val commonCancel = "Cancel"

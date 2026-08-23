@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -29,11 +30,15 @@ data class HostCardData(
     val statusTone: BadgeTone,
     val desc: String,
     val isProxyActive: Boolean,
+    val needsUpdate: Boolean = false,
+    val configuredEndpoint: String? = null,
+    val targetEndpoint: String? = null,
     val integrationDetail: String,
     val onToggle: () -> Unit,
     val actionLabel: String? = null,
     val onAction: (() -> Unit)? = null,
     val onRefresh: () -> Unit,
+    val onForceReset: (() -> Unit)? = null,
     val onConfigurePath: (() -> Unit)? = null,
     val customPath: String? = null,
     val isLoading: Boolean = false
@@ -44,6 +49,9 @@ fun HostCardItem(
     data: HostCardData,
     modifier: Modifier = Modifier
 ) {
+    val warningColor = Color(0xFFD97706)
+    val successColor = Color(0xFF16A34A)
+
     StudioCard(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface
@@ -93,12 +101,23 @@ fun HostCardItem(
                 )
             }
 
+            val containerBg = when {
+                data.needsUpdate -> warningColor.copy(alpha = 0.08f)
+                data.isProxyActive -> successColor.copy(alpha = 0.06f)
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            }
+            val containerBorder = when {
+                data.needsUpdate -> warningColor.copy(alpha = 0.35f)
+                data.isProxyActive -> successColor.copy(alpha = 0.25f)
+                else -> MaterialTheme.colorScheme.outlineVariant
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(AppTokens.Radius.medium))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(AppTokens.Radius.medium))
+                    .background(containerBg)
+                    .border(1.dp, containerBorder, RoundedCornerShape(AppTokens.Radius.medium))
                     .padding(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.content),
                 verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
             ) {
@@ -114,15 +133,23 @@ fun HostCardItem(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     StatusBadge(
-                        text = if (data.isProxyActive) "已接入" else "未接入",
-                        tone = if (data.isProxyActive) BadgeTone.SUCCESS else BadgeTone.NEUTRAL,
+                        text = when {
+                            data.needsUpdate -> "待更新"
+                            data.isProxyActive -> "已接入"
+                            else -> "官方直连"
+                        },
+                        tone = when {
+                            data.needsUpdate -> BadgeTone.WARNING
+                            data.isProxyActive -> BadgeTone.SUCCESS
+                            else -> BadgeTone.NEUTRAL
+                        },
                         showDot = false
                     )
                 }
                 Text(
                     text = data.integrationDetail,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (data.needsUpdate) warningColor else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -136,53 +163,81 @@ fun HostCardItem(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (data.isProxyActive) {
-                        val successColor = Color(0xFF16A34A)
-                        OutlinedButton(
-                            onClick = data.onToggle,
-                            enabled = !data.isLoading,
-                            modifier = Modifier.height(32.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, successColor.copy(alpha = if (data.isLoading) 0.2f else 0.45f)),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = successColor.copy(alpha = 0.08f),
-                                contentColor = successColor
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                        ) {
-                            if (data.isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(13.dp),
-                                    strokeWidth = 2.dp,
-                                    color = successColor
+                    when {
+                        data.needsUpdate -> {
+                            Button(
+                                onClick = data.onToggle,
+                                enabled = !data.isLoading,
+                                modifier = Modifier.height(32.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = warningColor,
+                                    contentColor = Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            ) {
+                                if (data.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(13.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                    Spacer(Modifier.width(5.dp))
+                                }
+                                Text(
+                                    text = "更新配置",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                                 )
-                                Spacer(Modifier.width(5.dp))
                             }
-                            Text(
-                                text = "恢复官方直连",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
-                            )
                         }
-                    } else {
-                        Button(
-                            onClick = data.onToggle,
-                            enabled = !data.isLoading,
-                            modifier = Modifier.height(32.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                        ) {
-                            if (data.isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(13.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
+                        data.isProxyActive -> {
+                            OutlinedButton(
+                                onClick = data.onToggle,
+                                enabled = !data.isLoading,
+                                modifier = Modifier.height(32.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, successColor.copy(alpha = if (data.isLoading) 0.2f else 0.45f)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = successColor.copy(alpha = 0.08f),
+                                    contentColor = successColor
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            ) {
+                                if (data.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(13.dp),
+                                        strokeWidth = 2.dp,
+                                        color = successColor
+                                    )
+                                    Spacer(Modifier.width(5.dp))
+                                }
+                                Text(
+                                    text = "恢复官方直连",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                                 )
-                                Spacer(Modifier.width(5.dp))
                             }
-                            Text(
-                                text = "接入代理",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
-                            )
+                        }
+                        else -> {
+                            Button(
+                                onClick = data.onToggle,
+                                enabled = !data.isLoading,
+                                modifier = Modifier.height(32.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            ) {
+                                if (data.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(13.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(Modifier.width(5.dp))
+                                }
+                                Text(
+                                    text = "接入代理",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                )
+                            }
                         }
                     }
 
@@ -221,6 +276,23 @@ fun HostCardItem(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (data.onForceReset != null) {
+                        OutlinedButton(
+                            onClick = data.onForceReset,
+                            enabled = !data.isLoading,
+                            modifier = Modifier.size(32.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.RestartAlt,
+                                contentDescription = "重置为官方模式",
+                                modifier = Modifier.size(15.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     if (data.onConfigurePath != null) {
                         OutlinedButton(
                             onClick = data.onConfigurePath,
@@ -255,3 +327,4 @@ fun HostCardItem(
         }
     }
 }
+

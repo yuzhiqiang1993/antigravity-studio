@@ -529,6 +529,8 @@ private fun DoctorItemRow(
                     is DoctorFixAction.StartProxy -> "启动代理"
                     is DoctorFixAction.OpenAddProvider -> "去配置"
                     is DoctorFixAction.RepairIdeSettings, is DoctorFixAction.RepairAppEnvironment -> "一键接入"
+                    is DoctorFixAction.UpdateIdeSettings, is DoctorFixAction.UpdateAppEnvironment, is DoctorFixAction.UpdateCliConfig -> "更新配置"
+                    is DoctorFixAction.ResetIdeHostToOfficial, is DoctorFixAction.ResetAppHostToOfficial, is DoctorFixAction.ResetCliHostToOfficial -> "重置官方"
                     is DoctorFixAction.RestartIdeHost -> "重启 IDE"
                     is DoctorFixAction.RestartAppHost -> "重启 App"
                     is DoctorFixAction.PruneInvalidModels -> "清理模型"

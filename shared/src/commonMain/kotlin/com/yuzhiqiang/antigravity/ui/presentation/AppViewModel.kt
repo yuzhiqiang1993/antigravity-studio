@@ -91,6 +91,39 @@ class AppViewModel(
     private val _isAppInstalled = MutableStateFlow(false)
     val isAppInstalled: StateFlow<Boolean> = _isAppInstalled.asStateFlow()
 
+    private val _ideDetailedStatus = MutableStateFlow(
+        com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
+            com.yuzhiqiang.antigravity.host.model.HostType.IDE,
+            isInstalled = false,
+            isRunning = false,
+            integrationState = com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE,
+            configurationState = com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
+        )
+    )
+    val ideDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> = _ideDetailedStatus.asStateFlow()
+
+    private val _appDetailedStatus = MutableStateFlow(
+        com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
+            com.yuzhiqiang.antigravity.host.model.HostType.APP,
+            isInstalled = false,
+            isRunning = false,
+            integrationState = com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE,
+            configurationState = com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
+        )
+    )
+    val appDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> = _appDetailedStatus.asStateFlow()
+
+    private val _cliDetailedStatus = MutableStateFlow(
+        com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
+            com.yuzhiqiang.antigravity.host.model.HostType.CLI,
+            isInstalled = false,
+            isRunning = false,
+            integrationState = com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE,
+            configurationState = com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
+        )
+    )
+    val cliDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> = _cliDetailedStatus.asStateFlow()
+
     private val _isTestingConnection = MutableStateFlow(false)
     val isTestingConnection: StateFlow<Boolean> = _isTestingConnection.asStateFlow()
 
@@ -126,6 +159,9 @@ class AppViewModel(
         scope = viewModelScope,
         configStore = configStore,
         proxyServer = proxyServer,
+        ideDetailedStatusFlow = _ideDetailedStatus,
+        appDetailedStatusFlow = _appDetailedStatus,
+        cliDetailedStatusFlow = _cliDetailedStatus,
         isIdeHostActiveFlow = _isIdeHostActive,
         isIdeInstalledFlow = _isIdeInstalled,
         isIdeRunningFlow = _isIdeRunning,
@@ -313,6 +349,7 @@ class AppViewModel(
 
     fun toggleIdeHost() = hostDelegate.requestToggleIdeHost(actualProxyPort.value)
     fun requestToggleIdeHost() = hostDelegate.requestToggleIdeHost(actualProxyPort.value)
+    fun forceResetIdeHost() = hostDelegate.requestForceResetHost("ide", actualProxyPort.value)
     fun requestRestartOrLaunchIde(isIdeRunning: Boolean) {
         if (isIdeRunning) {
             showConfirmDialog(
@@ -334,9 +371,12 @@ class AppViewModel(
 
     fun toggleCliHost() = hostDelegate.requestToggleCliHost(actualProxyPort.value)
     fun requestToggleCliHost() = hostDelegate.requestToggleCliHost(actualProxyPort.value)
+    fun forceResetCliHost() = hostDelegate.requestForceResetHost("cli", actualProxyPort.value)
 
     fun toggleAppHost() = hostDelegate.requestToggleAppHost(actualProxyPort.value)
     fun requestToggleAppHost() = hostDelegate.requestToggleAppHost(actualProxyPort.value)
+    fun forceResetAppHost() = hostDelegate.requestForceResetHost("app", actualProxyPort.value)
+    fun forceResetHost(hostKey: String) = hostDelegate.requestForceResetHost(hostKey, actualProxyPort.value)
     fun requestRestartOrLaunchApp(isAppRunning: Boolean) {
         if (isAppRunning) {
             showConfirmDialog(
