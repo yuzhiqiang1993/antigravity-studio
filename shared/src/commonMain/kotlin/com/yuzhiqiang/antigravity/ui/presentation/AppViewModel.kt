@@ -232,6 +232,40 @@ class AppViewModel(
         _notice.value = null
     }
 
+    data class HostPathDialogState(
+        val hostKey: String,
+        val hostTitle: String,
+        val currentPath: String
+    )
+
+    private val _hostPathDialogState = MutableStateFlow<HostPathDialogState?>(null)
+    val hostPathDialogState: StateFlow<HostPathDialogState?> = _hostPathDialogState.asStateFlow()
+
+    fun openHostPathDialog(hostKey: String, hostTitle: String) {
+        val currentPath = configStore.currentConfig.customHostPaths[hostKey].orEmpty()
+        _hostPathDialogState.value = HostPathDialogState(hostKey, hostTitle, currentPath)
+    }
+
+    fun closeHostPathDialog() {
+        _hostPathDialogState.value = null
+    }
+
+    fun saveCustomHostPath(hostKey: String, path: String?) {
+        val cleanPath = path?.trim()?.takeIf { it.isNotEmpty() }
+        configStore.updateConfig { current ->
+            val updatedPaths = current.customHostPaths.toMutableMap()
+            if (cleanPath != null) {
+                updatedPaths[hostKey] = cleanPath
+            } else {
+                updatedPaths.remove(hostKey)
+            }
+            current.copy(customHostPaths = updatedPaths)
+        }
+        refreshHostStatus()
+        showNotice(if (cleanPath != null) "已设置自定义路径并重新检测" else "已重置为默认自动探测路径", NoticeKind.SUCCESS)
+        closeHostPathDialog()
+    }
+
     fun showConfirmDialog(state: ConfirmDialogState) {
         _confirmDialog.value = state
     }

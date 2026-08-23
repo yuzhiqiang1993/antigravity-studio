@@ -36,7 +36,7 @@ class HostLifecycleDelegate(
             isIdeInstalledFlow.value = IdeHostManager.isInstalled(hostPaths["ide"])
             isIdeRunningFlow.value = IdeHostManager.isRunning()
 
-            isCliInstalledFlow.value = CliHostManager.isInstalled()
+            isCliInstalledFlow.value = CliHostManager.isInstalled(hostPaths["cli"])
             isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
 
             isAppInstalledFlow.value = AppHostManager.isInstalled(hostPaths["app"])

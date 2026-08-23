@@ -16,6 +16,13 @@ object AppHostManager {
      * 检测 Antigravity App 是否已安装。
      */
     fun isInstalled(customInstallation: String? = null): Boolean {
+        if (!customInstallation.isNullOrBlank()) {
+            val file = File(customInstallation.trim())
+            if (file.exists()) {
+                if (file.isFile) return true
+                if (file.isDirectory && (File(file, "Contents/MacOS/Antigravity").isFile || File(file, "Antigravity.exe").isFile)) return true
+            }
+        }
         val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
             ?.let { if (it.isFile) it.parentFile else it }
         return if (isWindows) {
@@ -48,16 +55,26 @@ object AppHostManager {
         }
     }
 
-   /**
-    * 检测 Antigravity App 是否正在运行（零子进程开销内存查询）。
-    */
-   fun isRunning(): Boolean {
-       return if (isWindows) {
-           HostProcessManager.isProcessRunning(listOf("Antigravity.exe"))
-       } else {
-           HostProcessManager.isProcessRunning(listOf("Antigravity.app", "/MacOS/Antigravity"))
-       }
-   }
+    private val appMatchPatterns = if (isWindows) {
+        listOf("Antigravity.exe")
+    } else {
+        listOf("Antigravity.app", "/MacOS/Antigravity")
+    }
+
+    private val appExcludePatterns = listOf("Antigravity IDE", "Antigravity-IDE", "Antigravity IDE.exe")
+
+    private val appLanguageServerPatterns = if (isWindows) {
+        listOf("Programs\\Antigravity\\resources\\bin\\language_server.exe", "Programs/Antigravity/resources/bin/language_server.exe")
+    } else {
+        listOf("Antigravity.app/Contents/Resources/bin/language_server")
+    }
+
+    /**
+     * 检测 Antigravity App 是否正在运行（精确匹配 App 进程并排除 IDE 进程）。
+     */
+    fun isRunning(): Boolean {
+        return HostProcessManager.isProcessRunning(appMatchPatterns, appExcludePatterns)
+    }
 
     /**
      * 检测是否已设置代理环境变量。
@@ -88,40 +105,38 @@ object AppHostManager {
         ).isSuccess
     }
 
-   /**
-    * 跨平台启动 Antigravity App。
-    */
-   fun launch(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
-       val env = if (proxyPort != null && isActive(proxyPort)) {
-           mapOf("CLOUD_CODE_URL" to ("http://127.0.0.1:" + proxyPort))
-       } else {
-           null
-       }
-       return HostProcessManager.launch(
-           installationPath = customInstallation,
-           defaultMacApp = "Antigravity",
-           defaultWinExe = "Antigravity.exe",
-           environment = env
-       )
-   }
+    /**
+     * 跨平台启动 Antigravity App。
+     */
+    fun launch(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
+        val env = if (proxyPort != null && isActive(proxyPort)) {
+            mapOf("CLOUD_CODE_URL" to ("http://127.0.0.1:" + proxyPort))
+        } else {
+            null
+        }
+        return HostProcessManager.launch(
+            installationPath = customInstallation,
+            defaultMacApp = "Antigravity",
+            defaultWinExe = "Antigravity.exe",
+            environment = env
+        )
+    }
 
-   /**
-    * 跨平台重启 Antigravity App。
-    */
-   suspend fun restart(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
-       val terminated = HostProcessManager.terminateApplication(
-           bundleId = "com.google.antigravity",
-           matchPatterns = if (isWindows) listOf("Antigravity.exe") else listOf("Antigravity.app", "/MacOS/Antigravity"),
-           label = "Antigravity App"
-       )
-       if (!terminated) return false
-       delay(300)
-       return launch(customInstallation, proxyPort)
-   }
-
-   private fun stopLanguageServer() {
-       HostProcessManager.stopLanguageServer()
-   }
+    /**
+     * 跨平台重启 Antigravity App（仅终止与重启 App 自身，绝不干扰 IDE）。
+     */
+    suspend fun restart(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
+        val terminated = HostProcessManager.terminateApplication(
+            bundleId = "com.google.antigravity",
+            matchPatterns = appMatchPatterns,
+            excludePatterns = appExcludePatterns,
+            languageServerPatterns = appLanguageServerPatterns,
+            label = "Antigravity App"
+        )
+        if (!terminated) return false
+        delay(300)
+        return launch(customInstallation, proxyPort)
+    }
 
     private fun discoverMacApplications(bundleId: String): List<File> {
         return try {

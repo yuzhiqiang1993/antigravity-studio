@@ -21,6 +21,7 @@ import com.yuzhiqiang.antigravity.i18n.StringsZh
 import com.yuzhiqiang.antigravity.ui.components.AppSidebar
 import com.yuzhiqiang.antigravity.ui.components.AppSnackbarHost
 import com.yuzhiqiang.antigravity.ui.dialogs.ConfirmDialog
+import com.yuzhiqiang.antigravity.ui.dialogs.CustomHostPathDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.DoctorDialog
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
@@ -46,6 +47,7 @@ fun App(
     val showDoctor by viewModel.showDoctorDialog.collectAsState()
     val notice by viewModel.notice.collectAsState()
     val confirmState by viewModel.confirmDialog.collectAsState()
+    val hostPathDialogState by viewModel.hostPathDialogState.collectAsState()
 
     KoinContext {
     CompositionLocalProvider(LocalStrings provides currentStrings) {
@@ -123,6 +125,17 @@ fun App(
                         isDestructive = state.isDestructive,
                         onConfirm = state.onConfirm,
                         onDismiss = { viewModel.dismissConfirmDialog() }
+                    )
+                }
+
+                // 自定义宿主路径配置对话框
+                hostPathDialogState?.let { state ->
+                    CustomHostPathDialog(
+                        hostKey = state.hostKey,
+                        hostTitle = state.hostTitle,
+                        initialPath = state.currentPath,
+                        onSave = { path -> viewModel.saveCustomHostPath(state.hostKey, path) },
+                        onDismiss = { viewModel.closeHostPathDialog() }
                     )
                 }
             }

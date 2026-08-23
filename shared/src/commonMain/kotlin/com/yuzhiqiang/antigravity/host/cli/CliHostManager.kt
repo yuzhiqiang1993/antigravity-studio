@@ -31,7 +31,14 @@ object CliHostManager {
     /**
      * 检测 CLI 工具是否已安装（跨平台支持 macOS/Linux 和 Windows）。
      */
-    fun isInstalled(): Boolean {
+    fun isInstalled(customInstallation: String? = null): Boolean {
+        if (!customInstallation.isNullOrBlank()) {
+            val file = File(customInstallation.trim())
+            if (file.exists()) {
+                if (file.isFile) return true
+                if (file.isDirectory && (File(file, "agy").isFile || File(file, "agy.exe").isFile)) return true
+            }
+        }
         return try {
             val os = System.getProperty("os.name", "").lowercase()
             val userHome = System.getProperty("user.home")
