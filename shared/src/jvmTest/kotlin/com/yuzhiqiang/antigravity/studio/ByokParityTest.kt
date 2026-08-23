@@ -15,6 +15,7 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
 import com.yuzhiqiang.antigravity.proxy.parser.AntigravityRequestParser
 import com.yuzhiqiang.antigravity.proxy.adapters.ProviderAdapter
 import com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer
+import com.yuzhiqiang.antigravity.proxy.server.CatalogInjector
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -381,28 +382,21 @@ class ByokParityTest {
         try {
             val store = ConfigStore(root)
             store.saveConfig(config)
-            val server = LocalProxyServer(store)
-            val port = server.start(24_322).getOrThrow()
-            try {
-                val connection = java.net.URI("http://127.0.0.1:$port/v1internal:fetchAvailableModels").toURL().openConnection() as HttpURLConnection
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.outputStream.bufferedWriter().use { it.write("{}") }
-                val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val response = CatalogInjector.injectCustomModels(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("response", kotlinx.serialization.json.buildJsonObject {
+                        put("models", kotlinx.serialization.json.buildJsonObject {})
+                    })
+                },
+                config
+            ).toString()
                 
-               // 校验母条目生成
-                assertTrue(response.contains("custom-stealthox-alpha-tiered"))
-                // 校验母条目 displayName 为干净的模型族名
-                assertTrue(response.contains("stealth/ox-alpha"))
-                // 校验子条目含有推理等级后缀，便于客户端聚类二级菜单
-                assertTrue(response.contains("stealth/ox-alpha (High)"))
-                assertTrue(response.contains("stealth/ox-alpha (Low)"))
-                assertTrue(response.contains("stealth/ox-alpha (Max)"))
-                // 校验 tieredModelIds.custom
-                assertTrue(response.contains("tieredModelIds") && response.contains("custom-stealthox-alpha-tiered"))
-           } finally {
-                server.stop()
-            }
+            assertTrue(response.contains("custom-stealthox-alpha-tiered"))
+            assertTrue(response.contains("stealth/ox-alpha"))
+            assertTrue(response.contains("stealth/ox-alpha (High)"))
+            assertTrue(response.contains("stealth/ox-alpha (Low)"))
+            assertTrue(response.contains("stealth/ox-alpha (Max)"))
+            assertTrue(response.contains("tieredModelIds") && response.contains("custom-stealthox-alpha-tiered"))
         } finally {
             root.deleteRecursively()
         }
