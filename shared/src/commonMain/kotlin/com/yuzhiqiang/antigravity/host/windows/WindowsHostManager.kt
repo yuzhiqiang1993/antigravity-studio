@@ -18,7 +18,7 @@ object WindowsHostManager {
                 // 已启动的宿主不会自动读取新环境；广播变更供新进程和宿主发现逻辑及时刷新。
                 runCatching {
                     ProcessBuilder(
-                        "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
                         "\$signature = '[DllImport(\"user32.dll\", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'; Add-Type -MemberDefinition \$signature -Name NativeMethods -Namespace Win32; \$result = [UIntPtr]::Zero; [Win32.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]\$result) | Out-Null"
                     ).start()
                 }
@@ -33,7 +33,16 @@ object WindowsHostManager {
     fun unsetEnvironmentUrl(): Boolean {
         return try {
             val process = ProcessBuilder("reg", "delete", "HKCU\\Environment", "/F", "/V", "CLOUD_CODE_URL").start()
-            process.waitFor() == 0 || getEnvironmentUrl() == null
+            val success = process.waitFor() == 0 || getEnvironmentUrl() == null
+            if (success) {
+                runCatching {
+                    ProcessBuilder(
+                        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+                        "\$signature = '[DllImport(\"user32.dll\", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'; Add-Type -MemberDefinition \$signature -Name NativeMethods -Namespace Win32; \$result = [UIntPtr]::Zero; [Win32.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]\$result) | Out-Null"
+                    ).start()
+                }
+            }
+            success
         } catch (error: Exception) {
             false
         }
@@ -49,11 +58,16 @@ object WindowsHostManager {
                 null
             } else {
                 output.lineSequence()
-                    .firstOrNull { line -> line.contains("CLOUD_CODE_URL") }
+                    .firstOrNull { line -> line.contains("CLOUD_CODE_URL", ignoreCase = true) }
                     ?.let { line ->
-                        line.substringAfter("REG_EXPAND_SZ", "")
-                            .ifBlank { line.substringAfter("REG_SZ", "") }
-                            .trim()
+                        val parts = line.trim().split(Regex("\\s+"), limit = 3)
+                        if (parts.size >= 3) {
+                            parts[2].trim()
+                        } else {
+                            line.substringAfter("REG_EXPAND_SZ", "")
+                                .ifBlank { line.substringAfter("REG_SZ", "") }
+                                .trim()
+                        }
                     }
                     ?.takeIf { value -> value.isNotEmpty() }
             }
