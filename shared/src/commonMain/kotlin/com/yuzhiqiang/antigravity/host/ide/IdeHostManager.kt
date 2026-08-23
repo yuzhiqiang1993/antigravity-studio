@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.host.ide
 
 import com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
+import com.yuzhiqiang.antigravity.host.process.HostProcessManager
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -78,7 +79,8 @@ object IdeHostManager {
     }
 
     fun isActive(proxyPort: Int): Boolean {
-        return HostOwnershipStore.isIdeConfigured(getSettingsFile(), proxyPort)
+        val candidates = getCandidateSettingsFiles()
+        return candidates.any { HostOwnershipStore.isIdeConfigured(it, proxyPort) }
     }
 
     fun enable(proxyPort: Int): Boolean {
@@ -93,120 +95,45 @@ object IdeHostManager {
     * 检测 Antigravity IDE 进程是否正在运行（零子进程开销内存查询）。
     */
    fun isRunning(): Boolean {
-       return try {
-            val matched = ProcessHandle.allProcesses().anyMatch { handle ->
-               val cmd = handle.info().command().orElse("")
-               val cmdLine = handle.info().commandLine().orElse("")
-               cmd.contains("Antigravity IDE", ignoreCase = true) || cmdLine.contains(
-                   "Antigravity IDE",
-                   ignoreCase = true
-               )
-           }
-            if (matched) return true
-            val os = System.getProperty("os.name", "").lowercase()
-            if (os.contains("mac")) {
-                val pgrep = ProcessBuilder("pgrep", "-f", "Antigravity IDE").start()
-                return pgrep.waitFor() == 0
-            }
-            false
-       } catch (_: Exception) {
-           false
+       return if (System.getProperty("os.name", "").lowercase().contains("win")) {
+           HostProcessManager.isProcessRunning(listOf("Antigravity IDE.exe"))
+       } else {
+           HostProcessManager.isProcessRunning(listOf("Antigravity IDE.app", "/MacOS/Electron", "Antigravity IDE"))
        }
    }
 
-    /**
-     * 一键启动 Antigravity IDE 客户端。
-     */
-    fun launch(customInstallation: String? = null): Boolean {
-        return try {
-            val os = System.getProperty("os.name", "").lowercase()
-            when {
-                os.contains("mac") -> {
-                    val app = customInstallation?.trim()?.takeIf { it.isNotEmpty() }
-                    if (app != null && File(app).isDirectory) {
-                        ProcessBuilder("/usr/bin/open", app).start()
-                    } else {
-                        ProcessBuilder("/usr/bin/open", "-a", "Antigravity IDE").start()
-                    }
-                    true
-                }
-
-                os.contains("win") -> {
-                    val localAppData =
-                        System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
-                    val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
-                    val exeCandidates = listOf(
-                        File(localAppData, "Programs/Antigravity IDE/Antigravity IDE.exe"),
-                        File(localAppData, "Programs/Antigravity/Antigravity IDE.exe"),
-                        File(programFiles, "Antigravity IDE/Antigravity IDE.exe")
-                    )
-                    val customExe = customInstallation?.trim()?.takeIf { it.isNotEmpty() }
-                        ?.let { File(it).let { root -> if (root.isFile) root else File(root, "Antigravity IDE.exe") } }
-                    val target = customExe?.takeIf(File::isFile) ?: exeCandidates.firstOrNull { it.exists() }
-                    if (target != null) {
-                        ProcessBuilder(target.absolutePath).start()
-                    } else {
-                        ProcessBuilder("cmd.exe", "/c", "start", "", "antigravity-ide").start()
-                    }
-                    true
-                }
-
-                else -> {
-                    val app = customInstallation?.trim()?.takeIf { it.isNotEmpty() }
-                    if (app != null && File(app).canExecute()) ProcessBuilder(app).start()
-                    else ProcessBuilder("antigravity-ide").start()
-                    true
-                }
-            }
-        } catch (_: Exception) {
-            false
-        }
-    }
+   /**
+    * 一键启动 Antigravity IDE 客户端。
+    */
+   fun launch(customInstallation: String? = null): Boolean {
+        return HostProcessManager.launch(
+            installationPath = customInstallation,
+            defaultMacApp = "Antigravity IDE",
+            defaultWinExe = "Antigravity IDE.exe"
+        )
+   }
 
    /**
     * 重启 Antigravity IDE 客户端。
     */
    suspend fun restart(customInstallation: String? = null): Boolean {
-       return try {
-           stopLanguageServer()
-           val os = System.getProperty("os.name", "").lowercase()
-           if (os.contains("win")) {
-               ProcessBuilder("taskkill", "/F", "/IM", "Antigravity IDE.exe").start().waitFor()
-               delay(500)
+       val terminated = HostProcessManager.terminateApplication(
+           bundleId = "com.google.antigravity-ide",
+           matchPatterns = if (System.getProperty("os.name", "").lowercase().contains("win")) {
+               listOf("Antigravity IDE.exe")
            } else {
-               ProcessBuilder(
-                   "/usr/bin/osascript", "-e",
-                   """tell application "Antigravity IDE" to quit"""
-               ).start().waitFor()
-               delay(600)
-                if (isRunning()) {
-                    ProcessBuilder("pkill", "-f", "Antigravity IDE.app/Contents/MacOS/Electron").start().waitFor()
-                    delay(400)
-                }
-                stopLanguageServer()
-            }
-           launch(customInstallation)
-       } catch (_: Exception) {
-           false
-       }
+               listOf("Antigravity IDE.app", "/MacOS/Electron", "Antigravity IDE")
+           },
+           label = "Antigravity IDE"
+       )
+       if (!terminated) return false
+       delay(300)
+       return launch(customInstallation)
    }
 
-    private fun stopLanguageServer() {
-        try {
-            ProcessHandle.allProcesses().forEach { handle ->
-                val command = handle.info().command().orElse("")
-                val commandLine = handle.info().commandLine().orElse("")
-                if (commandLine.contains("language_server", ignoreCase = true) &&
-                    (command.contains("Antigravity", ignoreCase = true) ||
-                            commandLine.contains("Antigravity", ignoreCase = true))
-                ) {
-                    handle.destroyForcibly()
-                }
-            }
-        } catch (_: Exception) {
-            // 语言服务已退出时无需阻断宿主重启。
-        }
-    }
+   private fun stopLanguageServer() {
+       HostProcessManager.stopLanguageServer()
+   }
 
    private fun discoverMacApplications(bundleId: String): List<File> {
         return try {

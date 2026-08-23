@@ -105,33 +105,33 @@ class HostLifecycleDelegate(
         }
     }
 
-    fun disableIdeHostInternal(wasRunning: Boolean, actualPort: Int) {
-        scope.launch(Dispatchers.IO) {
-            operatingHostKeys.value = operatingHostKeys.value + "ide"
-            try {
-            val customInstallation = configStore.currentConfig.customHostPaths["ide"]
-            val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning()
-            val operationSucceeded = IdeHostManager.disable(actualPort)
-            val restartSucceeded = if (isCurrentlyRunning) IdeHostManager.restart(customInstallation) else true
-            val actualState = IdeHostManager.isActive(actualPort)
-            isIdeHostActiveFlow.value = actualState
-            val succeeded = operationSucceeded && restartSucceeded && !actualState
-            ideHostErrorFlow.value = if (succeeded) null else "host_update_failed"
-            showNotice(
-                when {
-                    succeeded && isCurrentlyRunning -> "Antigravity IDE 已停用代理接入并完成重启"
-                    succeeded -> "Antigravity IDE 已停用代理接入"
-                    operationSucceeded && !restartSucceeded -> "Antigravity IDE 配置已更新，但自动重启失败"
-                    else -> "Antigravity IDE 停用代理接入失败"
-                },
-                if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
-            )
-            refreshHostStatus(actualPort)
-            } finally {
-                operatingHostKeys.value = operatingHostKeys.value - "ide"
-            }
-        }
-    }
+   fun disableIdeHostInternal(wasRunning: Boolean, actualPort: Int) {
+       scope.launch(Dispatchers.IO) {
+           operatingHostKeys.value = operatingHostKeys.value + "ide"
+           try {
+           val customInstallation = configStore.currentConfig.customHostPaths["ide"]
+           val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning()
+           val operationSucceeded = IdeHostManager.disable(actualPort)
+           val restartSucceeded = if (isCurrentlyRunning) IdeHostManager.restart(customInstallation) else true
+           val actualState = IdeHostManager.isActive(actualPort)
+           isIdeHostActiveFlow.value = actualState
+           val succeeded = operationSucceeded && restartSucceeded && !actualState
+           ideHostErrorFlow.value = if (succeeded) null else "host_update_failed"
+           showNotice(
+               when {
+                   succeeded && isCurrentlyRunning -> "Antigravity IDE 已恢复官方直连并完成重启"
+                   succeeded -> "Antigravity IDE 已恢复官方直连"
+                   operationSucceeded && !restartSucceeded -> "Antigravity IDE 配置已更新，但自动重启失败"
+                   else -> "Antigravity IDE 停用代理接入失败"
+               },
+               if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
+           )
+           refreshHostStatus(actualPort)
+           } finally {
+               operatingHostKeys.value = operatingHostKeys.value - "ide"
+           }
+       }
+   }
 
     fun requestToggleAppHost(actualPort: Int) {
         if (!isAppInstalledFlow.value) {
@@ -169,57 +169,57 @@ class HostLifecycleDelegate(
         }
     }
 
-    fun enableAppHostInternal(wasRunning: Boolean, actualPort: Int) {
-        scope.launch(Dispatchers.IO) {
-            operatingHostKeys.value = operatingHostKeys.value + "app"
-            try {
-            val customInstallation = configStore.currentConfig.customHostPaths["app"]
-            val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
-            val operationSucceeded = AppHostManager.enable(actualPort)
-            val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation) else true
-            isAppHostActiveFlow.value = AppHostManager.isActive(actualPort)
-            val succeeded = operationSucceeded && restartSucceeded && isAppHostActiveFlow.value
-            showNotice(
-                when {
-                    succeeded && isCurrentlyRunning -> "Antigravity App 已启用代理模式并完成重启"
-                    succeeded -> "Antigravity App 已启用代理模式，启动后生效"
-                    operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
-                    else -> "Antigravity App 代理接入配置失败"
-                },
-                if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
-            )
-            refreshHostStatus(actualPort)
-            } finally {
-                operatingHostKeys.value = operatingHostKeys.value - "app"
-            }
-        }
-    }
+   fun enableAppHostInternal(wasRunning: Boolean, actualPort: Int) {
+       scope.launch(Dispatchers.IO) {
+           operatingHostKeys.value = operatingHostKeys.value + "app"
+           try {
+           val customInstallation = configStore.currentConfig.customHostPaths["app"]
+           val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
+           val operationSucceeded = AppHostManager.enable(actualPort)
+           val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation, actualPort) else true
+           isAppHostActiveFlow.value = AppHostManager.isActive(actualPort)
+           val succeeded = operationSucceeded && restartSucceeded && isAppHostActiveFlow.value
+           showNotice(
+               when {
+                   succeeded && isCurrentlyRunning -> "Antigravity App 已启用代理模式并完成重启"
+                   succeeded -> "Antigravity App 已启用代理模式，启动后生效"
+                   operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
+                   else -> "Antigravity App 代理接入配置失败"
+               },
+               if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
+           )
+           refreshHostStatus(actualPort)
+           } finally {
+               operatingHostKeys.value = operatingHostKeys.value - "app"
+           }
+       }
+   }
 
-    fun disableAppHostInternal(wasRunning: Boolean, actualPort: Int) {
-        scope.launch(Dispatchers.IO) {
-            operatingHostKeys.value = operatingHostKeys.value + "app"
-            try {
-            val customInstallation = configStore.currentConfig.customHostPaths["app"]
-            val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
-            val operationSucceeded = AppHostManager.disable()
-            val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation) else true
-            isAppHostActiveFlow.value = AppHostManager.isActive(actualPort)
-            val succeeded = operationSucceeded && restartSucceeded && !isAppHostActiveFlow.value
-            showNotice(
-                when {
-                    succeeded && isCurrentlyRunning -> "Antigravity App 已停用代理接入并完成重启"
-                    succeeded -> "Antigravity App 已停用代理接入"
-                    operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
-                    else -> "Antigravity App 停用代理接入失败"
-                },
-                if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
-            )
-            refreshHostStatus(actualPort)
-            } finally {
-                operatingHostKeys.value = operatingHostKeys.value - "app"
-            }
-        }
-    }
+   fun disableAppHostInternal(wasRunning: Boolean, actualPort: Int) {
+       scope.launch(Dispatchers.IO) {
+           operatingHostKeys.value = operatingHostKeys.value + "app"
+           try {
+           val customInstallation = configStore.currentConfig.customHostPaths["app"]
+           val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
+           val operationSucceeded = AppHostManager.disable()
+           val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation, null) else true
+           isAppHostActiveFlow.value = AppHostManager.isActive(actualPort)
+           val succeeded = operationSucceeded && restartSucceeded && !isAppHostActiveFlow.value
+           showNotice(
+               when {
+                   succeeded && isCurrentlyRunning -> "Antigravity App 已恢复官方直连并完成重启"
+                   succeeded -> "Antigravity App 已恢复官方直连"
+                   operationSucceeded && !restartSucceeded -> "Antigravity App 配置已更新，但自动重启失败"
+                   else -> "Antigravity App 停用代理接入失败"
+               },
+               if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
+           )
+           refreshHostStatus(actualPort)
+           } finally {
+               operatingHostKeys.value = operatingHostKeys.value - "app"
+           }
+       }
+   }
 
     fun requestToggleCliHost(actualPort: Int) {
         if (!isCliInstalledFlow.value) {
@@ -310,35 +310,35 @@ class HostLifecycleDelegate(
         refreshHostStatus(actualPort)
     }
 
-    fun restartApp(actualPort: Int) {
-        scope.launch(Dispatchers.IO) {
-            operatingHostKeys.value = operatingHostKeys.value + "app"
-            try {
-            val customInstallation = configStore.currentConfig.customHostPaths["app"]
-            val ok = AppHostManager.restart(customInstallation)
-            if (ok) {
-                showNotice("已重启 Antigravity App", NoticeKind.SUCCESS)
-            } else {
-                showNotice("重启 Antigravity App 失败", NoticeKind.ERROR)
-            }
-            refreshHostStatus(actualPort)
-            } finally {
-                operatingHostKeys.value = operatingHostKeys.value - "app"
-            }
-        }
-    }
+   fun restartApp(actualPort: Int) {
+       scope.launch(Dispatchers.IO) {
+           operatingHostKeys.value = operatingHostKeys.value + "app"
+           try {
+           val customInstallation = configStore.currentConfig.customHostPaths["app"]
+           val ok = AppHostManager.restart(customInstallation, actualPort)
+           if (ok) {
+               showNotice("已重启 Antigravity App", NoticeKind.SUCCESS)
+           } else {
+               showNotice("重启 Antigravity App 失败", NoticeKind.ERROR)
+           }
+           refreshHostStatus(actualPort)
+           } finally {
+               operatingHostKeys.value = operatingHostKeys.value - "app"
+           }
+       }
+   }
 
-    fun launchApp(actualPort: Int) {
-        if (AppHostManager.isActive(actualPort) && !proxyServer.isRunning.value) {
-            showNotice("当前 App 已接入代理，请先启动本地代理", NoticeKind.ERROR)
-            return
-        }
-        val ok = AppHostManager.launch(configStore.currentConfig.customHostPaths["app"])
-        if (ok) {
-            showNotice("已打开 Antigravity App", NoticeKind.SUCCESS)
-        } else {
-            showNotice("打开 Antigravity App 失败", NoticeKind.ERROR)
-        }
-        refreshHostStatus(actualPort)
-    }
+   fun launchApp(actualPort: Int) {
+       if (AppHostManager.isActive(actualPort) && !proxyServer.isRunning.value) {
+           showNotice("当前 App 已接入代理，请先启动本地代理", NoticeKind.ERROR)
+           return
+       }
+       val ok = AppHostManager.launch(configStore.currentConfig.customHostPaths["app"], actualPort)
+       if (ok) {
+           showNotice("已打开 Antigravity App", NoticeKind.SUCCESS)
+       } else {
+           showNotice("打开 Antigravity App 失败", NoticeKind.ERROR)
+       }
+       refreshHostStatus(actualPort)
+   }
 }

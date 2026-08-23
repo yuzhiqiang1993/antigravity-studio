@@ -83,12 +83,22 @@ object CliHostManager {
         ).isSuccess
     }
 
-    /**
-     * 禁用 CLI 代理接入：移除配置文件中的代理端点。
-     */
-    fun disable(): Boolean {
-        return HostOwnershipStore.disableEnvironment(
-            owner = HostOwnershipStore.EnvironmentOwner.CLI
-        ).isSuccess
-    }
+   /**
+    * 禁用 CLI 代理接入：移除配置文件中的代理端点。
+    */
+   fun disable(): Boolean {
+       val envSuccess = HostOwnershipStore.disableEnvironment(
+           owner = HostOwnershipStore.EnvironmentOwner.CLI
+       ).isSuccess
+       runCatching {
+           val configFile = getConfigFile()
+           if (configFile.exists()) {
+               val content = configFile.readText(Charsets.UTF_8)
+               if (content.contains("CLOUD_CODE_URL") || content.contains("127.0.0.1")) {
+                   configFile.delete()
+               }
+           }
+       }
+       return envSuccess
+   }
 }
