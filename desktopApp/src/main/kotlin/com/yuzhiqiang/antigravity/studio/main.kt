@@ -17,8 +17,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
+import androidx.compose.ui.awt.ComposeWindow
+import java.awt.Desktop
+import java.awt.Frame
 import java.awt.Taskbar
+import java.awt.desktop.AppReopenedListener
 import javax.imageio.ImageIO
+import javax.swing.SwingUtilities
 
 private object AppIconCache {
     private val isMac: Boolean
@@ -103,17 +108,60 @@ fun main() {
             position = WindowPosition(Alignment.Center)
         )
         var isVisible by remember { mutableStateOf(true) }
+        var windowRef by remember { mutableStateOf<ComposeWindow?>(null) }
         val appIcon = AppIconCache.appIconPainter
         val trayIcon = AppIconCache.trayIconPainter ?: appIcon
+
+        val showAndFocusWindow = remember {
+            {
+                isVisible = true
+                SwingUtilities.invokeLater {
+                    windowRef?.let { win ->
+                        if ((win.extendedState and Frame.ICONIFIED) != 0) {
+                            win.extendedState = win.extendedState and Frame.ICONIFIED.inv()
+                        }
+                        win.isVisible = true
+                        win.toFront()
+                        win.requestFocus()
+                    }
+                }
+            }
+        }
+
+        DisposableEffect(Unit) {
+            val listener = AppReopenedListener {
+                showAndFocusWindow()
+            }
+            try {
+                if (Desktop.isDesktopSupported()) {
+                    val desktop = Desktop.getDesktop()
+                    if (desktop.isSupported(Desktop.Action.APP_EVENT_REOPENED)) {
+                        desktop.addAppEventListener(listener)
+                    }
+                }
+            } catch (_: Exception) {
+            }
+            onDispose {
+                try {
+                    if (Desktop.isDesktopSupported()) {
+                        val desktop = Desktop.getDesktop()
+                        if (desktop.isSupported(Desktop.Action.APP_EVENT_REOPENED)) {
+                            desktop.removeAppEventListener(listener)
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+        }
 
         if (trayIcon != null) {
             val s = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
             Tray(
                 icon = trayIcon,
                 tooltip = s.appName,
-                onAction = { isVisible = true },
+                onAction = showAndFocusWindow,
                 menu = {
-                    Item(s.trayShowMainWindow, onClick = { isVisible = true })
+                    Item(s.trayShowMainWindow, onClick = showAndFocusWindow)
                     Separator()
                     Item(s.trayQuitApplication, onClick = ::exitApplication)
                 }
@@ -127,6 +175,20 @@ fun main() {
                 title = "Antigravity Studio",
                 icon = appIcon
             ) {
+                DisposableEffect(window) {
+                    windowRef = window
+                    SwingUtilities.invokeLater {
+                        if ((window.extendedState and Frame.ICONIFIED) != 0) {
+                            window.extendedState = window.extendedState and Frame.ICONIFIED.inv()
+                        }
+                        window.toFront()
+                        window.requestFocus()
+                    }
+                    onDispose {
+                        windowRef = null
+                    }
+                }
+
                 LaunchedEffect(Unit) {
                     window.minimumSize = java.awt.Dimension(1020, 680)
                 }
