@@ -505,6 +505,10 @@ interface Strings {
     val settingsLatestVersionBadge: String
     val settingsNewVersionBadge: String
     fun settingsLastChecked(time: String): String
+    val settingsDeveloperMode: String
+    val settingsDeveloperModeDesc: String
+    val settingsDeveloperModeEnabled: String
+    val settingsDeveloperModeDisabled: String
 
     // Doctor Diagnostics
     val doctorTitle: String
@@ -1121,6 +1125,10 @@ object StringsZh : Strings {
     override val settingsLatestVersionBadge = "最新版本"
     override val settingsNewVersionBadge = "可更新"
     override fun settingsLastChecked(time: String) = "上次检查：$time"
+    override val settingsDeveloperMode = "开发者调试模式"
+    override val settingsDeveloperModeDesc = "显示官方模型原始 JSON、修改后 JSON 等协议调试入口"
+    override val settingsDeveloperModeEnabled = "已开启开发者调试模式"
+    override val settingsDeveloperModeDisabled = "已关闭开发者调试模式"
 
     override val doctorTitle = "Doctor 全链路健康体检"
     override val doctorSubtitle = "一键诊断网络连通性、本地配置、宿主接管与代理服务健康度"
@@ -1733,6 +1741,10 @@ object StringsEn : Strings {
     override val settingsLatestVersionBadge = "Latest"
     override val settingsNewVersionBadge = "Update"
     override fun settingsLastChecked(time: String) = "Last checked: $time"
+    override val settingsDeveloperMode = "Developer Debug Mode"
+    override val settingsDeveloperModeDesc = "Show raw JSON and modified JSON protocol inspection tools"
+    override val settingsDeveloperModeEnabled = "Developer debug mode enabled"
+    override val settingsDeveloperModeDisabled = "Developer debug mode disabled"
 
     override val doctorTitle = "Doctor Health Diagnostics"
     override val doctorSubtitle = "Full-stack diagnostics for network, configs, host and proxy"

@@ -910,6 +910,16 @@ class AppViewModel(
         configStore.updateConfig { it.copy(includePrerelease = enabled) }
     }
 
+    fun updateDeveloperMode(enabled: Boolean) {
+        configStore.updateConfig { it.copy(developerMode = enabled) }
+        showNotice(if (enabled) s.settingsDeveloperModeEnabled else s.settingsDeveloperModeDisabled, NoticeKind.INFO)
+    }
+
+    fun toggleDeveloperMode() {
+        val current = configStore.currentConfig.developerMode
+        updateDeveloperMode(!current)
+    }
+
     private fun normalizeModelReference(value: String): String {
         return value.trim().removePrefix("models/")
     }

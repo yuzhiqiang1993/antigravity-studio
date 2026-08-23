@@ -57,5 +57,14 @@ compose.desktop {
                 iconFile.set(project.file("src/main/resources/icon.ico"))
             }
         }
+
+        buildTypes.release.proguard {
+            isEnabled.set(false)
+        }
     }
+}
+
+// 本地开发运行 (run 任务) 时注入 -Dapp.debug=true
+tasks.withType<JavaExec>().configureEach {
+    systemProperty("app.debug", "true")
 }

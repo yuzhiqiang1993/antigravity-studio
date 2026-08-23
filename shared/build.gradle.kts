@@ -55,3 +55,69 @@ kotlin {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// 利用 Gradle 原生 Task 生成 BuildInfo (类似 Android BuildConfig，零外部插件依赖)
+// ---------------------------------------------------------------------------
+abstract class GenerateBuildConfigTask : DefaultTask() {
+    @get:Input
+    abstract val debugMode: Property<Boolean>
+
+    @get:Input
+    abstract val buildType: Property<String>
+
+    @get:Input
+    abstract val versionName: Property<String>
+
+    @get:Input
+    abstract val versionCode: Property<Int>
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val out = outputDir.get().asFile
+        val packageDir = File(out, "com/yuzhiqiang/antigravity")
+        packageDir.mkdirs()
+        val isDebug = debugMode.get()
+        File(packageDir, "BuildInfo.kt").writeText(
+            """
+            package com.yuzhiqiang.antigravity
+
+            /**
+             * 由 Gradle 原生任务自动生成的构建环境信息（对标 Android BuildConfig）
+             */
+            object BuildInfo {
+                const val DEBUG: Boolean = $isDebug
+                const val BUILD_TYPE: String = "${buildType.get()}"
+                const val VERSION_NAME: String = "${versionName.get()}"
+                const val VERSION_CODE: Int = ${versionCode.get()}
+                val IS_RELEASE: Boolean = !$isDebug
+            }
+            """.trimIndent() + "\n"
+        )
+    }
+}
+
+val isReleaseTask = gradle.startParameter.taskNames.any { task ->
+    task.contains("package", ignoreCase = true) ||
+    task.contains("createDistributable", ignoreCase = true) ||
+    task.contains("release", ignoreCase = true)
+}
+val explicitBuildType = project.findProperty("buildType")?.toString()
+val effectiveBuildType = explicitBuildType ?: if (isReleaseTask) "release" else "debug"
+val isDebugBuild = effectiveBuildType.equals("debug", ignoreCase = true)
+
+val generateBuildConfig = tasks.register<GenerateBuildConfigTask>("generateBuildConfig") {
+    debugMode.set(isDebugBuild)
+    buildType.set(effectiveBuildType)
+    versionName.set("1.0.0")
+    versionCode.set(100)
+    outputDir.set(layout.buildDirectory.dir("generated/source/buildConfig/commonMain/kotlin"))
+}
+
+kotlin.sourceSets.named("commonMain") {
+    kotlin.srcDir(generateBuildConfig.map { it.outputDir.get().asFile })
+}
+

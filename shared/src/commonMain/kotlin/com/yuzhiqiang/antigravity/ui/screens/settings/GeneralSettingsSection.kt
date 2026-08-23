@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Palette
@@ -32,6 +33,7 @@ fun GeneralSettingsSection(
     onUpdateLanguage: (AppLanguage) -> Unit,
     onUpdateThemeMode: (String) -> Unit,
     onUpdateAutoCheckUpdate: (Boolean) -> Unit,
+    onUpdateDeveloperMode: (Boolean) -> Unit = {},
     onConfigureHostPath: ((String, String) -> Unit)? = null,
     s: Strings
 ) {
@@ -127,6 +129,19 @@ fun GeneralSettingsSection(
                 Switch(
                     checked = config.autoCheckUpdate,
                     onCheckedChange = onUpdateAutoCheckUpdate
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            SettingRow(
+                icon = Icons.Outlined.BugReport,
+                title = s.settingsDeveloperMode,
+                description = s.settingsDeveloperModeDesc
+            ) {
+                Switch(
+                    checked = config.developerMode,
+                    onCheckedChange = onUpdateDeveloperMode
                 )
             }
 
