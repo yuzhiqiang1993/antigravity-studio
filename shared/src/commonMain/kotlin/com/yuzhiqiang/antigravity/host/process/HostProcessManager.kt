@@ -73,15 +73,21 @@ object HostProcessManager {
                         val pid = pidStr.toLongOrNull() ?: return@forEach
                         if (pid == studioPid) return@forEach
                         if (cmd.contains("grep", ignoreCase = true)) return@forEach
-                        if (cmd.contains("antigravity-studio", ignoreCase = true) && !cmd.contains("Antigravity.app", ignoreCase = true)) return@forEach
+                        if (cmd.contains("antigravity-studio", ignoreCase = true) ||
+                            cmd.contains("Antigravity Studio", ignoreCase = true) ||
+                            cmd.contains("AntigravityStudio", ignoreCase = true)) {
+                            return@forEach
+                        }
+
+                        val excluded = excludePatterns.any { exclude ->
+                            cmd.contains(exclude, ignoreCase = true)
+                        }
+                        if (excluded) return@forEach
 
                         val matches = matchPatterns.any { pattern ->
                             cmd.contains(pattern, ignoreCase = true)
                         }
-                        val excluded = excludePatterns.any { exclude ->
-                            cmd.contains(exclude, ignoreCase = true)
-                        }
-                        if (matches && !excluded) {
+                        if (matches) {
                             pids.add(pid)
                         }
                     }

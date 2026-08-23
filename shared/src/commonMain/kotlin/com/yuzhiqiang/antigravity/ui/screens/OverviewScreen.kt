@@ -147,19 +147,19 @@ fun OverviewScreen(
                     title = "Antigravity IDE",
                     statusLabel = when {
                         ideDetailedStatus.needsUpdate -> s.hostStatusNeedsUpdate
-                        isIdeActive || isIdeRunning -> s.hostStatusRunning
-                        isIdeInstalled -> s.hostStatusReady
+                        isIdeRunning -> s.hostStatusRunning
+                        isIdeInstalled -> s.hostStatusInstalled
                         else -> s.hostStatusNotInstalled
                     },
                     statusTone = when {
                         ideDetailedStatus.needsUpdate -> BadgeTone.WARNING
-                        isIdeActive || isIdeRunning -> BadgeTone.SUCCESS
+                        isIdeRunning -> BadgeTone.SUCCESS
                         isIdeInstalled -> BadgeTone.INFO
                         else -> BadgeTone.NEUTRAL
                     },
                     desc = when {
                         ideDetailedStatus.needsUpdate -> s.hostIdePortMismatch(ideDetailedStatus.configuredEndpoint ?: s.commonUnknown)
-                        isIdeRunning -> s.hostIdeRunningAndConfigured
+                        isIdeRunning -> if (isIdeActive) s.hostIdeRunningAndConfigured else s.hostIdeRunning
                         isIdeInstalled -> s.hostIdeReady
                         else -> s.hostIdeNotDetected
                     },
@@ -185,19 +185,19 @@ fun OverviewScreen(
                     title = "Antigravity App",
                     statusLabel = when {
                         appDetailedStatus.needsUpdate -> s.hostStatusNeedsUpdate
-                        isAppActive || isAppRunning -> s.hostStatusRunning
+                        isAppRunning -> s.hostStatusRunning
                         isAppInstalled -> s.hostStatusInstalled
                         else -> s.hostStatusNotInstalled
                     },
                     statusTone = when {
                         appDetailedStatus.needsUpdate -> BadgeTone.WARNING
-                        isAppActive || isAppRunning -> BadgeTone.SUCCESS
+                        isAppRunning -> BadgeTone.SUCCESS
                         isAppInstalled -> BadgeTone.INFO
                         else -> BadgeTone.NEUTRAL
                     },
                     desc = when {
                         appDetailedStatus.needsUpdate -> s.hostAppPortMismatch(appDetailedStatus.configuredEndpoint ?: s.commonUnknown)
-                        isAppRunning -> s.hostAppRunning
+                        isAppRunning -> if (isAppActive) s.hostAppRunningAndConfigured else s.hostAppRunning
                         isAppInstalled -> s.hostAppReady
                         else -> s.hostAppNotDetected
                     },

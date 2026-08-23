@@ -96,7 +96,7 @@ object IdeHostManager {
         customInstallation: String? = null
     ): com.yuzhiqiang.antigravity.host.model.HostDetailedStatus {
         val installed = isInstalled(customInstallation)
-        val running = installed && isRunning()
+        val running = installed && isRunning(customInstallation)
         val settingsFile = getSettingsFile()
         val inspect = HostOwnershipStore.inspectIdeIntegration(settingsFile, proxyPort)
         val configState = when (inspect.state) {
@@ -142,12 +142,24 @@ object IdeHostManager {
     private val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
 
     private val ideMatchPatterns = if (isWindows) {
-        listOf("Antigravity IDE.exe")
+        listOf("Antigravity IDE.exe", "Antigravity-IDE.exe", "AntigravityIDE.exe")
     } else {
-        listOf("Antigravity IDE.app", "Antigravity IDE")
+        listOf(
+            "Antigravity IDE.app/",
+            "/Antigravity IDE.app",
+            "Antigravity-IDE.app/",
+            "/Antigravity-IDE.app",
+            "/MacOS/Antigravity IDE"
+        )
     }
 
-    private val ideExcludePatterns = emptyList<String>()
+    private val ideExcludePatterns = listOf(
+        "Antigravity Studio",
+        "antigravity-studio",
+        "Antigravity Studio.app",
+        "Antigravity.app",
+        "antigravity-ide-cockpit"
+    )
 
     private val ideLanguageServerPatterns = if (isWindows) {
         listOf("Antigravity IDE\\resources\\app\\extensions\\antigravity\\bin", "Antigravity IDE/resources/app/extensions/antigravity/bin")
@@ -158,8 +170,18 @@ object IdeHostManager {
     /**
      * 检测 Antigravity IDE 进程是否正在运行（精确匹配 IDE 进程）。
      */
-    fun isRunning(): Boolean {
-        return HostProcessManager.isProcessRunning(ideMatchPatterns, ideExcludePatterns)
+    fun isRunning(customInstallation: String? = null): Boolean {
+        val patterns = buildList {
+            addAll(ideMatchPatterns)
+            if (!customInstallation.isNullOrBlank()) {
+                val file = File(customInstallation.trim())
+                add(file.name)
+                if (file.name.endsWith(".app", ignoreCase = true)) {
+                    add(file.name + "/")
+                }
+            }
+        }.distinct()
+        return HostProcessManager.isProcessRunning(patterns, ideExcludePatterns)
     }
 
     /**
