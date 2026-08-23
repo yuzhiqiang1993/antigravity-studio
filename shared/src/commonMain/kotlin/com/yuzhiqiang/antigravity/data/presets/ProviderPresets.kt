@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.data.presets
 
+import androidx.compose.ui.graphics.Color
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 
 enum class PresetCategory {
@@ -10,15 +11,28 @@ enum class PresetCategory {
     LOCAL_CUSTOM
 }
 
+enum class PresetTagType {
+    OFFICIAL,
+    AGGREGATOR,
+    LOCAL,
+    CUSTOM
+}
+
 data class PresetProviderTemplate(
     val id: String,
     val name: String,
     val protocol: ProviderProtocol,
     val defaultBaseUrl: String,
     val description: String,
-    val category: PresetCategory = PresetCategory.RECOMMENDED,
+    val categories: Set<PresetCategory> = setOf(PresetCategory.RECOMMENDED),
     val placeholderKey: String = "sk-...",
-    val iconName: String = "model"
+    val iconName: String = "model",
+    val iconChar: String = name.take(1),
+    val iconColor: Color = Color(0xFF2563EB),
+    val iconBgColor: Color = Color(0x1F2563EB),
+    val tagText: String = "官方",
+    val tagType: PresetTagType = PresetTagType.OFFICIAL,
+    val isCustomCard: Boolean = false
 )
 
 object ProviderPresets {
@@ -28,273 +42,444 @@ object ProviderPresets {
             name = "自定义",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "",
-            category = PresetCategory.LOCAL_CUSTOM,
-            description = "手动配置任意 OpenAI 兼容、Anthropic 或 Gemini 服务"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.LOCAL_CUSTOM),
+            description = "手动配置任意 OpenAI 兼容、Anthropic 或 Gemini 服务",
+            iconChar = "+",
+            iconColor = Color(0xFF9333EA),
+            iconBgColor = Color(0x1F9333EA),
+            tagText = "自由配置",
+            tagType = PresetTagType.CUSTOM,
+            isCustomCard = true
         ),
         PresetProviderTemplate(
             id = "cpa",
-            name = "CPA",
+            name = "CLIProxyAPI",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "http://127.0.0.1:8317/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "本地 CPA 聚合网关"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "本地 CLIProxyAPI 聚合网关",
+            iconChar = "C",
+            iconColor = Color(0xFF4F46E5),
+            iconBgColor = Color(0x1F4F46E5),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "sub2api",
             name = "Sub2API",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "http://127.0.0.1:8080/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "本地 Sub2API 聚合网关"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "本地 Sub2API 聚合网关",
+            iconChar = "S",
+            iconColor = Color(0xFF6366F1),
+            iconBgColor = Color(0x1F6366F1),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "openrouter",
             name = "OpenRouter",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://openrouter.ai/api/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "全球 AI 模型聚合网关，支持数百款模型"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.AGGREGATOR),
+            description = "全球 AI 模型聚合网关，支持数百款模型",
+            iconChar = "O",
+            iconColor = Color(0xFF0891B2),
+            iconBgColor = Color(0x1F0891B2),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "modelgate",
             name = "ModelGate",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://mg.aid.pub/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "ModelGate 聚合服务"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "ModelGate 聚合服务",
+            iconChar = "M",
+            iconColor = Color(0xFF0284C7),
+            iconBgColor = Color(0x1F0284C7),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "anthropic",
             name = "Claude 官方",
             protocol = ProviderProtocol.ANTHROPIC_MESSAGES,
             defaultBaseUrl = "https://api.anthropic.com",
-            category = PresetCategory.OFFICIAL,
-            description = "Anthropic 官方 Messages API"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.OFFICIAL),
+            description = "Anthropic 官方 Messages API",
+            iconChar = "C",
+            iconColor = Color(0xFFD97706),
+            iconBgColor = Color(0x1FD97706),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "openai",
             name = "OpenAI 官方",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.openai.com/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "OpenAI 官方 Chat Completions API"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.OFFICIAL),
+            description = "OpenAI 官方 Chat Completions API",
+            iconChar = "O",
+            iconColor = Color(0xFF059669),
+            iconBgColor = Color(0x1F059669),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "gemini",
             name = "Gemini 官方",
             protocol = ProviderProtocol.GEMINI_GENERATE_CONTENT,
             defaultBaseUrl = "https://generativelanguage.googleapis.com",
-            category = PresetCategory.OFFICIAL,
-            description = "Google Gemini 原生 GenerateContent API"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.OFFICIAL),
+            description = "Google Gemini 原生 GenerateContent API",
+            iconChar = "G",
+            iconColor = Color(0xFF2563EB),
+            iconBgColor = Color(0x1F2563EB),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "deepseek",
             name = "DeepSeek",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.deepseek.com",
-            category = PresetCategory.RECOMMENDED,
-            description = "DeepSeek 官方 OpenAI 兼容接口"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.OFFICIAL),
+            description = "DeepSeek 官方 OpenAI 兼容接口",
+            iconChar = "D",
+            iconColor = Color(0xFF3B82F6),
+            iconBgColor = Color(0x1F3B82F6),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "ollama",
             name = "Ollama",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "http://127.0.0.1:11434/v1",
-            category = PresetCategory.LOCAL_CUSTOM,
+            categories = setOf(PresetCategory.LOCAL_CUSTOM),
             description = "本地大模型运行框架",
-            placeholderKey = "ollama"
+            placeholderKey = "ollama",
+            iconChar = "O",
+            iconColor = Color(0xFF10B981),
+            iconBgColor = Color(0x1F10B981),
+            tagText = "本地",
+            tagType = PresetTagType.LOCAL
         ),
         PresetProviderTemplate(
             id = "siliconflow",
             name = "硅基流动",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.siliconflow.cn/v1",
-            category = PresetCategory.RECOMMENDED,
-            description = "国内推理聚合加速平台"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.OFFICIAL),
+            description = "国内推理聚合加速平台",
+            iconChar = "硅",
+            iconColor = Color(0xFF2563EB),
+            iconBgColor = Color(0x1F2563EB),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "dashscope",
             name = "阿里云百炼",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            category = PresetCategory.RECOMMENDED,
-            description = "阿里云百炼 OpenAI 兼容接口"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.OFFICIAL),
+            description = "阿里云百炼 OpenAI 兼容接口",
+            iconChar = "百",
+            iconColor = Color(0xFFEA580C),
+            iconBgColor = Color(0x1FEA580C),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "moonshot",
             name = "Kimi",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.moonshot.cn/v1",
-            category = PresetCategory.RECOMMENDED,
-            description = "Moonshot AI 官方 API"
+            categories = setOf(PresetCategory.RECOMMENDED, PresetCategory.OFFICIAL),
+            description = "Moonshot AI 官方 API",
+            iconChar = "K",
+            iconColor = Color(0xFFE11D48),
+            iconBgColor = Color(0x1FE11D48),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "zhipu",
             name = "智谱 AI",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://open.bigmodel.cn/api/paas/v4",
-            category = PresetCategory.OFFICIAL,
-            description = "智谱 AI 开放平台"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "智谱 AI 开放平台",
+            iconChar = "智",
+            iconColor = Color(0xFF3B82F6),
+            iconBgColor = Color(0x1F3B82F6),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "minimax",
             name = "MiniMax",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.minimaxi.com/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "MiniMax 官方 API"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "MiniMax 官方 API",
+            iconChar = "M",
+            iconColor = Color(0xFF8B5CF6),
+            iconBgColor = Color(0x1F8B5CF6),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "hunyuan",
             name = "腾讯混元",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.hunyuan.cloud.tencent.com/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "腾讯混元 OpenAI 兼容接口"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "腾讯混元 OpenAI 兼容接口",
+            iconChar = "混",
+            iconColor = Color(0xFF0284C7),
+            iconBgColor = Color(0x1F0284C7),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "volcengine",
             name = "火山方舟",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://ark.cn-beijing.volces.com/api/v3",
-            category = PresetCategory.OFFICIAL,
-            description = "火山方舟模型推理服务"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "火山方舟模型推理服务",
+            iconChar = "火",
+            iconColor = Color(0xFFDC2626),
+            iconBgColor = Color(0x1FDC2626),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "qianfan",
             name = "百度千帆",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://qianfan.baidubce.com/v2",
-            category = PresetCategory.OFFICIAL,
-            description = "百度千帆模型服务"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "百度千帆模型服务",
+            iconChar = "千",
+            iconColor = Color(0xFF2563EB),
+            iconBgColor = Color(0x1F2563EB),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "baichuan",
             name = "百川智能",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.baichuan-ai.com/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "百川智能官方 API"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "百川智能官方 API",
+            iconChar = "百",
+            iconColor = Color(0xFFF59E0B),
+            iconBgColor = Color(0x1FF59E0B),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "yi",
             name = "零一万物",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.lingyiwanwu.com/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "零一万物 Yi 系列模型"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "零一万物 Yi 系列模型",
+            iconChar = "零",
+            iconColor = Color(0xFF10B981),
+            iconBgColor = Color(0x1F10B981),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "xunfei",
             name = "讯飞星火",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://spark-api-open.xf-yun.com/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "讯飞星火 OpenAI 兼容接口"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "讯飞星火 OpenAI 兼容接口",
+            iconChar = "星",
+            iconColor = Color(0xFF0284C7),
+            iconBgColor = Color(0x1F0284C7),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "stepfun",
             name = "阶跃星辰",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.stepfun.com/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "阶跃星辰官方 API"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "阶跃星辰官方 API",
+            iconChar = "阶",
+            iconColor = Color(0xFF7C3AED),
+            iconBgColor = Color(0x1F7C3AED),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "groq",
             name = "Groq",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.groq.com/openai/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "Groq 高速推理 API"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "Groq 高速推理 API",
+            iconChar = "G",
+            iconColor = Color(0xFFEA580C),
+            iconBgColor = Color(0x1FEA580C),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "github",
-            name = "GitHub Models",
+            name = "GitHub",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://models.inference.ai.azure.com",
-            category = PresetCategory.AGGREGATOR,
-            description = "GitHub Models 推理接口"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "GitHub Models 推理接口",
+            iconChar = "G",
+            iconColor = Color(0xFF475569),
+            iconBgColor = Color(0x1F475569),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "mistral",
             name = "Mistral",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.mistral.ai/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "Mistral 官方 API"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "Mistral 官方 API",
+            iconChar = "M",
+            iconColor = Color(0xFFEA580C),
+            iconBgColor = Color(0x1FEA580C),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "xai",
             name = "xAI",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.x.ai/v1",
-            category = PresetCategory.OFFICIAL,
-            description = "xAI Grok 官方 API"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "xAI Grok 官方 API",
+            iconChar = "X",
+            iconColor = Color(0xFF0F172A),
+            iconBgColor = Color(0x1F0F172A),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "perplexity",
             name = "Perplexity",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.perplexity.ai",
-            category = PresetCategory.OFFICIAL,
-            description = "Perplexity 官方 API"
+            categories = setOf(PresetCategory.OFFICIAL),
+            description = "Perplexity 官方 API",
+            iconChar = "P",
+            iconColor = Color(0xFF0D9488),
+            iconBgColor = Color(0x1F0D9488),
+            tagText = "官方",
+            tagType = PresetTagType.OFFICIAL
         ),
         PresetProviderTemplate(
             id = "together",
             name = "Together AI",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.together.xyz/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "Together AI 模型聚合服务"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "Together AI 模型聚合服务",
+            iconChar = "T",
+            iconColor = Color(0xFF2563EB),
+            iconBgColor = Color(0x1F2563EB),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "fireworks",
             name = "Fireworks AI",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.fireworks.ai/inference/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "Fireworks AI 推理服务"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "Fireworks AI 推理服务",
+            iconChar = "F",
+            iconColor = Color(0xFFE11D48),
+            iconBgColor = Color(0x1FE11D48),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "cerebras",
             name = "Cerebras",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.cerebras.ai/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "Cerebras 高速推理 API"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "Cerebras 高速推理 API",
+            iconChar = "C",
+            iconColor = Color(0xFF4F46E5),
+            iconBgColor = Color(0x1F4F46E5),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "sambanova",
             name = "SambaNova",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.sambanova.ai/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "SambaNova 推理服务"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "SambaNova 推理服务",
+            iconChar = "S",
+            iconColor = Color(0xFF7C3AED),
+            iconBgColor = Color(0x1F7C3AED),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "deepinfra",
             name = "DeepInfra",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.deepinfra.com/v1/openai",
-            category = PresetCategory.AGGREGATOR,
-            description = "DeepInfra 模型推理服务"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "DeepInfra 模型推理服务",
+            iconChar = "D",
+            iconColor = Color(0xFF0284C7),
+            iconBgColor = Color(0x1F0284C7),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "huggingface",
             name = "Hugging Face",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://router.huggingface.co/v1",
-            category = PresetCategory.AGGREGATOR,
-            description = "Hugging Face Inference Providers"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "Hugging Face Inference Providers",
+            iconChar = "H",
+            iconColor = Color(0xFFD97706),
+            iconBgColor = Color(0x1FD97706),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         ),
         PresetProviderTemplate(
             id = "novita",
             name = "Novita AI",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             defaultBaseUrl = "https://api.novita.ai/openai",
-            category = PresetCategory.AGGREGATOR,
-            description = "Novita AI 推理服务"
+            categories = setOf(PresetCategory.AGGREGATOR),
+            description = "Novita AI 推理服务",
+            iconChar = "N",
+            iconColor = Color(0xFF9333EA),
+            iconBgColor = Color(0x1F9333EA),
+            tagText = "网关",
+            tagType = PresetTagType.AGGREGATOR
         )
     )
 }

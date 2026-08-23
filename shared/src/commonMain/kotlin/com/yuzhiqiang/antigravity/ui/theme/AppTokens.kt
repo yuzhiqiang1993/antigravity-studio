@@ -51,7 +51,7 @@ object AppTokens {
         val navigationItemIconSize = 20.dp
 
         val dialogWidth = 880.dp
-        val dialogHeight = 660.dp
+        val dialogHeight = 650.dp
         val doctorDialogWidth = 720.dp
         val doctorDialogMaxHeight = 660.dp
         val singleModelDialogHeight = 540.dp

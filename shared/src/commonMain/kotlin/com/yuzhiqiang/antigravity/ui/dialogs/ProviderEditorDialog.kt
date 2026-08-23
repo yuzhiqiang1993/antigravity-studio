@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.ui.dialogs
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,9 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.domain.model.*
@@ -168,174 +171,164 @@ fun ProviderEditorDialog(
         onDismissRequest = { requestDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val dialogMaxWidth = maxWidth * 0.92f
-            val dialogMaxHeight = maxHeight * 0.92f
-            val actualHeight = minOf(680.dp, dialogMaxHeight)
-            val actualWidth = minOf(820.dp, dialogMaxWidth)
-
-            Surface(
-                modifier = Modifier
-                    .width(actualWidth)
-                    .height(actualHeight),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = AppTokens.Elevation.dialog
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = AppTokens.Size.fieldHeight)
-                            .padding(
-                                horizontal = AppTokens.Spacing.card,
-                                vertical = AppTokens.Spacing.content
-                            ),
-                        verticalAlignment = Alignment.CenterVertically
+        Surface(
+            modifier = Modifier
+                .width(AppTokens.Size.dialogWidth)
+                .height(if (isSingleModelMode) AppTokens.Size.singleModelDialogHeight else AppTokens.Size.dialogHeight),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+            shadowElevation = 24.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 顶部 Header：左侧标题与未保存徽标，中间居中步骤指示器，右侧关闭按钮
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 58.dp)
+                        .padding(horizontal = 22.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        Box(
-                            modifier = Modifier.weight(1f),
-                            contentAlignment = Alignment.CenterStart
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+                            Text(
+                                text = when {
+                                    isSingleModelMode -> editingSingleModel?.let { model ->
+                                        "编辑模型 · ${model.displayName ?: model.upstreamModelId}"
+                                    }.orEmpty()
+                                    initialProvider != null -> "编辑上游服务 · ${initialProvider.name}"
+                                    else -> "添加上游服务"
+                                },
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (isDirty) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(statusColors.warningContainer)
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = when {
-                                            isSingleModelMode -> editingSingleModel?.let { model ->
-                                                "编辑模型 · ${model.displayName ?: model.upstreamModelId}"
-                                            }.orEmpty()
-                                            initialProvider != null -> "编辑上游服务 · ${initialProvider.name}"
-                                            else -> "添加上游服务"
-                                        },
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        "未保存",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        ),
+                                        color = statusColors.onWarningContainer
                                     )
-                                    if (isDirty) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(CircleShape)
-                                                .background(statusColors.warningContainer)
-                                                .padding(horizontal = AppTokens.Spacing.control, vertical = AppTokens.Spacing.compact)
-                                        ) {
-                                            Text(
-                                                "未保存",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                                                color = statusColors.onWarningContainer
-                                            )
-                                        }
-                                    }
                                 }
-                                Text(
-                                    text = if (isSingleModelMode) "调整模型上下文限制与能力配置" else "配置服务商连接并挑选要接入的模型",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        if (!isSingleModelMode) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-                            ) {
-                                listOf(
-                                    Triple(ProviderEditStep.SELECT_PRESET, 1, "选择预设"),
-                                    Triple(ProviderEditStep.CONFIG_CONNECTION, 2, "连接配置"),
-                                    Triple(ProviderEditStep.SELECT_MODELS, 3, "选择模型")
-                                ).forEach { (step, num, label) ->
-                                    val isActive = currentStep == step
-                                    val canNavigate = !isFetching &&
-                                            step.ordinal <= currentStep.ordinal &&
-                                            !(initialProvider != null && step == ProviderEditStep.SELECT_PRESET)
-                                    val nodeModifier = if (canNavigate) {
-                                        Modifier.clickable { currentStep = step }
-                                    } else {
-                                        Modifier
-                                    }
-                                    Row(
-                                        modifier = nodeModifier
-                                            .clip(MaterialTheme.shapes.small)
-                                            .padding(horizontal = AppTokens.Spacing.control, vertical = AppTokens.Spacing.compact),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(AppTokens.Size.iconMedium)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (isActive) MaterialTheme.colorScheme.primaryContainer
-                                                    else MaterialTheme.colorScheme.surfaceVariant
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                num.toString(),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Text(
-                                            text = label,
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
-                                            ),
-                                            color = when {
-                                                isActive -> MaterialTheme.colorScheme.primary
-                                                canNavigate -> MaterialTheme.colorScheme.onSurfaceVariant
-                                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                            }
-                                        )
-                                    }
-                                    if (num < 3) {
-                                        Box(
-                                            modifier = Modifier
-                                                .width(AppTokens.Spacing.content)
-                                                .height(1.dp)
-                                                .background(MaterialTheme.colorScheme.outlineVariant)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier.weight(1f),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            IconButton(
-                                onClick = { requestDismiss() },
-                                modifier = Modifier.size(AppTokens.Size.compactControlHeight)
-                            ) {
-                                Icon(
-                                    Icons.Outlined.Close,
-                                    contentDescription = "关闭",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(AppTokens.Size.iconMedium)
-                                )
                             }
                         }
                     }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    if (!isSingleModelMode) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(
+                                Triple(ProviderEditStep.SELECT_PRESET, 1, "选择服务"),
+                                Triple(ProviderEditStep.CONFIG_CONNECTION, 2, "连接配置"),
+                                Triple(ProviderEditStep.SELECT_MODELS, 3, "选择模型")
+                            ).forEach { (step, num, label) ->
+                                val isActive = currentStep == step
+                                val canNavigate = !isFetching &&
+                                        step.ordinal <= currentStep.ordinal &&
+                                        !(initialProvider != null && step == ProviderEditStep.SELECT_PRESET)
+                                val nodeModifier = if (canNavigate) {
+                                    Modifier.clickable { currentStep = step }
+                                } else {
+                                    Modifier
+                                }
+                                Row(
+                                    modifier = nodeModifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isActive) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            num.toString(),
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = if (isActive) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontSize = 12.5.sp,
+                                            fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium
+                                        ),
+                                        color = when {
+                                            isActive -> MaterialTheme.colorScheme.primary
+                                            canNavigate -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                                        }
+                                    )
+                                }
+                                if (num < 3) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(12.dp)
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .clipToBounds()
-                            .padding(
-                                horizontal = AppTokens.Spacing.card,
-                                vertical = AppTokens.Spacing.content
-                            )
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterEnd
                     ) {
+                        IconButton(
+                            onClick = { requestDismiss() },
+                            modifier = Modifier.size(32.dp).clip(CircleShape)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Close,
+                                contentDescription = "关闭",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clipToBounds()
+                ) {
                         when (currentStep) {
                             ProviderEditStep.SELECT_PRESET -> {
                                 ProviderPresetStep(
@@ -429,44 +422,30 @@ fun ProviderEditorDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                            .padding(horizontal = AppTokens.Spacing.card, vertical = 12.dp),
+                            .height(58.dp)
+                            .padding(horizontal = 22.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            if (isSingleModelMode) {
+                            if (!isSingleModelMode && currentStep == ProviderEditStep.CONFIG_CONNECTION && initialProvider == null) {
                                 TextButton(
                                     enabled = !isFetching,
-                                    onClick = { requestDismiss() },
+                                    onClick = { currentStep = ProviderEditStep.SELECT_PRESET },
                                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                                 ) {
-                                    Text(s.commonCancel)
+                                    Text("← 重新选择预设", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
                                 }
-                            } else if (currentStep == ProviderEditStep.CONFIG_CONNECTION && initialProvider == null) {
-                                OutlinedButton(
-                                    enabled = !isFetching,
-                                    onClick = { currentStep = ProviderEditStep.SELECT_PRESET },
-                                    modifier = Modifier.height(36.dp),
-                                    shape = RoundedCornerShape(AppTokens.Radius.small),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                ) {
-                                    Text("← 重新选择预设", style = MaterialTheme.typography.labelMedium)
-                                }
-                            } else if (currentStep == ProviderEditStep.SELECT_MODELS) {
-                                OutlinedButton(
+                            } else if (!isSingleModelMode && currentStep == ProviderEditStep.SELECT_MODELS) {
+                                TextButton(
                                     enabled = !isFetching,
                                     onClick = { currentStep = ProviderEditStep.CONFIG_CONNECTION },
-                                    modifier = Modifier.height(36.dp),
-                                    shape = RoundedCornerShape(AppTokens.Radius.small),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                                 ) {
-                                    Text("← 修改连接配置", style = MaterialTheme.typography.labelMedium)
+                                    Text("← 返回连接配置", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
                                 }
                             }
                         }
@@ -475,16 +454,6 @@ fun ProviderEditorDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            if (currentStep != ProviderEditStep.SELECT_MODELS && !isSingleModelMode) {
-                                TextButton(
-                                    enabled = !isFetching,
-                                    onClick = { requestDismiss() },
-                                    modifier = Modifier.height(36.dp),
-                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                                ) {
-                                    Text(s.commonCancel, style = MaterialTheme.typography.labelMedium)
-                                }
-                            }
                             if (currentStep == ProviderEditStep.SELECT_MODELS && !isSingleModelMode) {
                                 Text(
                                     text = if (selectedModelIds.isNotEmpty()) "已选择 ${selectedModelIds.size} 个模型" else "未选择任何模型",
@@ -493,11 +462,24 @@ fun ProviderEditorDialog(
                                 )
                             }
 
+                            OutlinedButton(
+                                enabled = !isFetching,
+                                onClick = { requestDismiss() },
+                                modifier = Modifier.height(38.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                )
+                            ) {
+                                Text("取消", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
+                            }
+
                             if (currentStep == ProviderEditStep.CONFIG_CONNECTION) {
                                 Button(
                                     enabled = name.isNotBlank() && baseUrl.isNotBlank() && !isFetching,
-                                    modifier = Modifier.height(36.dp),
-                                    shape = RoundedCornerShape(AppTokens.Radius.small),
+                                    modifier = Modifier.height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     onClick = {
                                         scope.launch {
                                             isFetching = true
@@ -642,8 +624,8 @@ fun ProviderEditorDialog(
                             } else if (currentStep == ProviderEditStep.SELECT_MODELS) {
                                 Button(
                                     enabled = selectedModelIds.isNotEmpty(),
-                                    modifier = Modifier.height(36.dp),
-                                    shape = RoundedCornerShape(AppTokens.Radius.small),
+                                    modifier = Modifier.height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     onClick = {
                                         val finalProvider = currentProvider()
                                         val finalModels = fetchedModelConfigs
@@ -703,7 +685,7 @@ fun ProviderEditorDialog(
                                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                                     )
                                 ) {
-                                    Text(if (isSingleModelMode) "保存模型配置" else "保存上游服务", style = MaterialTheme.typography.labelMedium)
+                                    Text(if (isSingleModelMode) "保存模型配置" else "保存上游服务", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
                                 }
                             }
                         }
@@ -711,7 +693,6 @@ fun ProviderEditorDialog(
                 }
             }
         }
-    }
 
     if (showDiscardConfirm) {
         ConfirmDialog(
