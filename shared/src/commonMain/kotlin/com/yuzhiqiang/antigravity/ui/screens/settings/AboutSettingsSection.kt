@@ -6,13 +6,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,11 +23,16 @@ import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.BrandMark
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.update.model.AppVersion
+import com.yuzhiqiang.antigravity.update.model.UpdateState
 import java.awt.Desktop
 import java.net.URI
 
 @Composable
 fun AboutSettingsSection(
+    updateState: UpdateState,
+    onCheckUpdate: () -> Unit,
+    onOpenUpdateDialog: () -> Unit,
     onOpenConfigDirectory: () -> Unit,
     s: Strings
 ) {
@@ -43,7 +47,10 @@ fun AboutSettingsSection(
             ) {
                 BrandMark(size = 56.dp)
 
-                Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
@@ -60,11 +67,46 @@ fun AboutSettingsSection(
                                 .padding(horizontal = AppTokens.Spacing.sm, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "v2.0.0",
+                                text = "v${AppVersion.CURRENT}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
+                        }
+
+                        // Update Status Badges
+                        when (updateState) {
+                            is UpdateState.Available -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                        .background(MaterialTheme.colorScheme.errorContainer)
+                                        .clickable(onClick = onOpenUpdateDialog)
+                                        .padding(horizontal = AppTokens.Spacing.sm, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${s.settingsNewVersionBadge} v${updateState.release.cleanVersion}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                            is UpdateState.UpToDate -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .padding(horizontal = AppTokens.Spacing.sm, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = s.settingsLatestVersionBadge,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            else -> {}
                         }
                     }
                     Text(
@@ -72,6 +114,57 @@ fun AboutSettingsSection(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                // Check for updates action button
+                val isChecking = updateState is UpdateState.Checking
+                Button(
+                    onClick = {
+                        if (updateState is UpdateState.Available) {
+                            onOpenUpdateDialog()
+                        } else if (!isChecking) {
+                            onCheckUpdate()
+                        }
+                    },
+                    enabled = !isChecking,
+                    shape = RoundedCornerShape(AppTokens.Radius.medium),
+                    contentPadding = PaddingValues(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.sm)
+                ) {
+                    if (isChecking) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(AppTokens.Size.iconSmall),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(AppTokens.Spacing.xs))
+                        Text(
+                            text = s.settingsCheckingUpdate,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    } else if (updateState is UpdateState.Available) {
+                        Icon(
+                            imageVector = Icons.Outlined.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(AppTokens.Size.iconSmall)
+                        )
+                        Spacer(modifier = Modifier.width(AppTokens.Spacing.xs))
+                        Text(
+                            text = s.updateAvailableTitle,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Outlined.Sync,
+                            contentDescription = null,
+                            modifier = Modifier.size(AppTokens.Size.iconSmall)
+                        )
+                        Spacer(modifier = Modifier.width(AppTokens.Spacing.xs))
+                        Text(
+                            text = s.settingsCheckUpdateBtn,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             }
         }
@@ -83,8 +176,8 @@ fun AboutSettingsSection(
             AboutActionCard(
                 icon = Icons.Outlined.Code,
                 title = s.settingsRepo,
-                subtitle = "yuzhiqiang1993/antigravity-studio",
-                onClick = { openWebUrl("https://github.com/yuzhiqiang1993/antigravity-studio") },
+                subtitle = "${AppVersion.GITHUB_OWNER}/${AppVersion.GITHUB_REPO}",
+                onClick = { openWebUrl(AppVersion.GITHUB_REPO_URL) },
                 modifier = Modifier.weight(1f)
             )
             AboutActionCard(
@@ -102,15 +195,15 @@ fun AboutSettingsSection(
             AboutActionCard(
                 icon = Icons.Outlined.Person,
                 title = s.settingsDeveloper,
-                subtitle = "@yuzhiqiang1993",
-                onClick = { openWebUrl("https://github.com/yuzhiqiang1993") },
+                subtitle = "@${AppVersion.GITHUB_OWNER}",
+                onClick = { openWebUrl("https://github.com/${AppVersion.GITHUB_OWNER}") },
                 modifier = Modifier.weight(1f)
             )
             AboutActionCard(
                 icon = Icons.Outlined.Feedback,
                 title = s.settingsFeedback,
                 subtitle = s.settingsFeedbackDesc,
-                onClick = { openWebUrl("https://github.com/yuzhiqiang1993/antigravity-studio/issues") },
+                onClick = { openWebUrl("${AppVersion.GITHUB_REPO_URL}/issues") },
                 modifier = Modifier.weight(1f)
             )
         }

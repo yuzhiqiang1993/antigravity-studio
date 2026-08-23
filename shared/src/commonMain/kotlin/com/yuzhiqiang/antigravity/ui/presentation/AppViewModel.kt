@@ -16,6 +16,10 @@ import com.yuzhiqiang.antigravity.proxy.routing.RouteResolver
 import com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer
 import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.components.NoticeState
+import com.yuzhiqiang.antigravity.update.engine.UpdateChecker
+import com.yuzhiqiang.antigravity.update.model.AppVersion
+import com.yuzhiqiang.antigravity.update.model.ReleaseInfo
+import com.yuzhiqiang.antigravity.update.model.UpdateState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -179,6 +183,15 @@ class AppViewModel(
     val isSidebarCollapsed: StateFlow<Boolean> = _isSidebarCollapsed.asStateFlow()
     fun toggleSidebar() { _isSidebarCollapsed.value = !_isSidebarCollapsed.value }
 
+    private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
+
+    private val _showUpdateDialog = MutableStateFlow(false)
+    val showUpdateDialog: StateFlow<Boolean> = _showUpdateDialog.asStateFlow()
+
+    private val _activeRelease = MutableStateFlow<ReleaseInfo?>(null)
+    val activeRelease: StateFlow<ReleaseInfo?> = _activeRelease.asStateFlow()
+
     private val s get() = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
 
     private val doctorDelegate = DoctorDelegate(
@@ -203,6 +216,9 @@ class AppViewModel(
             proxyServer.start(configStore.currentConfig.proxyPort)
             refreshHostStatus()
             fetchOfficialModels().join()
+            if (configStore.currentConfig.autoCheckUpdate) {
+                checkForUpdates(isManual = false)
+            }
         }
     }
 
@@ -823,6 +839,77 @@ class AppViewModel(
         }
     }
 
+    fun checkForUpdates(isManual: Boolean = true) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            _updateState.value = UpdateState.Checking(isManual)
+            val result = UpdateChecker.checkUpdate(currentVersion = AppVersion.CURRENT)
+            val now = System.currentTimeMillis()
+            configStore.updateConfig { it.copy(lastCheckUpdateTimestamp = now) }
+
+            result.fold(
+                onSuccess = { release ->
+                    if (release != null) {
+                        _updateState.value = UpdateState.Available(
+                            release = release,
+                            currentVersion = AppVersion.CURRENT,
+                            isManual = isManual
+                        )
+                        _activeRelease.value = release
+                        val isIgnored = configStore.currentConfig.ignoredVersion.equals(release.cleanVersion, ignoreCase = true)
+                        if (isManual || !isIgnored) {
+                            _showUpdateDialog.value = true
+                        }
+                        if (isManual) {
+                            showNotice(s.updateAvailableTitle + ": v${release.cleanVersion}", NoticeKind.SUCCESS)
+                        }
+                    } else {
+                        _updateState.value = UpdateState.UpToDate(
+                            currentVersion = AppVersion.CURRENT,
+                            lastCheckedTimestamp = now,
+                            isManual = isManual
+                        )
+                        if (isManual) {
+                            showNotice(s.updateUpToDate, NoticeKind.SUCCESS)
+                        }
+                    }
+                },
+                onFailure = { error ->
+                    val msg = error.message ?: s.commonUnknown
+                    _updateState.value = UpdateState.Error(msg, isManual)
+                    if (isManual) {
+                        showNotice(s.updateCheckFailed(msg), NoticeKind.ERROR)
+                    }
+                }
+            )
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _showUpdateDialog.value = false
+    }
+
+    fun openUpdateDialog() {
+        if (_activeRelease.value != null) {
+            _showUpdateDialog.value = true
+        } else {
+            checkForUpdates(isManual = true)
+        }
+    }
+
+    fun ignoreUpdateVersion(version: String) {
+        configStore.updateConfig { it.copy(ignoredVersion = version) }
+        _showUpdateDialog.value = false
+        showNotice(s.updateIgnoredNotice, NoticeKind.INFO)
+    }
+
+    fun updateAutoCheckUpdate(enabled: Boolean) {
+        configStore.updateConfig { it.copy(autoCheckUpdate = enabled) }
+    }
+
+    fun updateIncludePrerelease(enabled: Boolean) {
+        configStore.updateConfig { it.copy(includePrerelease = enabled) }
+    }
+
     private fun normalizeModelReference(value: String): String {
         return value.trim().removePrefix("models/")
     }
@@ -848,3 +935,4 @@ class AppViewModel(
         super.onCleared()
     }
 }
+

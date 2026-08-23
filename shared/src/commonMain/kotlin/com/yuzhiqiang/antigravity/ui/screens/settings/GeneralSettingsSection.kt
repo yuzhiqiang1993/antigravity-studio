@@ -9,6 +9,8 @@ import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material3.Switch
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +31,7 @@ fun GeneralSettingsSection(
     config: AppConfig,
     onUpdateLanguage: (AppLanguage) -> Unit,
     onUpdateThemeMode: (String) -> Unit,
+    onUpdateAutoCheckUpdate: (Boolean) -> Unit,
     onConfigureHostPath: ((String, String) -> Unit)? = null,
     s: Strings
 ) {
@@ -112,6 +115,19 @@ fun GeneralSettingsSection(
                         }
                     }
                 }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            SettingRow(
+                icon = Icons.Outlined.Sync,
+                title = s.settingsAutoCheckUpdate,
+                description = s.settingsAutoCheckUpdateDesc
+            ) {
+                Switch(
+                    checked = config.autoCheckUpdate,
+                    onCheckedChange = onUpdateAutoCheckUpdate
+                )
             }
 
             if (onConfigureHostPath != null) {

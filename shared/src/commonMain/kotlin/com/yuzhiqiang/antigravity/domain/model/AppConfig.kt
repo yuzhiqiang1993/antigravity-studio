@@ -22,5 +22,13 @@ data class AppConfig(
     @SerialName("language")
     val language: String = "zh-CN",
     @SerialName("theme_mode")
-    val themeMode: String = "system"
+    val themeMode: String = "system",
+    @SerialName("auto_check_update")
+    val autoCheckUpdate: Boolean = true,
+    @SerialName("include_prerelease")
+    val includePrerelease: Boolean = false,
+    @SerialName("ignored_version")
+    val ignoredVersion: String? = null,
+    @SerialName("last_check_update_timestamp")
+    val lastCheckUpdateTimestamp: Long = 0L
 )

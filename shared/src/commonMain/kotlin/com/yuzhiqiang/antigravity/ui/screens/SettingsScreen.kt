@@ -33,6 +33,8 @@ fun SettingsScreen(
     val s = strings()
     val config by viewModel.config.collectAsState()
     val loadError by viewModel.configLoadError.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
+
     var selectedSection by remember { mutableStateOf(SettingsSection.GENERAL) }
     var portInput by remember(config.proxyPort) { mutableStateOf(config.proxyPort.toString()) }
     var portError by remember { mutableStateOf<String?>(null) }
@@ -69,6 +71,10 @@ fun SettingsScreen(
                         openDirectoryError = openDirectoryError,
                         onUpdateLanguage = viewModel::updateLanguage,
                         onUpdateThemeMode = viewModel::updateThemeMode,
+                        onUpdateAutoCheckUpdate = viewModel::updateAutoCheckUpdate,
+                        updateState = updateState,
+                        onCheckUpdate = { viewModel.checkForUpdates(isManual = true) },
+                        onOpenUpdateDialog = { viewModel.openUpdateDialog() },
                         onPortInputChange = {
                             portInput = it
                             portError = null
@@ -109,6 +115,10 @@ fun SettingsScreen(
                         openDirectoryError = openDirectoryError,
                         onUpdateLanguage = { viewModel.updateLanguage(it) },
                         onUpdateThemeMode = { viewModel.updateThemeMode(it) },
+                        onUpdateAutoCheckUpdate = { viewModel.updateAutoCheckUpdate(it) },
+                        updateState = updateState,
+                        onCheckUpdate = { viewModel.checkForUpdates(isManual = true) },
+                        onOpenUpdateDialog = { viewModel.openUpdateDialog() },
                         onPortInputChange = {
                             portInput = it
                             portError = null
@@ -235,6 +245,10 @@ private fun SettingsContent(
     openDirectoryError: String?,
     onUpdateLanguage: (com.yuzhiqiang.antigravity.i18n.AppLanguage) -> Unit,
     onUpdateThemeMode: (String) -> Unit,
+    onUpdateAutoCheckUpdate: (Boolean) -> Unit,
+    updateState: com.yuzhiqiang.antigravity.update.model.UpdateState,
+    onCheckUpdate: () -> Unit,
+    onOpenUpdateDialog: () -> Unit,
     onPortInputChange: (String) -> Unit,
     onSavePort: () -> Unit,
     onOpenDirectory: () -> Unit,
@@ -248,6 +262,7 @@ private fun SettingsContent(
                 config = config,
                 onUpdateLanguage = onUpdateLanguage,
                 onUpdateThemeMode = onUpdateThemeMode,
+                onUpdateAutoCheckUpdate = onUpdateAutoCheckUpdate,
                 onConfigureHostPath = onConfigureHostPath,
                 s = s
             )
@@ -265,6 +280,9 @@ private fun SettingsContent(
                 s = s
             )
             SettingsSection.ABOUT -> AboutSettingsSection(
+                updateState = updateState,
+                onCheckUpdate = onCheckUpdate,
+                onOpenUpdateDialog = onOpenUpdateDialog,
                 onOpenConfigDirectory = onOpenDirectory,
                 s = s
             )

@@ -23,6 +23,8 @@ import com.yuzhiqiang.antigravity.ui.components.AppSnackbarHost
 import com.yuzhiqiang.antigravity.ui.dialogs.ConfirmDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.CustomHostPathDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.DoctorDialog
+import com.yuzhiqiang.antigravity.ui.dialogs.UpdateDialog
+import com.yuzhiqiang.antigravity.update.model.AppVersion
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
 import com.yuzhiqiang.antigravity.ui.screens.ActivityScreen
@@ -48,6 +50,8 @@ fun App(
     val notice by viewModel.notice.collectAsState()
     val confirmState by viewModel.confirmDialog.collectAsState()
     val hostPathDialogState by viewModel.hostPathDialogState.collectAsState()
+    val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
+    val activeRelease by viewModel.activeRelease.collectAsState()
 
     KoinContext {
     CompositionLocalProvider(LocalStrings provides currentStrings) {
@@ -136,6 +140,16 @@ fun App(
                         initialPath = state.currentPath,
                         onSave = { path -> viewModel.saveCustomHostPath(state.hostKey, path) },
                         onDismiss = { viewModel.closeHostPathDialog() }
+                    )
+                }
+
+                // 版本更新提示对话框
+                if (showUpdateDialog && activeRelease != null) {
+                    UpdateDialog(
+                        release = activeRelease!!,
+                        currentVersion = AppVersion.CURRENT,
+                        onDismiss = { viewModel.dismissUpdateDialog() },
+                        onIgnoreVersion = { version -> viewModel.ignoreUpdateVersion(version) }
                     )
                 }
             }

@@ -483,6 +483,29 @@ interface Strings {
     val settingsFeedback: String
     val settingsFeedbackDesc: String
 
+    // Update & Version Checker
+    val updateCheck: String
+    val updateChecking: String
+    val updateUpToDate: String
+    val updateAvailableTitle: String
+    fun updateAvailableSubtitle(version: String): String
+    val updateChangelogTitle: String
+    val updateCurrentVersionLabel: String
+    val updateLatestVersionLabel: String
+    val updateDownloadNow: String
+    val updateLater: String
+    val updateIgnoreThisVersion: String
+    val updateIgnoredNotice: String
+    fun updateCheckFailed(error: String): String
+    val updateNoChangelog: String
+    val settingsAutoCheckUpdate: String
+    val settingsAutoCheckUpdateDesc: String
+    val settingsCheckUpdateBtn: String
+    val settingsCheckingUpdate: String
+    val settingsLatestVersionBadge: String
+    val settingsNewVersionBadge: String
+    fun settingsLastChecked(time: String): String
+
     // Doctor Diagnostics
     val doctorTitle: String
     val doctorSubtitle: String
@@ -1068,13 +1091,36 @@ object StringsZh : Strings {
     override fun settingsOpenDirFailed(error: String) = "打开配置目录失败：$error"
     override val settingsAbout = "关于 Antigravity Studio"
     override val settingsAboutDescription = "Kotlin Multiplatform 与 Compose Desktop 驱动的本地模型接入工具。"
-    override val settingsVersion = "Antigravity Studio v1.0.0 · Kotlin Multiplatform & Compose Desktop"
+    override val settingsVersion = "Antigravity Studio v${com.yuzhiqiang.antigravity.update.model.AppVersion.CURRENT} · Kotlin Multiplatform & Compose Desktop"
     override val settingsRepo = "开源仓库"
     override val settingsConfigDir = "配置目录"
     override val settingsOpenConfigDir = "打开数据与模型配置文件"
     override val settingsDeveloper = "开发者"
     override val settingsFeedback = "反馈建议"
     override val settingsFeedbackDesc = "提交 Issue 或加入交流群"
+
+    // Update & Version Checker
+    override val updateCheck = "检查更新"
+    override val updateChecking = "正在检查更新..."
+    override val updateUpToDate = "当前已是最新版本"
+    override val updateAvailableTitle = "发现新版本"
+    override fun updateAvailableSubtitle(version: String) = "Antigravity Studio $version 已发布，建议立即更新以获得更佳体验。"
+    override val updateChangelogTitle = "更新日志"
+    override val updateCurrentVersionLabel = "当前版本"
+    override val updateLatestVersionLabel = "最新版本"
+    override val updateDownloadNow = "立即下载"
+    override val updateLater = "稍后提醒"
+    override val updateIgnoreThisVersion = "跳过此版本"
+    override val updateIgnoredNotice = "已忽略此版本的后续启动提醒"
+    override fun updateCheckFailed(error: String) = "检查更新失败：$error"
+    override val updateNoChangelog = "暂无详细发布说明。"
+    override val settingsAutoCheckUpdate = "启动时自动检查更新"
+    override val settingsAutoCheckUpdateDesc = "应用启动时在后台静默检查是否有新版本，并在有更新时提醒"
+    override val settingsCheckUpdateBtn = "检查更新"
+    override val settingsCheckingUpdate = "正在检测..."
+    override val settingsLatestVersionBadge = "最新版本"
+    override val settingsNewVersionBadge = "可更新"
+    override fun settingsLastChecked(time: String) = "上次检查：$time"
 
     override val doctorTitle = "Doctor 全链路健康体检"
     override val doctorSubtitle = "一键诊断网络连通性、本地配置、宿主接管与代理服务健康度"
@@ -1657,13 +1703,36 @@ object StringsEn : Strings {
     override fun settingsOpenDirFailed(error: String) = "Failed to open config directory: $error"
     override val settingsAbout = "About Antigravity Studio"
     override val settingsAboutDescription = "A local model access tool built with Kotlin Multiplatform and Compose Desktop."
-    override val settingsVersion = "Antigravity Studio v1.0.0 · Kotlin Multiplatform & Compose Desktop"
+    override val settingsVersion = "Antigravity Studio v${com.yuzhiqiang.antigravity.update.model.AppVersion.CURRENT} · Kotlin Multiplatform & Compose Desktop"
     override val settingsRepo = "GitHub Repository"
     override val settingsConfigDir = "Config Directory"
     override val settingsOpenConfigDir = "Open data and model configuration files"
     override val settingsDeveloper = "Developer"
     override val settingsFeedback = "Feedback & Issues"
     override val settingsFeedbackDesc = "Submit issues or join community discussions"
+
+    // Update & Version Checker
+    override val updateCheck = "Check for Updates"
+    override val updateChecking = "Checking for updates..."
+    override val updateUpToDate = "You are up to date"
+    override val updateAvailableTitle = "Update Available"
+    override fun updateAvailableSubtitle(version: String) = "Antigravity Studio $version is now available. We recommend updating for the best experience."
+    override val updateChangelogTitle = "Release Notes"
+    override val updateCurrentVersionLabel = "Current Version"
+    override val updateLatestVersionLabel = "Latest Version"
+    override val updateDownloadNow = "Download Now"
+    override val updateLater = "Remind Me Later"
+    override val updateIgnoreThisVersion = "Skip This Version"
+    override val updateIgnoredNotice = "This version will be skipped in future startup checks"
+    override fun updateCheckFailed(error: String) = "Failed to check for updates: $error"
+    override val updateNoChangelog = "No release notes provided."
+    override val settingsAutoCheckUpdate = "Check for updates on startup"
+    override val settingsAutoCheckUpdateDesc = "Silently check for new versions on startup and notify when updates are available"
+    override val settingsCheckUpdateBtn = "Check Updates"
+    override val settingsCheckingUpdate = "Checking..."
+    override val settingsLatestVersionBadge = "Latest"
+    override val settingsNewVersionBadge = "Update"
+    override fun settingsLastChecked(time: String) = "Last checked: $time"
 
     override val doctorTitle = "Doctor Health Diagnostics"
     override val doctorSubtitle = "Full-stack diagnostics for network, configs, host and proxy"
