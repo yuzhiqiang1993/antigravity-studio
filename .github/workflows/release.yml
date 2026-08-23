@@ -147,10 +147,7 @@ jobs:
           echo "=== 待发布的安装包与校验文件 ==="
           ls -lh dist/
           
-          # 生成统一的 CHECKSUMS.txt
-          cd dist
-          rm -f CHECKSUMS.txt
-          sha256sum * > CHECKSUMS.txt || true
+          ls -lh dist/
 
       - name: Determine Tag and Version
         id: vars
@@ -191,7 +188,6 @@ jobs:
             echo "- **macOS Apple Silicon（M 系列芯片）**：下载 \`Antigravity-Studio-$VERSION-macos-arm64.dmg\`" >> RELEASE_NOTES.md
             echo "- **macOS Intel 芯片**：下载 \`Antigravity-Studio-$VERSION-macos-x64.dmg\`" >> RELEASE_NOTES.md
             echo "- **Windows 64 位**：下载 \`Antigravity-Studio-$VERSION-windows-x64.exe\`" >> RELEASE_NOTES.md
-            echo "- **完整性校验**：下载 \`CHECKSUMS.txt\` 进行 SHA-256 哈希比对" >> RELEASE_NOTES.md
             echo "" >> RELEASE_NOTES.md
             echo "> ⚠️ **macOS 用户注意**：首次安装后如果提示\"已损坏\"或\"无法打开\"，请在终端执行以下命令解除系统的 Gatekeeper 隔离限制：" >> RELEASE_NOTES.md
             echo "> \`\`\`bash" >> RELEASE_NOTES.md
