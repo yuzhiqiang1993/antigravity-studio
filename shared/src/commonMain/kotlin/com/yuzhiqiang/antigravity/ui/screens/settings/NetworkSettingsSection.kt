@@ -1,17 +1,23 @@
 package com.yuzhiqiang.antigravity.ui.screens.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Router
-import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
@@ -27,34 +33,69 @@ fun NetworkSettingsSection(
 ) {
     StudioCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AppTokens.Spacing.card),
-            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
+            modifier = Modifier.padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
         ) {
             SettingsCardTitle(Icons.Outlined.Router, s.settingsNetwork)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(Modifier.height(2.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
             SettingRow(
                 icon = Icons.Outlined.Router,
                 title = s.settingsPort,
-                description = s.settingsPortDescription
+                description = s.settingsPortDescription,
+                modifier = Modifier.padding(vertical = 4.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
                 ) {
-                    OutlinedTextField(
-                        value = portInput,
-                        onValueChange = onPortInputChange,
-                        isError = portError != null,
-                        singleLine = true,
-                        modifier = Modifier.width(130.dp),
-                        shape = RoundedCornerShape(AppTokens.Radius.medium)
-                    )
+                    val isError = portError != null
+                    val borderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                    
+                    Box(
+                        modifier = Modifier
+                            .width(100.dp)
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(AppTokens.Radius.small))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                            .border(
+                                width = 1.dp,
+                                color = borderColor,
+                                shape = RoundedCornerShape(AppTokens.Radius.small)
+                            )
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        BasicTextField(
+                            value = portInput,
+                            onValueChange = onPortInputChange,
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { onSavePort() }),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
                     Button(
                         onClick = onSavePort,
-                        shape = RoundedCornerShape(AppTokens.Radius.medium)
+                        shape = RoundedCornerShape(AppTokens.Radius.small),
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
                     ) {
-                        Text(s.commonSave, style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            text = s.commonSave,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }
@@ -63,7 +104,8 @@ fun NetworkSettingsSection(
                 Text(
                     text = portError,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(start = AppTokens.Spacing.card)
                 )
             }
         }

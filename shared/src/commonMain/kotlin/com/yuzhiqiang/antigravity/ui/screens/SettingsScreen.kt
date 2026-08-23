@@ -211,7 +211,7 @@ private fun SettingsNavItem(
     modifier: Modifier = Modifier
 ) {
     val container = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val content = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val content = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
 
     Row(
         modifier = modifier
@@ -269,7 +269,6 @@ private fun SettingsContent(
                 onUpdateLanguage = onUpdateLanguage,
                 onUpdateThemeMode = onUpdateThemeMode,
                 onUpdateAutoCheckUpdate = onUpdateAutoCheckUpdate,
-                onUpdateDeveloperMode = onUpdateDeveloperMode,
                 onConfigureHostPath = onConfigureHostPath,
                 s = s
             )
@@ -288,9 +287,10 @@ private fun SettingsContent(
             )
             SettingsSection.ABOUT -> AboutSettingsSection(
                 updateState = updateState,
+                isDeveloperMode = config.developerMode,
                 onCheckUpdate = onCheckUpdate,
                 onOpenUpdateDialog = onOpenUpdateDialog,
-                onToggleDeveloperMode = onToggleDeveloperMode,
+                onSetDeveloperMode = onUpdateDeveloperMode,
                 onOpenConfigDirectory = onOpenDirectory,
                 s = s
             )
