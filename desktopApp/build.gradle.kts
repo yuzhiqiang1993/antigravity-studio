@@ -44,7 +44,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Pkg, TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Antigravity Studio"
-            packageVersion = "1.0.1"
+            packageVersion = "1.0.0"
             description = "All-in-one desktop hub and productivity studio for Antigravity AI tools"
             vendor = "yuzhiqiang"
 
