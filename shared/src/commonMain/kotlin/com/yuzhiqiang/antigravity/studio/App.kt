@@ -7,7 +7,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toArgb
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.i18n.LocalStrings
@@ -26,10 +26,12 @@ import com.yuzhiqiang.antigravity.ui.screens.SettingsScreen
 import com.yuzhiqiang.antigravity.ui.theme.AntigravityTheme
 import org.koin.compose.KoinContext
 import org.koin.compose.viewmodel.koinViewModel
+import java.awt.Window as AwtWindow
 
 @Composable
 fun App(
-    viewModel: AppViewModel = koinViewModel()
+    viewModel: AppViewModel = koinViewModel(),
+    window: AwtWindow? = null
 ) {
     val currentLang = I18nManager.currentLanguage
     val currentStrings = if (currentLang == AppLanguage.ZH_CN) StringsZh else StringsEn
@@ -42,9 +44,18 @@ fun App(
     KoinContext {
     CompositionLocalProvider(LocalStrings provides currentStrings) {
         AntigravityTheme(themeMode = config.themeMode) {
+            val backgroundColor = MaterialTheme.colorScheme.background
+            SideEffect {
+                window?.let { w ->
+                    val awtColor = java.awt.Color(backgroundColor.toArgb())
+                    if (w.background != awtColor) {
+                        w.background = awtColor
+                    }
+                }
+            }
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
+                color = backgroundColor
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     Row(modifier = Modifier.fillMaxSize()) {

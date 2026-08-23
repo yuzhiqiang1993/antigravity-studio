@@ -19,8 +19,10 @@ import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -35,6 +37,7 @@ class LocalProxyServer(
     }
 
     private var serverEngine: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
+    private val lifecycleMutex = Mutex()
 
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
@@ -48,8 +51,7 @@ class LocalProxyServer(
     private val passthroughHandler = OfficialPassthroughHandler(configStore) { _actualPort.value }
     private val byokHandler = ByokForwardHandler(configStore)
 
-    @Synchronized
-    fun start(desiredPort: Int = configStore.currentConfig.proxyPort): Result<Int> {
+    suspend fun start(desiredPort: Int = configStore.currentConfig.proxyPort): Result<Int> = lifecycleMutex.withLock {
         if (_isRunning.value) return Result.success(_actualPort.value)
 
         if (desiredPort !in 1024..65535) {
@@ -193,8 +195,7 @@ class LocalProxyServer(
         return null
     }
 
-    @Synchronized
-    fun stop() {
+    suspend fun stop() = lifecycleMutex.withLock {
         try {
             serverEngine?.stop(1000, 2000)
             serverEngine = null

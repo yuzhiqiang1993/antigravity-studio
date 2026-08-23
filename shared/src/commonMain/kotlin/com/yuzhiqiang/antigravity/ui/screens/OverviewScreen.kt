@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -174,30 +175,17 @@ fun OverviewScreen(
             )
         }
 
-        // 响应式网格布局 (自适应 1~3 列)
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val availableWidth = maxWidth
-            val minCardWidth = 300.dp
-            val gap = AppTokens.Spacing.card
-            val columns = ((availableWidth + gap) / (minCardWidth + gap)).toInt().coerceIn(1, 3)
-
-            Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-                hostCardItems.chunked(columns).forEach { rowItems ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(gap)
-                    ) {
-                        rowItems.forEach { item ->
-                            HostCardItem(
-                                data = item,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        val emptySlots = columns - rowItems.size
-                        repeat(emptySlots) {
-                            Spacer(Modifier.weight(1f))
-                        }
-                    }
+        // 宿主环境卡片 (固定平铺 3 列并排布局，彻底杜绝缩放过程中的跨行折叠与高度抖动)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.card)
+        ) {
+            hostCardItems.forEach { item ->
+                key(item.title) {
+                    HostCardItem(
+                        data = item,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -245,6 +246,7 @@ fun CustomProviderView(
                 if (columnCount == 1) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         models.forEach { model ->
+                            key(model.id) {
                             UniversalModelCard(
                                 state = createCustomCardState(
                                     model = model,
@@ -280,6 +282,7 @@ fun CustomProviderView(
                                     }
                                 )
                             )
+                            }
                         }
                     }
                 } else {
@@ -290,6 +293,7 @@ fun CustomProviderView(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 rowModels.forEach { model ->
+                                    key(model.id) {
                                     UniversalModelCard(
                                         state = createCustomCardState(
                                             model = model,
@@ -327,6 +331,7 @@ fun CustomProviderView(
                                         ),
                                         modifier = Modifier.weight(1f)
                                     )
+                                    }
                                 }
                                 val emptySlots = columnCount - rowModels.size
                                 repeat(emptySlots) {

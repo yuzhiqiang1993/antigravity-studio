@@ -18,6 +18,8 @@ import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.components.NoticeState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
 
 class AppViewModel(
@@ -266,7 +268,7 @@ class AppViewModel(
         }
     }
 
-    private fun restartProxyInternal(): Result<Int> {
+    private suspend fun restartProxyInternal(): Result<Int> {
         proxyServer.stop()
         return proxyServer.start(configStore.currentConfig.proxyPort)
     }
@@ -657,12 +659,13 @@ class AppViewModel(
             var successCount = 0
             val updatedMap = _modelTestStatuses.value.toMutableMap()
             val semaphore = kotlinx.coroutines.sync.Semaphore(3)
+            val testMutex = Mutex()
             val jobs = models.map { model ->
                 launch {
                     semaphore.acquire()
                     try {
                         val result = ConnectionTester.testProvider(provider, model)
-                        synchronized(updatedMap) {
+                        testMutex.withLock {
                             if (result.success) {
                                 successCount++
                                 updatedMap[model.id] = ModelTestStatus(
@@ -746,7 +749,9 @@ class AppViewModel(
     }
 
     override fun onCleared() {
-        proxyServer.stop()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            proxyServer.stop()
+        }
         super.onCleared()
     }
 }

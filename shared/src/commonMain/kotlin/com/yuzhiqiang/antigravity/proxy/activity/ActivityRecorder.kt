@@ -5,6 +5,7 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.util.UUID
 
 object ActivityRecorder {
@@ -12,7 +13,6 @@ object ActivityRecorder {
     private val _logs = MutableStateFlow<List<ActivityLog>>(emptyList())
     val logs: StateFlow<List<ActivityLog>> = _logs.asStateFlow()
 
-    @Synchronized
     fun record(
         method: String,
         path: String,
@@ -47,12 +47,14 @@ object ActivityRecorder {
             reasoningTokens = usage?.reasoningTokens,
             totalTokens = usage?.totalTokens
         )
-        val current = _logs.value.toMutableList()
-        current.add(0, newLog)
-        if (current.size > MAX_LOGS) {
-            _logs.value = current.take(MAX_LOGS)
-        } else {
-            _logs.value = current
+        _logs.update { current ->
+            val next = ArrayList<ActivityLog>(minOf(current.size + 1, MAX_LOGS))
+            next.add(newLog)
+            val limit = minOf(current.size, MAX_LOGS - 1)
+            for (i in 0 until limit) {
+                next.add(current[i])
+            }
+            next
         }
     }
 
