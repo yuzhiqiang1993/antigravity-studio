@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class AppConfig(
     @SerialName("proxy_port")
-    val proxyPort: Int = 12345,
+    val proxyPort: Int = 8321,
     @SerialName("providers")
     val providers: List<Provider> = emptyList(),
     @SerialName("upstream_models")

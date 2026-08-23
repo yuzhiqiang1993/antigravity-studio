@@ -79,6 +79,43 @@ object CliHostManager {
         )
     }
 
+    fun inspect(
+        proxyPort: Int,
+        isProxyRunning: Boolean = false,
+        customInstallation: String? = null
+    ): com.yuzhiqiang.antigravity.host.model.HostDetailedStatus {
+        val installed = isInstalled(customInstallation)
+        val inspect = HostOwnershipStore.inspectEnvironmentIntegration(
+            HostOwnershipStore.EnvironmentOwner.CLI,
+            proxyPort
+        )
+        val configState = when (inspect.state) {
+            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_ENABLED
+            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.CONFLICT,
+            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
+            else -> when {
+                !inspect.endpointMatches -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NEEDS_UPDATE
+                !isProxyRunning -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.SERVICE_STOPPED
+                else -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.MATCHED
+            }
+        }
+        val target = "http://127.0.0.1:$proxyPort"
+        return com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
+            type = com.yuzhiqiang.antigravity.host.model.HostType.CLI,
+            isInstalled = installed,
+            isRunning = false,
+            integrationState = inspect.state,
+            configurationState = configState,
+            configuredEndpoint = inspect.configuredEndpoint,
+            targetEndpoint = target,
+            configPath = getConfigFile().absolutePath,
+            canEnable = installed,
+            canDisable = inspect.canDisable,
+            canLaunch = false,
+            customPath = customInstallation
+        )
+    }
+
     /**
      * 启用 CLI 代理接入：在配置文件中写入代理端点。
      * 对标 cli_host.rs 中的 enable_cli_integration。
@@ -90,22 +127,35 @@ object CliHostManager {
         ).isSuccess
     }
 
-   /**
-    * 禁用 CLI 代理接入：移除配置文件中的代理端点。
-    */
-   fun disable(): Boolean {
-       val envSuccess = HostOwnershipStore.disableEnvironment(
-           owner = HostOwnershipStore.EnvironmentOwner.CLI
-       ).isSuccess
-       runCatching {
-           val configFile = getConfigFile()
-           if (configFile.exists()) {
-               val content = configFile.readText(Charsets.UTF_8)
-               if (content.contains("CLOUD_CODE_URL") || content.contains("127.0.0.1")) {
-                   configFile.delete()
-               }
-           }
-       }
-       return envSuccess
-   }
+    /**
+     * 禁用 CLI 代理接入：移除配置文件中的代理端点。
+     */
+    fun disable(): Boolean {
+        val envSuccess = HostOwnershipStore.disableEnvironment(
+            owner = HostOwnershipStore.EnvironmentOwner.CLI
+        ).isSuccess
+        runCatching {
+            val configFile = getConfigFile()
+            if (configFile.exists()) {
+                val content = configFile.readText(Charsets.UTF_8)
+                if (content.contains("CLOUD_CODE_URL") || content.contains("127.0.0.1")) {
+                    configFile.delete()
+                }
+            }
+        }
+        return envSuccess
+    }
+
+    /**
+     * 强制重置 CLI 代理接入至官方模式。
+     */
+    fun forceReset(): Boolean {
+        runCatching {
+            val configFile = getConfigFile()
+            if (configFile.exists()) {
+                configFile.delete()
+            }
+        }
+        return HostOwnershipStore.forceResetEnvironment().isSuccess
+    }
 }

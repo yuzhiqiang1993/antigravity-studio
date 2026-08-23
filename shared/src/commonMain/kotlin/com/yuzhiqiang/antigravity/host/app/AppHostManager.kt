@@ -86,6 +86,45 @@ object AppHostManager {
         )
     }
 
+    fun inspect(
+        proxyPort: Int,
+        isProxyRunning: Boolean = false,
+        customInstallation: String? = null
+    ): com.yuzhiqiang.antigravity.host.model.HostDetailedStatus {
+        val installed = isInstalled(customInstallation)
+        val running = installed && isRunning()
+        val inspect = HostOwnershipStore.inspectEnvironmentIntegration(
+            HostOwnershipStore.EnvironmentOwner.APP,
+            proxyPort
+        )
+        val configState = when (inspect.state) {
+            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_ENABLED
+            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.CONFLICT,
+            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
+            else -> when {
+                !inspect.endpointMatches -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NEEDS_UPDATE
+                !isProxyRunning -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.SERVICE_STOPPED
+                !running -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_RUNNING
+                else -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.MATCHED
+            }
+        }
+        val target = "http://127.0.0.1:$proxyPort"
+        return com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
+            type = com.yuzhiqiang.antigravity.host.model.HostType.APP,
+            isInstalled = installed,
+            isRunning = running,
+            integrationState = inspect.state,
+            configurationState = configState,
+            configuredEndpoint = inspect.configuredEndpoint,
+            targetEndpoint = target,
+            configPath = "CLOUD_CODE_URL",
+            canEnable = installed,
+            canDisable = inspect.canDisable,
+            canLaunch = installed && (inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL || (inspect.state.isReady && isProxyRunning)),
+            customPath = customInstallation
+        )
+    }
+
     /**
      * 启用 App 代理接入：设置环境变量。
      */
@@ -103,6 +142,13 @@ object AppHostManager {
         return HostOwnershipStore.disableEnvironment(
             owner = HostOwnershipStore.EnvironmentOwner.APP
         ).isSuccess
+    }
+
+    /**
+     * 强制重置 App 代理接入至官方模式。
+     */
+    fun forceReset(): Boolean {
+        return HostOwnershipStore.forceResetEnvironment().isSuccess
     }
 
     /**

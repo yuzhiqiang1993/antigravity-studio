@@ -148,86 +148,149 @@ class DoctorEngine(
         // 4. 宿主集成检测 (HOST)
         // =========================================================================
         // (1) IDE 诊断
-        if (IdeHostManager.isInstalled(config.customHostPaths["ide"])) {
-            val ideActive = IdeHostManager.isActive(actualPort)
-            if (ideActive) {
-                items.add(
-                    DoctorCheckItem(
-                        id = "host.ide.healthy",
-                        category = DoctorCheckCategory.HOST,
-                        title = "Antigravity IDE 代理接入正常",
-                        status = DoctorCheckStatus.PASSED,
-                        message = "settings.json 已正确配置为 http://127.0.0.1:$actualPort。"
+        val ideStatus = IdeHostManager.inspect(
+            proxyPort = actualPort,
+            isProxyRunning = isProxyRunning,
+            customInstallation = config.customHostPaths["ide"]
+        )
+        if (ideStatus.isInstalled) {
+            when {
+                ideStatus.needsUpdate -> {
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.ide.mismatch",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity IDE 代理配置不匹配（待更新）",
+                            status = DoctorCheckStatus.WARNING,
+                            message = "检测到 settings.json 中代理配置为「${ideStatus.configuredEndpoint}」，与当前代理服务端口「http://127.0.0.1:$actualPort」不一致，可能导致请求失败。",
+                            suggestion = "点击一键修复将更新为当前端口并自动重启生效，或重置为官方直连模式。",
+                            autoFixable = true,
+                            fixAction = DoctorFixAction.UpdateIdeSettings
+                        )
                     )
-                )
-            } else {
-                items.add(
-                    DoctorCheckItem(
-                        id = "host.ide.official",
-                        category = DoctorCheckCategory.HOST,
-                        title = "Antigravity IDE 使用官方模式（未接入代理）",
-                        status = DoctorCheckStatus.INFO,
-                        message = "当前直连 Google 官方服务，可直接正常使用。如需在 IDE 中使用自定义模型，可启用代理接入。",
-                        autoFixable = true,
-                        fixAction = DoctorFixAction.RepairIdeSettings
+                }
+                ideStatus.isProxyActive -> {
+                    val statusMsg = if (ideStatus.isRunning) "（IDE 正在运行）" else ""
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.ide.healthy",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity IDE 代理接入正常",
+                            status = DoctorCheckStatus.PASSED,
+                            message = "settings.json 已正确配置为 http://127.0.0.1:$actualPort $statusMsg。"
+                        )
                     )
-                )
+                }
+                else -> {
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.ide.official",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity IDE 使用官方模式（未接入代理）",
+                            status = DoctorCheckStatus.INFO,
+                            message = "当前直连 Google 官方服务，可直接正常使用。如需在 IDE 中使用自定义模型，可启用代理接入。",
+                            autoFixable = true,
+                            fixAction = DoctorFixAction.RepairIdeSettings
+                        )
+                    )
+                }
             }
         }
 
         // (2) App 诊断
-        if (AppHostManager.isInstalled(config.customHostPaths["app"])) {
-            val appActive = AppHostManager.isActive(actualPort)
-            val appRunning = AppHostManager.isRunning()
-            if (appActive) {
-                val statusMsg = if (appRunning) "（App 正在运行）" else ""
-                items.add(
-                    DoctorCheckItem(
-                        id = "host.app.healthy",
-                        category = DoctorCheckCategory.HOST,
-                        title = "Antigravity App 代理接入正常",
-                        status = DoctorCheckStatus.PASSED,
-                        message = "环境变量 CLOUD_CODE_URL 已正确配置为 http://127.0.0.1:$actualPort $statusMsg。"
+        val appStatus = AppHostManager.inspect(
+            proxyPort = actualPort,
+            isProxyRunning = isProxyRunning,
+            customInstallation = config.customHostPaths["app"]
+        )
+        if (appStatus.isInstalled) {
+            when {
+                appStatus.needsUpdate -> {
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.app.mismatch",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity App 代理环境变量不匹配（待更新）",
+                            status = DoctorCheckStatus.WARNING,
+                            message = "检测到环境变量 CLOUD_CODE_URL 当前为「${appStatus.configuredEndpoint}」，与当前代理服务端口「http://127.0.0.1:$actualPort」不一致。",
+                            suggestion = "点击一键修复将更新环境变量并重启 App 生效，或重置为官方模式。",
+                            autoFixable = true,
+                            fixAction = DoctorFixAction.UpdateAppEnvironment
+                        )
                     )
-                )
-            } else {
-                items.add(
-                    DoctorCheckItem(
-                        id = "host.app.official",
-                        category = DoctorCheckCategory.HOST,
-                        title = "Antigravity App 使用官方模式（未接入代理）",
-                        status = DoctorCheckStatus.INFO,
-                        message = "当前直连 Google 官方服务。如需在 App 中使用自定义模型，可启用代理接入。",
-                        autoFixable = true,
-                        fixAction = DoctorFixAction.RepairAppEnvironment
+                }
+                appStatus.isProxyActive -> {
+                    val statusMsg = if (appStatus.isRunning) "（App 正在运行）" else ""
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.app.healthy",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity App 代理接入正常",
+                            status = DoctorCheckStatus.PASSED,
+                            message = "环境变量 CLOUD_CODE_URL 已正确配置为 http://127.0.0.1:$actualPort $statusMsg。"
+                        )
                     )
-                )
+                }
+                else -> {
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.app.official",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity App 使用官方模式（未接入代理）",
+                            status = DoctorCheckStatus.INFO,
+                            message = "当前直连 Google 官方服务。如需在 App 中使用自定义模型，可启用代理接入。",
+                            autoFixable = true,
+                            fixAction = DoctorFixAction.RepairAppEnvironment
+                        )
+                    )
+                }
             }
         }
 
         // (3) CLI 诊断
-        if (CliHostManager.isInstalled(config.customHostPaths["cli"])) {
-            val cliActive = CliHostManager.isActive(actualPort)
-            if (cliActive) {
-                items.add(
-                    DoctorCheckItem(
-                        id = "host.cli.healthy",
-                        category = DoctorCheckCategory.HOST,
-                        title = "Antigravity CLI 代理接入正常",
-                        status = DoctorCheckStatus.PASSED,
-                        message = "已在 CLI 配置文件中配置 cloud_code_url 为 http://127.0.0.1:$actualPort。"
+        val cliStatus = CliHostManager.inspect(
+            proxyPort = actualPort,
+            isProxyRunning = isProxyRunning,
+            customInstallation = config.customHostPaths["cli"]
+        )
+        if (cliStatus.isInstalled) {
+            when {
+                cliStatus.needsUpdate -> {
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.cli.mismatch",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity CLI 代理配置不匹配（待更新）",
+                            status = DoctorCheckStatus.WARNING,
+                            message = "检测到 CLI 代理配置为「${cliStatus.configuredEndpoint}」，与当前代理服务端口「http://127.0.0.1:$actualPort」不一致。",
+                            suggestion = "点击一键修复更新为当前端口，或重置为官方模式。",
+                            autoFixable = true,
+                            fixAction = DoctorFixAction.UpdateCliConfig
+                        )
                     )
-                )
-            } else {
-                items.add(
-                    DoctorCheckItem(
-                        id = "host.cli.official",
-                        category = DoctorCheckCategory.HOST,
-                        title = "Antigravity CLI 使用官方模式（未接入代理）",
-                        status = DoctorCheckStatus.INFO,
-                        message = "CLI 当前处于官方直连模式。"
+                }
+                cliStatus.isProxyActive -> {
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.cli.healthy",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity CLI 代理接入正常",
+                            status = DoctorCheckStatus.PASSED,
+                            message = "已在 CLI 配置文件中配置 cloud_code_url 为 http://127.0.0.1:$actualPort。"
+                        )
                     )
-                )
+                }
+                else -> {
+                    items.add(
+                        DoctorCheckItem(
+                            id = "host.cli.official",
+                            category = DoctorCheckCategory.HOST,
+                            title = "Antigravity CLI 使用官方模式（未接入代理）",
+                            status = DoctorCheckStatus.INFO,
+                            message = "CLI 当前处于官方直连模式。"
+                        )
+                    )
+                }
             }
         }
 
@@ -360,6 +423,46 @@ class DoctorEngine(
 
                 is DoctorFixAction.RepairAppEnvironment -> {
                     AppHostManager.enable(port)
+                }
+
+                is DoctorFixAction.UpdateIdeSettings -> {
+                    val ok = IdeHostManager.enable(port)
+                    if (ok && IdeHostManager.isRunning()) {
+                        IdeHostManager.restart(configStore.currentConfig.customHostPaths["ide"])
+                    }
+                    ok
+                }
+
+                is DoctorFixAction.UpdateAppEnvironment -> {
+                    val ok = AppHostManager.enable(port)
+                    if (ok && AppHostManager.isRunning()) {
+                        AppHostManager.restart(configStore.currentConfig.customHostPaths["app"], port)
+                    }
+                    ok
+                }
+
+                is DoctorFixAction.UpdateCliConfig -> {
+                    CliHostManager.enable(port)
+                }
+
+                is DoctorFixAction.ResetIdeHostToOfficial -> {
+                    val ok = IdeHostManager.forceReset()
+                    if (ok && IdeHostManager.isRunning()) {
+                        IdeHostManager.restart(configStore.currentConfig.customHostPaths["ide"])
+                    }
+                    ok
+                }
+
+                is DoctorFixAction.ResetAppHostToOfficial -> {
+                    val ok = AppHostManager.forceReset()
+                    if (ok && AppHostManager.isRunning()) {
+                        AppHostManager.restart(configStore.currentConfig.customHostPaths["app"], null)
+                    }
+                    ok
+                }
+
+                is DoctorFixAction.ResetCliHostToOfficial -> {
+                    CliHostManager.forceReset()
                 }
 
                 is DoctorFixAction.RestartIdeHost -> {

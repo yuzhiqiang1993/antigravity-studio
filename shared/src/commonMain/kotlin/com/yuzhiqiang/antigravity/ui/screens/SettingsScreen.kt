@@ -274,7 +274,7 @@ private fun SettingsContent(
 
 private fun openConfigDirectory(viewModel: AppViewModel): String? {
     return try {
-        val dir = File(System.getProperty("user.home"), ".antigravity")
+        val dir = viewModel.configStore.configFile.parentFile ?: File(System.getProperty("user.home"))
         if (!dir.exists()) dir.mkdirs()
         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
             Desktop.getDesktop().open(dir)
