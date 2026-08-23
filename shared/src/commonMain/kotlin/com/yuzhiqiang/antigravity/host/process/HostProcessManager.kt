@@ -193,9 +193,9 @@ object HostProcessManager {
             } else {
                 val app = installationPath?.trim()?.takeIf { it.isNotEmpty() }
                 val targetApp = if (app != null && File(app).isDirectory) app else "/Applications/" + defaultMacApp + ".app"
-                val command = mutableListOf("/usr/bin/open", "-n")
+                val command = mutableListOf("/usr/bin/env", "-u", "CLOUD_CODE_URL", "/usr/bin/open", "-n")
                 if (File(targetApp).isDirectory) {
-                    command.add(targetApp)
+                    command.addAll(listOf("-a", targetApp))
                 } else {
                     command.addAll(listOf("-a", defaultMacApp))
                 }
