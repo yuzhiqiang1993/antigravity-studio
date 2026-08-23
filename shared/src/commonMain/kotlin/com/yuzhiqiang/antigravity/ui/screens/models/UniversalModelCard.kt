@@ -98,21 +98,21 @@ fun UniversalModelCard(
                     if (state.supportsVision) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Image,
-                            contentDescription = "多模态能力",
+                            contentDescription = "多模态视觉能力 (Vision)",
                             onClick = state.onOpenVisionDetail
                         )
                     }
                     if (state.supportsTools) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Build,
-                            contentDescription = "工具联动支持",
+                            contentDescription = "原生工具调用 (Tool Call)",
                             onClick = null
                         )
                     }
                     if (state.onOpenInfoDetail != null) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Info,
-                            contentDescription = "规格详情",
+                            contentDescription = "查看模型规格与参数",
                             onClick = state.onOpenInfoDetail
                         )
                     }
@@ -178,7 +178,7 @@ fun UniversalModelCard(
 
                     ActionSquareIcon(
                         icon = if (state.isEnabled) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
-                        contentDescription = if (state.isEnabled) "已启用" else "已禁用",
+                        contentDescription = if (state.isEnabled) "已启用（点击禁用）" else "已禁用（点击启用）",
                         tint = if (state.isEnabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                         containerColor = if (state.isEnabled) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
                         borderColor = if (state.isEnabled) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
@@ -188,7 +188,7 @@ fun UniversalModelCard(
                     if (state.onEdit != null) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Edit,
-                            contentDescription = "编辑",
+                            contentDescription = "编辑模型配置",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                             borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
@@ -198,7 +198,7 @@ fun UniversalModelCard(
                     if (state.onDelete != null) {
                         ActionSquareIcon(
                             icon = Icons.Outlined.Delete,
-                            contentDescription = "删除",
+                            contentDescription = "删除此模型",
                             tint = MaterialTheme.colorScheme.error,
                             containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
                             borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.35f),

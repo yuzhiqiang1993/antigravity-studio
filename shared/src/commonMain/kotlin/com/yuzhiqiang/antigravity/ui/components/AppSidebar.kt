@@ -342,33 +342,37 @@ private fun SidebarNavigationItem(
 
     val itemShape = RoundedCornerShape(8.dp)
 
-    // 选中态背景：饱满高质感蓝底；未选中 Hover：中灰色底
+    // 基础色与同色相全透明底色（彻底消除 Compose animateColorAsState 插值向纯黑 Color.Transparent 产生的黑色闪烁暗块）
+    val baseSelectedBlue = if (isDark) Color(0xFF1E3A8A) else Color(0xFFDBEAFE)
+    val baseHoverBlue = if (isDark) Color(0xFF3B82F6) else Color(0xFF2563EB)
+    val transparentColor = baseSelectedBlue.copy(alpha = 0f)
+
     val targetBg = when {
-        selected -> if (isDark) Color(0xFF1E3A8A).copy(alpha = 0.65f) else Color(0xFFDBEAFE) // Blue 100 饱满天蓝底
-        isHovered -> if (isDark) Color(0xFF334155).copy(alpha = 0.6f) else Color(0xFFE2E8F0) // Slate 200
-        else -> Color.Transparent
+        selected -> if (isDark) baseSelectedBlue.copy(alpha = 0.65f) else baseSelectedBlue // Blue 100 饱满天蓝底
+        isHovered -> if (isDark) baseHoverBlue.copy(alpha = 0.12f) else baseHoverBlue.copy(alpha = 0.07f) // 极浅轻盈微蓝光
+        else -> transparentColor
     }
     val containerBg by animateColorAsState(
         targetValue = targetBg,
         animationSpec = tween(AppTokens.Motion.durationShort)
     )
 
-    // 选中态文字：高对比度深邃科技蓝；未选中态：深黑碳灰（高对比度）
+    // 选中态文字：高对比度深邃科技蓝；Hover态：清晰炭黑；未选中态：中炭灰
     val targetTextCol = when {
         selected -> if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8) // Blue 700 高对比度蓝
-        isHovered -> if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A) // Slate 900
-        else -> if (isDark) Color(0xFFE2E8F0) else Color(0xFF1E293B) // Slate 800 饱满深黑
+        isHovered -> if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A) // 高亮清晰
+        else -> if (isDark) Color(0xFFCBD5E1) else Color(0xFF334155) // Slate 700
     }
     val textCol by animateColorAsState(
         targetValue = targetTextCol,
         animationSpec = tween(AppTokens.Motion.durationShort)
     )
 
-    // 选中态图标：高饱和科技蓝；未选中态：中碳灰（清晰高对比度）
+    // 选中态图标：高饱和科技蓝；Hover态：灵动主题蓝；未选中态：次级图标灰
     val targetIconTint = when {
         selected -> if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
-        isHovered -> if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-        else -> if (isDark) Color(0xFF94A3B8) else Color(0xFF475569) // Slate 600
+        isHovered -> if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)
+        else -> if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B) // Slate 500
     }
     val iconTint by animateColorAsState(
         targetValue = targetIconTint,
