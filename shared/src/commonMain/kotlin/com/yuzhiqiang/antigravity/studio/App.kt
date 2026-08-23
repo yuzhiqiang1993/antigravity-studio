@@ -52,6 +52,7 @@ fun App(
     val hostPathDialogState by viewModel.hostPathDialogState.collectAsState()
     val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
     val activeRelease by viewModel.activeRelease.collectAsState()
+    val downloadState by viewModel.downloadState.collectAsState()
 
     KoinContext {
     CompositionLocalProvider(LocalStrings provides currentStrings) {
@@ -145,9 +146,15 @@ fun App(
 
                 // 版本更新提示对话框
                 if (showUpdateDialog && activeRelease != null) {
+                    val rel = activeRelease!!
                     UpdateDialog(
-                        release = activeRelease!!,
+                        release = rel,
                         currentVersion = AppVersion.CURRENT,
+                        downloadState = downloadState,
+                        onStartDownload = { viewModel.startDownloadUpdate(rel) },
+                        onCancelDownload = { viewModel.cancelDownloadUpdate() },
+                        onInstall = { file -> viewModel.installUpdate(file) },
+                        onShowInFolder = { file -> viewModel.showDownloadedFileInFolder(file) },
                         onDismiss = { viewModel.dismissUpdateDialog() },
                         onIgnoreVersion = { version -> viewModel.ignoreUpdateVersion(version) }
                     )
