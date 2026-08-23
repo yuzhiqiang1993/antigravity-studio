@@ -300,53 +300,64 @@ fun HostCardItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (data.onForceReset != null) {
-                        OutlinedButton(
+                        HostSquareIconButton(
+                            icon = Icons.Outlined.RestartAlt,
+                            tooltip = s.hostForceReset,
                             onClick = data.onForceReset,
-                            enabled = !data.isLoading,
-                            modifier = Modifier.size(32.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = s.hostForceReset,
-                                modifier = Modifier.size(15.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    if (data.onConfigurePath != null) {
-                        OutlinedButton(
-                            onClick = data.onConfigurePath,
-                            enabled = !data.isLoading,
-                            modifier = Modifier.size(32.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.FolderOpen,
-                                contentDescription = s.hostConfigurePath,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = data.onRefresh,
-                        enabled = !data.isLoading,
-                        modifier = Modifier.size(32.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Refresh,
-                            contentDescription = s.commonRefresh,
-                            modifier = Modifier.size(15.dp)
+                            enabled = !data.isLoading
                         )
                     }
+
+                    HostSquareIconButton(
+                        icon = Icons.Outlined.Refresh,
+                        tooltip = s.commonRefresh,
+                        onClick = data.onRefresh,
+                        enabled = !data.isLoading
+                    )
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HostSquareIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tooltip: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = {
+            PlainTooltip(
+                shape = RoundedCornerShape(6.dp),
+                containerColor = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface
+            ) {
+                Text(
+                    text = tooltip,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium)
+                )
+            }
+        },
+        state = rememberTooltipState()
+    ) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.size(32.dp),
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = tooltip,
+                modifier = Modifier.size(15.dp),
+                tint = tint
+            )
         }
     }
 }
