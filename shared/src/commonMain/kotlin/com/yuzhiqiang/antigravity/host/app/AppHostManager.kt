@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.host.app
 
 import com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
+import com.yuzhiqiang.antigravity.host.process.HostProcessManager
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -51,28 +52,10 @@ object AppHostManager {
     * 检测 Antigravity App 是否正在运行（零子进程开销内存查询）。
     */
    fun isRunning(): Boolean {
-       return try {
-            val matched = ProcessHandle.allProcesses().anyMatch { handle ->
-               val cmd = handle.info().command().orElse("")
-               val cmdLine = handle.info().commandLine().orElse("")
-               if (isWindows) {
-                   cmd.contains("Antigravity.exe", ignoreCase = true) || cmdLine.contains(
-                       "Antigravity.exe",
-                       ignoreCase = true
-                   )
-               } else {
-                    (cmd.contains("Antigravity.app", ignoreCase = true) || cmd.contains("/MacOS/Antigravity", ignoreCase = true)) &&
-                            !cmd.contains("Antigravity IDE", ignoreCase = true)
-               }
-           }
-            if (matched) return true
-            if (!isWindows) {
-                val pgrep = ProcessBuilder("pgrep", "-f", "Antigravity.app/Contents/MacOS/Antigravity").start()
-                return pgrep.waitFor() == 0
-            }
-            false
-       } catch (_: Exception) {
-           false
+       return if (isWindows) {
+           HostProcessManager.isProcessRunning(listOf("Antigravity.exe"))
+       } else {
+           HostProcessManager.isProcessRunning(listOf("Antigravity.app", "/MacOS/Antigravity"))
        }
    }
 
@@ -105,82 +88,40 @@ object AppHostManager {
         ).isSuccess
     }
 
-    /**
-     * 跨平台启动 Antigravity App。
-     */
-    fun launch(customInstallation: String? = null): Boolean {
-        return try {
-            if (isWindows) {
-                val localAppData = System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
-                val customExe = customInstallation?.trim()?.takeIf { it.isNotEmpty() }
-                    ?.let { File(it).let { root -> if (root.isFile) root else File(root, "Antigravity.exe") } }
-                val exe = customExe?.takeIf(File::isFile)
-                    ?: File(localAppData, "Programs/Antigravity/Antigravity.exe")
-                if (exe.exists()) {
-                    ProcessBuilder(exe.absolutePath).start()
-                } else {
-                    ProcessBuilder("cmd.exe", "/c", "start", "", "Antigravity.exe").start()
-                }
-                true
-            } else {
-                val app = customInstallation?.trim()?.takeIf { it.isNotEmpty() }
-                if (app != null && File(app).isDirectory) {
-                    ProcessBuilder("/usr/bin/open", app).start()
-                } else {
-                    ProcessBuilder("/usr/bin/open", "-a", "Antigravity").start()
-                }
-                true
-            }
-        } catch (_: Exception) {
-            false
-        }
-    }
+   /**
+    * 跨平台启动 Antigravity App。
+    */
+   fun launch(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
+       val env = if (proxyPort != null && isActive(proxyPort)) {
+           mapOf("CLOUD_CODE_URL" to ("http://127.0.0.1:" + proxyPort))
+       } else {
+           null
+       }
+       return HostProcessManager.launch(
+           installationPath = customInstallation,
+           defaultMacApp = "Antigravity",
+           defaultWinExe = "Antigravity.exe",
+           environment = env
+       )
+   }
 
    /**
     * 跨平台重启 Antigravity App。
     */
-   suspend fun restart(customInstallation: String? = null): Boolean {
-       return try {
-           stopLanguageServer()
-           if (isWindows) {
-               ProcessBuilder("taskkill", "/F", "/IM", "Antigravity.exe").start().waitFor()
-               delay(500)
-               launch(customInstallation)
-           } else {
-               val quit = ProcessBuilder(
-                   "/usr/bin/osascript", "-e",
-                   """tell application "Antigravity" to quit"""
-               ).start()
-               quit.waitFor()
-               delay(600)
-                if (isRunning()) {
-                    ProcessBuilder("pkill", "-f", "Antigravity.app/Contents/MacOS/Antigravity").start().waitFor()
-                    delay(400)
-                }
-                stopLanguageServer()
-               launch(customInstallation)
-           }
-       } catch (_: Exception) {
-           false
-       }
+   suspend fun restart(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
+       val terminated = HostProcessManager.terminateApplication(
+           bundleId = "com.google.antigravity",
+           matchPatterns = if (isWindows) listOf("Antigravity.exe") else listOf("Antigravity.app", "/MacOS/Antigravity"),
+           label = "Antigravity App"
+       )
+       if (!terminated) return false
+       delay(300)
+       return launch(customInstallation, proxyPort)
    }
 
-    private fun stopLanguageServer() {
-        try {
-            ProcessHandle.allProcesses().forEach { handle ->
-                val command = handle.info().command().orElse("")
-                val commandLine = handle.info().commandLine().orElse("")
-                if (commandLine.contains("language_server", ignoreCase = true) &&
-                    (command.contains("Antigravity", ignoreCase = true) ||
-                            commandLine.contains("Antigravity", ignoreCase = true))
-                ) {
-                    handle.destroyForcibly()
-                }
-            }
-        } catch (_: Exception) {
-            // 语言服务已退出时无需阻断宿主重启。
-        }
-    }
+   private fun stopLanguageServer() {
+       HostProcessManager.stopLanguageServer()
+   }
 
     private fun discoverMacApplications(bundleId: String): List<File> {
         return try {

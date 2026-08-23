@@ -135,28 +135,36 @@ object HostOwnershipStore {
        return Result.failure(IllegalStateException("写入 $ENVIRONMENT_KEY 失败"))
    }
 
-   /** 释放指定 owner；仅最后一个 owner 停用时恢复接管前的环境值。 */
-   fun disableEnvironment(owner: EnvironmentOwner): Result<Unit> {
-       val previousReceipt = readEnvironmentReceipt().getOrElse { error ->
-           return Result.failure(error)
-       }
-       removeReceipt(environmentReceiptFile())
-        removeReceipt(integrationRoot().resolve("environment-receipt.json"))
-        val original = previousReceipt?.originalEndpoint?.trim()
-        val shouldRestoreOriginal = !original.isNullOrBlank() &&
-                !isLocalEndpoint(original) &&
-                !original.contains("127.0.0.1") &&
-                !original.contains("localhost")
-        val restoreResult = if (shouldRestoreOriginal) {
-            setEnvironmentEndpoint(original!!)
-        } else {
-           unsetEnvironmentEndpoint()
-       }
-       if (!restoreResult) {
-           return Result.failure(IllegalStateException("恢复 $ENVIRONMENT_KEY 原始值失败"))
-       }
-       return Result.success(Unit)
-   }
+  /** 释放指定 owner；仅最后一个 owner 停用时恢复接管前的环境值。 */
+  fun disableEnvironment(owner: EnvironmentOwner): Result<Unit> {
+      val previousReceipt = readEnvironmentReceipt().getOrElse { null }
+      if (previousReceipt != null) {
+          val updatedReceipt = previousReceipt.withOwner(owner, enabled = false)
+          if (!updatedReceipt.hasNoOwner()) {
+              // 仍有其他 owner 处于开启状态，保存更新后的 receipt 并保留当前环境
+              writeReceipt(environmentReceiptFile(), updatedReceipt)
+              return Result.success(Unit)
+          }
+      }
+      // 没有任何 owner 了，彻底清理所有相关 receipt
+      removeReceipt(environmentReceiptFile())
+      removeReceipt(integrationRoot().resolve("environment-receipt.json"))
+      removeReceipt(integrationRoot().resolve("environment-ownership.json"))
+      val original = previousReceipt?.originalEndpoint?.trim()
+      val shouldRestoreOriginal = !original.isNullOrBlank() &&
+              !isLocalEndpoint(original) &&
+              !original.contains("127.0.0.1") &&
+              !original.contains("localhost")
+      val restoreResult = if (shouldRestoreOriginal) {
+          setEnvironmentEndpoint(original!!)
+      } else {
+         unsetEnvironmentEndpoint()
+     }
+     if (!restoreResult) {
+         return Result.failure(IllegalStateException("恢复 $ENVIRONMENT_KEY 原始值失败"))
+     }
+     return Result.success(Unit)
+  }
 
    /** 接管 IDE settings，并保留接管前的完整文件内容。 */
     fun enableIde(settingsFile: File, proxyPort: Int): Result<Unit> {
@@ -203,21 +211,32 @@ object HostOwnershipStore {
         return writeSettingsResult
     }
 
-   /** 释放 IDE 接入；优先恢复 receipt 保存的完整原始内容。 */
-   fun disableIde(settingsFile: File, proxyPort: Int): Result<Unit> {
-       removeReceipt(ideReceiptFile())
-        removeReceipt(integrationRoot().resolve("ide-receipt.json"))
-        val candidateFiles = (com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getCandidateSettingsFiles() + listOf(settingsFile)).distinct()
-        for (file in candidateFiles) {
-            if (!file.exists()) continue
-            val content = readText(file).getOrNull() ?: continue
-            val updated = removeIdeEndpoint(content)
-            if (updated != null && updated != content) {
-                writeTextAtomically(file, updated)
-            }
-        }
-       return Result.success(Unit)
-   }
+  /** 释放 IDE 接入；优先恢复 receipt 保存的完整原始内容。 */
+  fun disableIde(settingsFile: File, proxyPort: Int): Result<Unit> {
+      val previousReceipt = readIdeReceipt().getOrElse { null }
+      removeReceipt(ideReceiptFile())
+      removeReceipt(integrationRoot().resolve("ide-receipt.json"))
+      removeReceipt(integrationRoot().resolve("ide-setting-ownership.json"))
+      removeReceipt(integrationRoot().resolve("ide-settings-ownership.json"))
+      val candidateFiles = (com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getCandidateSettingsFiles() + listOf(settingsFile)).distinct()
+      for (file in candidateFiles) {
+          if (!file.exists()) continue
+          val content = readText(file).getOrNull() ?: continue
+          val settingsPath = file.absoluteFile.normalize().path
+          if (previousReceipt?.settingsPath == settingsPath &&
+              !previousReceipt.originalContent.contains("127.0.0.1") &&
+              extractIdeEndpoint(previousReceipt.originalContent) == null
+          ) {
+              writeTextAtomically(file, previousReceipt.originalContent)
+              continue
+          }
+          val updated = removeIdeEndpoint(content)
+          if (updated != null && updated != content) {
+              writeTextAtomically(file, updated)
+          }
+      }
+      return Result.success(Unit)
+  }
 
     private fun buildEnvironmentReceipt(
         previousReceipt: EnvironmentReceipt?,
@@ -312,22 +331,15 @@ object HostOwnershipStore {
         return prefix + separator + "  \"$IDE_SETTING_KEY\": \"$endpoint\"\n" + suffix
     }
 
-    private fun removeIdeEndpoint(content: String): String? {
-        val lineMatch = IDE_LINE_REGEX.find(content)
-        if (lineMatch != null) {
-            return content.removeRange(lineMatch.range)
-        }
-        val inlineMatch = IDE_ENDPOINT_REGEX.find(content) ?: return null
-        val start = inlineMatch.range.first
-        val end = inlineMatch.range.last + 1
-        val before = content.substring(0, start)
-        val after = content.substring(end)
-        return when {
-            after.trimStart().startsWith(",") -> before + after.trimStart().removePrefix(",")
-            before.trimEnd().endsWith(",") -> before.trimEnd().dropLast(1) + after
-            else -> before + after
-        }
-    }
+   private fun removeIdeEndpoint(content: String): String? {
+       var updated = content.replace(
+           Regex("[ \t]*\"$IDE_SETTING_KEY\"\s*:\s*\"[^\"]*\"\s*,?[ \t]*\r?\n?"),
+           ""
+       )
+       updated = updated.replace(Regex(",([ \t\r\n]*})"), "$1")
+       updated = updated.replace(Regex("(\{[ \t\r\n]*),"), "$1")
+       return updated
+   }
 
     private fun environmentReceiptFile(): File {
         return integrationRoot().resolve(ENVIRONMENT_RECEIPT_FILE)
