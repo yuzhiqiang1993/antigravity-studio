@@ -547,7 +547,7 @@ fun ProviderEditorDialog(
                                                             ReasoningConfigDraft(
                                                                 enabled = true,
                                                                 levels = levels,
-                                                                customValue = disc.defaultReasoningLevel,
+                                                                customValue = null,
                                                                 thinkingBudget = disc.thinkingBudget?.toInt(),
                                                                 minThinkingBudget = disc.minThinkingBudget?.toInt(),
                                                                 mappings = reasoningMappings
