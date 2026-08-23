@@ -80,15 +80,15 @@ fun CatalogModelRowCard(
     }
 
     val cardBg by animateColorAsState(
-        if (isChecked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-        else if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.035f)
+        else if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         else MaterialTheme.colorScheme.surface
     )
 
     val cardBorderColor by animateColorAsState(
-        if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
-        else if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-        else MaterialTheme.colorScheme.outlineVariant
+        if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+        else if (isHovered) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)
+        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
     )
 
     Surface(
@@ -102,11 +102,11 @@ fun CatalogModelRowCard(
             1.dp,
             cardBorderColor
         ),
-        shadowElevation = if (isChecked) 1.dp else 0.dp
+        shadowElevation = 0.dp
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -132,22 +132,23 @@ fun CatalogModelRowCard(
 
                     Box(
                         modifier = Modifier
-                            .size(24.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(brandStyle.container),
+                            .size(26.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(brandStyle.container)
+                            .border(1.dp, brandStyle.contentColor.copy(alpha = 0.15f), RoundedCornerShape(7.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = brandStyle.badge,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp
+                                fontSize = 12.sp
                             ),
                             color = brandStyle.contentColor
                         )
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(1.dp), modifier = Modifier.weight(1f)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -156,7 +157,7 @@ fun CatalogModelRowCard(
                                 text = config.name,
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.5.sp
+                                    fontSize = 14.sp
                                 ),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -182,7 +183,7 @@ fun CatalogModelRowCard(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.5.sp
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -194,7 +195,7 @@ fun CatalogModelRowCard(
                     if (config.isTesting) {
                         Box(
                             modifier = Modifier
-                                .height(28.dp)
+                                .height(26.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(horizontal = 8.dp),
@@ -224,7 +225,7 @@ fun CatalogModelRowCard(
 
                         Box(
                             modifier = Modifier
-                                .height(28.dp)
+                                .height(26.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(pillBg)
                                 .clickable(enabled = isChecked && !config.isUnavailable) { onTestModel() }
@@ -257,7 +258,7 @@ fun CatalogModelRowCard(
                             enabled = isChecked && !config.isUnavailable,
                             shape = RoundedCornerShape(6.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            modifier = Modifier.height(28.dp),
+                            modifier = Modifier.height(26.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.primary,
                                 disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
@@ -289,11 +290,11 @@ fun CatalogModelRowCard(
                         Box(
                             modifier = Modifier
                                 .height(24.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
                                 .clickable { expandedInputMenu = true }
-                                .padding(horizontal = 6.dp),
+                                .padding(horizontal = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
@@ -302,7 +303,7 @@ fun CatalogModelRowCard(
                             ) {
                                 Text(
                                     s.providerInputTokenPrefix(inputLabel),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
@@ -372,11 +373,11 @@ fun CatalogModelRowCard(
                         Box(
                             modifier = Modifier
                                 .height(24.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
                                 .clickable { expandedOutputMenu = true }
-                                .padding(horizontal = 6.dp),
+                                .padding(horizontal = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
@@ -385,7 +386,7 @@ fun CatalogModelRowCard(
                             ) {
                                 Text(
                                     s.providerOutputTokenPrefix(outputLabel),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
@@ -455,30 +456,30 @@ fun CatalogModelRowCard(
                     Box(
                         modifier = Modifier
                             .height(24.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .background(
-                                if (visionActive) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                if (visionActive) AppTokens.Feature.vision.container
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             )
                             .border(
                                 1.dp,
-                                if (visionActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                RoundedCornerShape(4.dp)
+                                if (visionActive) AppTokens.Feature.vision.border
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                RoundedCornerShape(6.dp)
                             )
                             .clickable {
                                 onVisionChanged(config.copy(isVision = !config.isVision))
                             }
-                            .padding(horizontal = 7.dp),
+                            .padding(horizontal = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (visionActive) "✓ ${s.modelsVision}" else s.modelsVision,
+                            text = s.modelsVision,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (visionActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (visionActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (visionActive) AppTokens.Feature.vision.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                         )
                     }
 
@@ -486,30 +487,30 @@ fun CatalogModelRowCard(
                     Box(
                         modifier = Modifier
                             .height(24.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .background(
-                                if (toolsActive) statusColors.successContainer
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                if (toolsActive) AppTokens.Feature.tools.container
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             )
                             .border(
                                 1.dp,
-                                if (toolsActive) statusColors.success.copy(alpha = 0.4f)
-                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                RoundedCornerShape(4.dp)
+                                if (toolsActive) AppTokens.Feature.tools.border
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                RoundedCornerShape(6.dp)
                             )
                             .clickable {
                                 onToolsChanged(config.copy(isTools = !config.isTools))
                             }
-                            .padding(horizontal = 7.dp),
+                            .padding(horizontal = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (toolsActive) "✓ ${s.modelsTools}" else s.modelsTools,
+                            text = s.modelsTools,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (toolsActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (toolsActive) statusColors.onSuccessContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (toolsActive) AppTokens.Feature.tools.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                         )
                     }
 
@@ -517,28 +518,28 @@ fun CatalogModelRowCard(
                     Box(
                         modifier = Modifier
                             .height(24.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .background(
                                 if (reasoningActive) AppTokens.Feature.reasoning.container
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             )
                             .border(
                                 1.dp,
                                 if (reasoningActive) AppTokens.Feature.reasoning.border
-                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                RoundedCornerShape(4.dp)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                RoundedCornerShape(6.dp)
                             )
                             .clickable(onClick = onConfigureReasoning)
-                            .padding(horizontal = 7.dp),
+                            .padding(horizontal = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (reasoningActive) "✓ ${s.modelsReasoning}" else s.modelsReasoningConfig,
+                            text = if (reasoningActive) s.modelsReasoning else s.modelsReasoningConfig,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (reasoningActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (reasoningActive) AppTokens.Feature.reasoning.foreground else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (reasoningActive) AppTokens.Feature.reasoning.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                         )
                     }
                 }

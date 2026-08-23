@@ -64,6 +64,7 @@ interface Strings {
 
     // Host Detail Status Text
     fun hostIdePortMismatch(endpoint: String): String
+    val hostIdeRunning: String
     val hostIdeRunningAndConfigured: String
     val hostIdeReady: String
     val hostIdeNotDetected: String
@@ -73,6 +74,7 @@ interface Strings {
 
     fun hostAppPortMismatch(endpoint: String): String
     val hostAppRunning: String
+    val hostAppRunningAndConfigured: String
     val hostAppReady: String
     val hostAppNotDetected: String
     fun hostAppPendingUpdate(port: Int): String
@@ -701,8 +703,9 @@ object StringsZh : Strings {
     override val hostProxyMode = "代理模式"
 
     override fun hostIdePortMismatch(endpoint: String) = "检测到代理配置与当前端口不一致（$endpoint）"
+    override val hostIdeRunning = "Antigravity IDE 正在运行"
     override val hostIdeRunningAndConfigured = "Antigravity IDE 正在运行并已配置"
-    override val hostIdeReady = "Antigravity IDE 已安装就绪"
+    override val hostIdeReady = "Antigravity IDE 已安装"
     override val hostIdeNotDetected = "未检测到 Antigravity IDE 安装目录"
     override fun hostIdePendingUpdate(port: Int) = "代理配置待更新为 http://127.0.0.1:$port"
     override val hostIdeActiveDesc = "settings.json 代理接入生效中"
@@ -710,7 +713,8 @@ object StringsZh : Strings {
 
     override fun hostAppPortMismatch(endpoint: String) = "检测到环境变量与当前端口不一致（$endpoint）"
     override val hostAppRunning = "Antigravity App 正在运行"
-    override val hostAppReady = "Antigravity App 已安装就绪"
+    override val hostAppRunningAndConfigured = "Antigravity App 正在运行并已配置"
+    override val hostAppReady = "Antigravity App 已安装"
     override val hostAppNotDetected = "未检测到 Antigravity App 应用安装"
     override fun hostAppPendingUpdate(port: Int) = "环境变量待更新为 http://127.0.0.1:$port"
     override val hostAppActiveDesc = "环境变量 CLOUD_CODE_URL 代理生效中"
@@ -814,7 +818,7 @@ object StringsZh : Strings {
     override val modelsCollapse = "收起"
     override val modelsExpand = "展开"
     override val modelsContext = "上下文"
-    override val modelsVision = "视觉"
+    override val modelsVision = "多模态"
     override val modelsTools = "工具"
     override val modelsReasoning = "推理"
     override val modelsNoModels = "暂无模型"
@@ -848,7 +852,7 @@ object StringsZh : Strings {
     override val modelsJsonData = "JSON 数据"
     override fun modelsPolicyCapacityWithPrep(limit: String, prep: String) = "$limit 容量 ($prep 预备)"
     override val modelsOfficialDefault = "官方默认"
-    override val modelsVisionDesc = "多模态视觉能力 (Vision)"
+    override val modelsVisionDesc = "多模态能力 (Multimodal)"
     override val modelsToolsDesc = "原生工具调用 (Tool Call)"
     override val modelsSpecsDesc = "查看模型规格与参数"
     override fun modelsTestSuccess(latency: String) = "测试成功 ($latency)"
@@ -1324,8 +1328,9 @@ object StringsEn : Strings {
     override val hostProxyMode = "Proxy Mode"
 
     override fun hostIdePortMismatch(endpoint: String) = "Proxy config differs from current port ($endpoint)"
+    override val hostIdeRunning = "Antigravity IDE is running"
     override val hostIdeRunningAndConfigured = "Antigravity IDE is running and configured"
-    override val hostIdeReady = "Antigravity IDE is installed and ready"
+    override val hostIdeReady = "Antigravity IDE is installed"
     override val hostIdeNotDetected = "Antigravity IDE installation not detected"
     override fun hostIdePendingUpdate(port: Int) = "Proxy config pending update to http://127.0.0.1:$port"
     override val hostIdeActiveDesc = "settings.json proxy integration active"
@@ -1333,7 +1338,8 @@ object StringsEn : Strings {
 
     override fun hostAppPortMismatch(endpoint: String) = "Environment variable differs from current port ($endpoint)"
     override val hostAppRunning = "Antigravity App is running"
-    override val hostAppReady = "Antigravity App is installed and ready"
+    override val hostAppRunningAndConfigured = "Antigravity App is running and configured"
+    override val hostAppReady = "Antigravity App is installed"
     override val hostAppNotDetected = "Antigravity App installation not detected"
     override fun hostAppPendingUpdate(port: Int) = "Environment variable pending update to http://127.0.0.1:$port"
     override val hostAppActiveDesc = "CLOUD_CODE_URL environment proxy active"
@@ -1437,7 +1443,7 @@ object StringsEn : Strings {
     override val modelsCollapse = "Collapse"
     override val modelsExpand = "Expand"
     override val modelsContext = "Context"
-    override val modelsVision = "Vision"
+    override val modelsVision = "Multimodal"
     override val modelsTools = "Tools"
     override val modelsReasoning = "Reasoning"
     override val modelsNoModels = "No models"
@@ -1471,7 +1477,7 @@ object StringsEn : Strings {
     override val modelsJsonData = "JSON Data"
     override fun modelsPolicyCapacityWithPrep(limit: String, prep: String) = "$limit capacity ($prep reserve)"
     override val modelsOfficialDefault = "Official Default"
-    override val modelsVisionDesc = "Multimodal Vision Capability"
+    override val modelsVisionDesc = "Multimodal Capability"
     override val modelsToolsDesc = "Native Tool / Function Calling"
     override val modelsSpecsDesc = "View Model Specifications"
     override fun modelsTestSuccess(latency: String) = "Test Succeeded ($latency)"

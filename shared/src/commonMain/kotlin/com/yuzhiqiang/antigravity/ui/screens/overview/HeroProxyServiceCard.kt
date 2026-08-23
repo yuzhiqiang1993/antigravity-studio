@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.ui.screens.overview
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -111,20 +113,28 @@ fun HeroProxyServiceCard(
             }
 
             if (isRunning) {
+                val warningColor = AppStatusColors.warning
                 OutlinedButton(
                     onClick = onStop,
                     shape = RoundedCornerShape(AppTokens.Radius.medium),
+                    border = BorderStroke(1.dp, warningColor.copy(alpha = 0.5f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = warningColor.copy(alpha = 0.08f),
+                        contentColor = warningColor
+                    ),
                     contentPadding = PaddingValues(horizontal = AppTokens.Spacing.md, vertical = AppTokens.Spacing.xs)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Stop,
                         contentDescription = null,
-                        modifier = Modifier.size(AppTokens.Size.iconMedium)
+                        modifier = Modifier.size(AppTokens.Size.iconMedium),
+                        tint = warningColor
                     )
                     Spacer(Modifier.width(AppTokens.Spacing.xs))
                     Text(
                         text = s.overviewStopProxy,
-                        style = MaterialTheme.typography.labelMedium
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                        color = warningColor
                     )
                 }
             } else {
