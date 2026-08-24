@@ -245,7 +245,7 @@ class HostLifecycleDelegate(
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["app"]
                 val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
-                val operationSucceeded = AppHostManager.enable(actualPort)
+                val operationSucceeded = AppHostManager.enable(actualPort, customInstallation)
                 val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation, actualPort) else true
                 val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
                 appDetailedStatusFlow.value = newStatus
@@ -274,7 +274,7 @@ class HostLifecycleDelegate(
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["app"]
                 val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
-                val operationSucceeded = AppHostManager.disable()
+                val operationSucceeded = AppHostManager.disable(customInstallation)
                 val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation, null) else true
                 val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
                 appDetailedStatusFlow.value = newStatus
@@ -409,7 +409,7 @@ class HostLifecycleDelegate(
                     "app" -> {
                         val isRunning = AppHostManager.isRunning()
                         val customPath = configStore.currentConfig.customHostPaths["app"]
-                        AppHostManager.forceReset()
+                        AppHostManager.forceReset(customPath)
                         if (isRunning) {
                             AppHostManager.restart(customPath, null)
                         }
