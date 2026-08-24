@@ -5,6 +5,7 @@ import com.yuzhiqiang.antigravity.domain.model.*
 data class CatalogModelConfig(
     val id: String,
     val name: String,
+    val vendor: String? = null,
     val inputTokenLimit: Long? = null,
     val inputTokenLimitSource: TokenLimitSource = TokenLimitSource.UNKNOWN,
     val outputTokenLimit: Long? = null,
@@ -33,4 +34,3 @@ data class CatalogModelConfig(
     val isTestSuccess: Boolean = true,
     val isTesting: Boolean = false
 )
-

@@ -183,6 +183,10 @@ class AnthropicAdapter : ProviderAdapter {
     }
 
     override suspend fun fetchDiscoveredModels(provider: Provider): List<com.yuzhiqiang.antigravity.proxy.catalog.DiscoveredModelInfo> {
+        return fetchModelCatalog(provider).models
+    }
+
+    override suspend fun fetchModelCatalog(provider: Provider): ProviderAdapter.ModelCatalogResult {
         val url = ProviderAdapter.appendCpaCatalogVersion(provider.modelsEndpoint
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
@@ -199,15 +203,31 @@ class AnthropicAdapter : ProviderAdapter {
                 )
                 ProviderAdapter.applyTimeouts(this, provider, streaming = false)
             }
-            if (!response.status.isSuccess()) return emptyList()
-            val body = ProviderAdapter.readLimitedResponseText(response).getOrElse { return emptyList() }
-            com.yuzhiqiang.antigravity.proxy.catalog.UniversalModelCatalogParser.parse(
-                body,
-                protocol = provider.protocol,
-                isCpaCatalog = ProviderAdapter.isCpaCatalogUrl(url)
+            val bodyResult = ProviderAdapter.readLimitedResponseText(response)
+            val body = bodyResult.getOrNull()
+            if (!response.status.isSuccess()) {
+                return ProviderAdapter.ModelCatalogResult(
+                    rawBody = body,
+                    errorMessage = "HTTP ${response.status.value}"
+                )
+            }
+            if (body == null) {
+                return ProviderAdapter.ModelCatalogResult(
+                    errorMessage = bodyResult.exceptionOrNull()?.message ?: "读取响应失败"
+                )
+            }
+            ProviderAdapter.ModelCatalogResult(
+                models = com.yuzhiqiang.antigravity.proxy.catalog.UniversalModelCatalogParser.parse(
+                    body,
+                    protocol = provider.protocol,
+                    isCpaCatalog = ProviderAdapter.isCpaCatalogUrl(url)
+                ),
+                rawBody = body
             )
-        } catch (_: Exception) {
-            emptyList()
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            ProviderAdapter.ModelCatalogResult(errorMessage = error.message ?: "请求失败")
         }
     }
 
