@@ -88,8 +88,34 @@ fun OverviewScreen(
     val cliDetailedStatus by viewModel.cliDetailedStatus.collectAsState()
     val config by viewModel.config.collectAsState()
     val operatingHostKeys by viewModel.operatingHostKeys.collectAsState()
+    val logs by viewModel.activityLogs.collectAsState()
     val scrollState = rememberScrollState()
     val address = "127.0.0.1:$actualPort"
+
+    val failedCount = remember(logs) { logs.count { it.statusCode >= 400 } }
+    val totalRequests = logs.size
+    val successRateText = remember(logs, failedCount) {
+        if (logs.isNotEmpty()) {
+            val rate = ((logs.size - failedCount) * 100f / logs.size).toInt()
+            "$rate%"
+        } else "100%"
+    }
+    val avgLatencyText = remember(logs) {
+        logs.takeIf { it.isNotEmpty() }
+            ?.map { it.durationMs }
+            ?.average()
+            ?.toLong()
+            ?.let { "${it} ms" } ?: "--"
+    }
+    val upstreamSummary = remember(config) {
+        val providerCount = config.providers.size
+        val virtualModelCount = config.virtualModels.size
+        if (providerCount > 0) {
+            "$providerCount 个服务商 · $virtualModelCount 个模型"
+        } else {
+            "官方默认直连通道"
+        }
+    }
 
     Column(
         modifier = modifier
@@ -98,41 +124,24 @@ fun OverviewScreen(
             .padding(horizontal = AppTokens.Spacing.pageHorizontal, vertical = AppTokens.Spacing.pageVertical),
         verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
     ) {
-        // Topbar: 标题 + 副标题 + Material 3 规范一键体检按钮
-        PageHeader(
-            title = s.navOverview,
-            subtitle = s.overviewSubtitle,
-            action = {
-                Button(
-                    onClick = { viewModel.openDoctorDialog() },
-                    modifier = Modifier.height(34.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.HealthAndSafety,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = s.overviewDiagnostics,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                }
-            }
-        )
+        // 顶部紧凑单行 Header: 页面标题
+        PageHeader(title = s.navOverview)
 
-        // Hero Service Panel: 本地代理服务通栏卡片
+        // Hero Service Panel: 本地代理服务双层控制面板（网关状态 + 遥测监控指标 + 操作中枢）
         HeroProxyServiceCard(
             isRunning = isRunning,
             address = address,
+            totalRequests = totalRequests,
+            successRateText = successRateText,
+            avgLatencyText = avgLatencyText,
+            upstreamSummary = upstreamSummary,
             onStart = { viewModel.startProxy() },
             onStop = { viewModel.stopProxy() },
             onCopyAddress = {
                 copyToClipboard("http://$address")
                 viewModel.showNotice(s.overviewCopiedProxyAddress)
-            }
+            },
+            onDiagnostics = { viewModel.openDoctorDialog() }
         )
 
         // 宿主环境卡片网格
@@ -164,6 +173,7 @@ fun OverviewScreen(
                     },
                     isProxyActive = isIdeActive,
                     needsUpdate = ideDetailedStatus.needsUpdate,
+                    version = ideDetailedStatus.version,
                     configuredEndpoint = ideDetailedStatus.configuredEndpoint,
                     targetEndpoint = ideDetailedStatus.targetEndpoint,
                     integrationDetail = when {
@@ -201,6 +211,7 @@ fun OverviewScreen(
                     },
                     isProxyActive = isAppActive,
                     needsUpdate = appDetailedStatus.needsUpdate,
+                    version = appDetailedStatus.version,
                     configuredEndpoint = appDetailedStatus.configuredEndpoint,
                     targetEndpoint = appDetailedStatus.targetEndpoint,
                     integrationDetail = when {
@@ -237,6 +248,7 @@ fun OverviewScreen(
                     },
                     isProxyActive = isCliActive,
                     needsUpdate = cliDetailedStatus.needsUpdate,
+                    version = cliDetailedStatus.version,
                     configuredEndpoint = cliDetailedStatus.configuredEndpoint,
                     targetEndpoint = cliDetailedStatus.targetEndpoint,
                     integrationDetail = when {

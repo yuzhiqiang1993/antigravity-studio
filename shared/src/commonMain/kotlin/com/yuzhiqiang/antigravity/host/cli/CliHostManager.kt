@@ -79,12 +79,58 @@ object CliHostManager {
         )
     }
 
+    fun detectVersion(customInstallation: String? = null): String? {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val customBin = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)?.let {
+            if (it.isDirectory) {
+                if (File(it, "agy").isFile) File(it, "agy")
+                else if (File(it, "agy.exe").isFile) File(it, "agy.exe")
+                else if (File(it, "agy.cmd").isFile) File(it, "agy.cmd")
+                else null
+            } else if (it.isFile) it else null
+        }
+        val commands = buildList {
+            customBin?.let {
+                if (isWindows && (it.name.endsWith(".cmd") || it.name.endsWith(".bat"))) {
+                    add(listOf("cmd.exe", "/c", it.absolutePath, "--version"))
+                } else {
+                    add(listOf(it.absolutePath, "--version"))
+                }
+            }
+            if (isWindows) {
+                add(listOf("cmd.exe", "/c", "agy", "--version"))
+                add(listOf("cmd.exe", "/c", "antigravity", "--version"))
+            } else {
+                add(listOf("agy", "--version"))
+                add(listOf("antigravity", "--version"))
+            }
+        }
+        for (cmd in commands) {
+            val version = runCatching {
+                val proc = ProcessBuilder(cmd).redirectErrorStream(true).start()
+                val completed = proc.waitFor(400, java.util.concurrent.TimeUnit.MILLISECONDS)
+                if (completed && proc.exitValue() == 0) {
+                    val text = proc.inputStream.bufferedReader().use { it.readText() }
+                    val line = text.lines().firstOrNull { it.isNotBlank() }?.trim() ?: ""
+                    val match = Regex("(\\d+\\.\\d+\\.\\d+)").find(line)
+                    match?.value ?: line.takeIf { it.isNotBlank() }
+                } else {
+                    proc.destroyForcibly()
+                    null
+                }
+            }.getOrNull()
+            if (!version.isNullOrBlank()) return version
+        }
+        return null
+    }
+
     fun inspect(
         proxyPort: Int,
         isProxyRunning: Boolean = false,
         customInstallation: String? = null
     ): com.yuzhiqiang.antigravity.host.model.HostDetailedStatus {
         val installed = isInstalled(customInstallation)
+        val version = if (installed) runCatching { detectVersion(customInstallation) }.getOrNull() else null
         val inspect = HostOwnershipStore.inspectEnvironmentIntegration(
             HostOwnershipStore.EnvironmentOwner.CLI,
             proxyPort
@@ -112,7 +158,8 @@ object CliHostManager {
             canEnable = installed,
             canDisable = inspect.canDisable,
             canLaunch = false,
-            customPath = customInstallation
+            customPath = customInstallation,
+            version = version
         )
     }
 

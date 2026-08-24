@@ -45,7 +45,8 @@ data class HostDetailedStatus(
     val canEnable: Boolean = false,
     val canDisable: Boolean = false,
     val canLaunch: Boolean = false,
-    val customPath: String? = null
+    val customPath: String? = null,
+    val version: String? = null
 ) {
     val needsUpdate: Boolean
         get() = integrationState == ClientIntegrationState.MISMATCH || configurationState == ClientConfigurationState.NEEDS_UPDATE
