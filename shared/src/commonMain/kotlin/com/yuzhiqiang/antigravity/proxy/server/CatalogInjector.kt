@@ -515,7 +515,7 @@ object CatalogInjector {
         val contextWindow = upstream.tokenLimits.contextWindow ?: upstream.contextLength ?: defaultContextWindow
         val inputLimit = upstream.tokenLimits.inputTokenLimit ?: contextWindow ?: defaultInputTokenLimit
         val outputLimit = upstream.tokenLimits.outputTokenLimit ?: upstream.maxOutputTokens ?: defaultOutputTokenLimit
-        val resolvedPolicy = policy?.takeIf { it.enabled }
+        val resolvedPolicy = policy?.takeIf { it.enabled }?.resolveEffective(contextWindow, outputLimit)
         val entry = buildJsonObject {
             put("id", entryId)
             put("name", "models/$hostModelId")
