@@ -4,7 +4,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.res.loadSvgPainter
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
@@ -68,6 +71,18 @@ private object AppIconCache {
             appIconPainter
         }
     }
+
+    fun loadTraySvgPainter(density: Density): Painter? {
+        val resourceName = if (isMac) "tray-icon-solid-mac.svg" else "tray-icon-solid.svg"
+        val stream = Thread.currentThread().contextClassLoader
+            .getResourceAsStream(resourceName)
+            ?: return null
+        return try {
+            stream.use { loadSvgPainter(it, density) }
+        } catch (_: Exception) {
+            null
+        }
+    }
 }
 
 private fun setupPlatformAppIcon() {
@@ -115,7 +130,12 @@ fun main() {
         var isVisible by remember { mutableStateOf(true) }
         var windowRef by remember { mutableStateOf<ComposeWindow?>(null) }
         val appIcon = AppIconCache.appIconPainter
-        val trayIcon = AppIconCache.trayIconPainter ?: appIcon
+        val density = LocalDensity.current
+        val trayIcon = remember(density) {
+            AppIconCache.loadTraySvgPainter(density)
+                ?: AppIconCache.trayIconPainter
+                ?: appIcon
+        }
 
         val showAndFocusWindow = remember {
             {

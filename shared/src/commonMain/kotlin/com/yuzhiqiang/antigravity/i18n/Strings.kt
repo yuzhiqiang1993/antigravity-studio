@@ -176,6 +176,7 @@ interface Strings {
     val modelsDeleteProvider: String
     val modelsTestConnection: String
     val modelsFetchModels: String
+    val modelsFetchingModels: String
     val modelsNoProviders: String
     val modelsCompressionPolicy: String
     val modelsReasoningConfig: String
@@ -822,6 +823,7 @@ object StringsZh : Strings {
     override val modelsDeleteProvider = "删除服务商"
     override val modelsTestConnection = "测试连接"
     override val modelsFetchModels = "拉取模型列表"
+    override val modelsFetchingModels = "拉取中…"
     override val modelsNoProviders = "暂无配置的 Provider，点击右上角添加"
     override val modelsCompressionPolicy = "上下文压缩策略"
     override val modelsReasoningConfig = "思考推理档位"
@@ -1457,6 +1459,7 @@ object StringsEn : Strings {
     override val modelsDeleteProvider = "Delete Provider"
     override val modelsTestConnection = "Test Connection"
     override val modelsFetchModels = "Fetch Models"
+    override val modelsFetchingModels = "Fetching…"
     override val modelsNoProviders = "No providers configured. Click top right to add."
     override val modelsCompressionPolicy = "Compression Policy"
     override val modelsReasoningConfig = "Reasoning Config"
