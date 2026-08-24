@@ -186,6 +186,15 @@ action_test() {
 # 3. 本地运行
 action_run() {
     log_header "启动桌面端应用 (环境: $BUILD_TYPE)"
+    log_info "检查并终止可能残留的旧应用进程..."
+    local old_pids
+    old_pids=$(pgrep -f "gradle-wrapper.jar :desktopApp:run" || true)
+    if [[ -n "$old_pids" ]]; then
+        kill -9 $old_pids 2>/dev/null || true
+    fi
+    pkill -9 -f "com.yuzhiqiang.antigravity.MainKt" 2>/dev/null || true
+    pkill -9 -f "AntigravityStudio" 2>/dev/null || true
+    sleep 0.5
     local gradle_args=("-PbuildType=$BUILD_TYPE")
     log_info "运行 ./gradlew :desktopApp:run ${gradle_args[*]}..."
     ./gradlew :desktopApp:run "${gradle_args[@]}"
