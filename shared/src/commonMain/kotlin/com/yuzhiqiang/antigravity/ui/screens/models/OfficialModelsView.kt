@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -46,81 +47,88 @@ fun OfficialModelsView(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(MaterialTheme.shapes.medium)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
-                .padding(
-                    horizontal = AppTokens.Spacing.section,
-                    vertical = AppTokens.Spacing.content
-                ),
-            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section),
-            verticalAlignment = Alignment.CenterVertically
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.outlinedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            )
         ) {
             Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
-            ) {
-                val hasError = fetchError != null || (testSummary != null && !isTestSuccess)
-                val statusText = testSummary
-                    ?: fetchError?.let { error -> s.modelsOfficialSyncFailed(error) }
-                    ?: if (isFetching) s.modelsOfficialSyncing
-                    else if (groupedModels.isNotEmpty()) s.modelsOfficialSynced
-                    else s.modelsOfficialWaitingSync
-                val statusColor = when {
-                    isTesting || isFetching -> AppStatusColors.warning
-                    hasError -> MaterialTheme.colorScheme.error
-                    groupedModels.isNotEmpty() -> AppStatusColors.success
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                }
-                Box(
-                    modifier = Modifier
-                        .size(AppTokens.Size.iconSmall)
-                        .clip(CircleShape)
-                        .background(statusColor)
-                )
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (hasError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ModernToolButton(
-                    icon = Icons.Outlined.Sensors,
-                    text = if (isTesting) s.modelsTesting else s.modelsTestConnection,
-                    onClick = onTestConnection,
-                    enabled = !isTesting
-                )
-                ModernToolButton(
-                    icon = Icons.Outlined.Refresh,
-                    text = if (isFetching) s.modelsFetchingOfficial else s.commonRefresh,
-                    onClick = onRefresh,
-                    enabled = !isFetching
-                )
-                if (isDebugMode) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val hasError = fetchError != null || (testSummary != null && !isTestSuccess)
+                    val statusText = testSummary
+                        ?: fetchError?.let { error -> s.modelsOfficialSyncFailed(error) }
+                        ?: if (isFetching) s.modelsOfficialSyncing
+                        else if (groupedModels.isNotEmpty()) s.modelsOfficialSynced
+                        else s.modelsOfficialWaitingSync
+                    val statusColor = when {
+                        isTesting || isFetching -> AppStatusColors.warning
+                        hasError -> MaterialTheme.colorScheme.error
+                        groupedModels.isNotEmpty() -> AppStatusColors.success
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(statusColor)
+                    )
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                        color = if (hasError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     ModernToolButton(
-                        icon = Icons.Outlined.Code,
-                        text = s.modelsRawJson,
-                        onClick = onViewRawJson
+                        icon = Icons.Outlined.Sensors,
+                        text = if (isTesting) s.modelsTesting else s.modelsTestConnection,
+                        onClick = onTestConnection,
+                        enabled = !isTesting
                     )
                     ModernToolButton(
-                        icon = Icons.Outlined.Visibility,
-                        text = s.modelsModifiedJson,
-                        onClick = onViewModifiedJson
+                        icon = Icons.Outlined.Refresh,
+                        text = if (isFetching) s.modelsFetchingOfficial else s.commonRefresh,
+                        onClick = onRefresh,
+                        enabled = !isFetching
                     )
+                    if (isDebugMode) {
+                        ModernToolButton(
+                            icon = Icons.Outlined.Code,
+                            text = s.modelsRawJson,
+                            onClick = onViewRawJson
+                        )
+                        ModernToolButton(
+                            icon = Icons.Outlined.Visibility,
+                            text = s.modelsModifiedJson,
+                            onClick = onViewModifiedJson
+                        )
+                    }
                 }
             }
         }
+
 
         if (groupedModels.isEmpty() && isFetching) {
             Column(

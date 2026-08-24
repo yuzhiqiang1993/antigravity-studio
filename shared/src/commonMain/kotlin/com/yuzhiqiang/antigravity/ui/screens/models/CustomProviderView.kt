@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
 import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
@@ -50,157 +51,165 @@ fun CustomProviderView(
     val hasTested = passedCount > 0 || failedCount > 0
 
     Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(MaterialTheme.shapes.medium)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
-                .padding(
-                    horizontal = AppTokens.Spacing.card,
-                    vertical = AppTokens.Spacing.content
-                ),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.outlinedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            )
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(AppTokens.Size.brandMark)
-                        .clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
                 ) {
-                    Icon(
-                        Icons.Outlined.Dns,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(AppTokens.Size.iconLarge)
-                    )
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(AppTokens.Size.brandMark)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = provider.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        StatusBadge(
-                            text = provider.protocol.name.replace('_', ' '),
-                            isActive = true
+                        Icon(
+                            Icons.Outlined.Dns,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(AppTokens.Size.iconLarge)
                         )
                     }
 
-                    if (provider.effectiveBaseUrl.isNotBlank()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
-                            modifier = Modifier
-                                .clip(MaterialTheme.shapes.small)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outlineVariant,
-                                    MaterialTheme.shapes.small
-                                )
-                                .clickable {
-                                    copyTextToClipboard(provider.effectiveBaseUrl)
-                                    onCopyNotice(s.modelsCopiedProviderUrl)
-                                }
-                                .padding(
-                                    horizontal = AppTokens.Spacing.control,
-                                    vertical = AppTokens.Spacing.compact
-                                ),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.compact)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = provider.effectiveBaseUrl,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace
+                                text = provider.name,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            StatusBadge(
+                                text = provider.protocol.name.replace('_', ' '),
+                                isActive = true
+                            )
+                        }
+
+                        if (provider.effectiveBaseUrl.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                 ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Icon(
-                                Icons.Outlined.ContentCopy,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(AppTokens.Size.iconSmall)
-                            )
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        copyTextToClipboard(provider.effectiveBaseUrl)
+                                        onCopyNotice(s.modelsCopiedProviderUrl)
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = provider.effectiveBaseUrl,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 11.5.sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Icon(
+                                        Icons.Outlined.ContentCopy,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-            }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (hasTested) {
-                    val summaryContainer = if (failedCount == 0) {
-                        AppStatusColors.successContainer
-                    } else {
-                        MaterialTheme.colorScheme.errorContainer
-                    }
-                    val summaryContent = if (failedCount == 0) {
-                        AppStatusColors.onSuccessContainer
-                    } else {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    }
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = summaryContainer,
-                        contentColor = summaryContent,
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (failedCount == 0) {
-                                AppStatusColors.success.copy(alpha = 0.25f)
-                            } else {
-                                MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
-                            }
-                        )
-                    ) {
-                        Text(
-                            text = if (failedCount == 0) {
-                                s.modelsPassedCount(passedCount, models.size)
-                            } else {
-                                s.modelsPassedWithFailed(passedCount, models.size, failedCount)
-                            },
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(
-                                horizontal = AppTokens.Spacing.content,
-                                vertical = AppTokens.Spacing.compact
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (hasTested) {
+                        val summaryContainer = if (failedCount == 0) {
+                            AppStatusColors.successContainer
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer
+                        }
+                        val summaryContent = if (failedCount == 0) {
+                            AppStatusColors.onSuccessContainer
+                        } else {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = summaryContainer,
+                            contentColor = summaryContent,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (failedCount == 0) {
+                                    AppStatusColors.success.copy(alpha = 0.25f)
+                                } else {
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
+                                }
                             )
-                        )
+                        ) {
+                            Text(
+                                text = if (failedCount == 0) {
+                                    s.modelsPassedCount(passedCount, models.size)
+                                } else {
+                                    s.modelsPassedWithFailed(passedCount, models.size, failedCount)
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
-                }
 
-                ModernToolButton(
-                    icon = Icons.Outlined.Sensors,
-                    text = if (isProviderTesting) s.providerTesting else if (failedCount > 0) s.modelsRetryFailed(failedCount) else s.modelsBatchTest,
-                    onClick = onTestProvider,
-                    enabled = !isProviderTesting && models.isNotEmpty()
-                )
-                ModernToolButton(
-                    icon = Icons.Outlined.Settings,
-                    text = s.modelsEditConfig,
-                    onClick = onEditProvider
-                )
-                ModernToolButton(
-                    icon = Icons.Outlined.Delete,
-                    text = s.modelsDeleteProvider,
-                    isDestructive = true,
-                    onClick = onDeleteProvider
-                )
+                    ModernToolButton(
+                        icon = Icons.Outlined.Sensors,
+                        text = if (isProviderTesting) s.providerTesting else if (failedCount > 0) s.modelsRetryFailed(failedCount) else s.modelsBatchTest,
+                        onClick = onTestProvider,
+                        enabled = !isProviderTesting && models.isNotEmpty()
+                    )
+                    ModernToolButton(
+                        icon = Icons.Outlined.Settings,
+                        text = s.modelsEditConfig,
+                        onClick = onEditProvider
+                    )
+                    ModernToolButton(
+                        icon = Icons.Outlined.Delete,
+                        text = s.modelsDeleteProvider,
+                        isDestructive = true,
+                        onClick = onDeleteProvider
+                    )
+                }
             }
         }
+
 
         if (models.isEmpty()) {
             Box(
