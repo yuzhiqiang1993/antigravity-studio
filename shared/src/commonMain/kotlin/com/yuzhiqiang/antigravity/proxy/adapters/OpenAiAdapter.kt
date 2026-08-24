@@ -777,7 +777,9 @@ class OpenAiAdapter : ProviderAdapter {
         }
         val prompt = long("prompt_tokens", "input_tokens")
         val completion = long("completion_tokens", "output_tokens")
-        val reasoning = long("reasoning_tokens")
+        val reasoning = usage["completion_tokens_details"]?.jsonObject
+            ?.get("reasoning_tokens")?.jsonPrimitive?.longOrNull
+            ?: long("reasoning_tokens", "thinking_tokens")
         val cached = usage["prompt_tokens_details"]?.jsonObject
             ?.get("cached_tokens")?.jsonPrimitive?.longOrNull
             ?: long("cache_read_input_tokens", "cached_tokens")
