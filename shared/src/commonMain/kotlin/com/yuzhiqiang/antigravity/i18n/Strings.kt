@@ -305,8 +305,11 @@ interface Strings {
     val policyThresholdMustPositive: String
     val policyReserveMustPositive: String
     fun policyLimitExceedsContext(limit: String, context: String): String
+    fun policyLimitExceedsSafeLimit(limit: String, safeLimit: String, context: String, reserve: String): String
     fun policyThresholdExceedsLimit(threshold: String, limit: String): String
     fun policySumExceedsLimit(sum: String, limit: String): String
+    val policyFormulaHint: String
+    val policyFormulaHintDesc: String
 
     // Reasoning Config Dialog
     val reasoningDialogTitle: String
@@ -982,8 +985,12 @@ object StringsZh : Strings {
     override val policyThresholdMustPositive = "自动存档点必须大于 0"
     override val policyReserveMustPositive = "输出预留必须大于 0"
     override fun policyLimitExceedsContext(limit: String, context: String) = "会话上下文容量 ($limit) 不能超过模型上下文 ($context)"
+    override fun policyLimitExceedsSafeLimit(limit: String, safeLimit: String, context: String, reserve: String) =
+        "会话容量 ($limit) 超过了最大安全上限 ($safeLimit) [计算公式: 模型上下文 $context - 输出预留 $reserve]"
     override fun policyThresholdExceedsLimit(threshold: String, limit: String) = "自动存档点 ($threshold) 必须小于会话上下文容量 ($limit)"
     override fun policySumExceedsLimit(sum: String, limit: String) = "自动存档点与输出预留之和 ($sum) 超过了会话上下文容量 ($limit)"
+    override val policyFormulaHint = "约束公式：触发压缩上限 (MaxTokenLimit) ≤ 模型上下文 (ContextWindow) - 最大输出预留 (OutputLimit)"
+    override val policyFormulaHintDesc = "客户端硬性要求输入历史上限必须为模型生成预留足够空间，超过会导致对话直接报错。"
 
     override val reasoningDialogTitle = "配置深度思考"
     override val reasoningEnableTitle = "启用深度思考 (Reasoning)"
@@ -1651,8 +1658,12 @@ object StringsEn : Strings {
     override val policyThresholdMustPositive = "Auto checkpoint must be greater than 0"
     override val policyReserveMustPositive = "Output reserve must be greater than 0"
     override fun policyLimitExceedsContext(limit: String, context: String) = "Context capacity ($limit) cannot exceed model context ($context)"
+    override fun policyLimitExceedsSafeLimit(limit: String, safeLimit: String, context: String, reserve: String) =
+        "Context capacity ($limit) exceeds safe limit ($safeLimit) [Formula: Model Context $context - Output Reserve $reserve]"
     override fun policyThresholdExceedsLimit(threshold: String, limit: String) = "Auto checkpoint ($threshold) must be less than context capacity ($limit)"
     override fun policySumExceedsLimit(sum: String, limit: String) = "Sum of checkpoint and reserve ($sum) exceeds context capacity ($limit)"
+    override val policyFormulaHint = "Constraint: Trigger Limit (MaxTokenLimit) ≤ Model Context (ContextWindow) - Max Output (OutputLimit)"
+    override val policyFormulaHintDesc = "The client strictly requires reserving output headroom for model responses, otherwise conversations fail immediately."
 
     override val reasoningDialogTitle = "Configure Deep Thinking"
     override val reasoningEnableTitle = "Enable Deep Thinking (Reasoning)"

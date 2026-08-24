@@ -69,6 +69,7 @@ class ConfigStore(
     val configState: StateFlow<AppConfig> = _configState.asStateFlow()
 
     private val _loadError = MutableStateFlow<String?>(null)
+
     /** 配置加载、解码或导入失败时的可诊断信息；成功加载或保存后恢复为空。 */
     val loadError: StateFlow<String?> = _loadError.asStateFlow()
 
@@ -140,6 +141,7 @@ class ConfigStore(
                     ?: File(userHome, "AppData/Roaming").absolutePath
                 File(appData, "Antigravity Studio/config.v1.json")
             }
+
             else -> {
                 val configHome = System.getenv("XDG_CONFIG_HOME")
                     ?.takeIf { it.isNotBlank() }
@@ -184,7 +186,7 @@ class ConfigStore(
         }
     }
 
-    /** 将早期 Studio 的三个简化字段迁移到 agy-byok 的完整策略字段。 */
+
     private fun migrateLegacyCompressionPolicies(root: JsonObject): JsonObject {
         fun migratePolicy(policy: JsonObject): JsonObject {
             val result = policy.toMutableMap()
@@ -530,7 +532,10 @@ class ConfigStore(
         return value.isLetterOrDigit() || "!#$%&'*+-.^_`|~".contains(value)
     }
 
-    private fun validateParameters(parameters: com.yuzhiqiang.antigravity.domain.model.ParameterOverrides?, label: String) {
+    private fun validateParameters(
+        parameters: com.yuzhiqiang.antigravity.domain.model.ParameterOverrides?,
+        label: String
+    ) {
         parameters ?: return
         parameters.temperature?.let { value ->
             require(value.isFinite() && value >= 0f) { "$label temperature 必须是非负有限数字" }
@@ -569,7 +574,8 @@ class ConfigStore(
             "模型 ${model.id} 的 agent 角色必须与 text 输出配对"
         }
         val isImage = com.yuzhiqiang.antigravity.domain.model.ModelRole.IMAGE_GENERATION in capabilities.roles
-        val hasImageOutput = com.yuzhiqiang.antigravity.domain.model.ModelModality.IMAGE in capabilities.outputModalities
+        val hasImageOutput =
+            com.yuzhiqiang.antigravity.domain.model.ModelModality.IMAGE in capabilities.outputModalities
         require(isImage == hasImageOutput) {
             "模型 ${model.id} 的 image_generation 角色必须与 image 输出配对"
         }
@@ -689,10 +695,12 @@ class ConfigStore(
                 ?.mapNotNull { (it as? JsonObject)?.get("compression_policy") as? JsonObject }
                 ?.let { values -> JsonObject(values.mapIndexed { index, value -> index.toString() to value }.toMap()) }
         )
-        if (policyMaps.any { map -> map.values.any { value ->
-                val policy = value as? JsonObject ?: return@any false
-                policy.keys.any(legacyPolicyKeys::contains)
-            } }) return true
+        if (policyMaps.any { map ->
+                map.values.any { value ->
+                    val policy = value as? JsonObject ?: return@any false
+                    policy.keys.any(legacyPolicyKeys::contains)
+                }
+            }) return true
         return false
     }
 
