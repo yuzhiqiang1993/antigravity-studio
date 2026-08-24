@@ -379,6 +379,13 @@ interface Strings {
     val providerNoModelsEmpty: String
     fun providerTestLatency(latencyMs: Long): String
     val providerTestFailed: String
+    val providerTestFailureDetailsTitle: String
+    val providerTestFailureStatusCode: String
+    val providerTestFailureErrorDetails: String
+    val providerTestFailureRetry: String
+    val providerTestFailureCopy: String
+    val providerTestFailureCopied: String
+    val providerTestFailureClose: String
     val providerTokenLimitNotSet: String
     fun providerCustomInputTokenTitle(model: String): String
     fun providerCustomOutputTokenTitle(model: String): String
@@ -397,6 +404,16 @@ interface Strings {
     fun providerFetchFailedWithError(error: String): String
     val providerDiscardConfirmTitle: String
     val providerDiscardConfirmMessage: String
+    val providerSkipFetchManualAdd: String
+    val providerAddNewModel: String
+    val providerManualAddModelTitle: String
+    val providerModelIdPlaceholder: String
+    val providerModelNamePlaceholder: String
+    val providerModelVendorPlaceholder: String
+    val providerModelAlreadyExists: String
+    val providerModelIdRequired: String
+    val providerAddAndSelect: String
+    val providerNoModelsEmptyPrompt: String
 
     // Activity Screen & Detail Dialog
     val activityTitle: String
@@ -1023,6 +1040,13 @@ object StringsZh : Strings {
     override val providerNoModelsEmpty = "当前筛选下暂无模型"
     override fun providerTestLatency(latencyMs: Long) = "${latencyMs}ms"
     override val providerTestFailed = "失败"
+    override val providerTestFailureDetailsTitle = "模型连通性测试失败"
+    override val providerTestFailureStatusCode = "HTTP 状态码"
+    override val providerTestFailureErrorDetails = "错误响应详情"
+    override val providerTestFailureRetry = "重新测试"
+    override val providerTestFailureCopy = "复制错误信息"
+    override val providerTestFailureCopied = "已复制到剪贴板"
+    override val providerTestFailureClose = "关闭"
     override val providerTokenLimitNotSet = "未设置"
     override fun providerCustomInputTokenTitle(model: String) = "自定义模型上下文上限 · $model"
     override fun providerCustomOutputTokenTitle(model: String) = "自定义最大输出 · $model"
@@ -1041,6 +1065,16 @@ object StringsZh : Strings {
     override fun providerFetchFailedWithError(error: String) = "拉取模型列表失败: $error"
     override val providerDiscardConfirmTitle = "放弃未保存的更改？"
     override val providerDiscardConfirmMessage = "当前正在编辑的提供商配置尚未保存，退出后更改将丢失。"
+    override val providerSkipFetchManualAdd = "跳过探测，手动配置模型"
+    override val providerAddNewModel = "添加模型"
+    override val providerManualAddModelTitle = "手动添加自定义模型"
+    override val providerModelIdPlaceholder = "模型 ID (如 gpt-4o, claude-3-7-sonnet)"
+    override val providerModelNamePlaceholder = "显示名称 (选填)"
+    override val providerModelVendorPlaceholder = "厂商名称 (选填，如 OpenAI)"
+    override val providerModelAlreadyExists = "该模型 ID 已在列表中"
+    override val providerModelIdRequired = "模型 ID 不能为空"
+    override val providerAddAndSelect = "添加并选中"
+    override val providerNoModelsEmptyPrompt = "暂无模型，可点击上方「添加模型」手动录入"
 
     override val activityTitle = "调用日志"
     override val activitySubtitle = "查看请求状态、路由来源与响应耗时"
@@ -1661,6 +1695,13 @@ object StringsEn : Strings {
     override val providerNoModelsEmpty = "No models in current filter"
     override fun providerTestLatency(latencyMs: Long) = "${latencyMs}ms"
     override val providerTestFailed = "Failed"
+    override val providerTestFailureDetailsTitle = "Model Test Failed"
+    override val providerTestFailureStatusCode = "HTTP Status Code"
+    override val providerTestFailureErrorDetails = "Error Details"
+    override val providerTestFailureRetry = "Retry Test"
+    override val providerTestFailureCopy = "Copy Error"
+    override val providerTestFailureCopied = "Copied to Clipboard"
+    override val providerTestFailureClose = "Close"
     override val providerTokenLimitNotSet = "Not Set"
     override fun providerCustomInputTokenTitle(model: String) = "Custom Context Window · $model"
     override fun providerCustomOutputTokenTitle(model: String) = "Custom Max Output · $model"
@@ -1679,6 +1720,16 @@ object StringsEn : Strings {
     override fun providerFetchFailedWithError(error: String) = "Failed to fetch models: $error"
     override val providerDiscardConfirmTitle = "Discard unsaved changes?"
     override val providerDiscardConfirmMessage = "The provider configuration has not been saved. Changes will be lost upon exit."
+    override val providerSkipFetchManualAdd = "Skip fetch, add models manually"
+    override val providerAddNewModel = "Add Model"
+    override val providerManualAddModelTitle = "Manually Add Custom Model"
+    override val providerModelIdPlaceholder = "Model ID (e.g. gpt-4o, claude-3-7-sonnet)"
+    override val providerModelNamePlaceholder = "Display name (optional)"
+    override val providerModelVendorPlaceholder = "Vendor (optional, e.g. OpenAI)"
+    override val providerModelAlreadyExists = "Model ID already exists in the list"
+    override val providerModelIdRequired = "Model ID is required"
+    override val providerAddAndSelect = "Add & Select"
+    override val providerNoModelsEmptyPrompt = "No models available. Click \"Add Model\" above to add one manually."
 
     override val activityTitle = "Activity Logs"
     override val activitySubtitle = "Inspect request status, route source and response latency"
