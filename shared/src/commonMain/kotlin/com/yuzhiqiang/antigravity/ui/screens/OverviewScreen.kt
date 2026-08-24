@@ -62,6 +62,7 @@ import com.yuzhiqiang.antigravity.ui.screens.overview.HeroProxyServiceCard
 import com.yuzhiqiang.antigravity.ui.screens.overview.HostCardData
 import com.yuzhiqiang.antigravity.ui.screens.overview.HostCardItem
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.utils.formatDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.awt.Toolkit
@@ -105,7 +106,7 @@ fun OverviewScreen(
             ?.map { it.durationMs }
             ?.average()
             ?.toLong()
-            ?.let { "${it} ms" } ?: "--"
+            ?.let { formatDuration(it) } ?: "--"
     }
     val upstreamSummary = remember(config) {
         val providerCount = config.providers.size
