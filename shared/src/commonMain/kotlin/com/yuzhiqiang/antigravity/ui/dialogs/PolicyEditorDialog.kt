@@ -159,11 +159,19 @@ fun PolicyEditorDialog(
     val displayLimit = if (isDefaultMode) defaultNativeLimit else (maxLimitText.toLongOrNull() ?: 0L)
     val displayReserve = if (isDefaultMode) defaultNativeReserve else (reserveText.toLongOrNull() ?: 0L)
 
-    // 校验规则 (生命周期三阶段：0 < Threshold < Limit - Reserve)
+    val safeLimit = if (contextWindow != null) (contextWindow - displayReserve).coerceAtLeast(1L) else null
+
+    // 校验规则 (生命周期三阶段：0 < Threshold < Limit - Reserve 且 Limit <= Context - Reserve)
     val validationError = when {
         displayLimit <= 0L -> s.policyLimitMustPositive
         displayThreshold <= 0L -> s.policyThresholdMustPositive
         displayReserve <= 0L -> s.policyReserveMustPositive
+        safeLimit != null && displayLimit > safeLimit -> s.policyLimitExceedsSafeLimit(
+            formatTokenDisplay(displayLimit),
+            formatTokenDisplay(safeLimit),
+            formatTokenDisplay(contextWindow ?: 0L),
+            formatTokenDisplay(displayReserve)
+        )
         contextWindow != null && displayLimit > contextWindow -> s.policyLimitExceedsContext(formatTokenDisplay(displayLimit), formatTokenDisplay(contextWindow))
         displayThreshold >= displayLimit -> s.policyThresholdExceedsLimit(formatTokenDisplay(displayThreshold), formatTokenDisplay(displayLimit))
         displayThreshold + displayReserve > displayLimit -> s.policySumExceedsLimit(formatTokenDisplay(displayThreshold + displayReserve), formatTokenDisplay(displayLimit))
@@ -258,6 +266,44 @@ fun PolicyEditorDialog(
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // 公式限制说明卡片
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFEFF6FF))
+                            .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ErrorOutline,
+                                contentDescription = null,
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = s.policyFormulaHint,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1E40AF)
+                                    )
+                                )
+                                Text(
+                                    text = s.policyFormulaHintDesc,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF3B82F6)
+                                    )
+                                )
+                            }
+                        }
+                    }
                     // 预设分段选择器
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Surface(

@@ -70,7 +70,8 @@ data class ModelCompressionPolicy(
         val effectiveOutput = outputTokenLimit ?: maxOutputTokens
         if (effectiveCapacity < 2L || effectiveOutput <= 0L) return null
 
-        val resolvedLimit = maxTokenLimit.coerceAtMost(effectiveCapacity)
+        val maxAllowedLimit = (effectiveCapacity - effectiveOutput).coerceAtLeast(1L)
+        val resolvedLimit = maxTokenLimit.coerceAtMost(maxAllowedLimit).coerceAtMost(effectiveCapacity)
         if (resolvedLimit < 2L) return null
         val resolvedOutput = maxOutputTokens
             .coerceAtMost(effectiveOutput)
