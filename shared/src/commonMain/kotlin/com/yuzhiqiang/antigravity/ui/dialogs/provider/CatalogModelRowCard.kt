@@ -8,19 +8,23 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -75,10 +79,6 @@ fun CatalogModelRowCard(
         )
     }
 
-    val brandStyle = remember(config.id, config.name) {
-        getModelBrandStyle(config.id, config.name)
-    }
-
     val cardBg by animateColorAsState(
         if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.035f)
         else if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
@@ -95,7 +95,17 @@ fun CatalogModelRowCard(
         modifier = Modifier
             .fillMaxWidth()
             .hoverable(interactionSource)
-            .clickable(enabled = !isSingleMode) { onToggleCheck() },
+            .then(
+                if (isSingleMode) {
+                    Modifier
+                } else {
+                    Modifier.toggleable(
+                        value = isChecked,
+                        role = Role.Checkbox,
+                        onValueChange = { onToggleCheck() }
+                    )
+                }
+            ),
         shape = RoundedCornerShape(AppTokens.Radius.medium),
         color = cardBg,
         border = androidx.compose.foundation.BorderStroke(
@@ -119,33 +129,60 @@ fun CatalogModelRowCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     if (!isSingleMode) {
-                        Checkbox(
-                            checked = isChecked,
-                            onCheckedChange = { onToggleCheck() },
-                            modifier = Modifier.size(18.dp),
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = MaterialTheme.colorScheme.primary,
-                                uncheckedColor = MaterialTheme.colorScheme.outline
-                            )
-                        )
+                        val selectionShape = RoundedCornerShape(7.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(selectionShape)
+                                .background(
+                                    if (isChecked) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                                .border(
+                                    width = if (isChecked) 1.dp else 1.5.dp,
+                                    color = if (isChecked) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.75f),
+                                    shape = selectionShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isChecked) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(RoundedCornerShape(7.dp))
-                            .background(brandStyle.container)
-                            .border(1.dp, brandStyle.contentColor.copy(alpha = 0.15f), RoundedCornerShape(7.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = brandStyle.badge,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            ),
-                            color = brandStyle.contentColor
-                        )
+                    config.vendor?.takeIf { it.isNotBlank() }?.let { vendor ->
+                        val vendorShape = RoundedCornerShape(7.dp)
+                        Box(
+                            modifier = Modifier
+                                .height(26.dp)
+                                .clip(vendorShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f),
+                                    vendorShape
+                                )
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = vendor,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 11.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
@@ -155,11 +192,14 @@ fun CatalogModelRowCard(
                         ) {
                             Text(
                                 text = config.name,
+                                modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp
                                 ),
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             if (config.isUnavailable) {
                                 Box(
@@ -183,7 +223,9 @@ fun CatalogModelRowCard(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.5.sp
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -306,10 +348,11 @@ fun CatalogModelRowCard(
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                Text(
-                                    "▾",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icon(
+                                    imageVector = Icons.Outlined.ExpandMore,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
                         }
@@ -389,10 +432,11 @@ fun CatalogModelRowCard(
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                Text(
-                                    "▾",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icon(
+                                    imageVector = Icons.Outlined.ExpandMore,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
                         }

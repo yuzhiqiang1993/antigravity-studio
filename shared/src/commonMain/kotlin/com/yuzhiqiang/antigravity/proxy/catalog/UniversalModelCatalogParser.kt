@@ -16,6 +16,7 @@ import kotlinx.serialization.json.*
 data class DiscoveredModelInfo(
     val id: String,
     val displayName: String? = null,
+    val vendor: String? = null,
     val inputTokenLimit: Long? = null,
     val inputTokenLimitSource: TokenLimitSource = TokenLimitSource.UNKNOWN,
     val outputTokenLimit: Long? = null,
@@ -161,6 +162,10 @@ object UniversalModelCatalogParser {
             ?: obj.stringField("display_name")
             ?: obj.stringField("name")
             ?: obj.stringField("title")
+        val vendor = obj.stringField(
+            "owned_by", "ownedBy", "vendor", "vendor_name", "vendorName",
+            "provider", "provider_name", "providerName", "publisher"
+        )?.trim()?.takeIf { it.isNotEmpty() }
 
         // 输入上下文探测：max_tokens 只有 Gemini/CPA 语义下才可作为输入上限，
         // 普通 OpenAI/Anthropic 的 max_tokens 是输出预算，不能误写成输入上限。
@@ -307,6 +312,7 @@ object UniversalModelCatalogParser {
         return DiscoveredModelInfo(
             id = id,
             displayName = displayName?.takeIf { it.isNotBlank() && it != id },
+            vendor = vendor,
             inputTokenLimit = inputTokens?.takeIf { it > 0L },
             inputTokenLimitSource = if (inputTokens != null && inputTokens > 0L) TokenLimitSource.CATALOG else TokenLimitSource.UNKNOWN,
             outputTokenLimit = outputTokens?.takeIf { it > 0L },
@@ -328,7 +334,9 @@ object UniversalModelCatalogParser {
         )
     }
 
-    private fun JsonObject.stringField(vararg keys: String): String? = keys.firstNotNullOfOrNull { key -> this[key]?.jsonPrimitive?.contentOrNull }
+    private fun JsonObject.stringField(vararg keys: String): String? = keys.firstNotNullOfOrNull { key ->
+        (this[key] as? JsonPrimitive)?.contentOrNull
+    }
     private fun JsonObject.longField(vararg keys: String): Long? = keys.firstNotNullOfOrNull { key -> this[key]?.jsonPrimitive?.longOrNull }
     private fun JsonObject.booleanField(vararg keys: String): Boolean? = keys.firstNotNullOfOrNull { key -> this[key]?.jsonPrimitive?.booleanOrNull }
     private fun JsonObject.nestedString(parentKey: String, childKey: String): String? = (this[parentKey] as? JsonObject)?.stringField(childKey)

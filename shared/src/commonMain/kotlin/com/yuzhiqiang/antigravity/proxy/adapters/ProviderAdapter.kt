@@ -36,11 +36,23 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
 interface ProviderAdapter {
+    /** 模型目录解析结果；rawBody 只用于调试查看，不参与业务配置持久化。 */
+    data class ModelCatalogResult(
+        val models: List<DiscoveredModelInfo> = emptyList(),
+        val rawBody: String? = null,
+        val errorMessage: String? = null
+    )
+
     suspend fun sendStream(provider: Provider, request: NeutralChatRequest): Flow<NeutralStreamChunk>
     suspend fun testConnection(provider: Provider): Boolean
     suspend fun fetchModels(provider: Provider): List<String>
     suspend fun fetchDiscoveredModels(provider: Provider): List<DiscoveredModelInfo> {
         return fetchModels(provider).map { DiscoveredModelInfo(id = it) }
+    }
+
+    /** 获取模型目录及原始响应；具体适配器应覆写此方法以避免重复请求。 */
+    suspend fun fetchModelCatalog(provider: Provider): ModelCatalogResult {
+        return ModelCatalogResult(models = fetchDiscoveredModels(provider))
     }
 
     companion object {
