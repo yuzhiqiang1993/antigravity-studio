@@ -70,13 +70,3 @@ tasks.withType<JavaExec>().configureEach {
     systemProperty("app.debug", "true")
 }
 
-// 从统一设计资源目录带入托盘 SVG，确保源码运行与发行包使用同一份图标资产。
-tasks.named<ProcessResources>("processResources") {
-    from(rootProject.file("docs/icon/icon-solid-flat.svg")) {
-        rename { "tray-icon-solid.svg" }
-    }
-    from(rootProject.file("docs/icon/icon-solid-flat.svg")) {
-        rename { "tray-icon-solid-mac.svg" }
-        filter { line: String -> line.replace("#1966F0", "#000000") }
-    }
-}
