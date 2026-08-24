@@ -38,7 +38,8 @@ object AppHostManager {
             paths.any { root ->
                 root.isDirectory &&
                         File(root, "Antigravity.exe").isFile &&
-                        File(root, "resources/bin/language_server.exe").isFile
+                        (File(root, "resources/bin/language_server.exe").isFile ||
+                         File(root, "resources/bin/language_server.original.exe").isFile)
             }
         } else {
             val appPaths = buildList {
@@ -50,7 +51,8 @@ object AppHostManager {
             appPaths.any { root ->
                 root.isDirectory &&
                         File(root, "Contents/MacOS/Antigravity").isFile &&
-                        File(root, "Contents/Resources/bin/language_server").isFile
+                        (File(root, "Contents/Resources/bin/language_server").isFile ||
+                         File(root, "Contents/Resources/bin/language_server.original").isFile)
             }
         }
     }
@@ -72,9 +74,222 @@ object AppHostManager {
     )
 
     private val appLanguageServerPatterns = if (isWindows) {
-        listOf("Programs\\Antigravity\\resources\\bin\\language_server.exe", "Programs/Antigravity/resources/bin/language_server.exe")
+        listOf(
+            "Programs\\Antigravity\\resources\\bin\\language_server.exe",
+            "Programs/Antigravity/resources/bin/language_server.exe",
+            "Programs\\Antigravity\\resources\\bin\\language_server.original.exe",
+            "Programs/Antigravity/resources/bin/language_server.original.exe"
+        )
     } else {
-        listOf("Antigravity.app/Contents/Resources/bin/language_server")
+        listOf(
+            "Antigravity.app/Contents/Resources/bin/language_server",
+            "Antigravity.app/Contents/Resources/bin/language_server.original"
+        )
+    }
+
+    /**
+     * 获取候选安装根目录列表。
+     */
+    fun getCandidateInstallations(customInstallation: String? = null): List<File> {
+        val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
+            ?.let { if (it.isFile) it.parentFile else it }
+        if (customRoot != null) {
+            return listOf(customRoot)
+        }
+        return if (isWindows) {
+            val localAppData = System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
+            val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
+            buildList {
+                add(File(localAppData, "Programs/Antigravity"))
+                add(File(programFiles, "Antigravity"))
+                System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity")) }
+                addAll(discoverWindowsInstallations("Antigravity.exe"))
+            }
+        } else {
+            buildList {
+                add(File("/Applications/Antigravity.app"))
+                add(File("${System.getProperty("user.home")}/Applications/Antigravity.app"))
+                addAll(discoverMacApplications("com.google.antigravity"))
+            }
+        }
+    }
+
+    /**
+     * 获取当前 language_server 可执行文件。
+     */
+    fun getLanguageServerFile(customInstallation: String? = null): File? {
+        val candidates = getCandidateInstallations(customInstallation)
+        for (root in candidates) {
+            if (!root.exists()) continue
+            val lsFile = if (isWindows) {
+                File(root, "resources/bin/language_server.exe")
+            } else {
+                File(root, "Contents/Resources/bin/language_server")
+            }
+            val origFile = if (isWindows) {
+                File(root, "resources/bin/language_server.original.exe")
+            } else {
+                File(root, "Contents/Resources/bin/language_server.original")
+            }
+            if (lsFile.exists() || origFile.exists()) {
+                return lsFile
+            }
+        }
+        return null
+    }
+
+    /**
+     * 获取被备份的原始 language_server 二进制文件。
+     */
+    fun getOriginalLanguageServerFile(customInstallation: String? = null): File? {
+        val candidates = getCandidateInstallations(customInstallation)
+        for (root in candidates) {
+            if (!root.exists()) continue
+            val origFile = if (isWindows) {
+                File(root, "resources/bin/language_server.original.exe")
+            } else {
+                File(root, "Contents/Resources/bin/language_server.original")
+            }
+            if (origFile.exists()) {
+                return origFile
+            }
+        }
+        return null
+    }
+
+    /**
+     * 检测是否已安装 Language Server Shim 包装脚本。
+     */
+    fun isShimInstalled(customInstallation: String? = null): Boolean {
+        val orig = getOriginalLanguageServerFile(customInstallation)
+        if (orig != null && orig.exists()) return true
+        val ls = getLanguageServerFile(customInstallation) ?: return false
+        if (!ls.exists()) return false
+        val content = runCatching { ls.readText(Charsets.UTF_8) }.getOrNull() ?: return false
+        return content.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM")
+    }
+
+    /**
+     * 安装 Language Server Shim 包装脚本，将写死的 --cloud_code_endpoint 动态重写为本地代理端口。
+     */
+    fun installLanguageServerShim(proxyPort: Int, customInstallation: String? = null): Boolean {
+        val ls = getLanguageServerFile(customInstallation) ?: return false
+        val binDir = ls.parentFile ?: return false
+        val origFile = if (isWindows) {
+            File(binDir, "language_server.original.exe")
+        } else {
+            File(binDir, "language_server.original")
+        }
+
+        // 1. 如果 original 不存在，将当前二进制备份重命名为 original
+        if (!origFile.exists()) {
+            if (!ls.exists()) return false
+            val renamed = ls.renameTo(origFile)
+            if (!renamed) return false
+        }
+
+        // 2. 写入包装脚本
+        val targetEndpoint = "http://127.0.0.1:$proxyPort"
+        return if (isWindows) {
+            val scriptContent = buildString {
+                appendLine("@echo off")
+                appendLine("rem ANTIGRAVITY_STUDIO_MANAGED_SHIM")
+                appendLine("setlocal enabledelayedexpansion")
+                appendLine("set \"DIR=%~dp0\"")
+                appendLine("set \"ORIGINAL=%DIR%language_server.original.exe\"")
+                appendLine("set \"TARGET_URL=$targetEndpoint\"")
+                appendLine("if defined CLOUD_CODE_URL set \"TARGET_URL=%CLOUD_CODE_URL%\"")
+                appendLine("set \"NEW_ARGS=\"")
+                appendLine("set \"SKIP_NEXT=0\"")
+                appendLine("for %%A in (%*) do (")
+                appendLine("    if !SKIP_NEXT! equ 1 (")
+                appendLine("        set \"NEW_ARGS=!NEW_ARGS! !TARGET_URL!\"")
+                appendLine("        set \"SKIP_NEXT=0\"")
+                appendLine("    ) else if \"%%~A\"==\"--cloud_code_endpoint\" (")
+                appendLine("        set \"NEW_ARGS=!NEW_ARGS! %%~A\"")
+                appendLine("        set \"SKIP_NEXT=1\"")
+                appendLine("    ) else (")
+                appendLine("        set \"ARG=%%~A\"")
+                appendLine("        if \"!ARG:~0,22!\"==\"--cloud_code_endpoint=\" (")
+                appendLine("            set \"NEW_ARGS=!NEW_ARGS! --cloud_code_endpoint=!TARGET_URL!\"")
+                appendLine("        ) else (")
+                appendLine("            set \"NEW_ARGS=!NEW_ARGS! %%~A\"")
+                appendLine("        )")
+                appendLine("    )")
+                appendLine(")")
+                appendLine("\"%ORIGINAL%\" %NEW_ARGS%")
+            }
+            runCatching {
+                ls.writeText(scriptContent, Charsets.UTF_8)
+                true
+            }.getOrDefault(false)
+        } else {
+            val scriptContent = """
+                #!/bin/bash
+                # ANTIGRAVITY_STUDIO_MANAGED_SHIM
+                DIR="$(cd "$(dirname "${'$'}{BASH_SOURCE[0]}")" && pwd)"
+                ORIGINAL_BIN="${'$'}DIR/language_server.original"
+                
+                TARGET_URL="${'$'}{CLOUD_CODE_URL}"
+                if [ -z "${'$'}TARGET_URL" ]; then
+                    TARGET_URL="$(launchctl getenv CLOUD_CODE_URL 2>/dev/null)"
+                fi
+                if [ -z "${'$'}TARGET_URL" ]; then
+                    TARGET_URL="$targetEndpoint"
+                fi
+                
+                ARGS=()
+                SKIP_NEXT=0
+                HAS_ENDPOINT=0
+                
+                for arg in "${'$'}@"; do
+                    if [ "${'$'}SKIP_NEXT" -eq 1 ]; then
+                        ARGS+=("${'$'}TARGET_URL")
+                        SKIP_NEXT=0
+                        HAS_ENDPOINT=1
+                        continue
+                    fi
+                    if [ "${'$'}arg" = "--cloud_code_endpoint" ]; then
+                        ARGS+=("${'$'}arg")
+                        SKIP_NEXT=1
+                        continue
+                    fi
+                    if [[ "${'$'}arg" =~ ^--cloud_code_endpoint= ]]; then
+                        ARGS+=("--cloud_code_endpoint=${'$'}TARGET_URL")
+                        HAS_ENDPOINT=1
+                        continue
+                    fi
+                    ARGS+=("${'$'}arg")
+                done
+                
+                if [ "${'$'}HAS_ENDPOINT" -eq 0 ] && [ "${'$'}SKIP_NEXT" -eq 0 ]; then
+                    ARGS+=("--cloud_code_endpoint" "${'$'}TARGET_URL")
+                fi
+                
+                exec "${'$'}ORIGINAL_BIN" "${'$'}{ARGS[@]}"
+            """.trimIndent()
+            runCatching {
+                ls.writeText(scriptContent + "\n", Charsets.UTF_8)
+                ls.setExecutable(true, false)
+                true
+            }.getOrDefault(false)
+        }
+    }
+
+    /**
+     * 还原原始 language_server 二进制文件（彻底清除包装器脚本）。
+     */
+    fun restoreOriginalLanguageServer(customInstallation: String? = null): Boolean {
+        val origFile = getOriginalLanguageServerFile(customInstallation)
+        val ls = getLanguageServerFile(customInstallation)
+        if (origFile != null && origFile.exists()) {
+            if (ls != null && ls.exists()) {
+                ls.delete()
+            }
+            val target = ls ?: File(origFile.parentFile, if (isWindows) "language_server.exe" else "language_server")
+            return origFile.renameTo(target)
+        }
+        return true
     }
 
     /**
@@ -95,36 +310,17 @@ object AppHostManager {
     }
 
     /**
-     * 检测是否已设置代理环境变量。
+     * 检测是否已设置代理（包含环境变量与 Shim 包装器）。
      */
-    fun isActive(proxyPort: Int): Boolean {
+    fun isActive(proxyPort: Int, customInstallation: String? = null): Boolean {
         return HostOwnershipStore.isEnvironmentConfigured(
             HostOwnershipStore.EnvironmentOwner.APP,
             proxyPort
-        )
+        ) || isShimInstalled(customInstallation)
     }
 
     fun detectVersion(customInstallation: String? = null): String? {
-        val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
-            ?.let { if (it.isFile) it.parentFile else it }
-        val candidates = if (isWindows) {
-            val localAppData = System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
-            val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
-            buildList {
-                customRoot?.let(::add)
-                add(File(localAppData, "Programs/Antigravity"))
-                add(File(programFiles, "Antigravity"))
-                System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity")) }
-                addAll(discoverWindowsInstallations("Antigravity.exe"))
-            }
-        } else {
-            buildList {
-                customRoot?.let(::add)
-                add(File("/Applications/Antigravity.app"))
-                add(File("${System.getProperty("user.home")}/Applications/Antigravity.app"))
-                addAll(discoverMacApplications("com.google.antigravity"))
-            }
-        }
+        val candidates = getCandidateInstallations(customInstallation)
         for (root in candidates) {
             if (!root.exists()) continue
             val infoPlist = File(root, "Contents/Info.plist")
@@ -160,7 +356,17 @@ object AppHostManager {
             HostOwnershipStore.EnvironmentOwner.APP,
             proxyPort
         )
-        val configState = when (inspect.state) {
+        val shimInstalled = isShimInstalled(customInstallation)
+        val isManaged = inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED || shimInstalled
+        val finalState = if (isManaged && inspect.endpointMatches) {
+            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
+        } else if (shimInstalled && !inspect.endpointMatches) {
+            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
+        } else {
+            inspect.state
+        }
+
+        val configState = when (finalState) {
             com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_ENABLED
             com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.CONFLICT,
             com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
@@ -176,43 +382,49 @@ object AppHostManager {
             type = com.yuzhiqiang.antigravity.host.model.HostType.APP,
             isInstalled = installed,
             isRunning = running,
-            integrationState = inspect.state,
+            integrationState = finalState,
             configurationState = configState,
-            configuredEndpoint = inspect.configuredEndpoint,
+            configuredEndpoint = inspect.configuredEndpoint ?: target.takeIf { shimInstalled },
             targetEndpoint = target,
-            configPath = "CLOUD_CODE_URL",
+            configPath = "CLOUD_CODE_URL & language_server",
             canEnable = installed,
-            canDisable = inspect.canDisable,
-            canLaunch = installed && (inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL || (inspect.state.isReady && isProxyRunning)),
+            canDisable = inspect.canDisable || shimInstalled,
+            canLaunch = installed && (finalState == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL || (finalState.isReady && isProxyRunning)),
             customPath = customInstallation,
             version = version
         )
     }
 
     /**
-     * 启用 App 代理接入：设置环境变量。
+     * 启用 App 代理接入：设置环境变量并安装 Language Server Shim 包装脚本。
      */
-    fun enable(proxyPort: Int): Boolean {
-        return HostOwnershipStore.enableEnvironment(
+    fun enable(proxyPort: Int, customInstallation: String? = null): Boolean {
+        val envOk = HostOwnershipStore.enableEnvironment(
             owner = HostOwnershipStore.EnvironmentOwner.APP,
             proxyPort = proxyPort
         ).isSuccess
+        val shimOk = installLanguageServerShim(proxyPort, customInstallation)
+        return envOk && shimOk
     }
 
     /**
-     * 禁用 App 代理接入：移除环境变量。
+     * 禁用 App 代理接入：移除环境变量并还原原始 Language Server 二进制。
      */
-    fun disable(): Boolean {
-        return HostOwnershipStore.disableEnvironment(
+    fun disable(customInstallation: String? = null): Boolean {
+        val envOk = HostOwnershipStore.disableEnvironment(
             owner = HostOwnershipStore.EnvironmentOwner.APP
         ).isSuccess
+        val shimOk = restoreOriginalLanguageServer(customInstallation)
+        return envOk && shimOk
     }
 
     /**
-     * 强制重置 App 代理接入至官方模式。
+     * 强制重置 App 代理接入至纯净官方模式。
      */
-    fun forceReset(): Boolean {
-        return HostOwnershipStore.forceResetEnvironment().isSuccess
+    fun forceReset(customInstallation: String? = null): Boolean {
+        val shimOk = restoreOriginalLanguageServer(customInstallation)
+        val envOk = HostOwnershipStore.forceResetEnvironment().isSuccess
+        return envOk && shimOk
     }
 
     /**
