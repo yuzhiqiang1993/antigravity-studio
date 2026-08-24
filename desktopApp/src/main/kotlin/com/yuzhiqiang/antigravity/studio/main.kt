@@ -74,8 +74,8 @@ private object AppIconCache {
 
     fun loadTraySvgPainter(density: Density): Painter? {
         val resourceName = if (isMac) "tray-icon-solid-mac.svg" else "tray-icon-solid.svg"
-        val stream = Thread.currentThread().contextClassLoader
-            .getResourceAsStream(resourceName)
+        val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(resourceName)
+            ?: Thread.currentThread().contextClassLoader.getResourceAsStream("drawable/$resourceName")
             ?: return null
         return try {
             stream.use { loadSvgPainter(it, density) }
