@@ -4,7 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -14,10 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +32,7 @@ import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActivityScreen(
     viewModel: AppViewModel,
@@ -83,7 +80,8 @@ fun ActivityScreen(
                     onClick = { viewModel.clearActivityLogs() },
                     modifier = Modifier.height(32.dp),
                     shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.DeleteSweep,
@@ -93,23 +91,28 @@ fun ActivityScreen(
                     Spacer(Modifier.width(5.dp))
                     Text(
                         text = s.activityClear,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp)
                     )
                 }
             }
         )
 
-        StudioCard(
+        OutlinedCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .weight(1f),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.outlinedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(AppTokens.Spacing.card)
+                    .padding(16.dp)
             ) {
-                // 顶部工具栏：紧凑搜索框 + 紧凑分段筛选
+                // 顶部工具栏：紧凑搜索框 + M3 SingleChoiceSegmentedButtonRow
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -122,35 +125,59 @@ fun ActivityScreen(
                         modifier = Modifier.width(320.dp)
                     )
 
-                    // 紧凑分段筛选器
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                            .padding(2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    // M3 标准 SingleChoiceSegmentedButtonRow（设置充足最小宽度确保文字完整显示）
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.height(34.dp)
                     ) {
-                        LogFilterTab(
-                            title = "${s.activityFilterAll} (${logs.size})",
+                        SegmentedButton(
                             selected = !filterOnlyFailed,
-                            onClick = { filterOnlyFailed = false }
-                        )
-                        LogFilterTab(
-                            title = "${s.activityFilterFailed} ($failedCount)",
+                            onClick = { filterOnlyFailed = false },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                            icon = {},
+                            modifier = Modifier.defaultMinSize(minWidth = 110.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = "${s.activityFilterAll} (${logs.size})",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = if (!filterOnlyFailed) FontWeight.SemiBold else FontWeight.Medium
+                                ),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                        SegmentedButton(
                             selected = filterOnlyFailed,
-                            isError = failedCount > 0,
-                            onClick = { filterOnlyFailed = true }
-                        )
+                            onClick = { filterOnlyFailed = true },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                            icon = {},
+                            modifier = Modifier.defaultMinSize(minWidth = 110.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            colors = SegmentedButtonDefaults.colors(
+                                activeContainerColor = if (failedCount > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                                activeContentColor = if (failedCount > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Text(
+                                text = "${s.activityFilterFailed} ($failedCount)",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = if (filterOnlyFailed || failedCount > 0) FontWeight.SemiBold else FontWeight.Medium
+                                ),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(AppTokens.Spacing.md))
+                Spacer(Modifier.height(14.dp))
 
                 // 指标卡片
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     ActivityMetricCard(
                         label = s.activityTotal,
@@ -170,7 +197,7 @@ fun ActivityScreen(
                     )
                 }
 
-                Spacer(Modifier.height(AppTokens.Spacing.md))
+                Spacer(Modifier.height(14.dp))
 
                 if (displayedLogs.isEmpty()) {
                     EmptyStateView(
@@ -210,49 +237,6 @@ fun ActivityScreen(
 }
 
 @Composable
-private fun LogFilterTab(
-    title: String,
-    selected: Boolean,
-    isError: Boolean = false,
-    onClick: () -> Unit
-) {
-    val bg by animateColorAsState(
-        targetValue = when {
-            selected && isError -> MaterialTheme.colorScheme.errorContainer
-            selected -> MaterialTheme.colorScheme.surface
-            else -> Color.Transparent
-        },
-        animationSpec = tween(150)
-    )
-    val textCol by animateColorAsState(
-        targetValue = when {
-            selected && isError -> MaterialTheme.colorScheme.onErrorContainer
-            selected -> MaterialTheme.colorScheme.primary
-            else -> MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        animationSpec = tween(150)
-    )
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(bg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 12.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-            ),
-            color = textCol
-        )
-    }
-}
-
-@Composable
 private fun ActivityMetricCard(
     label: String,
     value: String,
@@ -261,13 +245,13 @@ private fun ActivityMetricCard(
 ) {
     OutlinedCard(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.outlinedCardColors(
-            containerColor = if (isWarning) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface
+            containerColor = if (isWarning) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
         ),
         border = BorderStroke(
             1.dp,
-            if (isWarning) MaterialTheme.colorScheme.error.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            if (isWarning) MaterialTheme.colorScheme.error.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         )
     ) {
         Column(
@@ -276,7 +260,7 @@ private fun ActivityMetricCard(
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                 color = if (isWarning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
@@ -323,13 +307,13 @@ private fun ActivityLogRow(
             .fillMaxWidth()
             .hoverable(interactionSource = interactionSource)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.outlinedCardColors(
             containerColor = if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(
             1.dp,
-            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         )
     ) {
         Row(
@@ -360,11 +344,9 @@ private fun ActivityLogRow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        Surface(
+                            shape = RoundedCornerShape(5.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
                         ) {
                             Text(
                                 text = log.method.uppercase(),
@@ -372,7 +354,8 @@ private fun ActivityLogRow(
                                     fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Bold
                                 ),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
 
@@ -393,12 +376,15 @@ private fun ActivityLogRow(
                     ) {
                         Text(
                             text = time,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = "${log.durationMs} ms",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp
+                            ),
                             color = MaterialTheme.colorScheme.primary
                         )
                         StatusBadge(

@@ -158,8 +158,7 @@ fun OverviewScreen(
                         else -> BadgeTone.NEUTRAL
                     },
                     desc = when {
-                        ideDetailedStatus.needsUpdate -> s.hostIdePortMismatch(ideDetailedStatus.configuredEndpoint ?: s.commonUnknown)
-                        isIdeRunning -> if (isIdeActive) s.hostIdeRunningAndConfigured else s.hostIdeRunning
+                        isIdeRunning -> s.hostIdeRunning
                         isIdeInstalled -> s.hostIdeReady
                         else -> s.hostIdeNotDetected
                     },
@@ -196,8 +195,7 @@ fun OverviewScreen(
                         else -> BadgeTone.NEUTRAL
                     },
                     desc = when {
-                        appDetailedStatus.needsUpdate -> s.hostAppPortMismatch(appDetailedStatus.configuredEndpoint ?: s.commonUnknown)
-                        isAppRunning -> if (isAppActive) s.hostAppRunningAndConfigured else s.hostAppRunning
+                        isAppRunning -> s.hostAppRunning
                         isAppInstalled -> s.hostAppReady
                         else -> s.hostAppNotDetected
                     },
@@ -234,7 +232,6 @@ fun OverviewScreen(
                         else -> BadgeTone.NEUTRAL
                     },
                     desc = when {
-                        cliDetailedStatus.needsUpdate -> s.hostCliPortMismatch(cliDetailedStatus.configuredEndpoint ?: s.commonUnknown)
                         isCliInstalled -> s.hostCliInstalledDesc
                         else -> s.hostCliNotDetected
                     },
