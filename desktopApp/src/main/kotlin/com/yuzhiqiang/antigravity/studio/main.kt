@@ -87,16 +87,11 @@ private object AppIconCache {
 
 private fun setupPlatformAppIcon() {
     try {
-        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
-        // macOS 下由系统原生 Bundle (icon.icns) 负责 Dock 栏圆角遮罩与渲染；
-        // 运行时调用 Taskbar.iconImage 会以直角位图强制覆盖，破坏 macOS 原生的 Squircle 视觉规范。
-        if (!isMac) {
-            val icon = AppIconCache.appIconImage
-            if (icon != null && Taskbar.isTaskbarSupported()) {
-                val taskbar = Taskbar.getTaskbar()
-                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
-                    taskbar.iconImage = icon
-                }
+        val icon = AppIconCache.appIconImage
+        if (icon != null && Taskbar.isTaskbarSupported()) {
+            val taskbar = Taskbar.getTaskbar()
+            if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                taskbar.iconImage = icon
             }
         }
     } catch (_: Exception) {
