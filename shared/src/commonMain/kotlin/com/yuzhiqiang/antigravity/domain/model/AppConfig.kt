@@ -32,7 +32,9 @@ data class AppConfig(
     @SerialName("last_check_update_timestamp")
     val lastCheckUpdateTimestamp: Long = 0L,
     @SerialName("developer_mode")
-    val developerMode: Boolean = false
+    val developerMode: Boolean = false,
+    @SerialName("activity_auto_scroll")
+    val activityAutoScroll: Boolean = true
 ) {
     val isDebugMode: Boolean
         get() = developerMode
