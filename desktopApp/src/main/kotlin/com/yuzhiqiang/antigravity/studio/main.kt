@@ -72,11 +72,16 @@ private object AppIconCache {
 
 private fun setupPlatformAppIcon() {
     try {
-        val icon = AppIconCache.appIconImage
-        if (icon != null && Taskbar.isTaskbarSupported()) {
-            val taskbar = Taskbar.getTaskbar()
-            if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
-                taskbar.iconImage = icon
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        // macOS 下由系统原生 Bundle (icon.icns) 负责 Dock 栏圆角遮罩与渲染；
+        // 运行时调用 Taskbar.iconImage 会以直角位图强制覆盖，破坏 macOS 原生的 Squircle 视觉规范。
+        if (!isMac) {
+            val icon = AppIconCache.appIconImage
+            if (icon != null && Taskbar.isTaskbarSupported()) {
+                val taskbar = Taskbar.getTaskbar()
+                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                    taskbar.iconImage = icon
+                }
             }
         }
     } catch (_: Exception) {
@@ -115,6 +120,12 @@ fun main() {
         val showAndFocusWindow = remember {
             {
                 isVisible = true
+                try {
+                    if (Desktop.isDesktopSupported()) {
+                        Desktop.getDesktop().requestForeground(true)
+                    }
+                } catch (_: Exception) {
+                }
                 SwingUtilities.invokeLater {
                     windowRef?.let { win ->
                         if ((win.extendedState and Frame.ICONIFIED) != 0) {
@@ -168,33 +179,31 @@ fun main() {
             )
         }
 
-        if (isVisible) {
-            Window(
-                onCloseRequest = { isVisible = false },
-                state = windowState,
-                title = "Antigravity Studio",
-                icon = appIcon
-            ) {
-                DisposableEffect(window) {
-                    windowRef = window
-                    SwingUtilities.invokeLater {
-                        if ((window.extendedState and Frame.ICONIFIED) != 0) {
-                            window.extendedState = window.extendedState and Frame.ICONIFIED.inv()
-                        }
-                        window.toFront()
-                        window.requestFocus()
+        Window(
+            visible = isVisible,
+            onCloseRequest = { isVisible = false },
+            state = windowState,
+            title = "Antigravity Studio",
+            icon = appIcon
+        ) {
+            DisposableEffect(window) {
+                windowRef = window
+                SwingUtilities.invokeLater {
+                    if ((window.extendedState and Frame.ICONIFIED) != 0) {
+                        window.extendedState = window.extendedState and Frame.ICONIFIED.inv()
                     }
-                    onDispose {
-                        windowRef = null
-                    }
+                    window.toFront()
+                    window.requestFocus()
                 }
-
-                LaunchedEffect(Unit) {
-                    window.minimumSize = java.awt.Dimension(1020, 680)
+                onDispose {
                 }
-
-                App(window = window)
             }
+
+            LaunchedEffect(Unit) {
+                window.minimumSize = java.awt.Dimension(1020, 680)
+            }
+
+            App(window = window)
         }
     }
 }
