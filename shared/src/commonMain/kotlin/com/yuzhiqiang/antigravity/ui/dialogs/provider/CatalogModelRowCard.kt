@@ -16,6 +16,8 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,8 +52,20 @@ fun CatalogModelRowCard(
     var expandedInputMenu by remember { mutableStateOf(false) }
     var expandedOutputMenu by remember { mutableStateOf(false) }
     var customDialogType by remember { mutableStateOf<String?>(null) }
+    var showFailureDetailDialog by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
+
+    if (showFailureDetailDialog) {
+        ModelTestFailureDetailDialog(
+            config = config,
+            onDismiss = { showFailureDetailDialog = false },
+            onRetryTest = {
+                showFailureDetailDialog = false
+                onTestModel()
+            }
+        )
+    }
 
     if (customDialogType != null) {
         val isInput = customDialogType == "input"
@@ -265,33 +279,66 @@ fun CatalogModelRowCard(
                         val pillText = if (testSuccess) statusColors.onSuccessContainer else MaterialTheme.colorScheme.onErrorContainer
                         val dotColor = if (testSuccess) statusColors.success else MaterialTheme.colorScheme.error
 
-                        Box(
-                            modifier = Modifier
-                                .height(26.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(pillBg)
-                                .clickable(enabled = isChecked && !config.isUnavailable) { onTestModel() }
-                                .padding(horizontal = 8.dp),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            Box(
+                                modifier = Modifier
+                                    .height(26.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(pillBg)
+                                    .clickable(enabled = isChecked && !config.isUnavailable) {
+                                        if (testSuccess) {
+                                            onTestModel()
+                                        } else {
+                                            showFailureDetailDialog = true
+                                        }
+                                    }
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(dotColor)
-                                )
-                                Text(
-                                    config.testStatusText ?: "",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 11.sp
-                                    ),
-                                    color = pillText
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(dotColor)
+                                    )
+                                    Text(
+                                        config.testStatusText ?: "",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp
+                                        ),
+                                        color = pillText
+                                    )
+                                    if (!testSuccess) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Info,
+                                            contentDescription = s.providerTestFailureDetailsTitle,
+                                            tint = pillText.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (!testSuccess && isChecked && !config.isUnavailable) {
+                                IconButton(
+                                    onClick = onTestModel,
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Refresh,
+                                        contentDescription = s.providerTestFailureRetry,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             }
                         }
                     } else {
