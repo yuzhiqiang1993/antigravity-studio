@@ -104,6 +104,50 @@ object AppHostManager {
         )
     }
 
+    fun detectVersion(customInstallation: String? = null): String? {
+        val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
+            ?.let { if (it.isFile) it.parentFile else it }
+        val candidates = if (isWindows) {
+            val localAppData = System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
+            val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
+            buildList {
+                customRoot?.let(::add)
+                add(File(localAppData, "Programs/Antigravity"))
+                add(File(programFiles, "Antigravity"))
+                System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity")) }
+                addAll(discoverWindowsInstallations("Antigravity.exe"))
+            }
+        } else {
+            buildList {
+                customRoot?.let(::add)
+                add(File("/Applications/Antigravity.app"))
+                add(File("${System.getProperty("user.home")}/Applications/Antigravity.app"))
+                addAll(discoverMacApplications("com.google.antigravity"))
+            }
+        }
+        for (root in candidates) {
+            if (!root.exists()) continue
+            val infoPlist = File(root, "Contents/Info.plist")
+            if (infoPlist.exists()) {
+                val content = runCatching { infoPlist.readText() }.getOrNull() ?: continue
+                val match = Regex("<key>CFBundleShortVersionString</key>\\s*<string>([^<]+)</string>").find(content)
+                    ?: Regex("<key>CFBundleVersion</key>\\s*<string>([^<]+)</string>").find(content)
+                if (match != null) {
+                    return match.groupValues[1].trim()
+                }
+            }
+            val packageJson = File(root, "resources/app/package.json")
+            if (packageJson.exists()) {
+                val content = runCatching { packageJson.readText() }.getOrNull() ?: continue
+                val match = Regex("\"version\"\\s*:\\s*\"([^\"]+)\"").find(content)
+                if (match != null) {
+                    return match.groupValues[1].trim()
+                }
+            }
+        }
+        return null
+    }
+
     fun inspect(
         proxyPort: Int,
         isProxyRunning: Boolean = false,
@@ -111,6 +155,7 @@ object AppHostManager {
     ): com.yuzhiqiang.antigravity.host.model.HostDetailedStatus {
         val installed = isInstalled(customInstallation)
         val running = installed && isRunning(customInstallation)
+        val version = if (installed) runCatching { detectVersion(customInstallation) }.getOrNull() else null
         val inspect = HostOwnershipStore.inspectEnvironmentIntegration(
             HostOwnershipStore.EnvironmentOwner.APP,
             proxyPort
@@ -139,7 +184,8 @@ object AppHostManager {
             canEnable = installed,
             canDisable = inspect.canDisable,
             canLaunch = installed && (inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL || (inspect.state.isReady && isProxyRunning)),
-            customPath = customInstallation
+            customPath = customInstallation,
+            version = version
         )
     }
 
