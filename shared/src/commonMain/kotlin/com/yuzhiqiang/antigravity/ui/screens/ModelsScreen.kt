@@ -91,10 +91,7 @@ fun ModelsScreen(
             ),
         verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
     ) {
-        PageHeader(
-            title = s.modelsTitle,
-            subtitle = s.modelsSubtitle
-        )
+        PageHeader(title = s.modelsTitle)
 
         val officialCount = groupedOfficial.sumOf { group ->
             group.variants.count { variant -> variant.model.id !in config.disabledOfficialModels }

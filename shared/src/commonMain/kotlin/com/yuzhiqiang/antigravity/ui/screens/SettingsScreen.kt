@@ -57,10 +57,7 @@ fun SettingsScreen(
             .padding(horizontal = AppTokens.Spacing.pageHorizontal, vertical = AppTokens.Spacing.pageVertical),
         verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
     ) {
-        PageHeader(
-            title = s.settingsTitle,
-            subtitle = s.settingsSubtitle
-        )
+        PageHeader(title = s.settingsTitle)
 
         // 现代滑动药丸 TabLayout
         StudioSlidingTabLayout(
