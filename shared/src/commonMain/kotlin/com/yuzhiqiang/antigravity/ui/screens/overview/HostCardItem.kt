@@ -39,6 +39,7 @@ data class HostCardData(
     val desc: String,
     val isProxyActive: Boolean,
     val needsUpdate: Boolean = false,
+    val version: String? = null,
     val configuredEndpoint: String? = null,
     val targetEndpoint: String? = null,
     val integrationDetail: String,
@@ -118,39 +119,60 @@ fun HostCardItem(
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Header: 平台专属图标 + 标题 + 状态徽标
+            // Header: 平台专属图标 + (标题 + 版本号) + 状态徽标
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f, fill = false).padding(end = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = hostIconBg,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = hostIcon,
                                 contentDescription = null,
                                 tint = hostIconTint,
-                                modifier = Modifier.size(17.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
                     }
 
-                    Text(
-                        text = data.title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.5.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = data.title,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        if (!data.version.isNullOrBlank()) {
+                            Text(
+                                text = if (data.version.startsWith("v", ignoreCase = true)) data.version else "v${data.version}",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    fontFamily = FontFamily.Monospace
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
 
                 StatusBadge(
