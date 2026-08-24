@@ -162,10 +162,25 @@ object UniversalModelCatalogParser {
             ?: obj.stringField("display_name")
             ?: obj.stringField("name")
             ?: obj.stringField("title")
-        val vendor = obj.stringField(
-            "owned_by", "ownedBy", "vendor", "vendor_name", "vendorName",
-            "provider", "provider_name", "providerName", "publisher"
+        val rawVendor = obj.stringField(
+            "publisher", "vendor", "vendor_name", "vendorName",
+            "provider", "provider_name", "providerName", "owned_by", "ownedBy"
         )?.trim()?.takeIf { it.isNotEmpty() }
+
+        val group = obj.stringField("group")?.trim()?.lowercase()
+        val inferredVendor = inferVendorFromId(id) ?: inferVendorFromGroup(group)
+
+        val isGenericGatewayVendor = rawVendor?.lowercase()?.let {
+            it == "system" || (it == "openai" && inferredVendor != null && inferredVendor != "OpenAI") ||
+            it.contains("gate") || it.contains("proxy") || it.contains("oneapi") || it.contains("newapi") ||
+            it.contains("relay") || it.contains("default") || it.contains("custom")
+        } ?: false
+
+        val vendor = if (inferredVendor != null && (rawVendor == null || isGenericGatewayVendor)) {
+            inferredVendor
+        } else {
+            rawVendor ?: inferredVendor
+        }
 
         // 输入上下文探测：max_tokens 只有 Gemini/CPA 语义下才可作为输入上限，
         // 普通 OpenAI/Anthropic 的 max_tokens 是输出预算，不能误写成输入上限。
@@ -180,7 +195,7 @@ object UniversalModelCatalogParser {
         val inputTokens = explicitInputTokens ?: when {
             isCpaCatalog -> contextTokens ?: contextLength
             protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT -> obj.findLong("maxTokens", "max_tokens")
-            else -> contextTokens
+            else -> contextTokens ?: contextLength
         }
 
         // 输出上限探测（严格由上游真实字段给出）
@@ -190,7 +205,9 @@ object UniversalModelCatalogParser {
             "outputTokenLimit",
             "output_token_limit",
             "max_completion_tokens",
-            "maxCompletionTokens"
+            "maxCompletionTokens",
+            "max_output_length",
+            "maxOutputLength"
         ) ?: if (isCpaCatalog || protocol == ProviderProtocol.ANTHROPIC_MESSAGES) {
             obj.findLong("maxTokens", "max_tokens")
         } else {
@@ -199,12 +216,17 @@ object UniversalModelCatalogParser {
 
         // 多模态能力探测：优先使用显式 modalities，再用布尔能力字段补全。
         val capabilities = obj["capabilities"] as? JsonObject
+        val archObj = obj["architecture"] as? JsonObject
         val rawInputModalities = obj["input_modalities"] ?: obj["inputModalities"]
             ?: capabilities?.get("input_modalities") ?: capabilities?.get("inputModalities")
+            ?: archObj?.get("input_modalities")
         val rawOutputModalities = obj["output_modalities"] ?: obj["outputModalities"]
             ?: capabilities?.get("output_modalities") ?: capabilities?.get("outputModalities")
+            ?: archObj?.get("output_modalities")
         val inputModalities = parseModalities(rawInputModalities).toMutableSet()
         val outputModalities = parseModalities(rawOutputModalities).toMutableSet()
+        val archModality = archObj?.stringField("modality")
+        val isArchVision = archModality?.contains("image", ignoreCase = true) == true
         val explicitVision = obj.booleanField("supportsImages")
             ?: obj.booleanField("supports_images")
             ?: obj.booleanField("supportsVision")
@@ -213,7 +235,7 @@ object UniversalModelCatalogParser {
             ?: capabilities?.booleanField("vision")
             ?: capabilities?.booleanField("supportsVision")
             ?: capabilities?.booleanField("supports_vision")
-        val supportsVision = explicitVision ?: inputModalities.contains(ModelModality.IMAGE)
+        val supportsVision = explicitVision ?: (isArchVision || inputModalities.contains(ModelModality.IMAGE))
         if (supportsVision) inputModalities.add(ModelModality.IMAGE)
         val supportsAudio = obj.booleanField("supportsAudio")
             ?: obj.booleanField("supports_audio")
@@ -229,15 +251,20 @@ object UniversalModelCatalogParser {
         if (outputModalities.isEmpty()) outputModalities.add(ModelModality.TEXT)
 
         // 工具支持探测 (默认 true)
-        val supportsTools = obj.booleanField("supportsTools")
+        val supportedFeatures = (obj["supported_features"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.lowercase() }
+        val supportedParams = (obj["supported_parameters"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.lowercase() }
+        val explicitTools = obj.booleanField("supportsTools")
             ?: obj.booleanField("supports_tools")
             ?: obj.booleanField("tools")
             ?: obj.booleanField("function_calling")
             ?: obj.nestedBoolean("capabilities", "tools")
-            ?: true
+            ?: obj.nestedBoolean("capabilities", "function_calling")
+            ?: if (supportedFeatures != null) (supportedFeatures.contains("tools") || supportedFeatures.contains("function_calling")) else null
+            ?: if (supportedParams != null) (supportedParams.contains("tools") || supportedParams.contains("tool_choice")) else null
+        val supportsTools = explicitTools ?: true
 
-        // 推理与 Thinking 探测：兼容 CPA/OpenRouter/Anthropic 的 levels、effort、
-        // supported_parameters、thinking.type 等多种目录形状。
+        // 推理与 Thinking 探测：兼容 CPA/OpenRouter/Anthropic/智谱 的 levels、effort、
+        // supported_parameters、supported_features、thinking.type 等多种目录形状。
         val reasoningObj = obj["reasoning"] as? JsonObject
         val supportedReasoningLevels = mutableSetOf<String>()
         val reasoningMappings = linkedMapOf<ReasoningLevel, ReasoningMapping>()
@@ -265,10 +292,13 @@ object UniversalModelCatalogParser {
             .forEach { value ->
                 collectReasoningMetadata(value, protocol, supportedReasoningLevels, reasoningMappings)
             }
-        (obj["supported_parameters"] as? JsonArray)?.forEach { parameter ->
-            if (parameter.jsonPrimitive.contentOrNull.orEmpty().contains("reasoning", ignoreCase = true) ||
-                parameter.jsonPrimitive.contentOrNull.orEmpty().contains("thinking", ignoreCase = true)
+        supportedParams?.forEach { parameter ->
+            if (parameter.contains("reasoning", ignoreCase = true) ||
+                parameter.contains("thinking", ignoreCase = true)
             ) discoveredReasoningSupport = true
+        }
+        if (supportedFeatures?.any { it.contains("reasoning") || it.contains("thinking") } == true) {
+            discoveredReasoningSupport = true
         }
         val type = obj.stringField("type", "model_type", "modelType")
         if (type?.contains("reasoning", ignoreCase = true) == true ||
@@ -283,8 +313,8 @@ object UniversalModelCatalogParser {
 
         val defaultReasoningLevel = obj.stringField("default_reasoning_level")
             ?: obj.stringField("defaultReasoningLevel")
-            ?: reasoningObj?.stringField("default", "default_level", "defaultLevel")
-            ?: (obj["thinking"] as? JsonObject)?.stringField("default", "default_level", "defaultLevel")
+            ?: reasoningObj?.stringField("default", "default_level", "defaultLevel", "default_effort", "defaultEffort")
+            ?: (obj["thinking"] as? JsonObject)?.stringField("default", "default_level", "defaultLevel", "default_effort", "defaultEffort")
 
         val thinkingBudget = obj.longField("thinkingBudget")
             ?: obj.longField("thinking_budget")
@@ -456,7 +486,7 @@ object UniversalModelCatalogParser {
             "low", "minimal" -> ReasoningLevel.LOW
             "medium", "med", "balanced" -> ReasoningLevel.MEDIUM
             "high" -> ReasoningLevel.HIGH
-            "xhigh", "extrahigh" -> ReasoningLevel.X_HIGH
+            "xhigh", "extrahigh", "ultra", "extreme" -> ReasoningLevel.X_HIGH
             "max", "maximum" -> ReasoningLevel.MAX
             "adaptive" -> ReasoningLevel.ADAPTIVE
             "auto" -> ReasoningLevel.AUTO
@@ -529,7 +559,8 @@ object UniversalModelCatalogParser {
             "dall-e", "dalle",
             "gpt-image", "gpt_image", "flux", "midjourney", "sdxl", "stable-diffusion",
             "stable_image", "recraft", "kolors", "ideogram", "kling", "cogview",
-            "grok-imagine", "imagine", "hunyuan-image", "hunyuan-video", "doubao-image", "wanx"
+            "grok-imagine", "imagine", "hunyuan-image", "hunyuan-video", "doubao-image", "wanx",
+            "veo", "sora"
         ).any(text::contains) || Regex("(?:image|imagen)[-_ ]?(?:\\d|v\\d)").containsMatchIn(text)
     }
 
@@ -577,4 +608,64 @@ object UniversalModelCatalogParser {
         )
         return runCatching { policy.validate("catalog checkpointer"); policy }.getOrNull()
     }
+
+    private fun inferVendorFromId(id: String): String? {
+        val prefix = id.substringBefore('/', "").trim().lowercase()
+        if (prefix.isNotEmpty() && prefix != id.lowercase()) {
+            return when {
+                prefix.contains("openai") -> "OpenAI"
+                prefix.contains("anthropic") -> "Anthropic"
+                prefix.contains("google") -> "Google"
+                prefix.contains("deepseek") -> "DeepSeek"
+                prefix.contains("meta") || prefix.contains("llama") -> "Meta"
+                prefix.contains("qwen") || prefix.contains("alibaba") -> "Qwen"
+                prefix.contains("mistral") -> "Mistral"
+                prefix.contains("moonshot") || prefix.contains("kimi") -> "Moonshot"
+                prefix.contains("zhipu") || prefix.contains("glm") || prefix.contains("bigmodel") -> "Zhipu AI"
+                prefix.contains("minimax") -> "MiniMax"
+                prefix.contains("01-ai") || prefix.contains("yi") -> "01.AI"
+                prefix.contains("x-ai") || prefix.contains("grok") || prefix.contains("xai") -> "xAI"
+                prefix.contains("cohere") -> "Cohere"
+                prefix.contains("baichuan") -> "Baichuan"
+                prefix.contains("tencent") || prefix.contains("hunyuan") -> "Tencent"
+                prefix.contains("bytedance") || prefix.contains("doubao") -> "ByteDance"
+                else -> prefix.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            }
+        }
+        val lowerId = id.lowercase()
+        return when {
+            lowerId.startsWith("gpt-") || lowerId.startsWith("o1") || lowerId.startsWith("o3") || lowerId.startsWith("chatgpt") || lowerId.startsWith("text-embedding-") -> "OpenAI"
+            lowerId.startsWith("claude-") -> "Anthropic"
+            lowerId.startsWith("gemini-") || lowerId.startsWith("gemma-") -> "Google"
+            lowerId.startsWith("deepseek-") -> "DeepSeek"
+            lowerId.startsWith("grok-") -> "xAI"
+            lowerId.startsWith("qwen") || lowerId.startsWith("qwq") -> "Alibaba"
+            lowerId.startsWith("moonshot-") || lowerId.startsWith("kimi-") -> "Moonshot"
+            lowerId.startsWith("glm-") || lowerId.startsWith("chatglm") -> "Zhipu AI"
+            lowerId.startsWith("minimax") || lowerId.startsWith("abab") -> "MiniMax"
+            lowerId.startsWith("hunyuan") -> "Tencent"
+            lowerId.startsWith("doubao") -> "ByteDance"
+            lowerId.startsWith("ernie") -> "Baidu"
+            lowerId.startsWith("mistral-") || lowerId.startsWith("codestral-") || lowerId.startsWith("pixtral-") -> "Mistral"
+            lowerId.startsWith("llama-") || lowerId.startsWith("llama3") || lowerId.startsWith("llama2") -> "Meta"
+            else -> null
+        }
+    }
+
+    private fun inferVendorFromGroup(group: String?): String? {
+        return when (group?.lowercase()?.trim()) {
+            "claude", "anthropic" -> "Anthropic"
+            "gpt", "openai" -> "OpenAI"
+            "gemini", "google" -> "Google"
+            "deepseek" -> "DeepSeek"
+            "grok", "xai" -> "xAI"
+            "kimi", "moonshot" -> "Moonshot"
+            "glm", "zhipu" -> "Zhipu AI"
+            "qwen", "alibaba" -> "Alibaba"
+            "minimax" -> "MiniMax"
+            else -> null
+        }
+    }
 }
+
+

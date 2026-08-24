@@ -451,4 +451,130 @@ class ByokParityTest {
         val resolved = com.yuzhiqiang.antigravity.proxy.routing.RouteResolver.resolve(config, requestTiered).getOrThrow()
         assertEquals("custom-stealthox-alpha-high", resolved.virtualModel?.id)
     }
+
+    @Test
+    fun parsesZhipuRealCatalogDatasetAccurately() {
+        val file = File("../../docs/服务商模型数据源/智谱.json").let { if (it.exists()) it else File("docs/服务商模型数据源/智谱.json") }
+        if (!file.exists()) return
+        val rawJson = file.readText()
+        val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS)
+        assertTrue(models.isNotEmpty(), "Models should not be empty")
+
+        val glm53 = models.firstOrNull { it.id == "glm-5.3" }
+        kotlin.test.assertNotNull(glm53)
+        assertEquals("GLM 5.3", glm53.displayName)
+        assertEquals("Zhipu AI", glm53.vendor)
+        assertEquals(1048576L, glm53.inputTokenLimit)
+        assertEquals(131072L, glm53.outputTokenLimit)
+        assertTrue(glm53.supportsTools)
+        assertTrue(glm53.supportsReasoning)
+        assertTrue(ModelModality.TEXT in glm53.inputModalities)
+
+        val visionModel = models.firstOrNull { it.inputModalities.contains(ModelModality.IMAGE) }
+        kotlin.test.assertNotNull(visionModel)
+        assertTrue(visionModel.supportsVision)
+    }
+
+    @Test
+    fun parsesOpenRouterRealCatalogDatasetAccurately() {
+        val file = File("../../docs/服务商模型数据源/openrouter.json").let { if (it.exists()) it else File("docs/服务商模型数据源/openrouter.json") }
+        if (!file.exists()) return
+        val rawJson = file.readText()
+        val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS)
+        assertTrue(models.isNotEmpty(), "Models should not be empty")
+
+        val flashVision = models.firstOrNull { it.id == "deepseek/deepseek-v4-flash-vision-exp" }
+        kotlin.test.assertNotNull(flashVision)
+        assertEquals(1048576L, flashVision.inputTokenLimit)
+        assertEquals(384000L, flashVision.outputTokenLimit)
+        assertTrue(flashVision.supportsVision)
+        assertTrue(flashVision.supportsReasoning)
+        assertEquals("high", flashVision.defaultReasoningLevel)
+
+        val geminiFlash = models.firstOrNull { it.id == "google/gemini-3.7-flash" }
+        kotlin.test.assertNotNull(geminiFlash)
+        assertEquals(1048576L, geminiFlash.inputTokenLimit)
+        assertEquals(65536L, geminiFlash.outputTokenLimit)
+        assertTrue(geminiFlash.supportsVision)
+        assertTrue(geminiFlash.supportsReasoning)
+        assertEquals("medium", geminiFlash.defaultReasoningLevel)
+    }
+
+    @Test
+    fun parsesCpaRealCatalogDatasetAccurately() {
+        val file = File("../../docs/服务商模型数据源/cpa.json").let { if (it.exists()) it else File("docs/服务商模型数据源/cpa.json") }
+        if (!file.exists()) return
+        val rawJson = file.readText()
+        val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS, isCpaCatalog = true)
+        assertTrue(models.isNotEmpty(), "Models should not be empty")
+
+        val gpt56 = models.firstOrNull { it.id == "gpt-5.6-sol" }
+        kotlin.test.assertNotNull(gpt56)
+        assertEquals(372000L, gpt56.inputTokenLimit)
+        assertEquals(128000L, gpt56.outputTokenLimit)
+        assertTrue(gpt56.supportsVision)
+        assertTrue(gpt56.supportsTools)
+        assertTrue(gpt56.supportsReasoning)
+        assertEquals("low", gpt56.defaultReasoningLevel)
+        assertTrue(gpt56.supportedReasoningLevels.contains("xhigh"))
+        assertTrue(gpt56.supportedReasoningLevels.contains("ultra"))
+    }
+
+    @Test
+    fun parsesGeminiRealCatalogDatasetAccurately() {
+        val file = File("../../docs/服务商模型数据源/gemini.json").let { if (it.exists()) it else File("docs/服务商模型数据源/gemini.json") }
+        if (!file.exists()) return
+        val rawJson = file.readText()
+        val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.GEMINI_GENERATE_CONTENT)
+        assertTrue(models.isNotEmpty(), "Models should not be empty")
+
+        val flash25 = models.firstOrNull { it.id == "gemini-2.5-flash" }
+        kotlin.test.assertNotNull(flash25)
+        assertEquals("Gemini 2.5 Flash", flash25.displayName)
+        assertEquals("Google", flash25.vendor)
+        assertEquals(1048576L, flash25.inputTokenLimit)
+        assertEquals(65536L, flash25.outputTokenLimit)
+        assertTrue(flash25.supportsVision)
+        assertTrue(flash25.supportsTools)
+        assertTrue(flash25.supportsReasoning)
+
+        val gemma4 = models.firstOrNull { it.id == "gemma-4-26b-a4b-it" }
+        kotlin.test.assertNotNull(gemma4)
+        assertEquals("Google", gemma4.vendor)
+        assertEquals(262144L, gemma4.inputTokenLimit)
+        assertEquals(32768L, gemma4.outputTokenLimit)
+        assertTrue(gemma4.supportsReasoning)
+
+        val veo31 = models.firstOrNull { it.id == "veo-3.1-generate-preview" }
+        kotlin.test.assertNotNull(veo31)
+        assertTrue(veo31.isImageGeneration)
+    }
+
+    @Test
+    fun parsesModelGateRealCatalogDatasetAccurately() {
+        val file = File("../../docs/服务商模型数据源/modelgate.json").let { if (it.exists()) it else File("docs/服务商模型数据源/modelgate.json") }
+        if (!file.exists()) return
+        val rawJson = file.readText()
+        val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS)
+        assertTrue(models.isNotEmpty(), "Models should not be empty")
+
+        val opus46 = models.firstOrNull { it.id == "claude-opus-4-6" }
+        kotlin.test.assertNotNull(opus46)
+        assertEquals("Claude Opus 4.6", opus46.displayName)
+        assertEquals("Anthropic", opus46.vendor)
+        assertTrue(opus46.supportsVision)
+        assertTrue(opus46.supportsTools)
+
+        val gpt54 = models.firstOrNull { it.id == "gpt-5.4" }
+        kotlin.test.assertNotNull(gpt54)
+        assertEquals("GPT-5.4", gpt54.displayName)
+        assertEquals("OpenAI", gpt54.vendor)
+
+        val ds4 = models.firstOrNull { it.id == "deepseek-v4-flash" }
+        kotlin.test.assertNotNull(ds4)
+        assertEquals("DeepSeek", ds4.vendor)
+    }
 }
+
+
+
