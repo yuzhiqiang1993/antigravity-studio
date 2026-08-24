@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -13,7 +14,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
 import com.yuzhiqiang.antigravity.ui.dialogs.*
@@ -89,82 +92,77 @@ fun ModelsScreen(
             subtitle = s.modelsSubtitle
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BoxWithConstraints(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Row(
-                    modifier = Modifier
-                        .wrapContentWidth(Alignment.Start)
-                        .widthIn(max = maxWidth)
-                        .horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
-                ) {
-                    val isOfficialActive = selectedTabId == "official"
-                    val officialCount = groupedOfficial.sumOf { group ->
-                        group.variants.count { variant -> variant.model.id !in config.disabledOfficialModels }
-                    }
-
-                    ModernSegmentedTab(
-                        icon = Icons.Outlined.AutoAwesome,
-                        title = s.modelsOfficialDefault,
-                        count = officialCount,
-                        isActive = isOfficialActive,
-                        onClick = {
-                            selectedTabId = "official"
-                            officialTestSummaryText = null
-                        }
-                    )
-
-                    config.providers.forEach { provider ->
-                        val isActive = selectedTabId == provider.id
-                        val modelCount = config.virtualModels.count { virtualModel ->
-                            config.upstreamModels.any { model ->
-                                model.id == virtualModel.upstreamModelId && model.providerId == provider.id
-                            }
-                        }
-                        ModernSegmentedTab(
-                            icon = Icons.Outlined.Dns,
-                            title = provider.name,
-                            count = modelCount,
-                            isActive = isActive,
-                            onClick = {
-                                selectedTabId = provider.id
-                            }
-                        )
+        val officialCount = groupedOfficial.sumOf { group ->
+            group.variants.count { variant -> variant.model.id !in config.disabledOfficialModels }
+        }
+        val tabItems = remember(config, groupedOfficial, s, officialCount) {
+            val list = mutableListOf<ProviderTabItem>()
+            list.add(
+                ProviderTabItem(
+                    id = "official",
+                    title = s.modelsOfficialDefault,
+                    icon = Icons.Outlined.AutoAwesome,
+                    count = officialCount
+                )
+            )
+            config.providers.forEach { provider ->
+                val modelCount = config.virtualModels.count { virtualModel ->
+                    config.upstreamModels.any { model ->
+                        model.id == virtualModel.upstreamModelId && model.providerId == provider.id
                     }
                 }
-            }
-
-            Button(
-                onClick = {
-                    editingProvider = null
-                    editingSingleModel = null
-                    showAddProviderDialog = true
-                },
-                modifier = Modifier.height(AppTokens.Size.controlHeight),
-                shape = MaterialTheme.shapes.medium,
-                contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                list.add(
+                    ProviderTabItem(
+                        id = provider.id,
+                        title = provider.name,
+                        icon = Icons.Outlined.Dns,
+                        count = modelCount
+                    )
                 )
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(AppTokens.Size.iconMedium)
-                )
-                Spacer(Modifier.width(AppTokens.Spacing.control))
-                Text(s.modelsAddProvider, style = MaterialTheme.typography.labelLarge)
             }
+            list
         }
+
+        ProviderTabLayout(
+            items = tabItems,
+            selectedId = selectedTabId,
+            onSelect = { tabId ->
+                selectedTabId = tabId
+                if (tabId == "official") {
+                    officialTestSummaryText = null
+                }
+            },
+            trailingAction = {
+                Button(
+                    onClick = {
+                        editingProvider = null
+                        editingSingleModel = null
+                        showAddProviderDialog = true
+                    },
+                    modifier = Modifier.height(38.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = s.modelsAddProvider,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.5.sp
+                        )
+                    )
+                }
+            }
+        )
 
         if (selectedTabId == "official") {
             OfficialModelsView(

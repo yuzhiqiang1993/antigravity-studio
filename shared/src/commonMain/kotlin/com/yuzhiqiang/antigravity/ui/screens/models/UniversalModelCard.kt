@@ -1,11 +1,10 @@
 package com.yuzhiqiang.antigravity.ui.screens.models
 
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -36,24 +36,21 @@ fun UniversalModelCard(
     state: UniversalModelCardUiState,
     modifier: Modifier = Modifier
 ) {
-    val s = com.yuzhiqiang.antigravity.i18n.strings()
+    val s = strings()
     val cardAlpha by animateFloatAsState(
         targetValue = if (state.isEnabled) 1f else 0.55f,
         animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.standardEasing)
     )
-    val cardElevation by animateDpAsState(
-        targetValue = if (state.isEnabled) 1.dp else 0.dp,
-        animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.standardEasing)
-    )
 
-    Card(
+    OutlinedCard(
         modifier = modifier
             .fillMaxWidth()
             .alpha(cardAlpha),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     ) {
         Column(
             modifier = Modifier
@@ -61,6 +58,7 @@ fun UniversalModelCard(
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Header: Title & Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -74,7 +72,7 @@ fun UniversalModelCard(
                         text = state.title,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 15.5.sp
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -211,6 +209,7 @@ fun UniversalModelCard(
                 }
             }
 
+            // Reasoning Level Variants
             if (state.reasoningVariants.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
@@ -226,19 +225,16 @@ fun UniversalModelCard(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         state.reasoningVariants.forEach { variant ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                contentAlignment = Alignment.Center
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                )
                             ) {
                                 Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
@@ -264,6 +260,8 @@ fun UniversalModelCard(
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+
+            // Footer: Compression Policy
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -278,18 +276,21 @@ fun UniversalModelCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
                 )
 
-                Box(
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (state.isCompressionCustom) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (state.isCompressionCustom) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    ),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (state.isCompressionCustom) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                        )
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable(onClick = state.onEditCompressionPolicy)
-                        .padding(horizontal = 10.dp, vertical = 4.5.dp),
-                    contentAlignment = Alignment.Center
                 ) {
                     Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -297,7 +298,7 @@ fun UniversalModelCard(
                             text = state.compressionLabel,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.5.sp,
-                                fontWeight = if (state.isCompressionCustom) FontWeight.Medium else FontWeight.Normal
+                                fontWeight = if (state.isCompressionCustom) FontWeight.SemiBold else FontWeight.Normal
                             ),
                             color = if (state.isCompressionCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
