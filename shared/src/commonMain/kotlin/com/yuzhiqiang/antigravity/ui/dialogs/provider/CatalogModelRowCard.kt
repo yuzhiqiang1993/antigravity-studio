@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.dialogs.provider
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -105,7 +106,7 @@ fun CatalogModelRowCard(
         else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
     )
 
-    Surface(
+    OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
             .hoverable(interactionSource)
@@ -120,13 +121,14 @@ fun CatalogModelRowCard(
                     )
                 }
             ),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        color = cardBg,
-        border = androidx.compose.foundation.BorderStroke(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = cardBg
+        ),
+        border = BorderStroke(
             1.dp,
             cardBorderColor
-        ),
-        shadowElevation = 0.dp
+        )
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
