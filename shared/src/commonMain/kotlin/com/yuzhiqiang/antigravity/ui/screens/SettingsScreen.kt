@@ -1,24 +1,22 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
-import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.components.StudioSlidingTabLayout
+import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.settings.*
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -41,6 +39,17 @@ fun SettingsScreen(
     var openDirectoryError by remember { mutableStateOf<String?>(null) }
     val scrollState = rememberScrollState()
 
+    val sections = remember { SettingsSection.values() }
+    val tabItems = remember(s) {
+        sections.map { section ->
+            StudioTabItem(
+                key = section,
+                title = section.title(s),
+                icon = section.icon()
+            )
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -53,189 +62,70 @@ fun SettingsScreen(
             subtitle = s.settingsSubtitle
         )
 
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val compact = maxWidth < 780.dp
-            if (compact) {
-                Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)) {
-                    SettingsSectionSelector(
-                        selectedSection = selectedSection,
-                        s = s,
-                        onSelect = { selectedSection = it }
-                    )
-                    SettingsContent(
-                        selectedSection = selectedSection,
-                        config = config,
-                        loadError = loadError,
-                        portInput = portInput,
-                        portError = portError,
-                        openDirectoryError = openDirectoryError,
-                        onUpdateLanguage = viewModel::updateLanguage,
-                        onUpdateThemeMode = viewModel::updateThemeMode,
-                        onUpdateAutoCheckUpdate = viewModel::updateAutoCheckUpdate,
-                        onUpdateDeveloperMode = viewModel::updateDeveloperMode,
-                        onToggleDeveloperMode = viewModel::toggleDeveloperMode,
-                        updateState = updateState,
-                        onCheckUpdate = { viewModel.checkForUpdates(isManual = true) },
-                        onOpenUpdateDialog = { viewModel.openUpdateDialog() },
-                        onPortInputChange = {
-                            portInput = it
-                            portError = null
-                        },
-                        onSavePort = {
-                            val port = portInput.toIntOrNull()
-                            if (port == null || port !in 1024..65535) {
-                                portError = s.settingsPortInvalid
-                            } else {
-                                portError = null
-                                viewModel.updateProxyPort(port)
-                            }
-                        },
-                        onOpenDirectory = {
-                            openDirectoryError = openConfigDirectory(viewModel)
-                        },
-                        onConfigureHostPath = { key, title -> viewModel.openHostPathDialog(key, title) },
-                        s = s
-                    )
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.lg)
-                ) {
-                    SettingsSidebar(
-                        selectedSection = selectedSection,
-                        s = s,
-                        onSelect = { selectedSection = it }
-                    )
-                    SettingsContent(
-                        selectedSection = selectedSection,
-                        config = config,
-                        loadError = loadError,
-                        portInput = portInput,
-                        portError = portError,
-                        openDirectoryError = openDirectoryError,
-                        onUpdateLanguage = { viewModel.updateLanguage(it) },
-                        onUpdateThemeMode = { viewModel.updateThemeMode(it) },
-                        onUpdateAutoCheckUpdate = { viewModel.updateAutoCheckUpdate(it) },
-                        onUpdateDeveloperMode = { viewModel.updateDeveloperMode(it) },
-                        onToggleDeveloperMode = { viewModel.toggleDeveloperMode() },
-                        updateState = updateState,
-                        onCheckUpdate = { viewModel.checkForUpdates(isManual = true) },
-                        onOpenUpdateDialog = { viewModel.openUpdateDialog() },
-                        onPortInputChange = {
-                            portInput = it
-                            portError = null
-                        },
-                        onSavePort = {
-                            val port = portInput.toIntOrNull()
-                            if (port == null || port !in 1024..65535) {
-                                portError = s.settingsPortInvalid
-                            } else {
-                                portError = null
-                                viewModel.updateProxyPort(port)
-                            }
-                        },
-                        onOpenDirectory = {
-                            openDirectoryError = openConfigDirectory(viewModel)
-                        },
-                        onConfigureHostPath = { key, title -> viewModel.openHostPathDialog(key, title) },
-                        s = s,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
+        // 现代滑动药丸 TabLayout
+        StudioSlidingTabLayout(
+            items = tabItems,
+            selectedKey = selectedSection,
+            onSelect = { selectedSection = it },
+            tabHeight = 40.dp
+        )
 
-@Composable
-private fun SettingsSidebar(
-    selectedSection: SettingsSection,
-    s: Strings,
-    onSelect: (SettingsSection) -> Unit
-) {
-    StudioCard(
-        modifier = Modifier.width(AppTokens.Size.sidebarWidth)
-    ) {
-        Column(
-            modifier = Modifier.padding(AppTokens.Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
-        ) {
-            SettingsSection.values().forEach { section ->
-                SettingsNavItem(
-                    section = section,
-                    selected = selectedSection == section,
-                    s = s,
-                    onClick = { onSelect(section) }
-                )
-            }
-        }
-    }
-}
+        // 通栏内容区（带 ViewPager 级方向感知水平滑动动画）
+        AnimatedContent(
+            targetState = selectedSection,
+            transitionSpec = {
+                val direction = if (targetState.ordinal >= initialState.ordinal) {
+                    AnimatedContentTransitionScope.SlideDirection.Left
+                } else {
+                    AnimatedContentTransitionScope.SlideDirection.Right
+                }
 
-@Composable
-private fun SettingsSectionSelector(
-    selectedSection: SettingsSection,
-    s: Strings,
-    onSelect: (SettingsSection) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
-    ) {
-        SettingsSection.values().forEach { section ->
-            FilterChip(
-                selected = selectedSection == section,
-                onClick = { onSelect(section) },
-                label = { Text(section.title(s), style = MaterialTheme.typography.labelMedium) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = section.icon(),
-                        contentDescription = null,
-                        modifier = Modifier.size(AppTokens.Size.iconSmall)
-                    )
+                slideIntoContainer(
+                    towards = direction,
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+                ) + fadeIn(animationSpec = tween(200)) togetherWith
+                slideOutOfContainer(
+                    towards = direction,
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+                ) + fadeOut(animationSpec = tween(160))
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { targetSection ->
+            SettingsContent(
+                selectedSection = targetSection,
+                config = config,
+                loadError = loadError,
+                portInput = portInput,
+                portError = portError,
+                openDirectoryError = openDirectoryError,
+                onUpdateLanguage = { viewModel.updateLanguage(it) },
+                onUpdateThemeMode = { viewModel.updateThemeMode(it) },
+                onUpdateAutoCheckUpdate = { viewModel.updateAutoCheckUpdate(it) },
+                onUpdateDeveloperMode = { viewModel.updateDeveloperMode(it) },
+                onToggleDeveloperMode = { viewModel.toggleDeveloperMode() },
+                updateState = updateState,
+                onCheckUpdate = { viewModel.checkForUpdates(isManual = true) },
+                onOpenUpdateDialog = { viewModel.openUpdateDialog() },
+                onPortInputChange = {
+                    portInput = it
+                    portError = null
                 },
-                modifier = Modifier.weight(1f)
+                onSavePort = {
+                    val port = portInput.toIntOrNull()
+                    if (port == null || port !in 1024..65535) {
+                        portError = s.settingsPortInvalid
+                    } else {
+                        portError = null
+                        viewModel.updateProxyPort(port)
+                    }
+                },
+                onOpenDirectory = {
+                    openDirectoryError = openConfigDirectory(viewModel)
+                },
+                onConfigureHostPath = { key, title -> viewModel.openHostPathDialog(key, title) },
+                s = s
             )
         }
-    }
-}
-
-@Composable
-private fun SettingsNavItem(
-    section: SettingsSection,
-    selected: Boolean,
-    s: Strings,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val container = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val content = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AppTokens.Radius.small))
-            .background(container)
-            .clickable(onClick = onClick)
-            .padding(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.content),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
-    ) {
-        Icon(
-            imageVector = section.icon(),
-            contentDescription = null,
-            tint = content,
-            modifier = Modifier.size(AppTokens.Size.iconMedium)
-        )
-        Text(
-            text = section.title(s),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = content,
-            maxLines = 1
-        )
     }
 }
 

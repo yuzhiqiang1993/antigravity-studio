@@ -1,5 +1,9 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -164,148 +168,171 @@ fun ModelsScreen(
             }
         )
 
-        if (selectedTabId == "official") {
-            OfficialModelsView(
-                groupedModels = filteredOfficial,
-                isFetching = isFetchingOfficial,
-                configDisabledModels = config.disabledOfficialModels,
-                compressionPolicies = config.modelCompressionPolicies,
-                testSummary = officialTestSummaryText,
-                isTestSuccess = isOfficialTestSuccess,
-                isTesting = isTestingOfficial,
-                fetchError = officialModelsError,
-                onTestConnection = {
-                    scope.launch {
-                        isTestingOfficial = true
-                        officialTestSummaryText = null
-                        val startTime = System.currentTimeMillis()
-                        try {
-                            isOfficialTestSuccess = false
-                            viewModel.fetchOfficialModels().join()
-                            val errorMessage = viewModel.officialModelsError.value
-                            val duration = "${System.currentTimeMillis() - startTime}ms"
-                            if (errorMessage == null) {
-                                officialTestSummaryText = s.modelsTestSuccess(duration)
-                                isOfficialTestSuccess = true
-                            } else {
-                                officialTestSummaryText = s.modelsTestFailed
-                            }
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            officialTestSummaryText = s.modelsTestFailed
-                            isOfficialTestSuccess = false
-                        } finally {
-                            isTestingOfficial = false
-                        }
-                    }
-                },
-                onRefresh = { viewModel.fetchOfficialModels() },
-                onViewRawJson = {
-                    debugDialogTitle = s.modelsRawJsonTitle
-                    debugDialogJson =
-                        com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedRawJson()
-                },
-                onViewModifiedJson = {
-                    debugDialogTitle = s.modelsModifiedJsonTitle
-                    debugDialogJson =
-                        com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedModifiedJson(
-                            config = config,
-                            proxyPort = viewModel.actualProxyPort.value
-                        )
-                },
-                onToggleGroup = { group ->
-                    val allIds = group.variants.map { it.model.id }.toSet()
-                    val isCurrentlyDisabled = allIds.any { it in config.disabledOfficialModels }
-                    viewModel.toggleOfficialModelGroup(allIds, isCurrentlyDisabled)
-                },
-                onEditPolicy = { modelId -> policyEditingModelId = modelId },
-                onOpenVisionDetail = { name, vision ->
-                    activeMultimodalModelInfo = name to vision
-                },
-                onOpenReasoningDetail = { name, levels ->
-                    activeReasoningModelInfo = name to levels
-                },
-                onOpenInfoDetail = { meta ->
-                    activeModelMetaInfo = meta
-                },
-                isDebugMode = config.isDebugMode
-            )
-        } else {
-            val currentProvider = config.providers.find { it.id == selectedTabId }
-            if (currentProvider != null) {
-                val providerModels = config.upstreamModels.filter { it.providerId == currentProvider.id }
-                val filteredProviderModels = providerModels
+        AnimatedContent(
+            targetState = selectedTabId,
+            transitionSpec = {
+                val targetIndex = tabItems.indexOfFirst { it.id == targetState }.coerceAtLeast(0)
+                val initialIndex = tabItems.indexOfFirst { it.id == initialState }.coerceAtLeast(0)
+                val direction = if (targetIndex >= initialIndex) {
+                    AnimatedContentTransitionScope.SlideDirection.Left
+                } else {
+                    AnimatedContentTransitionScope.SlideDirection.Right
+                }
 
-                val isProviderTesting = currentProvider.id in providerTestingIds
-
-                CustomProviderView(
-                    provider = currentProvider,
-                    models = filteredProviderModels,
-                    modelTestStatuses = modelTestStatuses,
-                    isProviderTesting = isProviderTesting,
+                slideIntoContainer(
+                    towards = direction,
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+                ) + fadeIn(animationSpec = tween(200)) togetherWith
+                slideOutOfContainer(
+                    towards = direction,
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+                ) + fadeOut(animationSpec = tween(160))
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { currentTabId ->
+            if (currentTabId == "official") {
+                OfficialModelsView(
+                    groupedModels = filteredOfficial,
+                    isFetching = isFetchingOfficial,
+                    configDisabledModels = config.disabledOfficialModels,
                     compressionPolicies = config.modelCompressionPolicies,
-                    onEditProvider = {
-                        editingProvider = currentProvider
-                        editingSingleModel = null
-                        showAddProviderDialog = true
-                    },
-                    onDeleteProvider = {
-                        viewModel.showConfirmDialog(
-                            AppViewModel.ConfirmDialogState(
-                                title = s.modelsDeleteProviderConfirmTitle,
-                                message = s.modelsDeleteProviderConfirmMessage(currentProvider.name, providerModels.size),
-                                confirmLabel = s.commonDelete,
-                                isDestructive = true,
-                                onConfirm = {
-                                    viewModel.deleteProvider(currentProvider.id)
-                                    selectedTabId = "official"
+                    testSummary = officialTestSummaryText,
+                    isTestSuccess = isOfficialTestSuccess,
+                    isTesting = isTestingOfficial,
+                    fetchError = officialModelsError,
+                    onTestConnection = {
+                        scope.launch {
+                            isTestingOfficial = true
+                            officialTestSummaryText = null
+                            val startTime = System.currentTimeMillis()
+                            try {
+                                isOfficialTestSuccess = false
+                                viewModel.fetchOfficialModels().join()
+                                val errorMessage = viewModel.officialModelsError.value
+                                val duration = "${System.currentTimeMillis() - startTime}ms"
+                                if (errorMessage == null) {
+                                    officialTestSummaryText = s.modelsTestSuccess(duration)
+                                    isOfficialTestSuccess = true
+                                } else {
+                                    officialTestSummaryText = s.modelsTestFailed
                                 }
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                officialTestSummaryText = s.modelsTestFailed
+                                isOfficialTestSuccess = false
+                            } finally {
+                                isTestingOfficial = false
+                            }
+                        }
+                    },
+                    onRefresh = { viewModel.fetchOfficialModels() },
+                    onViewRawJson = {
+                        debugDialogTitle = s.modelsRawJsonTitle
+                        debugDialogJson =
+                            com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedRawJson()
+                    },
+                    onViewModifiedJson = {
+                        debugDialogTitle = s.modelsModifiedJsonTitle
+                        debugDialogJson =
+                            com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe.getFormattedModifiedJson(
+                                config = config,
+                                proxyPort = viewModel.actualProxyPort.value
                             )
-                        )
                     },
-                    onTestProvider = {
-                        viewModel.testProviderModels(currentProvider.id)
+                    onToggleGroup = { group ->
+                        val allIds = group.variants.map { it.model.id }.toSet()
+                        val isCurrentlyDisabled = allIds.any { it in config.disabledOfficialModels }
+                        viewModel.toggleOfficialModelGroup(allIds, isCurrentlyDisabled)
                     },
-                    onEditSingleModel = { model ->
-                        editingProvider = currentProvider
-                        editingSingleModel = model
-                        showAddProviderDialog = true
+                    onEditPolicy = { modelId -> policyEditingModelId = modelId },
+                    onOpenVisionDetail = { name, vision ->
+                        activeMultimodalModelInfo = name to vision
                     },
-                   onDeleteSingleModel = { model ->
-                       viewModel.showConfirmDialog(
-                           AppViewModel.ConfirmDialogState(
-                               title = s.modelsDeleteModelConfirmTitle,
-                               message = s.modelsDeleteModelConfirmMessage(model.displayName ?: model.upstreamModelId),
-                               confirmLabel = s.commonDelete,
-                               isDestructive = true,
-                               onConfirm = {
-                                    viewModel.deleteSingleModel(model.id)
-                               }
-                           )
-                       )
-                   },
-                   onTestSingleModel = { model ->
-                        viewModel.testSingleModel(model, currentProvider)
-                   },
-                   onToggleModelEnabled = { model ->
-                        viewModel.toggleCustomModel(model.id)
-                   },
-                   onEditPolicy = { modelId -> policyEditingModelId = modelId },
-                   onOpenVisionDetail = { name, vision ->
-                       activeMultimodalModelInfo = name to vision
-                   },
-                   onOpenReasoningDetail = { name, levels ->
-                       activeReasoningModelInfo = name to levels
-                   },
-                   onOpenInfoDetail = { meta ->
-                       activeModelMetaInfo = meta
-                   },
-                    onCopyNotice = { msg -> viewModel.showNotice(msg) }
-               )
-           }
-       }
-   }
+                    onOpenReasoningDetail = { name, levels ->
+                        activeReasoningModelInfo = name to levels
+                    },
+                    onOpenInfoDetail = { meta ->
+                        activeModelMetaInfo = meta
+                    },
+                    isDebugMode = config.isDebugMode
+                )
+            } else {
+                val currentProvider = config.providers.find { it.id == currentTabId }
+                if (currentProvider != null) {
+                    val providerModels = config.upstreamModels.filter { it.providerId == currentProvider.id }
+                    val filteredProviderModels = providerModels
+
+                    val isProviderTesting = currentProvider.id in providerTestingIds
+
+                    CustomProviderView(
+                        provider = currentProvider,
+                        models = filteredProviderModels,
+                        modelTestStatuses = modelTestStatuses,
+                        isProviderTesting = isProviderTesting,
+                        compressionPolicies = config.modelCompressionPolicies,
+                        onEditProvider = {
+                            editingProvider = currentProvider
+                            editingSingleModel = null
+                            showAddProviderDialog = true
+                        },
+                        onDeleteProvider = {
+                            viewModel.showConfirmDialog(
+                                AppViewModel.ConfirmDialogState(
+                                    title = s.modelsDeleteProviderConfirmTitle,
+                                    message = s.modelsDeleteProviderConfirmMessage(currentProvider.name, providerModels.size),
+                                    confirmLabel = s.commonDelete,
+                                    isDestructive = true,
+                                    onConfirm = {
+                                        viewModel.deleteProvider(currentProvider.id)
+                                        selectedTabId = "official"
+                                    }
+                                )
+                            )
+                        },
+                        onTestProvider = {
+                            viewModel.testProviderModels(currentProvider.id)
+                        },
+                        onEditSingleModel = { model ->
+                            editingProvider = currentProvider
+                            editingSingleModel = model
+                            showAddProviderDialog = true
+                        },
+                        onDeleteSingleModel = { model ->
+                            viewModel.showConfirmDialog(
+                                AppViewModel.ConfirmDialogState(
+                                    title = s.modelsDeleteModelConfirmTitle,
+                                    message = s.modelsDeleteModelConfirmMessage(model.displayName ?: model.upstreamModelId),
+                                    confirmLabel = s.commonDelete,
+                                    isDestructive = true,
+                                    onConfirm = {
+                                        viewModel.deleteSingleModel(model.id)
+                                    }
+                                )
+                            )
+                        },
+                        onTestSingleModel = { model ->
+                            viewModel.testSingleModel(model, currentProvider)
+                        },
+                        onToggleModelEnabled = { model ->
+                            viewModel.toggleCustomModel(model.id)
+                        },
+                        onEditPolicy = { modelId -> policyEditingModelId = modelId },
+                        onOpenVisionDetail = { name, vision ->
+                            activeMultimodalModelInfo = name to vision
+                        },
+                        onOpenReasoningDetail = { name, levels ->
+                            activeReasoningModelInfo = name to levels
+                        },
+                        onOpenInfoDetail = { meta ->
+                            activeModelMetaInfo = meta
+                        },
+                        onCopyNotice = { msg -> viewModel.showNotice(msg) }
+                    )
+                }
+            }
+        }
+    }
 
    if (showAddProviderDialog) {
         val currentModels = editingProvider?.let { provider ->
