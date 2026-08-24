@@ -603,7 +603,7 @@ fun ProviderEditorDialog(
                                                 strokeWidth = 2.dp,
                                                 color = MaterialTheme.colorScheme.onPrimary
                                             )
-                                            Text(s.providerTesting, style = MaterialTheme.typography.labelMedium)
+                                            Text(s.modelsFetchingModels, style = MaterialTheme.typography.labelMedium)
                                         }
                                     } else {
                                         Text(s.modelsFetchModels, style = MaterialTheme.typography.labelMedium)

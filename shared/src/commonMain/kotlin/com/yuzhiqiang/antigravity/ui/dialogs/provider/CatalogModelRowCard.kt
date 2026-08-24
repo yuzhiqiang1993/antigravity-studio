@@ -515,6 +515,33 @@ fun CatalogModelRowCard(
                     }
 
                     val reasoningActive = config.isReasoning
+                    val reasoningText = remember(config.isReasoning, config.reasoningDraft) {
+                        if (!reasoningActive) {
+                            s.modelsReasoningConfig
+                        } else {
+                            val draft = config.reasoningDraft
+                            val levels = draft?.levels.orEmpty()
+                            val orderedLevels = listOf(
+                                com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.LOW,
+                                com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.MEDIUM,
+                                com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.HIGH,
+                                com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.X_HIGH,
+                                com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.MAX,
+                                com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.ADAPTIVE
+                            ).filter { it in levels }
+                            val levelsStr = when {
+                                orderedLevels.isNotEmpty() -> orderedLevels.joinToString("·") { it.label }
+                                !draft?.customValue.isNullOrBlank() -> draft?.customValue
+                                else -> null
+                            }
+                            if (levelsStr != null) {
+                                s.modelsReasoning + " · " + levelsStr
+                            } else {
+                                s.modelsReasoning
+                            }
+                        }
+                    }
+
                     Box(
                         modifier = Modifier
                             .height(24.dp)
@@ -534,7 +561,7 @@ fun CatalogModelRowCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (reasoningActive) s.modelsReasoning else s.modelsReasoningConfig,
+                            text = reasoningText,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (reasoningActive) FontWeight.SemiBold else FontWeight.Normal
