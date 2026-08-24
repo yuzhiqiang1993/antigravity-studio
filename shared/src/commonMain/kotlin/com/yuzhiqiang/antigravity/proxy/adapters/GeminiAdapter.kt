@@ -57,11 +57,7 @@ class GeminiAdapter : ProviderAdapter {
         }
         var responseStarted = false
         try {
-            val response = ProviderAdapter.executeWithResponseHeadersTimeout(
-                provider,
-                stream,
-                minimumRequestTimeoutMs = minimumRequestTimeoutMs
-            ) {
+            ProviderAdapter.executeStreamingWithTimeout(provider, minimumRequestTimeoutMs = minimumRequestTimeoutMs) {
                 ProviderAdapter.sharedHttpClient.preparePost(url) {
                     contentType(ContentType.Application.Json)
                     ProviderAdapter.applyHeaders(this, provider, authHeaders(provider))
@@ -72,79 +68,85 @@ class GeminiAdapter : ProviderAdapter {
                         minimumRequestTimeoutMs = minimumRequestTimeoutMs
                     )
                     setBody(requestBody.toString())
-                }.execute()
-            }
-
-            if (!response.status.isSuccess()) {
-                val bodyResult = ProviderAdapter.readLimitedResponseText(response)
-                val body = bodyResult.getOrElse { "<${it.message ?: "response body unavailable"}>" }
-                val status = bodyResult.exceptionOrNull()
-                    ?.let(ProviderAdapter::upstreamFailureStatus)
-                    ?: response.status.value
-                emit(
-                    NeutralStreamChunk.Error(
-                        "Gemini API error (${response.status.value}): $body",
-                        status
-                    )
-                )
-                return@flow
-            }
-            responseStarted = true
-
-            if (stream) {
-                val channel: ByteReadChannel = response.body()
-                var streamEnded = false
-                var sawCompletion = false
-                while (!channel.isClosedForRead && !streamEnded) {
-                    val event = ProviderAdapter.readSseDataEvent(channel)
-                    if (event.isFailure) {
-                        emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid Gemini SSE frame", 502, responseStarted = true))
-                        return@flow
-                    }
-                    val data = event.getOrNull() ?: break
-                    val parsed = parseResponse(data)
-                    if (parsed.isFailure) {
+                }.execute { response ->
+                    if (!response.status.isSuccess()) {
+                        val bodyResult = ProviderAdapter.readLimitedResponseText(response)
+                        val body = bodyResult.getOrElse { "<${it.message ?: "response body unavailable"}>" }
+                        val status = bodyResult.exceptionOrNull()
+                            ?.let(ProviderAdapter::upstreamFailureStatus)
+                            ?: response.status.value
                         emit(
                             NeutralStreamChunk.Error(
-                                parsed.exceptionOrNull()?.message ?: "Invalid Gemini stream chunk",
-                                502,
-                                responseStarted = true
+                                "Gemini API error (${response.status.value}): $body",
+                                status
                             )
                         )
-                        return@flow
+                        return@execute
                     }
-                    parsed.getOrThrow().forEach { chunk ->
-                        val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
-                            chunk.copy(responseStarted = true)
-                        } else {
-                            chunk
+                    responseStarted = true
+
+                    if (stream) {
+                        val channel: ByteReadChannel = response.body()
+                        var streamEnded = false
+                        var sawCompletion = false
+                        while (!channel.isClosedForRead && !streamEnded) {
+                            val event = ProviderAdapter.readSseDataEvent(channel)
+                            if (event.isFailure) {
+                                emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid Gemini SSE frame", 502, responseStarted = true))
+                                return@execute
+                            }
+                            val data = event.getOrNull() ?: break
+                            val parsed = parseResponse(data)
+                            if (parsed.isFailure) {
+                                emit(
+                                    NeutralStreamChunk.Error(
+                                        parsed.exceptionOrNull()?.message ?: "Invalid Gemini stream chunk",
+                                        502,
+                                        responseStarted = true
+                                    )
+                                )
+                                return@execute
+                            }
+                            parsed.getOrThrow().forEach { chunk ->
+                                val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
+                                    chunk.copy(responseStarted = true)
+                                } else {
+                                    chunk
+                                }
+                                if (effectiveChunk is NeutralStreamChunk.Completed) sawCompletion = true
+                                if (effectiveChunk is NeutralStreamChunk.Error) streamEnded = true
+                                emit(effectiveChunk)
+                                if (streamEnded) return@forEach
+                            }
                         }
-                        if (effectiveChunk is NeutralStreamChunk.Completed) sawCompletion = true
-                        if (effectiveChunk is NeutralStreamChunk.Error) streamEnded = true
-                        emit(effectiveChunk)
-                        if (streamEnded) return@forEach
+                        if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed())
+                    } else {
+                        val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                        if (responseBody.isFailure) {
+                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Gemini response body exceeds 4 MiB buffered limit", 502))
+                            return@execute
+                        }
+                        val parsed = parseResponse(responseBody.getOrThrow())
+                        if (parsed.isFailure) {
+                            emit(NeutralStreamChunk.Error(parsed.exceptionOrNull()?.message ?: "Invalid Gemini response", 502))
+                            return@execute
+                        }
+                        parsed.getOrThrow().forEach { emit(it) }
+                        if (parsed.getOrThrow().none { it is NeutralStreamChunk.Completed }) {
+                            emit(NeutralStreamChunk.Completed())
+                        }
                     }
-                }
-                if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed())
-            } else {
-                val responseBody = ProviderAdapter.readLimitedResponseText(response)
-                if (responseBody.isFailure) {
-                    emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Gemini response body exceeds 4 MiB buffered limit", 502))
-                    return@flow
-                }
-                val parsed = parseResponse(responseBody.getOrThrow())
-                if (parsed.isFailure) {
-                    emit(NeutralStreamChunk.Error(parsed.exceptionOrNull()?.message ?: "Invalid Gemini response", 502))
-                    return@flow
-                }
-                parsed.getOrThrow().forEach { emit(it) }
-                if (parsed.getOrThrow().none { it is NeutralStreamChunk.Completed }) {
-                    emit(NeutralStreamChunk.Completed())
                 }
             }
         } catch (error: Exception) {
             val status = ProviderAdapter.upstreamFailureStatus(error)
-            emit(NeutralStreamChunk.Error("Gemini request failed: ${error.message ?: "unknown error"}", status, responseStarted = responseStarted))
+            emit(
+                NeutralStreamChunk.Error(
+                    "Gemini request failed: ${error.message ?: "unknown error"}",
+                    status,
+                    responseStarted = responseStarted
+                )
+            )
         }
     }
 

@@ -23,6 +23,8 @@ import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.respondText
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.copyTo
+import io.ktor.utils.io.readAvailable
+import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.*
 import java.net.URI
@@ -43,10 +45,24 @@ class OfficialPassthroughHandler(
         modelId: String?,
         startTime: Long
     ) {
+        val logId = ActivityRecorder.startActivity(
+            method = call.request.httpMethod.value,
+            path = path,
+            modelId = modelId,
+            requestedModelId = null,
+            providerName = "Official Cloud Code",
+            isOfficialPassthrough = true,
+            timestamp = startTime
+        )
         val officialUrlResult = officialUrl(path, call.request.queryString())
         if (officialUrlResult.isFailure) {
             val message = officialUrlResult.exceptionOrNull()?.message ?: "Invalid official Cloud Code endpoint"
-            recordFailure(path, modelId, startTime, 502, message, method = call.request.httpMethod.value)
+            ActivityRecorder.finishActivity(
+                id = logId,
+                statusCode = 502,
+                durationMs = System.currentTimeMillis() - startTime,
+                errorMessage = message
+            )
             respondError(call, HttpStatusCode.BadGateway, message, "native_forwarding_failed")
             return
         }
@@ -89,14 +105,39 @@ class OfficialPassthroughHandler(
                     call.response.headers.append("Cache-Control", "no-cache")
                     call.response.headers.append("X-Accel-Buffering", "no")
                     copyForwardResponseHeaders(call, response)
+                    var firstTokenMs: Long? = null
                     try {
                         call.respondBytesWriter(contentType = responseContentType, status = response.status) {
                             val source: ByteReadChannel = response.body()
-                            source.copyTo(this)
+                            val buffer = ByteArray(8192)
+                            while (!source.isClosedForRead) {
+                                val read = source.readAvailable(buffer)
+                                if (read <= 0) {
+                                    if (read < 0) break
+                                    continue
+                                }
+                                if (firstTokenMs == null) {
+                                    val ttft = System.currentTimeMillis() - startTime
+                                    firstTokenMs = ttft
+                                    ActivityRecorder.updateFirstToken(logId, ttft)
+                                }
+                                writeFully(buffer, 0, read)
+                                flush()
+                            }
                         }
-                        recordActivity(path, modelId, startTime, status, null, method = call.request.httpMethod.value)
+                        ActivityRecorder.finishActivity(
+                            id = logId,
+                            statusCode = status,
+                            durationMs = System.currentTimeMillis() - startTime,
+                            firstTokenMs = firstTokenMs
+                        )
                     } catch (error: Exception) {
-                        recordFailure(path, modelId, startTime, 502, error.message)
+                        ActivityRecorder.finishActivity(
+                            id = logId,
+                            statusCode = 502,
+                            durationMs = System.currentTimeMillis() - startTime,
+                            errorMessage = error.message
+                        )
                     }
                     return@execute
                 }
@@ -105,7 +146,11 @@ class OfficialPassthroughHandler(
                 }.getOrElse { error ->
                     throw IllegalStateException(error.message ?: "Official response body exceeds 4 MiB limit", error)
                 }
-                recordActivity(path, modelId, startTime, status, null, method = call.request.httpMethod.value)
+                ActivityRecorder.finishActivity(
+                    id = logId,
+                    statusCode = status,
+                    durationMs = System.currentTimeMillis() - startTime
+                )
                 copyForwardResponseHeaders(call, response)
                 val responseBody = if (isTextualContentType(responseContentType)) {
                     rewriteOfficialUrls(bodyBytes.toString(Charsets.UTF_8), call).toByteArray(Charsets.UTF_8)
@@ -351,7 +396,8 @@ class OfficialPassthroughHandler(
         startTime: Long,
         status: Int,
         message: String?,
-        method: String = "POST"
+        method: String = "POST",
+        firstTokenMs: Long? = null
     ) {
         ActivityRecorder.record(
             method = method,
@@ -362,7 +408,8 @@ class OfficialPassthroughHandler(
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,
             isOfficialPassthrough = true,
-            errorMessage = message
+            errorMessage = message,
+            firstTokenMs = firstTokenMs
         )
     }
 }

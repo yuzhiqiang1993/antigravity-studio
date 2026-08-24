@@ -57,6 +57,9 @@ interface ProviderAdapter {
 
     companion object {
         const val MAX_BUFFERED_RESPONSE_BODY_BYTES: Long = 4L * 1024L * 1024L
+        /** 针对长思考推理模型与大 Prompt Prefill，默认最小请求超时保底为 600 秒（10 分钟）。 */
+        const val DEFAULT_MINIMUM_REQUEST_TIMEOUT_MS: Long = 600_000L
+
         /** Provider 请求与官方 Cloud Code 统一使用 OkHttp 高性能工业级引擎，自动跟随系统代理与 CONNECT 隧道。 */
         val sharedHttpClient = createHttpClient(useSystemProxy = true)
         val officialHttpClient = createHttpClient(useSystemProxy = true)
@@ -78,9 +81,9 @@ interface ProviderAdapter {
             return HttpClient(OkHttp) {
                 engine {
                     config {
-                        connectTimeout(120, TimeUnit.SECONDS)
-                        readTimeout(120, TimeUnit.SECONDS)
-                        writeTimeout(120, TimeUnit.SECONDS)
+                        connectTimeout(60, TimeUnit.SECONDS)
+                        readTimeout(900, TimeUnit.SECONDS)
+                        writeTimeout(900, TimeUnit.SECONDS)
                         if (useSystemProxy) {
                             proxySelector(ProxySelector.getDefault())
                         } else {
@@ -88,10 +91,10 @@ interface ProviderAdapter {
                         }
                     }
                 }
-                // 官方 Cloud Code 透传沿用 byok 的 120 秒整体上限，避免连接超时在 DNS/TLS 建连稍慢时误判为上游不可达。
+                // 整体超时上限放宽至 900 秒（15 分钟），满足复杂推理模型深度思考与长上下文场景。
                 install(HttpTimeout) {
-                    connectTimeoutMillis = 120_000L
-                    requestTimeoutMillis = 120_000L
+                    connectTimeoutMillis = 60_000L
+                    requestTimeoutMillis = 900_000L
                 }
                 install(HttpRequestRetry) {
                     maxRetries = 2
@@ -131,7 +134,7 @@ interface ProviderAdapter {
             builder: HttpRequestBuilder,
             provider: Provider,
             streaming: Boolean,
-            minimumRequestTimeoutMs: Long = 0L
+            minimumRequestTimeoutMs: Long = DEFAULT_MINIMUM_REQUEST_TIMEOUT_MS
         ) {
             val requestTimeoutMs = maxOf(provider.requestTimeoutMs, minimumRequestTimeoutMs)
             val connectTimeoutMs = maxOf(provider.connectTimeoutMs, 30_000L)
@@ -143,7 +146,7 @@ interface ProviderAdapter {
                     requestTimeoutMs.takeIf { it > 0L }
                 }
                 socketTimeoutMillis = if (streaming) {
-                    provider.streamIdleTimeoutMs.takeIf { it > 0L }
+                    maxOf(provider.streamIdleTimeoutMs, minimumRequestTimeoutMs).takeIf { it > 0L }
                 } else {
                     null
                 }
@@ -151,17 +154,16 @@ interface ProviderAdapter {
         }
 
         /**
-         * 流式请求只在等待响应头阶段使用 request_timeout_ms；返回后由 socket 超时约束空闲间隔。
-         * 不在此处包裹响应体读取，避免持续有数据的长流被整体请求超时截断。
+         * 流式请求只在等待响应头与建立连接阶段使用 request_timeout_ms；
+         * 超时后主动熔断并标记为 504 Gateway Timeout，防止客户端无限挂起。
          */
-        suspend fun executeWithResponseHeadersTimeout(
+        suspend fun <T> executeStreamingWithTimeout(
             provider: Provider,
-            streaming: Boolean,
-            minimumRequestTimeoutMs: Long = 0L,
-            execute: suspend () -> HttpResponse
-        ): HttpResponse {
+            minimumRequestTimeoutMs: Long = DEFAULT_MINIMUM_REQUEST_TIMEOUT_MS,
+            block: suspend () -> T
+        ): T {
             val timeoutMs = maxOf(provider.requestTimeoutMs, minimumRequestTimeoutMs).takeIf { it > 0L }
-            return if (!streaming || timeoutMs == null) execute() else withTimeout(timeoutMs) { execute() }
+            return if (timeoutMs == null) block() else withTimeout(timeoutMs) { block() }
         }
 
         /** 将已由路由层清理的 extra_body 合并到协议请求顶层，禁止覆盖受控字段。 */
@@ -181,8 +183,18 @@ interface ProviderAdapter {
 
         fun upstreamFailureStatus(error: Throwable): Int {
             return when (error) {
-                is HttpRequestTimeoutException, is SocketTimeoutException -> 504
-                else -> 502
+                is HttpRequestTimeoutException,
+                is SocketTimeoutException,
+                is kotlinx.coroutines.TimeoutCancellationException -> 504
+                else -> {
+                    if (error.message?.contains("timed out", ignoreCase = true) == true ||
+                        error.message?.contains("timeout", ignoreCase = true) == true
+                    ) {
+                        504
+                    } else {
+                        502
+                    }
+                }
             }
         }
 
@@ -231,12 +243,13 @@ interface ProviderAdapter {
                 if (trimmed.startsWith("event:") || trimmed.startsWith("id:") || trimmed.startsWith("retry:")) {
                     continue
                 }
-                return Result.failure(IllegalArgumentException("SSE frame is missing data field"))
+                // 未知行/非标准字段容错跳过，避免中断长流
+                continue
             }
             return if (dataLines.isEmpty()) {
                 Result.success(null)
             } else {
-                Result.failure(IllegalArgumentException("SSE event is missing a terminating blank line"))
+                Result.success(dataLines.joinToString("\n"))
             }
         }
 
