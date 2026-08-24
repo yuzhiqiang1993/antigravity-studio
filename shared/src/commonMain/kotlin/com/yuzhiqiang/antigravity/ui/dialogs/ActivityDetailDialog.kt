@@ -28,8 +28,14 @@ import com.yuzhiqiang.antigravity.ui.components.BadgeTone
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
+import com.yuzhiqiang.antigravity.ui.utils.formatHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatTokens
+import com.yuzhiqiang.antigravity.ui.utils.getCacheHitRateColor
+import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
+import com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier
+import com.yuzhiqiang.antigravity.ui.utils.toColor
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.awt.Toolkit
@@ -131,14 +137,20 @@ fun ActivityDetailDialog(
                             log.durationMs >= 1000L -> "${formatDuration(log.durationMs)} (${log.durationMs} ms)"
                             else -> "${log.durationMs} ms"
                         }
-                        DetailItemRow(s.activityDetailDuration, durationFormatted, highlightColor = MaterialTheme.colorScheme.primary)
+                        val durationColor = if (!log.isPending && log.durationMs > 0) {
+                            getDurationLatencyTier(log.durationMs).toColor(MaterialTheme.colorScheme.primary)
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        }
+                        DetailItemRow(s.activityDetailDuration, durationFormatted, highlightColor = durationColor)
                         log.firstTokenMs?.let { ttft ->
                             val ttftFormatted = if (ttft >= 1000L) {
                                 "${formatDuration(ttft)} ($ttft ms)"
                             } else {
                                 "$ttft ms"
                             }
-                            DetailItemRow(s.activityDetailFirstToken, ttftFormatted, highlightColor = MaterialTheme.colorScheme.secondary)
+                            val ttftColor = getFirstTokenLatencyTier(ttft).toColor(MaterialTheme.colorScheme.secondary)
+                            DetailItemRow(s.activityDetailFirstToken, ttftFormatted, highlightColor = ttftColor)
                         }
                         DetailItemRow(s.activityDetailTimestamp, formatFullTime(log.timestamp))
                         DetailItemRow(
@@ -176,6 +188,7 @@ fun ActivityDetailDialog(
                             }
 
                             if (log.reasoningTokens != null || log.cacheReadTokens != null || log.cacheWriteTokens != null) {
+                                val hitRate = calculateCacheHitRate(log.cacheReadTokens, log.inputTokens, log.cacheWriteTokens)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -183,6 +196,14 @@ fun ActivityDetailDialog(
                                     TokenMetricBadge(s.activityDetailReasoningTokens, log.reasoningTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
                                     TokenMetricBadge(s.activityDetailCacheReadTokens, log.cacheReadTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
                                     TokenMetricBadge(s.activityDetailCacheWriteTokens, log.cacheWriteTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
+                                    if (hitRate != null) {
+                                        TokenMetricBadge(
+                                            label = s.activityDetailCacheHitRate,
+                                            value = formatHitRate(hitRate),
+                                            customValueColor = getCacheHitRateColor(hitRate),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -277,7 +298,7 @@ fun ActivityDetailDialog(
                             OutlinedButton(
                                 onClick = {
                                     Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(log.errorMessage), null)
-                                    onCopyNotice(s.activityDetailCopiedError)
+                                    onCopyNotice(s.commonCopied)
                                 },
                                 modifier = Modifier.height(32.dp),
                                 shape = RoundedCornerShape(8.dp),
@@ -384,7 +405,8 @@ private fun TokenMetricBadge(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    isTotal: Boolean = false
+    isTotal: Boolean = false,
+    customValueColor: Color? = null
 ) {
     Box(
         modifier = modifier
@@ -405,7 +427,11 @@ private fun TokenMetricBadge(
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 ),
-                color = if (isTotal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                color = when {
+                    customValueColor != null -> customValueColor
+                    isTotal -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
             )
         }
     }
