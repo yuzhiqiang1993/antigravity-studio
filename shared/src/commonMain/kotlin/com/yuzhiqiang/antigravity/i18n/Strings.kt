@@ -437,6 +437,7 @@ interface Strings {
     val activityTotal: String
     val activityFailedTotal: String
     val activityAverage: String
+    val activityCacheHitRate: String
     val activityFirstTokenLabel: String
     val activityPending: String
     val activityProcessing: String
@@ -449,6 +450,7 @@ interface Strings {
     val activityTokenOutput: String
     val activityTokenCache: String
     val activityTokenTotal: String
+    val activityDetailCacheHitRate: String
     val activityAutoScroll: String
     val activityInMemory: String
     val activityHealthy: String
@@ -1115,6 +1117,7 @@ object StringsZh : Strings {
     override val activityTotal = "总请求量"
     override val activityFailedTotal = "异常请求"
     override val activityAverage = "平均耗时"
+    override val activityCacheHitRate = "缓存命中率"
     override val activityFirstTokenLabel = "首字"
     override val activityPending = "请求中"
     override val activityProcessing = "处理中..."
@@ -1127,6 +1130,7 @@ object StringsZh : Strings {
     override val activityTokenOutput = "输出"
     override val activityTokenCache = "缓存"
     override val activityTokenTotal = "总计"
+    override val activityDetailCacheHitRate = "缓存命中率"
     override val activityAutoScroll = "自动滚动"
     override val activityInMemory = "内存日志"
     override val activityHealthy = "运行正常"
@@ -1788,6 +1792,7 @@ object StringsEn : Strings {
     override val activityTotal = "Total requests"
     override val activityFailedTotal = "Failed requests"
     override val activityAverage = "Average latency"
+    override val activityCacheHitRate = "Cache Hit Rate"
     override val activityFirstTokenLabel = "First Token"
     override val activityPending = "Processing"
     override val activityProcessing = "In progress..."
@@ -1800,6 +1805,7 @@ object StringsEn : Strings {
     override val activityTokenOutput = "Output"
     override val activityTokenCache = "Cache"
     override val activityTokenTotal = "Total"
+    override val activityDetailCacheHitRate = "Cache Hit Rate"
     override val activityAutoScroll = "Auto Scroll"
     override val activityInMemory = "In-memory log"
     override val activityHealthy = "Healthy"

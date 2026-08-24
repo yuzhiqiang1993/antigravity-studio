@@ -38,8 +38,15 @@ import com.yuzhiqiang.antigravity.ui.components.*
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.utils.LatencyTier
+import com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
+import com.yuzhiqiang.antigravity.ui.utils.formatHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatTokens
+import com.yuzhiqiang.antigravity.ui.utils.getCacheHitRateColor
+import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
+import com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier
+import com.yuzhiqiang.antigravity.ui.utils.toColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +100,12 @@ fun ActivityScreen(
             ?.map { it.durationMs }
             ?.average()
             ?.toLong() ?: 0L
+    }
+    val totalInputTokens = remember(logs) { logs.mapNotNull { it.inputTokens }.sum() }
+    val totalCacheReadTokens = remember(logs) { logs.mapNotNull { it.cacheReadTokens }.sum() }
+    val totalCacheWriteTokens = remember(logs) { logs.mapNotNull { it.cacheWriteTokens }.sum() }
+    val overallCacheHitRate = remember(totalInputTokens, totalCacheReadTokens, totalCacheWriteTokens) {
+        calculateCacheHitRate(totalCacheReadTokens, totalInputTokens, totalCacheWriteTokens)
     }
 
     Column(
@@ -241,9 +254,17 @@ fun ActivityScreen(
                         onClick = { filterOnlyFailed = true },
                         modifier = Modifier.weight(1f)
                     )
+                    val avgTier = getDurationLatencyTier(averageDuration)
                     ActivityMetricCard(
                         label = s.activityAverage,
                         value = formatDuration(averageDuration),
+                        customValueColor = if (averageDuration > 0) avgTier.toColor() else null,
+                        modifier = Modifier.weight(1f)
+                    )
+                    ActivityMetricCard(
+                        label = s.activityCacheHitRate,
+                        value = formatHitRate(overallCacheHitRate),
+                        customValueColor = getCacheHitRateColor(overallCacheHitRate),
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -294,6 +315,7 @@ private fun ActivityMetricCard(
     value: String,
     isWarning: Boolean = false,
     selected: Boolean = false,
+    customValueColor: Color? = null,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -331,6 +353,7 @@ private fun ActivityMetricCard(
     val valueColor = when {
         selected && isWarning -> MaterialTheme.colorScheme.error
         selected -> MaterialTheme.colorScheme.primary
+        customValueColor != null -> customValueColor
         isWarning -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.onSurface
     }
@@ -491,11 +514,25 @@ private fun ActivityLogRow(
                         )
                         if (log.isPending) {
                             if (log.firstTokenMs != null) {
-                                Text(
-                                    text = "${s.activityFirstTokenLabel} ${formatDuration(log.firstTokenMs)}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                )
+                                val ttftTier = getFirstTokenLatencyTier(log.firstTokenMs)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text(
+                                        text = s.activityFirstTokenLabel,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                    )
+                                    Text(
+                                        text = formatDuration(log.firstTokenMs),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = ttftTier.toColor()
+                                    )
+                                }
                             }
                             Text(
                                 text = s.activityProcessing,
@@ -507,19 +544,34 @@ private fun ActivityLogRow(
                             )
                         } else {
                             if (log.firstTokenMs != null) {
-                                Text(
-                                    text = "${s.activityFirstTokenLabel} ${formatDuration(log.firstTokenMs)}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                )
+                                val ttftTier = getFirstTokenLatencyTier(log.firstTokenMs)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text(
+                                        text = s.activityFirstTokenLabel,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                    )
+                                    Text(
+                                        text = formatDuration(log.firstTokenMs),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = ttftTier.toColor()
+                                    )
+                                }
                             }
+                            val durationTier = getDurationLatencyTier(log.durationMs)
                             Text(
                                 text = formatDuration(log.durationMs),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 12.sp
                                 ),
-                                color = MaterialTheme.colorScheme.primary
+                                color = durationTier.toColor(defaultColor = MaterialTheme.colorScheme.primary)
                             )
                         }
                         StatusBadge(
@@ -590,10 +642,12 @@ private fun ActivityLogRow(
                                     )
                                 }
                                 if (log.cacheReadTokens != null && log.cacheReadTokens > 0) {
+                                    val hitRate = calculateCacheHitRate(log.cacheReadTokens, log.inputTokens, log.cacheWriteTokens)
+                                    val hitRateText = if (hitRate != null) " (${formatHitRate(hitRate)})" else ""
                                     Text(
-                                        text = "${s.activityTokenCache} ${formatTokens(log.cacheReadTokens)}",
+                                        text = "${s.activityTokenCache} ${formatTokens(log.cacheReadTokens)}$hitRateText",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.9f)
+                                        color = getCacheHitRateColor(hitRate, defaultColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.9f))
                                     )
                                     Text(
                                         text = "·",
