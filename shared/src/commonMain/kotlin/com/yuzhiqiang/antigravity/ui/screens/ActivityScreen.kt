@@ -72,30 +72,7 @@ fun ActivityScreen(
             .padding(horizontal = AppTokens.Spacing.pageHorizontal, vertical = AppTokens.Spacing.pageVertical),
         verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
     ) {
-        PageHeader(
-            title = s.activityTitle,
-            subtitle = s.activitySubtitle,
-            action = {
-                OutlinedButton(
-                    onClick = { viewModel.clearActivityLogs() },
-                    modifier = Modifier.height(32.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.DeleteSweep,
-                        contentDescription = null,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        text = s.activityClear,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp)
-                    )
-                }
-            }
-        )
+        PageHeader(title = s.activityTitle)
 
         OutlinedCard(
             modifier = Modifier
@@ -112,7 +89,7 @@ fun ActivityScreen(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                // 顶部工具栏：紧凑搜索框 + M3 SingleChoiceSegmentedButtonRow
+                // 顶部工具栏：紧凑搜索框 + M3 筛选器与清空操作
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -125,48 +102,72 @@ fun ActivityScreen(
                         modifier = Modifier.width(320.dp)
                     )
 
-                    // M3 标准 SingleChoiceSegmentedButtonRow（设置充足最小宽度确保文字完整显示）
-                    SingleChoiceSegmentedButtonRow(
-                        modifier = Modifier.height(34.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SegmentedButton(
-                            selected = !filterOnlyFailed,
-                            onClick = { filterOnlyFailed = false },
-                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                            icon = {},
-                            modifier = Modifier.defaultMinSize(minWidth = 110.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                        // M3 标准 SingleChoiceSegmentedButtonRow
+                        SingleChoiceSegmentedButtonRow(
+                            modifier = Modifier.height(34.dp)
                         ) {
-                            Text(
-                                text = "${s.activityFilterAll} (${logs.size})",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 12.sp,
-                                    fontWeight = if (!filterOnlyFailed) FontWeight.SemiBold else FontWeight.Medium
-                                ),
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                            SegmentedButton(
+                                selected = !filterOnlyFailed,
+                                onClick = { filterOnlyFailed = false },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                                icon = {},
+                                modifier = Modifier.defaultMinSize(minWidth = 110.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    text = "${s.activityFilterAll} (${logs.size})",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontSize = 12.sp,
+                                        fontWeight = if (!filterOnlyFailed) FontWeight.SemiBold else FontWeight.Medium
+                                    ),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                            SegmentedButton(
+                                selected = filterOnlyFailed,
+                                onClick = { filterOnlyFailed = true },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                                icon = {},
+                                modifier = Modifier.defaultMinSize(minWidth = 110.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                colors = SegmentedButtonDefaults.colors(
+                                    activeContainerColor = if (failedCount > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                                    activeContentColor = if (failedCount > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            ) {
+                                Text(
+                                    text = "${s.activityFilterFailed} ($failedCount)",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontSize = 12.sp,
+                                        fontWeight = if (filterOnlyFailed || failedCount > 0) FontWeight.SemiBold else FontWeight.Medium
+                                    ),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
-                        SegmentedButton(
-                            selected = filterOnlyFailed,
-                            onClick = { filterOnlyFailed = true },
-                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                            icon = {},
-                            modifier = Modifier.defaultMinSize(minWidth = 110.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            colors = SegmentedButtonDefaults.colors(
-                                activeContainerColor = if (failedCount > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
-                                activeContentColor = if (failedCount > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
-                            )
+
+                        OutlinedButton(
+                            onClick = { viewModel.clearActivityLogs() },
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                         ) {
+                            Icon(
+                                imageVector = Icons.Outlined.DeleteSweep,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(Modifier.width(5.dp))
                             Text(
-                                text = "${s.activityFilterFailed} ($failedCount)",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 12.sp,
-                                    fontWeight = if (filterOnlyFailed || failedCount > 0) FontWeight.SemiBold else FontWeight.Medium
-                                ),
-                                maxLines = 1,
-                                softWrap = false
+                                text = s.activityClear,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp)
                             )
                         }
                     }
