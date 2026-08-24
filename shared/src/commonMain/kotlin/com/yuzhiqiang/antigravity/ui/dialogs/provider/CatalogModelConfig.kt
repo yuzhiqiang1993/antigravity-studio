@@ -32,5 +32,9 @@ data class CatalogModelConfig(
     val isUnavailable: Boolean = false,
     val testStatusText: String? = null,
     val isTestSuccess: Boolean = true,
-    val isTesting: Boolean = false
+    val isTesting: Boolean = false,
+    val testErrorMessage: String? = null,
+    val testStatusCode: Int? = null,
+    val testLatencyMs: Long? = null
 )
+
