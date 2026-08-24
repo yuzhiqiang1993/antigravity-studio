@@ -109,9 +109,9 @@ fun OverviewScreen(
     }
     val upstreamSummary = remember(config) {
         val providerCount = config.providers.size
-        val virtualModelCount = config.virtualModels.size
+        val upstreamModelCount = config.upstreamModels.size
         if (providerCount > 0) {
-            "$providerCount 个服务商 · $virtualModelCount 个模型"
+            "$providerCount 个服务商 · $upstreamModelCount 个模型"
         } else {
             "官方默认直连通道"
         }
