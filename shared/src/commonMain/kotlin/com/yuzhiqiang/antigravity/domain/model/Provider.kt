@@ -28,11 +28,11 @@ data class Provider(
     @SerialName("default_parameters")
     val defaultParameters: ParameterOverrides? = null,
     @SerialName("connect_timeout_ms")
-    val connectTimeoutMs: Long = 5_000L,
+    val connectTimeoutMs: Long = 10_000L,
     @SerialName("request_timeout_ms")
-    val requestTimeoutMs: Long = 60_000L,
+    val requestTimeoutMs: Long = 600_000L,
     @SerialName("stream_idle_timeout_ms")
-    val streamIdleTimeoutMs: Long = 30_000L,
+    val streamIdleTimeoutMs: Long = 600_000L,
     @SerialName("enabled")
     val enabled: Boolean = true
 ) {

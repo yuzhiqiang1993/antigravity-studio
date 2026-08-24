@@ -26,6 +26,8 @@ data class ActivityLog(
     val durationMs: Long = 0L,
     @SerialName("is_official_passthrough")
     val isOfficialPassthrough: Boolean = false,
+    @SerialName("is_pending")
+    val isPending: Boolean = false,
     @SerialName("error_message")
     val errorMessage: String? = null,
     @SerialName("fallback_attempted")
@@ -43,5 +45,7 @@ data class ActivityLog(
     @SerialName("reasoning_tokens")
     val reasoningTokens: Long? = null,
     @SerialName("total_tokens")
-    val totalTokens: Long? = null
+    val totalTokens: Long? = null,
+    @SerialName("first_token_ms")
+    val firstTokenMs: Long? = null
 )
