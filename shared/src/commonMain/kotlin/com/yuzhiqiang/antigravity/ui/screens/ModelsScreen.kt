@@ -63,9 +63,6 @@ fun ModelsScreen(
 
     val groupedOfficial = remember(officialModels) { groupOfficialModels(officialModels) }
     val filteredOfficial = groupedOfficial
-    val availableOfficialCount = groupedOfficial.sumOf { group ->
-        group.variants.count { variant -> variant.model.id !in config.disabledOfficialModels }
-    }
 
     LaunchedEffect(openProviderEditorRequest) {
         if (openProviderEditorRequest) {
@@ -93,10 +90,8 @@ fun ModelsScreen(
     ) {
         PageHeader(title = s.modelsTitle)
 
-        val officialCount = groupedOfficial.sumOf { group ->
-            group.variants.count { variant -> variant.model.id !in config.disabledOfficialModels }
-        }
-        val tabItems = remember(config, groupedOfficial, s, officialCount) {
+        val officialCount = groupedOfficial.size
+        val tabItems = remember(config.providers, config.upstreamModels, groupedOfficial, s, officialCount) {
             val list = mutableListOf<ProviderTabItem>()
             list.add(
                 ProviderTabItem(
@@ -107,11 +102,7 @@ fun ModelsScreen(
                 )
             )
             config.providers.forEach { provider ->
-                val modelCount = config.virtualModels.count { virtualModel ->
-                    config.upstreamModels.any { model ->
-                        model.id == virtualModel.upstreamModelId && model.providerId == provider.id
-                    }
-                }
+                val modelCount = config.upstreamModels.count { it.providerId == provider.id }
                 list.add(
                     ProviderTabItem(
                         id = provider.id,
