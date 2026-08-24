@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,7 +37,9 @@ fun ProviderEditorDialog(
     initialModels: List<UpstreamModel> = emptyList(),
     editingSingleModel: UpstreamModel? = null,
     onDismiss: () -> Unit,
-    onSave: (Provider, List<UpstreamModel>) -> Unit
+    onSave: (Provider, List<UpstreamModel>) -> Unit,
+    isDebugMode: Boolean = false,
+    onViewModelCatalog: (String) -> Unit = {}
 ) {
     val s = strings()
     val scope = rememberCoroutineScope()
@@ -63,6 +66,7 @@ fun ProviderEditorDialog(
     var generateEndpoint by remember { mutableStateOf(initialProvider?.generateEndpoint.orEmpty()) }
 
     var isFetching by remember { mutableStateOf(false) }
+    var isDebugFetching by remember { mutableStateOf(false) }
     var fetchError by remember { mutableStateOf<String?>(null) }
     var isDirty by remember { mutableStateOf(false) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
@@ -160,6 +164,27 @@ fun ProviderEditorDialog(
             generateEndpoint = generateEndpoint.trim().ifBlank { sugGen },
             enabled = initialProvider?.enabled ?: true
         )
+    }
+
+    fun requestModelCatalogDebug() {
+        scope.launch {
+            isDebugFetching = true
+            try {
+                val result = AdapterFactory.getAdapter(protocol).fetchModelCatalog(currentProvider())
+                val rawBody = result.rawBody?.takeIf { it.isNotBlank() }
+                onViewModelCatalog(
+                    rawBody ?: s.providerModelsResponseUnavailable(result.errorMessage ?: s.commonUnknown)
+                )
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                onViewModelCatalog(
+                    s.providerModelsResponseUnavailable(error.message ?: s.commonUnknown)
+                )
+            } finally {
+                isDebugFetching = false
+            }
+        }
     }
 
     fun requestDismiss() {
@@ -379,7 +404,7 @@ fun ProviderEditorDialog(
                                         markDirty()
                                     },
                                     fetchError = fetchError,
-                                    isFetching = isFetching
+                                    isFetching = isFetching || isDebugFetching
                                 )
                             }
 
@@ -421,7 +446,7 @@ fun ProviderEditorDialog(
                         ) {
                             if (!isSingleModelMode && currentStep == ProviderEditStep.CONFIG_CONNECTION && initialProvider == null) {
                                 TextButton(
-                                    enabled = !isFetching,
+                                    enabled = !isFetching && !isDebugFetching,
                                     onClick = { currentStep = ProviderEditStep.SELECT_PRESET },
                                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                                 ) {
@@ -429,7 +454,7 @@ fun ProviderEditorDialog(
                                 }
                             } else if (!isSingleModelMode && currentStep == ProviderEditStep.SELECT_MODELS) {
                                 TextButton(
-                                    enabled = !isFetching,
+                                    enabled = !isFetching && !isDebugFetching,
                                     onClick = { currentStep = ProviderEditStep.CONFIG_CONNECTION },
                                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                                 ) {
@@ -450,8 +475,48 @@ fun ProviderEditorDialog(
                                 )
                             }
 
+                            if (isDebugMode && currentStep != ProviderEditStep.SELECT_PRESET) {
+                                OutlinedButton(
+                                    enabled = name.isNotBlank() && baseUrl.isNotBlank() && !isFetching && !isDebugFetching,
+                                    onClick = { requestModelCatalogDebug() },
+                                    modifier = Modifier.height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                                    ),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        if (isDebugFetching) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Code,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = if (isDebugFetching) s.modelsFetchingModels else s.providerViewModelsResponse,
+                                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp)
+                                        )
+                                    }
+                                }
+                            }
+
                             OutlinedButton(
-                                enabled = !isFetching,
+                                enabled = !isFetching && !isDebugFetching,
                                 onClick = { requestDismiss() },
                                 modifier = Modifier.height(38.dp),
                                 shape = RoundedCornerShape(8.dp),
@@ -465,7 +530,7 @@ fun ProviderEditorDialog(
 
                             if (currentStep == ProviderEditStep.CONFIG_CONNECTION) {
                                 Button(
-                                    enabled = name.isNotBlank() && baseUrl.isNotBlank() && !isFetching,
+                                    enabled = name.isNotBlank() && baseUrl.isNotBlank() && !isFetching && !isDebugFetching,
                                     modifier = Modifier.height(38.dp),
                                     shape = RoundedCornerShape(8.dp),
                                     onClick = {
@@ -475,7 +540,8 @@ fun ProviderEditorDialog(
                                             try {
                                                 val tempProvider = currentProvider()
                                                 val adapter = AdapterFactory.getAdapter(protocol)
-                                                val discoveredList = adapter.fetchDiscoveredModels(tempProvider)
+                                                val catalogResult = adapter.fetchModelCatalog(tempProvider)
+                                                val discoveredList = catalogResult.models
                                                 val discoveredMap = discoveredList.associateBy { it.id }
                                                 val models = discoveredList.map { it.id }
                                                 if (models.isNotEmpty() || initialModels.isNotEmpty()) {
@@ -553,6 +619,7 @@ fun ProviderEditorDialog(
                                                         CatalogModelConfig(
                                                             id = mName,
                                                             name = existing?.displayName ?: disc?.displayName ?: mName,
+                                                            vendor = disc?.vendor,
                                                             inputTokenLimit = inputLimit,
                                                             inputTokenLimitSource = inputSource,
                                                             outputTokenLimit = outputLimit,
@@ -575,7 +642,9 @@ fun ProviderEditorDialog(
                                                     selectedModelIds = initialModels.map { it.upstreamModelId }.toSet()
                                                     currentStep = ProviderEditStep.SELECT_MODELS
                                                 } else {
-                                                    fetchError = s.providerFetchFailedCheckUrlKey
+                                                    fetchError = catalogResult.errorMessage?.let {
+                                                        s.providerModelsResponseUnavailable(it)
+                                                    } ?: s.providerFetchFailedCheckUrlKey
                                                 }
                                             } catch (error: kotlinx.coroutines.CancellationException) {
                                                 throw error

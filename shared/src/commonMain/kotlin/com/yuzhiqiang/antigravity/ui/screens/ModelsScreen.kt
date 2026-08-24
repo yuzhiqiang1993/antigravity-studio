@@ -318,6 +318,11 @@ fun ModelsScreen(
             initialProvider = editingProvider,
             initialModels = currentModels,
             editingSingleModel = editingSingleModel,
+            isDebugMode = config.isDebugMode,
+            onViewModelCatalog = { rawBody ->
+                debugDialogTitle = s.providerViewModelsResponse
+                debugDialogJson = rawBody
+            },
             onDismiss = {
                 showAddProviderDialog = false
                 editingProvider = null
