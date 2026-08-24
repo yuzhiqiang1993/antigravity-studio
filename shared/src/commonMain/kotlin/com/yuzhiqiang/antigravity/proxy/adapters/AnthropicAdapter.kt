@@ -65,7 +65,7 @@ class AnthropicAdapter : ProviderAdapter {
         val requestBody = requestBodyResult.getOrThrow()
         var responseStarted = false
         try {
-            val response = ProviderAdapter.executeWithResponseHeadersTimeout(provider, request.stream) {
+            ProviderAdapter.executeStreamingWithTimeout(provider) {
                 ProviderAdapter.sharedHttpClient.preparePost(url) {
                     contentType(ContentType.Application.Json)
                     ProviderAdapter.applyHeaders(
@@ -78,96 +78,90 @@ class AnthropicAdapter : ProviderAdapter {
                     )
                     ProviderAdapter.applyTimeouts(this, provider, request.stream)
                     setBody(requestBody.toString())
-                }.execute()
-            }
-
-            if (!response.status.isSuccess()) {
-                val bodyResult = ProviderAdapter.readLimitedResponseText(response)
-                val body = bodyResult.getOrElse { "<${it.message ?: "response body unavailable"}>" }
-                val status = bodyResult.exceptionOrNull()
-                    ?.let(ProviderAdapter::upstreamFailureStatus)
-                    ?: response.status.value
-                emit(
-                    NeutralStreamChunk.Error(
-                        "Anthropic API error (${response.status.value}): $body",
-                        status
-                    )
-                )
-                return@flow
-            }
-            responseStarted = true
-
-            if (!request.stream) {
-                val responseBody = ProviderAdapter.readLimitedResponseText(response)
-                if (responseBody.isFailure) {
-                    emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Anthropic response body exceeds 4 MiB buffered limit", 502))
-                    return@flow
-                }
-                val parsed = parseNonStreamingResponse(responseBody.getOrThrow())
-                if (parsed.isFailure) {
-                    emit(
-                        NeutralStreamChunk.Error(
-                            parsed.exceptionOrNull()?.message ?: "Invalid Anthropic response",
-                            502
+                }.execute { response ->
+                    if (!response.status.isSuccess()) {
+                        val bodyResult = ProviderAdapter.readLimitedResponseText(response)
+                        val body = bodyResult.getOrElse { "<${it.message ?: "response body unavailable"}>" }
+                        val status = bodyResult.exceptionOrNull()
+                            ?.let(ProviderAdapter::upstreamFailureStatus)
+                            ?: response.status.value
+                        emit(
+                            NeutralStreamChunk.Error(
+                                "Anthropic API error (${response.status.value}): $body",
+                                status
+                            )
                         )
-                    )
-                    return@flow
-                }
-                parsed.getOrThrow().forEach { emit(it) }
-                if (parsed.getOrThrow().none { it is NeutralStreamChunk.Completed }) {
-                    emit(NeutralStreamChunk.Completed())
-                }
-                return@flow
-            }
-
-            val channel: ByteReadChannel = response.body()
-            var streamEnded = false
-            var sawCompletion = false
-            var latestUsage: NeutralUsage? = null
-            while (!channel.isClosedForRead && !streamEnded) {
-                val event = ProviderAdapter.readSseDataEvent(channel)
-                if (event.isFailure) {
-                    emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid Anthropic SSE frame", 502, responseStarted = true))
-                    return@flow
-                }
-                val data = event.getOrNull() ?: break
-                val parsed = parseEvent(data)
-                if (parsed.isFailure) {
-                    emit(
-                        NeutralStreamChunk.Error(
-                            parsed.exceptionOrNull()?.message ?: "Invalid Anthropic stream event",
-                            502,
-                            responseStarted = true
-                        )
-                    )
-                    return@flow
-                }
-                val streamRoot = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull()
-                streamRoot?.let { root ->
-                    latestUsage = mergeUsage(latestUsage, parseStreamUsage(root))
-                }
-                parsed.getOrThrow().forEach { chunk ->
-                    val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
-                        chunk.copy(responseStarted = true)
-                    } else {
-                        chunk
+                        return@execute
                     }
-                    if (effectiveChunk is NeutralStreamChunk.Completed) {
-                        val merged = mergeUsage(latestUsage, effectiveChunk.usage)
-                        latestUsage = merged
-                        if (!sawCompletion) {
-                            sawCompletion = true
-                            emit(effectiveChunk.copy(usage = merged))
+                    responseStarted = true
+
+                    if (!request.stream) {
+                        val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                        if (responseBody.isFailure) {
+                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Anthropic response body exceeds 4 MiB buffered limit", 502))
+                            return@execute
                         }
-                    } else if (effectiveChunk is NeutralStreamChunk.Error) {
-                        streamEnded = true
-                        emit(effectiveChunk)
-                    } else {
-                        emit(effectiveChunk)
+                        val parsed = parseNonStreamingResponse(responseBody.getOrThrow())
+                        if (parsed.isFailure) {
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    parsed.exceptionOrNull()?.message ?: "Invalid Anthropic response",
+                                    502
+                                )
+                            )
+                            return@execute
+                        }
+                        parsed.getOrThrow().forEach { emit(it) }
+                        if (parsed.getOrThrow().none { it is NeutralStreamChunk.Completed }) {
+                            emit(NeutralStreamChunk.Completed())
+                        }
+                        return@execute
+                    }
+
+                    val channel: ByteReadChannel = response.body()
+                    var streamEnded = false
+                    var sawCompletion = false
+                    var latestUsage: NeutralUsage? = null
+                    while (!channel.isClosedForRead && !streamEnded) {
+                        val event = ProviderAdapter.readSseDataEvent(channel)
+                        if (event.isFailure) {
+                            emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid Anthropic SSE frame", 502, responseStarted = true))
+                            return@execute
+                        }
+                        val data = event.getOrNull() ?: break
+                        val parsed = parseEvent(data)
+                        if (parsed.isFailure) {
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    parsed.exceptionOrNull()?.message ?: "Invalid Anthropic stream event",
+                                    502,
+                                    responseStarted = true
+                                )
+                            )
+                            return@execute
+                        }
+                        for (chunk in parsed.getOrThrow()) {
+                            val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
+                                chunk.copy(responseStarted = true)
+                            } else {
+                                chunk
+                            }
+                            if (effectiveChunk is NeutralStreamChunk.Completed) {
+                                sawCompletion = true
+                                if (effectiveChunk.usage != null) {
+                                    latestUsage = effectiveChunk.usage
+                                }
+                            }
+                            if (effectiveChunk is NeutralStreamChunk.Error) streamEnded = true
+                            emit(effectiveChunk)
+                            if (streamEnded) break
+                        }
+                    }
+                    if (!sawCompletion && !streamEnded) {
+                        emit(NeutralStreamChunk.Completed(usage = latestUsage))
                     }
                 }
             }
-            if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed(usage = latestUsage))
         } catch (error: Exception) {
             val status = ProviderAdapter.upstreamFailureStatus(error)
             emit(NeutralStreamChunk.Error("Anthropic request failed: ${error.message ?: "unknown error"}", status, responseStarted = responseStarted))

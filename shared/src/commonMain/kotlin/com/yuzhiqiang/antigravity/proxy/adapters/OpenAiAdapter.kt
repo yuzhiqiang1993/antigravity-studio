@@ -79,98 +79,98 @@ class OpenAiAdapter : ProviderAdapter {
         val requestBody = requestBodyResult.getOrThrow()
         var responseStarted = false
         try {
-            val response = ProviderAdapter.executeWithResponseHeadersTimeout(provider, request.stream) {
+            ProviderAdapter.executeStreamingWithTimeout(provider) {
                 ProviderAdapter.sharedHttpClient.preparePost(url) {
                     contentType(ContentType.Application.Json)
                     ProviderAdapter.applyHeaders(this, provider, authHeaders(provider))
                     ProviderAdapter.applyTimeouts(this, provider, request.stream)
                     setBody(requestBody.toString())
-                }.execute()
-            }
+                }.execute { response ->
+                    if (!response.status.isSuccess()) {
+                        emitApiError(response, "OpenAI")
+                        return@execute
+                    }
+                    responseStarted = true
 
-            if (!response.status.isSuccess()) {
-                emitApiError(response, "OpenAI")
-                return@flow
-            }
-            responseStarted = true
+                if (!request.stream) {
+                    val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                    if (responseBody.isFailure) {
+                        emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "OpenAI response body exceeds 4 MiB buffered limit", 502))
+                        return@execute
+                    }
+                    val parsed = parseNonStreamingResponse(responseBody.getOrThrow())
+                    if (parsed.isFailure) {
+                        emit(NeutralStreamChunk.Error(parsed.exceptionOrNull()?.message ?: "Invalid OpenAI response", 502))
+                        return@execute
+                    }
+                    parsed.getOrThrow().forEach { emit(it) }
+                    if (parsed.getOrThrow().none { it is NeutralStreamChunk.Completed }) {
+                        emit(NeutralStreamChunk.Completed())
+                    }
+                    return@execute
+                }
 
-            if (!request.stream) {
-                val responseBody = ProviderAdapter.readLimitedResponseText(response)
-                if (responseBody.isFailure) {
-                    emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "OpenAI response body exceeds 4 MiB buffered limit", 502))
-                    return@flow
-                }
-                val parsed = parseNonStreamingResponse(responseBody.getOrThrow())
-                if (parsed.isFailure) {
-                    emit(NeutralStreamChunk.Error(parsed.exceptionOrNull()?.message ?: "Invalid OpenAI response", 502))
-                    return@flow
-                }
-                parsed.getOrThrow().forEach { emit(it) }
-                if (parsed.getOrThrow().none { it is NeutralStreamChunk.Completed }) {
-                    emit(NeutralStreamChunk.Completed())
-                }
-                return@flow
-            }
-
-            val channel: ByteReadChannel = response.body()
-            var streamEnded = false
-            var sawCompletion = false
-            val openToolCalls = mutableSetOf<Pair<Int, Int>>()
-            val closedToolCalls = mutableSetOf<Pair<Int, Int>>()
-            while (!channel.isClosedForRead && !streamEnded) {
-                val event = ProviderAdapter.readSseDataEvent(channel)
-                if (event.isFailure) {
-                    emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid OpenAI SSE frame", 502, responseStarted = true))
-                    return@flow
-                }
-                val data = event.getOrNull() ?: break
-                if (data.trim() == "[DONE]") {
-                    if (!sawCompletion) emit(NeutralStreamChunk.Completed())
-                    streamEnded = true
-                    break
-                }
-                val parsed = parseChunk(data)
-                if (parsed.isFailure) {
-                    emit(
-                        NeutralStreamChunk.Error(
-                            parsed.exceptionOrNull()?.message ?: "Invalid OpenAI stream chunk",
-                            502,
-                            responseStarted = true
-                        )
-                    )
-                    return@flow
-                }
-                for (chunk in parsed.getOrThrow()) {
-                    if (chunk is NeutralStreamChunk.ToolCallDelta) {
-                        val key = chunk.choiceIndex to chunk.index
-                        if (key in closedToolCalls) {
-                            emit(NeutralStreamChunk.Error(
-                                "OpenAI tool call choice ${chunk.choiceIndex} index ${chunk.index} received data after it ended",
+                val channel: ByteReadChannel = response.body()
+                var streamEnded = false
+                var sawCompletion = false
+                val openToolCalls = mutableSetOf<Pair<Int, Int>>()
+                val closedToolCalls = mutableSetOf<Pair<Int, Int>>()
+                while (!channel.isClosedForRead && !streamEnded) {
+                    val event = ProviderAdapter.readSseDataEvent(channel)
+                    if (event.isFailure) {
+                        emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid OpenAI SSE frame", 502, responseStarted = true))
+                        return@execute
+                    }
+                    val data = event.getOrNull() ?: break
+                    if (data.trim() == "[DONE]") {
+                        if (!sawCompletion) emit(NeutralStreamChunk.Completed())
+                        streamEnded = true
+                        break
+                    }
+                    val parsed = parseChunk(data)
+                    if (parsed.isFailure) {
+                        emit(
+                            NeutralStreamChunk.Error(
+                                parsed.exceptionOrNull()?.message ?: "Invalid OpenAI stream chunk",
                                 502,
                                 responseStarted = true
-                            ))
-                            streamEnded = true
-                            break
+                            )
+                        )
+                        return@execute
+                    }
+                    for (chunk in parsed.getOrThrow()) {
+                        if (chunk is NeutralStreamChunk.ToolCallDelta) {
+                            val key = chunk.choiceIndex to chunk.index
+                            if (key in closedToolCalls) {
+                                emit(NeutralStreamChunk.Error(
+                                    "OpenAI tool call choice ${chunk.choiceIndex} index ${chunk.index} received data after it ended",
+                                    502,
+                                    responseStarted = true
+                                ))
+                                streamEnded = true
+                                break
+                            }
+                            openToolCalls += key
                         }
-                        openToolCalls += key
+                        val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
+                            chunk.copy(responseStarted = true)
+                        } else {
+                            chunk
+                        }
+                        if (effectiveChunk is NeutralStreamChunk.Completed) {
+                            sawCompletion = true
+                            val choiceTools = openToolCalls.filter { key -> key.first == effectiveChunk.choiceIndex }
+                            closedToolCalls += choiceTools
+                            openToolCalls.removeAll(choiceTools)
+                        }
+                        if (effectiveChunk is NeutralStreamChunk.Error) streamEnded = true
+                        emit(effectiveChunk)
+                        if (streamEnded) break
                     }
-                    val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
-                        chunk.copy(responseStarted = true)
-                    } else {
-                        chunk
-                    }
-                    if (effectiveChunk is NeutralStreamChunk.Completed) {
-                        sawCompletion = true
-                        val choiceTools = openToolCalls.filter { key -> key.first == effectiveChunk.choiceIndex }
-                        closedToolCalls += choiceTools
-                        openToolCalls.removeAll(choiceTools)
-                    }
-                    if (effectiveChunk is NeutralStreamChunk.Error) streamEnded = true
-                    emit(effectiveChunk)
-                    if (streamEnded) break
+                }
+                if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed())
                 }
             }
-            if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed())
         } catch (error: Exception) {
             val status = ProviderAdapter.upstreamFailureStatus(error)
             emit(NeutralStreamChunk.Error("OpenAI request failed: ${error.message ?: "unknown error"}", status, responseStarted = responseStarted))
@@ -262,9 +262,8 @@ class OpenAiAdapter : ProviderAdapter {
         }.let { base -> ProviderAdapter.mergeSafeExtraBody(base, request) }
 
         try {
-            val response = ProviderAdapter.executeWithResponseHeadersTimeout(
+            val response = ProviderAdapter.executeStreamingWithTimeout(
                 provider,
-                streaming = false,
                 minimumRequestTimeoutMs = 120_000L
             ) {
                 ProviderAdapter.sharedHttpClient.preparePost(url) {
@@ -343,83 +342,84 @@ class OpenAiAdapter : ProviderAdapter {
         }
         var responseStarted = false
         try {
-            val response = ProviderAdapter.executeWithResponseHeadersTimeout(provider, request.stream) {
+            ProviderAdapter.executeStreamingWithTimeout(provider) {
                 ProviderAdapter.sharedHttpClient.preparePost(url) {
                     contentType(ContentType.Application.Json)
                     ProviderAdapter.applyHeaders(this, provider, authHeaders(provider))
                     ProviderAdapter.applyTimeouts(this, provider, request.stream)
                     setBody(requestBodyResult.getOrThrow().toString())
-                }.execute()
-            }
-            if (!response.status.isSuccess()) {
-                emitApiError(response, "OpenAI Responses")
-                return@flow
-            }
-            responseStarted = true
-            if (!request.stream) {
-                val responseBody = ProviderAdapter.readLimitedResponseText(response)
-                if (responseBody.isFailure) {
-                    emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "OpenAI Responses body exceeds 4 MiB buffered limit", 502))
-                    return@flow
-                }
-                val parsed = OpenAiResponsesCodec.parseNonStreamingResponse(responseBody.getOrThrow())
-                if (parsed.isFailure) {
-                    emit(
-                        NeutralStreamChunk.Error(
-                            parsed.exceptionOrNull()?.message ?: "Invalid OpenAI Responses response",
-                            502
-                        )
-                    )
-                    return@flow
-                }
-                val chunks = parsed.getOrThrow()
-                chunks.forEach { chunk -> emit(chunk) }
-                if (chunks.none { chunk -> chunk is NeutralStreamChunk.Completed || chunk is NeutralStreamChunk.Error }) {
-                    emit(NeutralStreamChunk.Completed())
-                }
-                return@flow
-            }
+                }.execute { response ->
+                    if (!response.status.isSuccess()) {
+                        emitApiError(response, "OpenAI Responses")
+                        return@execute
+                    }
+                    responseStarted = true
+                    if (!request.stream) {
+                        val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                        if (responseBody.isFailure) {
+                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "OpenAI Responses body exceeds 4 MiB buffered limit", 502))
+                            return@execute
+                        }
+                        val parsed = OpenAiResponsesCodec.parseNonStreamingResponse(responseBody.getOrThrow())
+                        if (parsed.isFailure) {
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    parsed.exceptionOrNull()?.message ?: "Invalid OpenAI Responses response",
+                                    502
+                                )
+                            )
+                            return@execute
+                        }
+                        val chunks = parsed.getOrThrow()
+                        chunks.forEach { chunk -> emit(chunk) }
+                        if (chunks.none { chunk -> chunk is NeutralStreamChunk.Completed || chunk is NeutralStreamChunk.Error }) {
+                            emit(NeutralStreamChunk.Completed())
+                        }
+                        return@execute
+                    }
 
-            val state = OpenAiResponsesCodec.StreamState()
-            val channel: ByteReadChannel = response.body()
-            var completed = false
-            while (!channel.isClosedForRead && !completed) {
-                val event = ProviderAdapter.readSseDataEvent(channel)
-                if (event.isFailure) {
-                    emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid OpenAI Responses SSE frame", 502, responseStarted = true))
-                    return@flow
-                }
-                val data = event.getOrNull() ?: break
-                if (data.trim() == "[DONE]") {
-                    emit(NeutralStreamChunk.Completed())
-                    completed = true
-                    continue
-                }
-                val parsed = OpenAiResponsesCodec.parseStreamEvent(data, state)
-                if (parsed.isFailure) {
-                    emit(
-                        NeutralStreamChunk.Error(
-                            parsed.exceptionOrNull()?.message ?: "Invalid OpenAI Responses stream event",
-                            502,
-                            responseStarted = true
-                        )
-                    )
-                    return@flow
-                }
-                parsed.getOrThrow().forEach { chunk ->
-                    val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
-                        chunk.copy(responseStarted = true)
-                    } else {
-                        chunk
+                    val state = OpenAiResponsesCodec.StreamState()
+                    val channel: ByteReadChannel = response.body()
+                    var completed = false
+                    while (!channel.isClosedForRead && !completed) {
+                        val event = ProviderAdapter.readSseDataEvent(channel)
+                        if (event.isFailure) {
+                            emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid OpenAI Responses SSE frame", 502, responseStarted = true))
+                            return@execute
+                        }
+                        val data = event.getOrNull() ?: break
+                        if (data.trim() == "[DONE]") {
+                            emit(NeutralStreamChunk.Completed())
+                            completed = true
+                            continue
+                        }
+                        val parsed = OpenAiResponsesCodec.parseStreamEvent(data, state)
+                        if (parsed.isFailure) {
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    parsed.exceptionOrNull()?.message ?: "Invalid OpenAI Responses stream event",
+                                    502,
+                                    responseStarted = true
+                                )
+                            )
+                            return@execute
+                        }
+                        parsed.getOrThrow().forEach { chunk ->
+                            val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
+                                chunk.copy(responseStarted = true)
+                            } else {
+                                chunk
+                            }
+                            if (effectiveChunk is NeutralStreamChunk.Completed || effectiveChunk is NeutralStreamChunk.Error) {
+                                completed = true
+                            }
+                            emit(effectiveChunk)
+                        }
                     }
-                    if (effectiveChunk is NeutralStreamChunk.Completed || effectiveChunk is NeutralStreamChunk.Error) {
-                        completed = true
+                    if (!completed) {
+                        emit(NeutralStreamChunk.Error("OpenAI Responses stream ended before completion", 502))
                     }
-                    emit(effectiveChunk)
                 }
-            }
-            if (!completed) {
-                emit(NeutralStreamChunk.Error("OpenAI Responses stream ended before completion", 502))
             }
         } catch (error: Exception) {
             val status = ProviderAdapter.upstreamFailureStatus(error)
@@ -751,13 +751,20 @@ class OpenAiAdapter : ProviderAdapter {
         providerName: String
     ) {
         val bodyResult = ProviderAdapter.readLimitedResponseText(response)
-        val body = bodyResult.getOrElse { "<${it.message ?: "response body unavailable"}>" }
+        val rawBody = bodyResult.getOrElse { "<${it.message ?: "response body unavailable"}>" }
+        val extractedMessage = runCatching {
+            val element = json.parseToJsonElement(rawBody)
+            val jsonObject = element.jsonObject
+            val errObj = jsonObject["error"]?.jsonObject
+            errObj?.get("message")?.jsonPrimitive?.content ?: jsonObject["message"]?.jsonPrimitive?.content
+        }.getOrNull()
+        val displayMessage = extractedMessage ?: rawBody
         val status = bodyResult.exceptionOrNull()
             ?.let(ProviderAdapter::upstreamFailureStatus)
             ?: response.status.value
         emit(
             NeutralStreamChunk.Error(
-                "$providerName API error (${response.status.value}): $body",
+                "$providerName API error (${response.status.value}): $displayMessage",
                 status
             )
         )
