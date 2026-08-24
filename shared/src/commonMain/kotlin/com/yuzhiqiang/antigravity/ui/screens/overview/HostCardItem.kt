@@ -330,7 +330,9 @@ private fun HostSquareIconButton(
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+            positioning = TooltipAnchorPosition.Above
+        ),
         tooltip = {
             PlainTooltip(
                 shape = RoundedCornerShape(6.dp),
