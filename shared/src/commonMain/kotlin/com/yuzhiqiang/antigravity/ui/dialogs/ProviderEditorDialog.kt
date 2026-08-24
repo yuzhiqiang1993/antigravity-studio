@@ -166,6 +166,51 @@ fun ProviderEditorDialog(
         )
     }
 
+    fun skipFetchAndConfigureManually() {
+        val existingMap = initialModels.associateBy { it.upstreamModelId }
+        val modelIds = initialModels.map { it.upstreamModelId }.distinct()
+
+        val configs = modelIds.map { mName ->
+            val existing = existingMap[mName]
+            val inputLimit = existing?.tokenLimits?.contextWindow
+                ?: existing?.tokenLimits?.inputTokenLimit
+                ?: 131_072L
+            val outputLimit = existing?.tokenLimits?.outputTokenLimit ?: 4_096L
+            val isVision = existing?.capabilities?.supportsVision ?: true
+            val isTools = existing?.capabilities?.tools ?: true
+            val reasoningDraft = existing?.let { ReasoningConfigDraft.fromCapabilities(it.capabilities) }
+                ?: ReasoningConfigDraft(enabled = false, levels = emptySet(), customValue = null, thinkingBudget = null, minThinkingBudget = null, mappings = emptyMap())
+
+            CatalogModelConfig(
+                id = mName,
+                name = existing?.displayName ?: mName,
+                vendor = null,
+                inputTokenLimit = inputLimit,
+                inputTokenLimitSource = if (existing != null) existing.tokenLimits.contextWindowSource else TokenLimitSource.CONFIGURED,
+                outputTokenLimit = outputLimit,
+                outputTokenLimitSource = if (existing != null) existing.tokenLimits.outputTokenLimitSource else TokenLimitSource.CONFIGURED,
+                isVision = isVision,
+                inputModalities = setOf(ModelModality.TEXT).let { if (isVision) it + ModelModality.IMAGE else it },
+                outputModalities = setOf(ModelModality.TEXT),
+                inputMimeTypes = if (isVision) listOf("image/png", "image/jpeg", "image/webp") else emptyList(),
+                roles = emptySet(),
+                isImageGeneration = false,
+                compressionPolicy = existing?.compressionPolicy,
+                reasoningMappings = emptyMap(),
+                isReasoning = reasoningDraft.enabled,
+                reasoningDraft = reasoningDraft,
+                isTools = isTools,
+                isUnavailable = false
+            )
+        }
+
+        fetchedModelConfigs = configs
+        selectedModelIds = initialModels.map { it.upstreamModelId }.toSet()
+        fetchError = null
+        currentStep = ProviderEditStep.SELECT_MODELS
+        markDirty()
+    }
+
     fun requestModelCatalogDebug() {
         scope.launch {
             isDebugFetching = true
@@ -404,7 +449,8 @@ fun ProviderEditorDialog(
                                         markDirty()
                                     },
                                     fetchError = fetchError,
-                                    isFetching = isFetching || isDebugFetching
+                                    isFetching = isFetching || isDebugFetching,
+                                    onSkipFetch = ::skipFetchAndConfigureManually
                                 )
                             }
 
@@ -422,6 +468,11 @@ fun ProviderEditorDialog(
                                         fetchedModelConfigs = fetchedModelConfigs.map {
                                             if (it.id == updated.id) updated else it
                                         }
+                                        markDirty()
+                                    },
+                                    onAddNewModel = { newModel ->
+                                        fetchedModelConfigs = listOf(newModel) + fetchedModelConfigs.filter { it.id != newModel.id }
+                                        selectedModelIds = selectedModelIds + newModel.id
                                         markDirty()
                                     },
                                     currentProvider = ::currentProvider,
@@ -512,6 +563,21 @@ fun ProviderEditorDialog(
                                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp)
                                         )
                                     }
+                                }
+                            }
+
+                            if (currentStep == ProviderEditStep.CONFIG_CONNECTION) {
+                                OutlinedButton(
+                                    enabled = name.isNotBlank() && baseUrl.isNotBlank() && !isFetching && !isDebugFetching,
+                                    onClick = { skipFetchAndConfigureManually() },
+                                    modifier = Modifier.height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    )
+                                ) {
+                                    Text(s.providerSkipFetchManualAdd, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.Medium))
                                 }
                             }
 
