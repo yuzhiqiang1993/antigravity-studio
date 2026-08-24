@@ -28,6 +28,8 @@ import com.yuzhiqiang.antigravity.ui.components.BadgeTone
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.utils.formatDuration
+import com.yuzhiqiang.antigravity.ui.utils.formatTokens
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.awt.Toolkit
@@ -42,10 +44,12 @@ fun ActivityDetailDialog(
     val s = strings()
     val isSuccess = log.statusCode in 200..399
     val statusTone = when {
+        log.isPending -> BadgeTone.INFO
         log.statusCode in 200..299 -> BadgeTone.SUCCESS
         log.statusCode in 300..499 -> BadgeTone.WARNING
         else -> BadgeTone.ERROR
     }
+    val statusBadgeText = if (log.isPending) s.activityPending else "HTTP ${log.statusCode}"
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -78,9 +82,10 @@ fun ActivityDetailDialog(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             StatusBadge(
-                                text = "HTTP " + log.statusCode,
+                                text = statusBadgeText,
                                 tone = statusTone,
-                                showDot = false
+                                showDot = log.isPending,
+                                pulse = log.isPending
                             )
                         }
                         Text(
@@ -121,7 +126,20 @@ fun ActivityDetailDialog(
                     DetailSectionCard(title = s.activityDetailRouteSection) {
                         DetailItemRow(s.activityDetailMethod, log.method.uppercase())
                         DetailItemRow(s.activityDetailPath, log.path, isMonospace = true)
-                        DetailItemRow(s.activityDetailDuration, log.durationMs.toString() + " ms", highlightColor = MaterialTheme.colorScheme.primary)
+                        val durationFormatted = when {
+                            log.isPending -> s.activityProcessing
+                            log.durationMs >= 1000L -> "${formatDuration(log.durationMs)} (${log.durationMs} ms)"
+                            else -> "${log.durationMs} ms"
+                        }
+                        DetailItemRow(s.activityDetailDuration, durationFormatted, highlightColor = MaterialTheme.colorScheme.primary)
+                        log.firstTokenMs?.let { ttft ->
+                            val ttftFormatted = if (ttft >= 1000L) {
+                                "${formatDuration(ttft)} ($ttft ms)"
+                            } else {
+                                "$ttft ms"
+                            }
+                            DetailItemRow(s.activityDetailFirstToken, ttftFormatted, highlightColor = MaterialTheme.colorScheme.secondary)
+                        }
                         DetailItemRow(s.activityDetailTimestamp, formatFullTime(log.timestamp))
                         DetailItemRow(
                             s.activityDetailRouteMode,
@@ -131,7 +149,9 @@ fun ActivityDetailDialog(
                         log.requestedModelId
                             ?.takeIf { it != log.modelId }
                             ?.let { DetailItemRow(s.activityDetailRequestedModel, it, isMonospace = true) }
-                        log.providerName?.let { DetailItemRow(s.activityDetailProvider, it) }
+                        if (!log.isOfficialPassthrough) {
+                            log.providerName?.let { DetailItemRow(s.activityDetailProvider, it) }
+                        }
 
                         if (log.fallbackAttempted) {
                             DetailItemRow(
@@ -150,9 +170,9 @@ fun ActivityDetailDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                TokenMetricBadge(s.activityDetailPromptTokens, log.inputTokens?.toString() ?: "—", Modifier.weight(1f))
-                                TokenMetricBadge(s.activityDetailCompletionTokens, log.outputTokens?.toString() ?: "—", Modifier.weight(1f))
-                                TokenMetricBadge(s.activityDetailTotalTokens, log.totalTokens?.toString() ?: "—", Modifier.weight(1f), isTotal = true)
+                                TokenMetricBadge(s.activityDetailPromptTokens, log.inputTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
+                                TokenMetricBadge(s.activityDetailCompletionTokens, log.outputTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
+                                TokenMetricBadge(s.activityDetailTotalTokens, log.totalTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f), isTotal = true)
                             }
 
                             if (log.reasoningTokens != null || log.cacheReadTokens != null || log.cacheWriteTokens != null) {
@@ -160,9 +180,9 @@ fun ActivityDetailDialog(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    TokenMetricBadge(s.activityDetailReasoningTokens, log.reasoningTokens?.toString() ?: "—", Modifier.weight(1f))
-                                    TokenMetricBadge(s.activityDetailCacheReadTokens, log.cacheReadTokens?.toString() ?: "—", Modifier.weight(1f))
-                                    TokenMetricBadge(s.activityDetailCacheWriteTokens, log.cacheWriteTokens?.toString() ?: "—", Modifier.weight(1f))
+                                    TokenMetricBadge(s.activityDetailReasoningTokens, log.reasoningTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
+                                    TokenMetricBadge(s.activityDetailCacheReadTokens, log.cacheReadTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
+                                    TokenMetricBadge(s.activityDetailCacheWriteTokens, log.cacheWriteTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
                                 }
                             }
                         }
@@ -218,6 +238,8 @@ fun ActivityDetailDialog(
                                     put("path", log.path)
                                     put("statusCode", log.statusCode)
                                     put("durationMs", log.durationMs)
+                                    put("isPending", log.isPending)
+                                    log.firstTokenMs?.let { put("firstTokenMs", it) }
                                     put("isOfficialPassthrough", log.isOfficialPassthrough)
                                     put("modelId", log.modelId)
                                     put("requestedModelId", log.requestedModelId)

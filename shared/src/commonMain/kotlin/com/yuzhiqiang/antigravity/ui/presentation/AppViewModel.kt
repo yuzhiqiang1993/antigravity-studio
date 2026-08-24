@@ -725,6 +725,10 @@ class AppViewModel(
         ActivityRecorder.clear()
     }
 
+    fun setActivityAutoScroll(enabled: Boolean) {
+        configStore.updateConfig { it.copy(activityAutoScroll = enabled) }
+    }
+
     fun testSingleModel(model: UpstreamModel, provider: Provider) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val updatedMap = _modelTestStatuses.value.toMutableMap()

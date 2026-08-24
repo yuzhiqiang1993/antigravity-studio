@@ -434,6 +434,19 @@ interface Strings {
     val activityTotal: String
     val activityFailedTotal: String
     val activityAverage: String
+    val activityFirstTokenLabel: String
+    val activityPending: String
+    val activityProcessing: String
+    val activityAllTags: String
+    val activityTagFilterTitle: String
+    val activitySelectAll: String
+    val activityClearFilter: String
+    fun activitySelectedTagsCount(count: Int): String
+    val activityTokenInput: String
+    val activityTokenOutput: String
+    val activityTokenCache: String
+    val activityTokenTotal: String
+    val activityAutoScroll: String
     val activityInMemory: String
     val activityHealthy: String
     val activityHasErrors: String
@@ -443,6 +456,7 @@ interface Strings {
     val activityDetailMethod: String
     val activityDetailPath: String
     val activityDetailDuration: String
+    val activityDetailFirstToken: String
     val activityDetailTimestamp: String
     val activityDetailRouteMode: String
     val activityDetailPassthroughMode: String
@@ -1094,6 +1108,19 @@ object StringsZh : Strings {
     override val activityTotal = "总请求量"
     override val activityFailedTotal = "异常请求"
     override val activityAverage = "平均耗时"
+    override val activityFirstTokenLabel = "首字"
+    override val activityPending = "请求中"
+    override val activityProcessing = "处理中..."
+    override val activityAllTags = "日志筛选"
+    override val activityTagFilterTitle = "日志筛选"
+    override val activitySelectAll = "全选"
+    override val activityClearFilter = "清空"
+    override fun activitySelectedTagsCount(count: Int) = "已选 $count 项"
+    override val activityTokenInput = "输入"
+    override val activityTokenOutput = "输出"
+    override val activityTokenCache = "缓存"
+    override val activityTokenTotal = "总计"
+    override val activityAutoScroll = "自动滚动"
     override val activityInMemory = "内存日志"
     override val activityHealthy = "运行正常"
     override val activityHasErrors = "存在错误"
@@ -1103,6 +1130,7 @@ object StringsZh : Strings {
     override val activityDetailMethod = "请求方法"
     override val activityDetailPath = "请求完整路径"
     override val activityDetailDuration = "响应总耗时"
+    override val activityDetailFirstToken = "首字响应耗时 (TTFT)"
     override val activityDetailTimestamp = "请求发起时间"
     override val activityDetailRouteMode = "路由模式"
     override val activityDetailPassthroughMode = "官方直连透传 (Cloud Code Passthrough)"
@@ -1749,6 +1777,19 @@ object StringsEn : Strings {
     override val activityTotal = "Total requests"
     override val activityFailedTotal = "Failed requests"
     override val activityAverage = "Average latency"
+    override val activityFirstTokenLabel = "First Token"
+    override val activityPending = "Processing"
+    override val activityProcessing = "In progress..."
+    override val activityAllTags = "Log Filter"
+    override val activityTagFilterTitle = "Log Filter"
+    override val activitySelectAll = "Select All"
+    override val activityClearFilter = "Reset"
+    override fun activitySelectedTagsCount(count: Int) = "$count selected"
+    override val activityTokenInput = "Input"
+    override val activityTokenOutput = "Output"
+    override val activityTokenCache = "Cache"
+    override val activityTokenTotal = "Total"
+    override val activityAutoScroll = "Auto Scroll"
     override val activityInMemory = "In-memory log"
     override val activityHealthy = "Healthy"
     override val activityHasErrors = "Errors found"
@@ -1758,6 +1799,7 @@ object StringsEn : Strings {
     override val activityDetailMethod = "HTTP Method"
     override val activityDetailPath = "Full Request Path"
     override val activityDetailDuration = "Total Response Latency"
+    override val activityDetailFirstToken = "Time to First Token (TTFT)"
     override val activityDetailTimestamp = "Request Start Time"
     override val activityDetailRouteMode = "Route Mode"
     override val activityDetailPassthroughMode = "Official Direct (Cloud Code Passthrough)"
