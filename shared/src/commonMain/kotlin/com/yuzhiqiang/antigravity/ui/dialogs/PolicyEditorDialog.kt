@@ -101,12 +101,13 @@ fun PolicyEditorDialog(
         if (cleaned.isNotBlank()) cleaned else raw
     }
 
-    // 经典标准色板
-    val byokAccent = Color(0xFF2563EB)
-    val byokBorder = Color(0xFFE2E8F0)
-    val byokSurfaceInner = Color(0xFFF8FAFC)
-    val byokTextMain = Color(0xFF0F172A)
-    val byokTextSecondary = Color(0xFF64748B)
+    // 经典标准色板（适配 M3 与深色模式）
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val byokAccent = MaterialTheme.colorScheme.primary
+    val byokBorder = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
+    val byokSurfaceInner = if (isDark) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surfaceContainerLowest
+    val byokTextMain = MaterialTheme.colorScheme.onSurface
+    val byokTextSecondary = MaterialTheme.colorScheme.onSurfaceVariant
 
     // 官方默认原生数值 (Gemini 默认为 140K 预备 / 256K 上限；Claude 默认为 50K 预备 / 160K 上限)
     val defaultNativeThreshold = when {
@@ -457,7 +458,7 @@ fun PolicyEditorDialog(
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontSize = 12.5.sp,
                                                 fontWeight = if (optSame) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (optSame) Color.White else byokTextSecondary
+                                                color = if (optSame) MaterialTheme.colorScheme.onPrimary else byokTextSecondary
                                             )
                                         )
                                     }
@@ -476,7 +477,7 @@ fun PolicyEditorDialog(
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontSize = 12.5.sp,
                                                 fontWeight = if (!optSame) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (!optSame) Color.White else byokTextSecondary
+                                                color = if (!optSame) MaterialTheme.colorScheme.onPrimary else byokTextSecondary
                                             )
                                         )
                                     }

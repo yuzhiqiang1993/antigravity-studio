@@ -9,64 +9,94 @@ import androidx.compose.ui.unit.sp
  * 严格符合 Material Design 3 高对比度与 WCAG AA 标准
  */
 object StudioThemeColors {
-    // 1. 配额水位色彩 (高饱和、高辨识度)
-    val QuotaHealthy = Color(0xFF059669) // 翠绿 (>50%)
-    val QuotaWarning = Color(0xFFD97706) // 暖金橙 (15%~50%)
-    val QuotaCritical = Color(0xFFDC2626) // 警示红 (<15%)
+    // 1. 配额水位四级动态健康度色彩 (沉稳深色护眼色系，高对比度且绝不刺眼)
+    // 浅色模式 (Light)
+    val QuotaLevelFullLight = Color(0xFF047857)     // 沉稳森林深绿 (Emerald-700, >=80%)
+    val QuotaLevelGoodLight = Color(0xFF0F766E)     // 沉稳暗青绿 (Teal-700, 50%~79%)
+    val QuotaLevelWarningLight = Color(0xFFB45309)  // 沉稳暗琥珀 (Amber-800, 20%~49%)
+    val QuotaLevelCriticalLight = Color(0xFF991B1B) // 沉稳深绯红 (Red-800, <20%)
+
+    // 深色模式 (Dark) - 柔和高亮，在深灰/黑底上对比度优异且绝不刺眼
+    val QuotaLevelFullDark = Color(0xFF34D399)     // 清晰翠绿 (Emerald-400, >=80%)
+    val QuotaLevelGoodDark = Color(0xFF2DD4BF)     // 清晰青绿 (Teal-400, 50%~79%)
+    val QuotaLevelWarningDark = Color(0xFFFBBF24)  // 清晰金琥珀 (Amber-400, 20%~49%)
+    val QuotaLevelCriticalDark = Color(0xFFF87171) // 清晰绯红 (Red-400, <20%)
+
+    val QuotaLevelFull = QuotaLevelFullLight
+    val QuotaLevelGood = QuotaLevelGoodLight
+    val QuotaLevelWarning = QuotaLevelWarningLight
+    val QuotaLevelCritical = QuotaLevelCriticalLight
+
+    val QuotaHealthy = QuotaLevelFullLight
+    val QuotaWarning = QuotaLevelWarningLight
+    val QuotaCritical = QuotaLevelCriticalLight
 
     // 2. 进度条底槽与内嵌面板
-    val TrackLight = Color(0xFFCBD5E1) // 浅色底槽 (Slate-300，清晰可见)
-    val TrackDark = Color(0xFF475569)  // 深色底槽 (Slate-600)
+    val TrackLight = Color(0xFFE2E8F0) // 浅色底槽 (Slate-200)
+    val TrackDark = Color(0xFF334155)  // 深色底槽 (Slate-700)
 
-    val InnerCardLight = Color(0xFFF8FAFC) // 内嵌面板极浅微灰背景 (柔和通透，不再压抑)
+    val InnerCardLight = Color(0xFFF8FAFC) // 浅色内嵌面板微底 (Slate-50)
     val InnerCardDark = Color(0xFF1E293B)  // 内嵌面板深色背景 (Slate-800)
 
-    val BorderCardLight = Color(0xFFE2E8F0) // 卡片外边框 (Slate-200，淡雅柔和)
-    val BorderSubtleLight = Color(0xFFEEF2F6) // 内嵌细边框 (极淡微边框)
+    val BorderCardLight = Color(0xFFE2E8F0) // 普通卡片外边框 (Slate-200)
+    val BorderSubtleLight = Color(0xFFEEF2F6) // 内嵌面板极细微边框
 
-    // 3. 激活高亮 (淡雅精致微蓝)
-    val ActiveBorder = Color(0xFF60A5FA) // 激活柔和天蓝 (Blue-400)
-    val ActiveBgLight = Color(0xFFF6F9FE) // 激活极淡柔和浅蓝底 (淡雅纯净)
+    // 3. 激活高亮边框色彩 (沉稳精致细边框)
+    val ActiveBorder = Color(0xFF0284C7) // 沉稳天蓝 (Sky-600)
+    val ActiveBgLight = Color(0xFFFFFFFF) // 纯白底色
 
+    // IDE 专属活跃沉稳细边框
+    val CardIdeActiveBorder = Color(0xFF0284C7)    // Sky-600 (沉稳科技天蓝细边框)
 
-    // 4. 徽章胶囊 (高对比度深字浅底)
-    val BadgeUltraBg = Color(0xFFF3E8FF) // Purple-100 (尊贵紫罗兰 Ultra 旗舰)
-    val BadgeUltraText = Color(0xFF6B21A8) // Purple-800
+    // App/CLI 专属活跃沉稳细边框
+    val CardCliActiveBorder = Color(0xFF7E22CE)    // Purple-700 (沉稳极客深紫细边框)
 
-    val BadgeProBg = Color(0xFFDBEAFE) // Blue-100 (电光蓝 Pro 专业版)
-    val BadgeProText = Color(0xFF1E40AF) // Blue-800
+    // 双端共同活跃沉稳细边框
+    val CardDualActiveBorder = Color(0xFF047857)   // Emerald-700 (沉稳森林深绿细边框)
 
-    val BadgeEnterpriseBg = Color(0xFFE0F2FE) // Sky-100 (商务深青 Enterprise 企业版)
-    val BadgeEnterpriseText = Color(0xFF0369A1) // Sky-800
-
+    // 4. 徽章胶囊 (高对比度深字浅底 / 兼容旧代码)
+    val BadgeUltraBg = Color(0xFFF3E8FF)
+    val BadgeUltraText = Color(0xFF6B21A8)
+    val BadgeProBg = Color(0xFFDBEAFE)
+    val BadgeProText = Color(0xFF1E40AF)
+    val BadgeEnterpriseBg = Color(0xFFE0F2FE)
+    val BadgeEnterpriseText = Color(0xFF0369A1)
     val BadgeActiveBg = Color(0xFFDCFCE7)
-    val BadgeActiveText = Color(0xFF166534) // Green-800
-
-    val BadgeIdeBg = Color(0xFFE0F2FE) // Sky-100 (IDE 独立活跃徽章)
-    val BadgeIdeText = Color(0xFF0369A1) // Sky-800
-
-    val BadgeCliBg = Color(0xFFF3E8FF) // Purple-100 (App/CLI 共享活跃徽章)
-    val BadgeCliText = Color(0xFF6B21A8) // Purple-800
-
+    val BadgeActiveText = Color(0xFF166534)
+    val BadgeIdeBg = Color(0xFFE0F2FE)
+    val BadgeIdeText = Color(0xFF0369A1)
+    val BadgeCliBg = Color(0xFFF3E8FF)
+    val BadgeCliText = Color(0xFF6B21A8)
     val BadgeFreeBg = Color(0xFFE2E8F0)
-    val BadgeFreeText = Color(0xFF1E293B) // Slate-800
+    val BadgeFreeText = Color(0xFF1E293B)
 
+    // 5. 核心文字色彩 (推荐优先使用 MaterialTheme.colorScheme.onSurface / onSurfaceVariant)
+    val TextPrimary = Color(0xFF0F172A)
+    val TextSecondary = Color(0xFF475569)
+    val TextMuted = Color(0xFF64748B)
+    val TextPlaceholder = Color(0xFF94A3B8)
 
+    val ActionIconDefault = Color(0xFF475569)
+    val ActionIconDelete = Color(0xFFDC2626)
 
-    // 5. 核心文字色彩 (高对比度，彻底杜绝发灰看不清)
-    val TextPrimary = Color(0xFF0F172A)   // Slate-900 (主标题、邮箱、强文字)
-    val TextSecondary = Color(0xFF334155) // Slate-700 (二级标签、说明文字、图标)
-    val TextMuted = Color(0xFF475569)     // Slate-600 (辅助文字、倒计时、时间戳)
-    val TextPlaceholder = Color(0xFF64748B) // Slate-500 (搜索框占位符)
-
-    val ActionIconDefault = Color(0xFF334155) // 操作图标默认色
-    val ActionIconDelete = Color(0xFFDC2626)  // 删除图标警示色
-
-    fun quotaColor(percentage: Int): Color {
-        return when {
-            percentage > 50 -> QuotaHealthy
-            percentage >= 15 -> QuotaWarning
-            else -> QuotaCritical
+    /**
+     * 根据百分比与当前主题明暗模式计算健康的配额颜色
+     */
+    fun quotaColor(percentage: Int, isDark: Boolean = false): Color {
+        return if (isDark) {
+            when {
+                percentage >= 80 -> QuotaLevelFullDark
+                percentage >= 50 -> QuotaLevelGoodDark
+                percentage >= 20 -> QuotaLevelWarningDark
+                else             -> QuotaLevelCriticalDark
+            }
+        } else {
+            when {
+                percentage >= 80 -> QuotaLevelFullLight
+                percentage >= 50 -> QuotaLevelGoodLight
+                percentage >= 20 -> QuotaLevelWarningLight
+                else             -> QuotaLevelCriticalLight
+            }
         }
     }
 }

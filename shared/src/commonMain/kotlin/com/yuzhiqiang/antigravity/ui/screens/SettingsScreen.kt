@@ -97,6 +97,7 @@ fun SettingsScreen(
                 openDirectoryError = openDirectoryError,
                 onUpdateLanguage = { viewModel.updateLanguage(it) },
                 onUpdateThemeMode = { viewModel.updateThemeMode(it) },
+                onUpdateThemePalette = { viewModel.updateThemePalette(it) },
                 onUpdateAutoCheckUpdate = { viewModel.updateAutoCheckUpdate(it) },
                 onUpdateDeveloperMode = { viewModel.updateDeveloperMode(it) },
                 onToggleDeveloperMode = { viewModel.toggleDeveloperMode() },
@@ -136,6 +137,7 @@ private fun SettingsContent(
     openDirectoryError: String?,
     onUpdateLanguage: (com.yuzhiqiang.antigravity.i18n.AppLanguage) -> Unit,
     onUpdateThemeMode: (String) -> Unit,
+    onUpdateThemePalette: (String) -> Unit,
     onUpdateAutoCheckUpdate: (Boolean) -> Unit,
     onUpdateDeveloperMode: (Boolean) -> Unit,
     onToggleDeveloperMode: () -> Unit,
@@ -155,6 +157,7 @@ private fun SettingsContent(
                 config = config,
                 onUpdateLanguage = onUpdateLanguage,
                 onUpdateThemeMode = onUpdateThemeMode,
+                onUpdateThemePalette = onUpdateThemePalette,
                 onUpdateAutoCheckUpdate = onUpdateAutoCheckUpdate,
                 onConfigureHostPath = onConfigureHostPath,
                 s = s

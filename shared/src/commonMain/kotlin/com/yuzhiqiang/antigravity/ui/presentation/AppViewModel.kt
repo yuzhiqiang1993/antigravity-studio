@@ -917,6 +917,10 @@ class AppViewModel(
         configStore.updateConfig { it.copy(themeMode = mode) }
     }
 
+    fun updateThemePalette(palette: String) {
+        configStore.updateConfig { it.copy(themePalette = palette) }
+    }
+
     fun updateProxyPort(port: Int) {
         if (port !in 1024..65535) {
             showNotice(s.settingsPortInvalid, NoticeKind.ERROR)

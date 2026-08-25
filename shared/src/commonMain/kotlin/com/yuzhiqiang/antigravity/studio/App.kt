@@ -58,7 +58,10 @@ fun App(
 
     KoinContext {
     CompositionLocalProvider(LocalStrings provides currentStrings) {
-        AntigravityTheme(themeMode = config.themeMode) {
+        AntigravityTheme(
+            themeMode = config.themeMode,
+            themePalette = config.themePalette
+        ) {
             val backgroundColor = MaterialTheme.colorScheme.background
             SideEffect {
                 window?.let { w ->

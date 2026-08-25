@@ -36,6 +36,7 @@ fun GeneralSettingsSection(
     config: AppConfig,
     onUpdateLanguage: (AppLanguage) -> Unit,
     onUpdateThemeMode: (String) -> Unit,
+    onUpdateThemePalette: (String) -> Unit = {},
     onUpdateAutoCheckUpdate: (Boolean) -> Unit,
     onConfigureHostPath: ((String, String) -> Unit)? = null,
     s: Strings
@@ -138,6 +139,77 @@ fun GeneralSettingsSection(
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                 color = text
                             )
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+
+            // 配色方案模板选择器 (Color Palette)
+            SettingRow(
+                icon = Icons.Outlined.Palette,
+                title = s.settingsThemePalette,
+                description = "选择 Material Design 3 主题主色调与色调衍生体系",
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .height(30.dp)
+                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                            shape = RoundedCornerShape(AppTokens.Radius.pill)
+                        )
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    com.yuzhiqiang.antigravity.ui.theme.ThemePalette.entries.forEach { palette ->
+                        val selected = config.themePalette == palette.id
+                        val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                        val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        val paletteLabel = when (palette) {
+                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.INDIGO -> s.paletteIndigo
+                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.OCEAN -> s.paletteOcean
+                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.EMERALD -> s.paletteEmerald
+                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.VIOLET -> s.paletteViolet
+                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.ROSE -> s.paletteRose
+                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.AMBER -> s.paletteAmber
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                .background(bg)
+                                .clickable { onUpdateThemePalette(palette.id) }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(9.dp)
+                                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                        .background(palette.previewColor)
+                                        .border(
+                                            width = 0.5.dp,
+                                            color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(AppTokens.Radius.pill)
+                                        )
+                                )
+                                Text(
+                                    text = paletteLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = text
+                                )
+                            }
                         }
                     }
                 }
