@@ -61,8 +61,6 @@ fun AccountsScreen(
     val activeAccount by viewModel.activeAccount.collectAsState()
     val cliActiveEmail by viewModel.cliActiveEmail.collectAsState(initial = null)
     val ideActiveEmail by viewModel.ideActiveEmail.collectAsState(initial = null)
-    val cliActiveAccount by viewModel.cliActiveAccount.collectAsState(initial = null)
-    val ideActiveAccount by viewModel.ideActiveAccount.collectAsState(initial = null)
     val quotas by viewModel.accountQuotas.collectAsState()
     val isRefreshingQuotas by viewModel.isRefreshingQuotas.collectAsState()
     val isPrivacyMode by viewModel.isPrivacyMode.collectAsState()
@@ -88,7 +86,7 @@ fun AccountsScreen(
     val scrollState = rememberScrollState()
 
     // 过滤与排序 (将 App/CLI 和 IDE 活跃账号固定置顶在前两位)
-    val displayAccounts = remember(accounts, searchQuery, sortMode, quotas, activeAccount, cliActiveEmail, ideActiveEmail, cliActiveAccount, ideActiveAccount) {
+    val displayAccounts = remember(accounts, searchQuery, sortMode, quotas, activeAccount, cliActiveEmail, ideActiveEmail) {
         val query = searchQuery.trim().lowercase()
         val list = if (query.isEmpty()) {
             accounts
@@ -100,17 +98,8 @@ fun AccountsScreen(
         }
 
         fun hostActiveRank(acc: AccountInfo): Int {
-            val isIde = if (!ideActiveEmail.isNullOrBlank()) {
-                acc.email.equals(ideActiveEmail, ignoreCase = true)
-            } else {
-                ideActiveAccount?.id == acc.id || ideActiveAccount?.email?.equals(acc.email, ignoreCase = true) == true
-            }
-
-            val isCli = if (!cliActiveEmail.isNullOrBlank()) {
-                acc.email.equals(cliActiveEmail, ignoreCase = true)
-            } else {
-                cliActiveAccount?.id == acc.id || cliActiveAccount?.email?.equals(acc.email, ignoreCase = true) == true
-            }
+            val isIde = !ideActiveEmail.isNullOrBlank() && acc.email.equals(ideActiveEmail, ignoreCase = true)
+            val isCli = !cliActiveEmail.isNullOrBlank() && acc.email.equals(cliActiveEmail, ignoreCase = true)
 
             return when {
                 isIde && isCli -> 0 // 双端共同活跃排第 1 位
@@ -469,17 +458,8 @@ fun AccountsScreen(
                                 for (i in 0 until columns) {
                                     if (i < rowAccounts.size) {
                                         val acc = rowAccounts[i]
-                                        val matchesIde = if (!ideActiveEmail.isNullOrBlank()) {
-                                            acc.email.equals(ideActiveEmail, ignoreCase = true)
-                                        } else {
-                                            ideActiveAccount?.id == acc.id || ideActiveAccount?.email?.equals(acc.email, ignoreCase = true) == true
-                                        }
-
-                                        val matchesCli = if (!cliActiveEmail.isNullOrBlank()) {
-                                            acc.email.equals(cliActiveEmail, ignoreCase = true)
-                                        } else {
-                                            cliActiveAccount?.id == acc.id || cliActiveAccount?.email?.equals(acc.email, ignoreCase = true) == true
-                                        }
+                                        val matchesIde = !ideActiveEmail.isNullOrBlank() && acc.email.equals(ideActiveEmail, ignoreCase = true)
+                                        val matchesCli = !cliActiveEmail.isNullOrBlank() && acc.email.equals(cliActiveEmail, ignoreCase = true)
 
                                         Box(
                                             modifier = Modifier

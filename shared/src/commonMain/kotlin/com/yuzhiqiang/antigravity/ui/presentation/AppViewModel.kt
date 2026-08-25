@@ -1117,14 +1117,48 @@ class AppViewModel(
 
     // --- 账号管理与 OAuth 交互方法 ---
 
-    fun startGoogleOAuthFlow(onFinished: ((Boolean) -> Unit)? = null) {
-        if (_isOAuthAuthorizing.value) return
+    fun submitManualOAuthCallback(callbackUrl: String): Boolean {
+        return googleAuthService.submitManualCallback(callbackUrl)
+    }
+
+    fun cancelOAuthFlow() {
+        googleAuthService.cancelOAuthFlow()
+        _isOAuthAuthorizing.value = false
+        _oauthAuthUrl.value = null
+    }
+
+    fun startGoogleOAuthFlow(
+        openBrowserDirectly: Boolean = true,
+        onFinished: ((Boolean) -> Unit)? = null
+    ) {
+        if (_isOAuthAuthorizing.value) {
+            val url = _oauthAuthUrl.value
+            if (!url.isNullOrBlank()) {
+                if (openBrowserDirectly) {
+                    googleAuthService.openBrowser(url)
+                } else {
+                    java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                        java.awt.datatransfer.StringSelection(url),
+                        null
+                    )
+                    showNotice("授权链接已复制到剪贴板", NoticeKind.SUCCESS)
+                }
+            }
+            return
+        }
         _isOAuthAuthorizing.value = true
         _oauthAuthUrl.value = null
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val result = googleAuthService.startOAuthFlow { authUrl ->
+            val result = googleAuthService.startOAuthFlow(openBrowserDirectly = openBrowserDirectly) { authUrl ->
                 _oauthAuthUrl.value = authUrl
+                if (!openBrowserDirectly) {
+                    java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                        java.awt.datatransfer.StringSelection(authUrl),
+                        null
+                    )
+                    showNotice("授权链接已复制到剪贴板，请在浏览器中打开", NoticeKind.SUCCESS)
+                }
             }
             _isOAuthAuthorizing.value = false
             _oauthAuthUrl.value = null
