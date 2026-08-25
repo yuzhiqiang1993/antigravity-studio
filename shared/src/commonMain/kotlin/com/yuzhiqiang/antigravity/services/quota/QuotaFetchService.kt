@@ -71,9 +71,21 @@ class QuotaFetchService(
     }
 
     suspend fun fetchRemoteAccountQuota(account: AccountInfo): Result<AccountQuotaSnapshot> = withContext(Dispatchers.IO) {
+        if (account.tokens.accessToken.isBlank() && account.tokens.refreshToken.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("账号暂无可用凭据"))
+        }
 
         var currentToken = account.tokens.accessToken
         var attemptedRefresh = false
+
+        if (currentToken.isBlank() && account.tokens.refreshToken.isNotBlank() && tokenRefreshCallback != null) {
+            attemptedRefresh = true
+            val refreshResult = tokenRefreshCallback.invoke(account.tokens.refreshToken)
+            if (refreshResult.isSuccess) {
+                currentToken = refreshResult.getOrThrow()
+            }
+        }
+
         var lastFetchResult: Result<AccountQuotaSnapshot> = Result.failure(IllegalStateException("未执行配额抓取"))
 
         while (true) {

@@ -424,6 +424,55 @@ object HostAccountDetector {
     }
 
     /**
+     * 根据邮箱查找系统中可用的 RefreshToken
+     */
+    fun findAvailableRefreshToken(email: String): String? {
+        val targetEmail = email.trim().lowercase()
+        val userHome = System.getProperty("user.home")
+        val candidateFiles = listOf(
+            File(userHome, ".gemini/oauth_creds.json"),
+            File(userHome, ".gemini/jetski-standalone-oauth-token"),
+            File(userHome, ".gemini/antigravity-ide/oauth_credentials.json"),
+            File(userHome, ".gemini/oauth_credentials.json"),
+            File(userHome, ".config/antigravity/oauth_credentials.json"),
+            File(userHome, "Library/Application Support/Antigravity/oauth_credentials.json")
+        )
+
+        for (file in candidateFiles) {
+            if (!file.exists() || !file.isFile) continue
+            try {
+                val content = file.readText(Charsets.UTF_8)
+                val root = json.parseToJsonElement(content) as? JsonObject ?: continue
+                
+                val fileEmail = root["email"]?.jsonPrimitive?.contentOrNull
+                    ?: root["antigravity_cockpit_active_email"]?.jsonPrimitive?.contentOrNull
+                
+                val tokenObj = root["token"] as? JsonObject
+                val directRt = root["refresh_token"]?.jsonPrimitive?.contentOrNull
+                    ?: tokenObj?.get("refresh_token")?.jsonPrimitive?.contentOrNull
+
+                if (!directRt.isNullOrBlank()) {
+                    if (fileEmail?.equals(targetEmail, ignoreCase = true) == true) {
+                        return directRt
+                    }
+                    if (file.name.contains("jetski")) {
+                        val cliEmail = detectCliAppActiveEmail()
+                        if (cliEmail?.equals(targetEmail, ignoreCase = true) == true) {
+                            return directRt
+                        }
+                    }
+                    val parsed = RefreshTokenParser.parse(directRt).firstOrNull()
+                    if (parsed?.email?.equals(targetEmail, ignoreCase = true) == true) {
+                        return directRt
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return null
+    }
+
+    /**
      * 极简兜底扫描
      */
     private fun fallbackScanRawDbForEmail(dbFile: File): String? {

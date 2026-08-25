@@ -52,4 +52,13 @@ class HostAccountDetectorTest {
 
         assertTrue(isDualActive, "双端同一账号应正确识别为 isDualActive")
     }
+
+    @Test
+    fun testFindAvailableRefreshToken() {
+        val rt = HostAccountDetector.findAvailableRefreshToken("yuzhiqiang0904@gmail.com")
+        println("=== Find RefreshToken for yuzhiqiang0904@gmail.com ===")
+        println("RefreshToken: $rt")
+        assertNotNull(rt, "应该能从 jetski-standalone-oauth-token 查找到可用 refreshToken")
+        assertTrue(rt.startsWith("1//"), "RefreshToken 应以 1// 开头")
+    }
 }
