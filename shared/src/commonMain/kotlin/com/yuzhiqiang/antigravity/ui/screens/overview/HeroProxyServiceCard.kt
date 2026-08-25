@@ -48,27 +48,19 @@ fun HeroProxyServiceCard(
 
     val borderColor by animateColorAsState(
         targetValue = when {
-            isRunning && isHovered -> AppStatusColors.success.copy(alpha = 0.6f)
-            isRunning -> AppStatusColors.success.copy(alpha = 0.35f)
-            isHovered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+            isHovered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
         },
         animationSpec = tween(150)
-    )
-
-    val containerBg by animateColorAsState(
-        targetValue = if (isRunning) AppStatusColors.successContainer.copy(alpha = 0.08f)
-        else MaterialTheme.colorScheme.surface,
-        animationSpec = tween(200)
     )
 
     OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = if (isHovered) 3.dp else 0.dp, shape = RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
+            .shadow(elevation = if (isHovered) 2.dp else 0.dp, shape = RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.outlinedCardColors(
-            containerColor = containerBg
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(1.dp, borderColor)
     ) {
@@ -319,7 +311,7 @@ private fun HeroStatItem(
 ) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
@@ -327,36 +319,38 @@ private fun HeroStatItem(
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(13.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.sp,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 ),
                 color = valueColor,
-                maxLines = 1
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }
