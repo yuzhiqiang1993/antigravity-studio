@@ -69,6 +69,10 @@ fun AccountsScreen(
 
 
 
+    LaunchedEffect(Unit) {
+        viewModel.syncHostAccounts()
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     var viewMode by remember { mutableStateOf(AccountsViewMode.GRID) }
 

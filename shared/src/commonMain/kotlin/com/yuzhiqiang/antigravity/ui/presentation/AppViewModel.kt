@@ -23,7 +23,7 @@ import com.yuzhiqiang.antigravity.update.model.ReleaseInfo
 import com.yuzhiqiang.antigravity.update.model.UpdateState
 import kotlinx.coroutines.Job
 import com.yuzhiqiang.antigravity.data.storage.AccountStore
-import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
+import com.yuzhiqiang.antigravity.domain.model.account.*
 import com.yuzhiqiang.antigravity.services.auth.GoogleAuthService
 import com.yuzhiqiang.antigravity.services.auth.TokenRenewalManager
 import kotlinx.coroutines.flow.*
@@ -301,14 +301,131 @@ class AppViewModel(
         }
     }
 
+    fun syncHostAccounts(): Job {
+        return viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val cliProfile = HostAccountDetector.detectCliAppProfile()
+                val ideProfile = HostAccountDetector.detectIdeActiveProfile()
+
+                _cliActiveEmail.value = cliProfile?.email
+                _ideActiveEmail.value = ideProfile?.email
+
+                // 1. 自动同步 IDE 宿主账号至 Studio 账号列表
+                if (ideProfile != null && ideProfile.email.isNotBlank()) {
+                    val currentList = accountStore.currentAccounts()
+                    val existing = currentList.firstOrNull { it.email.equals(ideProfile.email, ignoreCase = true) }
+                    val tier = when {
+                        ideProfile.tierText?.contains("ultra", ignoreCase = true) == true -> AccountTier.ULTRA
+                        ideProfile.tierText?.contains("pro", ignoreCase = true) == true -> AccountTier.PRO
+                        ideProfile.tierText?.contains("enterprise", ignoreCase = true) == true -> AccountTier.ENTERPRISE
+                        else -> existing?.profile?.tier ?: AccountTier.FREE
+                    }
+                    val rt = existing?.tokens?.refreshToken?.takeIf { it.isNotBlank() }
+                        ?: HostAccountDetector.findAvailableRefreshToken(ideProfile.email)
+                        ?: ""
+
+                    if (existing == null) {
+                        val newAccount = AccountInfo(
+                            id = "acc_${ideProfile.email.hashCode().toUInt().toString(16)}",
+                            profile = AccountProfile(
+                                email = ideProfile.email,
+                                name = ideProfile.name,
+                                avatarUrl = ideProfile.avatarUrl,
+                                tier = tier
+                            ),
+                            tokens = OAuthTokens(
+                                accessToken = "",
+                                refreshToken = rt,
+                                expiryTimestamp = System.currentTimeMillis() / 1000L + 3600L
+                            ),
+                            isActive = true,
+                            status = AccountStatus.ACTIVE
+                        )
+                        accountStore.upsertAccount(newAccount)
+                        if (rt.isNotBlank()) {
+                            refreshSingleAccountQuota(newAccount.id)
+                        }
+                    } else {
+                        val needsUpdate = (existing.profile.name != ideProfile.name && ideProfile.name != null) ||
+                                (existing.profile.avatarUrl != ideProfile.avatarUrl && ideProfile.avatarUrl != null) ||
+                                (existing.tokens.refreshToken.isBlank() && rt.isNotBlank())
+                        if (needsUpdate) {
+                            val updated = existing.copy(
+                                profile = existing.profile.copy(
+                                    name = ideProfile.name ?: existing.profile.name,
+                                    avatarUrl = ideProfile.avatarUrl ?: existing.profile.avatarUrl,
+                                    tier = tier
+                                ),
+                                tokens = if (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) {
+                                    existing.tokens.copy(refreshToken = rt)
+                                } else existing.tokens
+                            )
+                            accountStore.upsertAccount(updated)
+                            if (rt.isNotBlank()) {
+                                refreshSingleAccountQuota(updated.id)
+                            }
+                        }
+                    }
+                }
+
+                // 2. 自动同步 App/CLI 宿主账号至 Studio 账号列表
+                if (cliProfile != null && cliProfile.email.isNotBlank()) {
+                    val currentList = accountStore.currentAccounts()
+                    val existing = currentList.firstOrNull { it.email.equals(cliProfile.email, ignoreCase = true) }
+                    val rt = existing?.tokens?.refreshToken?.takeIf { it.isNotBlank() }
+                        ?: HostAccountDetector.findAvailableRefreshToken(cliProfile.email)
+                        ?: ""
+
+                    if (existing == null) {
+                        val newAccount = AccountInfo(
+                            id = "acc_${cliProfile.email.hashCode().toUInt().toString(16)}",
+                            profile = AccountProfile(
+                                email = cliProfile.email,
+                                name = cliProfile.name,
+                                avatarUrl = null,
+                                tier = AccountTier.PRO
+                            ),
+                            tokens = OAuthTokens(
+                                accessToken = "",
+                                refreshToken = rt,
+                                expiryTimestamp = cliProfile.expiryTimestamp ?: (System.currentTimeMillis() / 1000L + 3600L)
+                            ),
+                            isActive = true,
+                            status = AccountStatus.ACTIVE
+                        )
+                        accountStore.upsertAccount(newAccount)
+                        if (rt.isNotBlank()) {
+                            refreshSingleAccountQuota(newAccount.id)
+                        }
+                    } else {
+                        val needsUpdate = (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) ||
+                                (existing.profile.name != cliProfile.name && cliProfile.name != null)
+                        if (needsUpdate) {
+                            val updated = existing.copy(
+                                profile = existing.profile.copy(
+                                    name = cliProfile.name ?: existing.profile.name
+                                ),
+                                tokens = if (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) {
+                                    existing.tokens.copy(refreshToken = rt)
+                                } else existing.tokens
+                            )
+                            accountStore.upsertAccount(updated)
+                            if (rt.isNotBlank()) {
+                                refreshSingleAccountQuota(updated.id)
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     private fun startHostAccountDetectionLoop() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             while (this.isActive) {
                 try {
-                    val cliEmail = HostAccountDetector.detectCliAppActiveEmail()
-                    val ideEmail = HostAccountDetector.detectIdeActiveEmail()
-                    _cliActiveEmail.value = cliEmail
-                    _ideActiveEmail.value = ideEmail
+                    syncHostAccounts().join()
                 } catch (_: Exception) {
                 }
                 kotlinx.coroutines.delay(3000)
