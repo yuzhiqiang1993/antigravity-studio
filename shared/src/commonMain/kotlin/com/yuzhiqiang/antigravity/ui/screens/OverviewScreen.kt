@@ -23,23 +23,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.HealthAndSafety
-import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +54,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
+import com.yuzhiqiang.antigravity.domain.model.account.AccountTier
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.BadgeTone
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
@@ -65,6 +66,7 @@ import com.yuzhiqiang.antigravity.ui.screens.overview.HeroProxyServiceCard
 import com.yuzhiqiang.antigravity.ui.screens.overview.HostCardData
 import com.yuzhiqiang.antigravity.ui.screens.overview.HostCardItem
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -148,50 +150,78 @@ fun OverviewScreen(
             onDiagnostics = { viewModel.openDoctorDialog() }
         )
 
-        // 当前激活账号与核心模型配额摘要卡片
+        // 宿主实际生效活跃账号与核心模型配额摘要 (同时适配双端不同账号或统一单账号)
+        val accounts by viewModel.accounts.collectAsState()
+        val cliActiveEmail by viewModel.cliActiveEmail.collectAsState()
+        val ideActiveEmail by viewModel.ideActiveEmail.collectAsState()
         val activeAccount by viewModel.activeAccount.collectAsState()
+        val isPrivacyMode by viewModel.isPrivacyMode.collectAsState()
         val quotas by viewModel.accountQuotas.collectAsState()
-        val activeQuota = activeAccount?.id?.let { quotas[it] }
 
-        activeAccount?.let { acc ->
-            StudioCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            StatusBadge(text = "激活账号: ${acc.displayName}", tone = BadgeTone.SUCCESS, pulse = true)
-                            val tierName = activeQuota?.tierName ?: if (acc.profile.tier == com.yuzhiqiang.antigravity.domain.model.account.AccountTier.PRO) "Pro 订阅" else null
-                            if (tierName != null) {
-                                StatusBadge(text = tierName, tone = BadgeTone.INFO)
-                            }
-                        }
+        LaunchedEffect(Unit) {
+            viewModel.syncHostAccounts()
+        }
 
-                        TextButton(
-                            onClick = { viewModel.selectTab(com.yuzhiqiang.antigravity.ui.presentation.NavTab.ACCOUNTS) },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text("配额中心 ➔", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                        }
+        val displayActiveAccounts = remember(accounts, cliActiveEmail, ideActiveEmail, activeAccount) {
+            val result = mutableListOf<HostActiveAccountDisplay>()
+            val seenEmails = mutableSetOf<String>()
+
+            val isSameEmail = !cliActiveEmail.isNullOrBlank() &&
+                    !ideActiveEmail.isNullOrBlank() &&
+                    cliActiveEmail.equals(ideActiveEmail, ignoreCase = true)
+
+            if (isSameEmail) {
+                val acc = accounts.firstOrNull { it.email.equals(cliActiveEmail, ignoreCase = true) }
+                    ?: activeAccount
+                if (acc != null && seenEmails.add(acc.email.lowercase())) {
+                    result.add(HostActiveAccountDisplay(acc, "双端活跃账号", isIde = true, isCli = true))
+                }
+            } else {
+                // App / CLI 宿主账号
+                if (!cliActiveEmail.isNullOrBlank()) {
+                    val acc = accounts.firstOrNull { it.email.equals(cliActiveEmail, ignoreCase = true) }
+                    if (acc != null && seenEmails.add(acc.email.lowercase())) {
+                        result.add(HostActiveAccountDisplay(acc, "App / CLI 活跃账号", isIde = false, isCli = true))
                     }
+                }
+                // IDE 宿主账号
+                if (!ideActiveEmail.isNullOrBlank()) {
+                    val acc = accounts.firstOrNull { it.email.equals(ideActiveEmail, ignoreCase = true) }
+                    if (acc != null && seenEmails.add(acc.email.lowercase())) {
+                        result.add(HostActiveAccountDisplay(acc, "IDE 活跃账号", isIde = true, isCli = false))
+                    }
+                }
+            }
 
-                    if (activeQuota != null) {
-                        com.yuzhiqiang.antigravity.ui.components.CompactDualQuotaBar(quotaSnapshot = activeQuota)
-                    } else {
-                        Text(
-                            text = "正在拉取配额数据或暂未加载...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+            // 若未探测到任何宿主账号，则回退展示 Studio 当前激活账号
+            if (result.isEmpty() && activeAccount != null) {
+                result.add(HostActiveAccountDisplay(activeAccount!!, "激活账号", isIde = false, isCli = false))
+            }
+            result
+        }
+
+        if (displayActiveAccounts.isNotEmpty()) {
+            if (displayActiveAccounts.size == 1) {
+                val item = displayActiveAccounts.first()
+                val activeQuota = quotas[item.account.id]
+                ActiveAccountQuotaCard(
+                    item = item,
+                    quotaSnapshot = activeQuota,
+                    isPrivacyMode = isPrivacyMode,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.card)
+                ) {
+                    displayActiveAccounts.forEach { item ->
+                        val activeQuota = quotas[item.account.id]
+                        ActiveAccountQuotaCard(
+                            item = item,
+                            quotaSnapshot = activeQuota,
+                            isPrivacyMode = isPrivacyMode,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -336,6 +366,177 @@ fun OverviewScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+        }
+    }
+}
+
+private data class HostActiveAccountDisplay(
+    val account: AccountInfo,
+    val sourceLabel: String,
+    val isIde: Boolean,
+    val isCli: Boolean
+)
+
+@Composable
+private fun ActiveAccountQuotaCard(
+    item: HostActiveAccountDisplay,
+    quotaSnapshot: com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot?,
+    isPrivacyMode: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val acc = item.account
+    val displayEmail = if (isPrivacyMode) acc.maskedEmail() else acc.email
+    val badgeTone = if (item.isIde) BadgeTone.INFO else BadgeTone.SUCCESS
+
+    val tier: AccountTier = when {
+        quotaSnapshot?.tier == AccountTier.ULTRA ||
+                quotaSnapshot?.tierName?.contains("ultra", ignoreCase = true) == true ||
+                acc.profile.tier == AccountTier.ULTRA -> AccountTier.ULTRA
+
+        quotaSnapshot?.tier == AccountTier.ENTERPRISE ||
+                quotaSnapshot?.tierName?.contains("enterprise", ignoreCase = true) == true ||
+                acc.profile.tier == AccountTier.ENTERPRISE -> AccountTier.ENTERPRISE
+
+        quotaSnapshot?.tier == AccountTier.PRO ||
+                quotaSnapshot?.isPro == true ||
+                quotaSnapshot?.tierName?.contains("pro", ignoreCase = true) == true ||
+                acc.profile.tier == AccountTier.PRO -> AccountTier.PRO
+
+        else -> AccountTier.FREE
+    }
+
+    val badgeBg = when (tier) {
+        AccountTier.ULTRA -> MaterialTheme.colorScheme.tertiaryContainer
+        AccountTier.PRO -> MaterialTheme.colorScheme.primaryContainer
+        AccountTier.ENTERPRISE -> MaterialTheme.colorScheme.secondaryContainer
+        AccountTier.FREE -> MaterialTheme.colorScheme.surfaceVariant
+    }
+
+    val badgeText = when (tier) {
+        AccountTier.ULTRA -> MaterialTheme.colorScheme.onTertiaryContainer
+        AccountTier.PRO -> MaterialTheme.colorScheme.onPrimaryContainer
+        AccountTier.ENTERPRISE -> MaterialTheme.colorScheme.onSecondaryContainer
+        AccountTier.FREE -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    val badgeLabel = when (tier) {
+        AccountTier.ULTRA -> "Ultra"
+        AccountTier.PRO -> "Pro"
+        AccountTier.ENTERPRISE -> "Enterprise"
+        AccountTier.FREE -> "Free"
+    }
+
+    val (hostIcon, hostIconTint, hostIconBg) = remember(item.isIde, item.isCli) {
+        when {
+            item.isIde && item.isCli -> Triple(
+                Icons.Outlined.Devices,
+                Color(0xFF6366F1),
+                Color(0xFF6366F1).copy(alpha = 0.12f)
+            )
+            item.isIde -> Triple(
+                Icons.Outlined.Code,
+                Color(0xFF6366F1),
+                Color(0xFF6366F1).copy(alpha = 0.12f)
+            )
+            else -> Triple(
+                Icons.Outlined.Laptop,
+                Color(0xFF0D9488),
+                Color(0xFF0D9488).copy(alpha = 0.12f)
+            )
+        }
+    }
+
+    OutlinedCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // === 头部身份区: 平台专属图标 + 纵向 (角色标签 + 邮箱) + 右上角等级徽章 ===
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = hostIconBg,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = hostIcon,
+                                contentDescription = null,
+                                tint = hostIconTint,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        StatusBadge(
+                            text = item.sourceLabel,
+                            tone = badgeTone,
+                            pulse = true
+                        )
+
+                        Text(
+                            text = displayEmail,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
+                    color = badgeBg
+                ) {
+                    Text(
+                        text = badgeLabel,
+                        fontSize = StudioDesignTokens.TextSize.badge,
+                        fontWeight = FontWeight.Bold,
+                        color = badgeText,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                thickness = 1.dp
+            )
+
+            // === 配额展示区 ===
+            if (quotaSnapshot != null) {
+                com.yuzhiqiang.antigravity.ui.components.CompactDualQuotaBar(quotaSnapshot = quotaSnapshot)
+            } else {
+                Text(
+                    text = "正在同步配额数据...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

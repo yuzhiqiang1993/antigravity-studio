@@ -65,20 +65,18 @@ fun HostCardItem(
     val isHovered by interactionSource.collectIsHoveredAsState()
 
     val cardElevation by animateDpAsState(
-        targetValue = if (isHovered) 2.5.dp else 0.dp,
+        targetValue = if (isHovered) 2.dp else 0.dp,
         animationSpec = tween(150)
     )
 
     val borderColor by animateColorAsState(
         targetValue = when {
             data.needsUpdate && isHovered -> warningColor.copy(alpha = 0.75f)
-            data.needsUpdate -> warningColor.copy(alpha = 0.55f)
-            data.isProxyActive && isHovered -> successColor.copy(alpha = 0.65f)
-            data.isProxyActive -> successColor.copy(alpha = 0.45f)
+            data.needsUpdate -> warningColor.copy(alpha = 0.45f)
             isHovered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
         },
-        animationSpec = tween(AppTokens.Motion.durationMedium)
+        animationSpec = tween(150)
     )
 
     // 根据宿主类型确定专属图标与主题色
@@ -209,12 +207,12 @@ fun HostCardItem(
             val containerBg = when {
                 data.needsUpdate -> warningColor.copy(alpha = 0.08f)
                 data.isProxyActive -> successColor.copy(alpha = 0.06f)
-                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                else -> MaterialTheme.colorScheme.surfaceContainerLow
             }
             val containerBorder = when {
                 data.needsUpdate -> warningColor.copy(alpha = 0.4f)
                 data.isProxyActive -> successColor.copy(alpha = 0.3f)
-                else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
             }
 
             Surface(
