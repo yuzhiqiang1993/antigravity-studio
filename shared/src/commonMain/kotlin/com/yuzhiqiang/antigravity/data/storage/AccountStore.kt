@@ -321,15 +321,21 @@ class AccountStore(
      */
     fun exportAccountsJson(): String {
         val current = _accountsState.value
-        val exportList = current.map { acc ->
-            buildJsonObject {
-                put("email", JsonPrimitive(acc.email))
-                put("refreshToken", JsonPrimitive(acc.tokens.refreshToken))
-                acc.profile.name?.takeIf { it.isNotBlank() }?.let {
-                    put("name", JsonPrimitive(it))
+        val exportList = current
+            .filter { it.tokens.refreshToken.isNotBlank() }
+            .map { acc ->
+                buildJsonObject {
+                    put("email", JsonPrimitive(acc.email))
+                    put("refresh_token", JsonPrimitive(acc.tokens.refreshToken))
+                    put("refreshToken", JsonPrimitive(acc.tokens.refreshToken))
+                    acc.profile.name?.takeIf { it.isNotBlank() }?.let {
+                        put("name", JsonPrimitive(it))
+                    }
+                    acc.customNote?.takeIf { it.isNotBlank() }?.let {
+                        put("custom_note", JsonPrimitive(it))
+                    }
                 }
             }
-        }
         val jsonArray = JsonArray(exportList)
         return json.encodeToString(JsonArray.serializer(), jsonArray)
     }
