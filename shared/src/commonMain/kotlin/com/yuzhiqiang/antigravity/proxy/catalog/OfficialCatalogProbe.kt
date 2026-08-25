@@ -18,8 +18,6 @@ import javax.net.ssl.*
  */
 object OfficialCatalogProbe {
 
-    private const val MAX_CATALOG_BYTES = 4L * 1024L * 1024L
-
     private data class LanguageServerCandidate(
         val pid: Long,
         val source: String,
@@ -93,9 +91,6 @@ object OfficialCatalogProbe {
                 val responseCode = connection.responseCode
                 if (responseCode in 200..299) {
                     val responseBytes = connection.inputStream.use { it.readBytes() }
-                    if (responseBytes.size.toLong() > MAX_CATALOG_BYTES) {
-                        throw IllegalStateException("官方模型目录超过 4 MiB 限制")
-                    }
                     val responseBody = responseBytes.toString(Charsets.UTF_8)
                     rawOfficialCatalogBody = responseBody
                     val rawModels = parseOfficialCatalogModels(responseBody)

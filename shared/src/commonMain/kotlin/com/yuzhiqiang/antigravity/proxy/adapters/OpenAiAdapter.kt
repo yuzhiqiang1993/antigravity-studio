@@ -93,9 +93,9 @@ class OpenAiAdapter : ProviderAdapter {
                     responseStarted = true
 
                 if (!request.stream) {
-                    val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                    val responseBody = ProviderAdapter.readResponseBodyText(response)
                     if (responseBody.isFailure) {
-                        emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "OpenAI response body exceeds 4 MiB buffered limit", 502))
+                        emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Failed to read OpenAI response body", 502))
                         return@execute
                     }
                     val parsed = parseNonStreamingResponse(responseBody.getOrThrow())
@@ -282,9 +282,9 @@ class OpenAiAdapter : ProviderAdapter {
                 emitApiError(response, "OpenAI image")
                 return@flow
             }
-            val responseBody = ProviderAdapter.readLimitedResponseText(response)
+            val responseBody = ProviderAdapter.readResponseBodyText(response)
             if (responseBody.isFailure) {
-                emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "OpenAI image response body exceeds 4 MiB buffered limit", 502))
+                emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Failed to read OpenAI image response body", 502))
                 return@flow
             }
             val root = json.parseToJsonElement(responseBody.getOrThrow()).jsonObject
@@ -355,9 +355,9 @@ class OpenAiAdapter : ProviderAdapter {
                     }
                     responseStarted = true
                     if (!request.stream) {
-                        val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                        val responseBody = ProviderAdapter.readResponseBodyText(response)
                         if (responseBody.isFailure) {
-                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "OpenAI Responses body exceeds 4 MiB buffered limit", 502))
+                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Failed to read OpenAI Responses body", 502))
                             return@execute
                         }
                         val parsed = OpenAiResponsesCodec.parseNonStreamingResponse(responseBody.getOrThrow())

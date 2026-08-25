@@ -56,7 +56,6 @@ interface ProviderAdapter {
     }
 
     companion object {
-        const val MAX_BUFFERED_RESPONSE_BODY_BYTES: Long = 4L * 1024L * 1024L
         /** 针对长思考推理模型与大 Prompt Prefill，默认最小请求超时保底为 600 秒（10 分钟）。 */
         const val DEFAULT_MINIMUM_REQUEST_TIMEOUT_MS: Long = 600_000L
 
@@ -198,13 +197,6 @@ interface ProviderAdapter {
             }
         }
 
-        fun responseBodyExceedsBufferedLimit(response: HttpResponse): Boolean {
-            return response.headers[HttpHeaders.ContentLength]
-                ?.toLongOrNull()
-                ?.let { it > MAX_BUFFERED_RESPONSE_BODY_BYTES }
-                ?: false
-        }
-
         /** CPA/独立代理在回环 8317 端口要求显式 client_version=1。 */
         fun appendCpaCatalogVersion(url: String): String {
             val uri = runCatching { URI(url) }.getOrNull() ?: return url
@@ -253,48 +245,25 @@ interface ProviderAdapter {
             }
         }
 
-        /**
-         * 有些上游使用 chunked 传输，不能只依赖 Content-Length 做大小保护。
-         * 这里在解析 JSON 前逐块读取并硬限制总字节数，避免错误响应或目录响应
-         * 通过分块传输绕过 byok 同等的缓冲上限。
-         */
-        suspend fun readLimitedResponseText(response: HttpResponse): Result<String> {
-            return readLimitedResponseBytes(response).map { bytes ->
+        /** 读取上游响应文本内容。 */
+        suspend fun readResponseBodyText(response: HttpResponse): Result<String> {
+            return readResponseBodyBytes(response).map { bytes ->
                 bytes.toString(Charsets.UTF_8)
             }
         }
 
-        /** 读取受限的二进制响应，供官方透传保留原始媒体类型。 */
-        suspend fun readLimitedResponseBytes(response: HttpResponse): Result<ByteArray> {
-            if (responseBodyExceedsBufferedLimit(response)) {
-                return Result.failure(
-                    IllegalStateException(
-                        "Upstream response body exceeds ${MAX_BUFFERED_RESPONSE_BODY_BYTES / (1024 * 1024)} MiB buffered limit"
-                    )
-                )
-            }
+        suspend fun readLimitedResponseText(response: HttpResponse): Result<String> = readResponseBodyText(response)
+
+        /** 读取上游二进制响应，供透传或解析使用。 */
+        suspend fun readResponseBodyBytes(response: HttpResponse): Result<ByteArray> {
             return try {
                 val channel: ByteReadChannel = response.body()
                 val output = ByteArrayOutputStream()
                 val buffer = ByteArray(16 * 1024)
-                var total = 0L
                 while (true) {
                     val read = channel.readAvailable(buffer)
                     if (read < 0) break
                     if (read == 0) continue
-                    total += read
-                    if (total > MAX_BUFFERED_RESPONSE_BODY_BYTES) {
-                        channel.cancel(
-                            IllegalStateException(
-                                "Upstream response body exceeds ${MAX_BUFFERED_RESPONSE_BODY_BYTES / (1024 * 1024)} MiB buffered limit"
-                            )
-                        )
-                        return Result.failure(
-                            IllegalStateException(
-                                "Upstream response body exceeds ${MAX_BUFFERED_RESPONSE_BODY_BYTES / (1024 * 1024)} MiB buffered limit"
-                            )
-                        )
-                    }
                     output.write(buffer, 0, read)
                 }
                 channel.closedCause?.let { cause -> return Result.failure(cause) }
@@ -303,6 +272,8 @@ interface ProviderAdapter {
                 Result.failure(error)
             }
         }
+
+        suspend fun readLimitedResponseBytes(response: HttpResponse): Result<ByteArray> = readResponseBodyBytes(response)
 
         private fun mergeJsonElement(parent: JsonElement?, child: JsonElement): JsonElement {
             if (parent !is JsonObject || child !is JsonObject) return child
