@@ -41,6 +41,8 @@ fun CustomHostPathDialog(
     onDismiss: () -> Unit
 ) {
     val s = strings()
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val successColor = if (isDark) Color(0xFF4ADE80) else Color(0xFF16A34A)
     var pathInput by remember(initialPath) { mutableStateOf(initialPath) }
     val trimmedPath = pathInput.trim()
 
@@ -172,7 +174,7 @@ fun CustomHostPathDialog(
                                             .size(24.dp)
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(
-                                                if (exists) Color(0xFF16A34A).copy(alpha = 0.12f)
+                                                if (exists) successColor.copy(alpha = 0.12f)
                                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                                             ),
                                         contentAlignment = Alignment.Center
@@ -180,7 +182,7 @@ fun CustomHostPathDialog(
                                         Icon(
                                             imageVector = if (exists) Icons.Outlined.CheckCircle else Icons.Outlined.Folder,
                                             contentDescription = null,
-                                            tint = if (exists) Color(0xFF16A34A) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            tint = if (exists) successColor else MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(14.dp)
                                         )
                                     }
@@ -201,7 +203,7 @@ fun CustomHostPathDialog(
                                     if (exists) {
                                         Surface(
                                             shape = RoundedCornerShape(4.dp),
-                                            color = Color(0xFF16A34A).copy(alpha = 0.1f)
+                                            color = successColor.copy(alpha = 0.1f)
                                         ) {
                                             Text(
                                                 text = s.hostPathStatusValid,
@@ -209,7 +211,7 @@ fun CustomHostPathDialog(
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.SemiBold
                                                 ),
-                                                color = Color(0xFF16A34A),
+                                                color = successColor,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
@@ -346,8 +348,8 @@ fun CustomHostPathDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF16A34A).copy(alpha = 0.08f))
-                                .border(1.dp, Color(0xFF16A34A).copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                .background(successColor.copy(alpha = 0.08f))
+                                .border(1.dp, successColor.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -355,13 +357,13 @@ fun CustomHostPathDialog(
                             Icon(
                                 imageVector = Icons.Outlined.CheckCircle,
                                 contentDescription = null,
-                                tint = Color(0xFF16A34A),
+                                tint = successColor,
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
                                 text = s.hostPathStatusValid,
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                                color = Color(0xFF16A34A)
+                                color = successColor
                             )
                         }
                     }

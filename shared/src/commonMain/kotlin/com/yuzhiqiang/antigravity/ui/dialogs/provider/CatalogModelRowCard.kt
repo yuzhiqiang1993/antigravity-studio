@@ -33,6 +33,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.domain.model.TokenLimitSource
+import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
+import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
+import com.yuzhiqiang.antigravity.ui.components.StudioMenuDivider
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
@@ -406,13 +409,13 @@ fun CatalogModelRowCard(
                             }
                         }
 
-                        DropdownMenu(
+                        StudioDropdownMenu(
                             expanded = expandedInputMenu,
                             onDismissRequest = { expandedInputMenu = false }
                         ) {
                             INPUT_TOKEN_LIMIT_OPTIONS.forEach { (valLimit, label) ->
-                                DropdownMenuItem(
-                                    text = { Text(label, style = MaterialTheme.typography.bodySmall) },
+                                StudioDropdownMenuItem(
+                                    text = label,
                                     onClick = {
                                         expandedInputMenu = false
                                         onTokenLimitChanged(
@@ -424,13 +427,11 @@ fun CatalogModelRowCard(
                                     }
                                 )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            DropdownMenuItem(
-                                text = {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Text(s.providerCustomTokenOption, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary))
-                                    }
+                            StudioMenuDivider()
+                            StudioDropdownMenuItem(
+                                text = s.providerCustomTokenOption,
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                                 },
                                 onClick = {
                                     expandedInputMenu = false
@@ -438,12 +439,11 @@ fun CatalogModelRowCard(
                                 }
                             )
                             if (config.inputTokenLimit != null) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
-                                            Text(s.providerClearTokenOption, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error))
-                                        }
+                                StudioDropdownMenuItem(
+                                    text = s.providerClearTokenOption,
+                                    isDestructive = true,
+                                    leadingIcon = {
+                                        Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
                                     },
                                     onClick = {
                                         expandedInputMenu = false
@@ -490,13 +490,13 @@ fun CatalogModelRowCard(
                             }
                         }
 
-                        DropdownMenu(
+                        StudioDropdownMenu(
                             expanded = expandedOutputMenu,
                             onDismissRequest = { expandedOutputMenu = false }
                         ) {
                             OUTPUT_TOKEN_LIMIT_OPTIONS.forEach { (valLimit, label) ->
-                                DropdownMenuItem(
-                                    text = { Text(label, style = MaterialTheme.typography.bodySmall) },
+                                StudioDropdownMenuItem(
+                                    text = label,
                                     onClick = {
                                         expandedOutputMenu = false
                                         onTokenLimitChanged(
@@ -508,13 +508,11 @@ fun CatalogModelRowCard(
                                     }
                                 )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            DropdownMenuItem(
-                                text = {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Text(s.providerCustomTokenOption, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary))
-                                    }
+                            StudioMenuDivider()
+                            StudioDropdownMenuItem(
+                                text = s.providerCustomTokenOption,
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                                 },
                                 onClick = {
                                     expandedOutputMenu = false
@@ -522,12 +520,11 @@ fun CatalogModelRowCard(
                                 }
                             )
                             if (config.outputTokenLimit != null) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
-                                            Text(s.providerClearTokenOption, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error))
-                                        }
+                                StudioDropdownMenuItem(
+                                    text = s.providerClearTokenOption,
+                                    isDestructive = true,
+                                    leadingIcon = {
+                                        Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
                                     },
                                     onClick = {
                                         expandedOutputMenu = false

@@ -33,6 +33,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
+import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
+import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
+import com.yuzhiqiang.antigravity.ui.components.StudioSelectField
+import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
 @Composable
@@ -133,63 +137,30 @@ fun ProviderConnectionStep(
                         onClick = { protocolMenuExpanded = true },
                         enabled = !isFetching
                     )
-                    DropdownMenu(
+                    StudioDropdownMenu(
                         expanded = protocolMenuExpanded,
                         onDismissRequest = { protocolMenuExpanded = false },
-                        shape = RoundedCornerShape(10.dp),
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
-                        shadowElevation = 12.dp,
-                        modifier = Modifier.widthIn(min = 340.dp, max = 420.dp).padding(4.dp)
+                        modifier = Modifier.widthIn(min = 340.dp, max = 420.dp)
                     ) {
                         protocolOptions.forEach { (candidateProtocol, label) ->
                             val isSelected = candidateProtocol == protocol
-                            val itemInteraction = remember { MutableInteractionSource() }
-                            val isItemHovered by itemInteraction.collectIsHoveredAsState()
-                            val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-
-                            val itemBg = when {
-                                isSelected -> if (isDark) Color(0xFF1E3A8A).copy(alpha = 0.65f) else Color(0xFFDBEAFE)
-                                isItemHovered -> if (isDark) Color(0xFF3B82F6).copy(alpha = 0.12f) else Color(0xFF2563EB).copy(alpha = 0.07f)
-                                else -> Color.Transparent
-                            }
-                            val itemTextCol = when {
-                                isSelected -> if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
-                                else -> MaterialTheme.colorScheme.onSurface
-                            }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(36.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(itemBg)
-                                    .hoverable(itemInteraction)
-                                    .clickable {
+                            StudioDropdownMenuItem(
+                                text = label,
+                                onClick = {
                                     protocolMenuExpanded = false
                                     onProtocolChange(candidateProtocol)
-                                }
-                                    .padding(horizontal = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    ),
-                                    color = itemTextCol
-                                )
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Check,
-                                        contentDescription = null,
-                                        tint = itemTextCol,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
+                                },
+                                leadingIcon = if (isSelected) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Check,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                } else null
+                            )
                         }
                     }
                 }
@@ -565,74 +536,3 @@ private fun StudioCustomTextField(
     )
 }
 
-/**
- * 桌面端紧凑下拉选择框组件 (固定高度 38.dp)
- */
-@Composable
-private fun StudioSelectField(
-    label: String,
-    isExpanded: Boolean = false,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    modifier: Modifier = Modifier
-) {
-    val s = com.yuzhiqiang.antigravity.i18n.strings()
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = tween(AppTokens.Motion.durationShort)
-    )
-    val borderColor = when {
-        isExpanded -> MaterialTheme.colorScheme.primary
-        isHovered -> if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
-        else -> if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
-    }
-    val bgColor = when {
-        isExpanded -> MaterialTheme.colorScheme.surface
-        isHovered -> if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
-        else -> if (isDark) Color(0xFF0F172A).copy(alpha = 0.6f) else Color(0xFFF8FAFC)
-    }
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(38.dp)
-            .hoverable(interactionSource)
-            .clip(RoundedCornerShape(8.dp))
-            .border(if (isExpanded) 1.5.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = bgColor
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                imageVector = Icons.Outlined.ExpandMore,
-                contentDescription = null,
-                tint = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .size(18.dp)
-                    .graphicsLayer { rotationZ = chevronRotation }
-            )
-        }
-    }
-}

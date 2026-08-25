@@ -86,16 +86,13 @@ fun DetailedQuotaPoolBlock(
 private fun DetailedBucketRow(
     bucket: ModelQuotaInfo
 ) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val animatedProgress by animateFloatAsState(
         targetValue = (bucket.percentage / 100f).coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 400)
     )
 
-    val ringColor = when {
-        bucket.percentage > 40 -> Color(0xFF00E676)
-        bucket.percentage >= 15 -> Color(0xFFFFB74D)
-        else -> Color(0xFFFF5252)
-    }
+    val ringColor = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(bucket.percentage, isDark)
 
     Row(
         modifier = Modifier.fillMaxWidth(),

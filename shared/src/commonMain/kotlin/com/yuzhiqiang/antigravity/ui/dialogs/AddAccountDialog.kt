@@ -26,6 +26,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import java.awt.Toolkit
@@ -280,23 +281,14 @@ private fun ManualTokenContent(
             lineHeight = 20.sp
         )
 
-        OutlinedTextField(
+        StudioTextField(
             value = token,
             onValueChange = onTokenChange,
             modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 180.dp),
-            placeholder = {
-                Text(
-                    "粘贴 1//0g... 字符串（支持多行批量粘贴或 JSON 数组/对象）",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    fontSize = 13.sp
-                )
-            },
+            placeholder = "粘贴 1//0g... 字符串（支持多行批量粘贴或 JSON 数组/对象）",
             singleLine = false,
-            shape = RoundedCornerShape(8.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-            )
+            maxLines = 8,
+            minLines = 4
         )
 
         Button(

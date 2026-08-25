@@ -29,6 +29,8 @@ fun AccountHealthDotList(
 ) {
     if (accounts.isEmpty()) return
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -41,10 +43,9 @@ fun AccountHealthDotList(
             accounts.forEach { account ->
                 val snapshot = quotas[account.id]
                 val dotColor = when {
-                    account.status == AccountStatus.ERROR || account.tokens.isExpired() -> Color(0xFFFF5252)
-                    snapshot != null && snapshot.lowestQuotaPct() <= 15 -> Color(0xFFFF5252)
-                    snapshot != null && snapshot.lowestQuotaPct() <= 40 -> Color(0xFFFFB74D)
-                    else -> Color(0xFF00E676)
+                    account.status == AccountStatus.ERROR || account.tokens.isExpired() -> if (isDark) com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.QuotaLevelCriticalDark else com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.QuotaLevelCriticalLight
+                    snapshot != null -> com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(snapshot.lowestQuotaPct(), isDark)
+                    else -> if (isDark) com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.QuotaLevelFullDark else com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.QuotaLevelFullLight
                 }
 
                 Box(

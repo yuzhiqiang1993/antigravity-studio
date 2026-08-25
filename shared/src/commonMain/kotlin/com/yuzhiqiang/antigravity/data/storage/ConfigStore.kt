@@ -176,7 +176,8 @@ class ConfigStore(
             val uiSettings = readStudioSettings()
             val withUiSettings = config.copy(
                 language = uiSettings["language"]?.jsonPrimitive?.contentOrNull ?: config.language,
-                themeMode = uiSettings["theme_mode"]?.jsonPrimitive?.contentOrNull ?: config.themeMode
+                themeMode = uiSettings["theme_mode"]?.jsonPrimitive?.contentOrNull ?: config.themeMode,
+                themePalette = uiSettings["theme_palette"]?.jsonPrimitive?.contentOrNull ?: config.themePalette
             )
             val normalized = normalizeConfig(withUiSettings)
             validateConfig(normalized)
@@ -713,6 +714,7 @@ class ConfigStore(
             val content = buildJsonObject {
                 put("language", config.language)
                 put("theme_mode", config.themeMode)
+                put("theme_palette", config.themePalette)
             }.toString()
             val temp = File.createTempFile("studio-settings-", ".tmp", parent ?: File("."))
             try {

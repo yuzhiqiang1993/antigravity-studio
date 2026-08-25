@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Search
 
@@ -44,10 +45,14 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -277,7 +282,13 @@ fun EmptyStateView(
 }
 
 /**
- * 桌面端标准紧凑搜索框（高度自然适配字体，彻底解决强制高度导致的文字压扁/裁切问题）。
+ * 桌面端标准统一搜索输入框 (StudioSearchField)：
+ * - 统一高度 36dp，与顶栏按钮、FilterChip 严格等高
+ * - 统一小圆角 StudioDesignTokens.CornerRadius.sm (6.dp)
+ * - 统一背景色 InnerCardLight / Surface
+ * - 统一边框 BorderCardLight，聚焦时高亮 Primary 色
+ * - 文字垂直 100% 居中，彻底消除裁切或偏移
+ * - 支持左侧 Search 图标、右侧一键清空 Close 图标
  */
 @Composable
 fun StudioSearchField(
@@ -288,21 +299,37 @@ fun StudioSearchField(
 ) {
     val s = com.yuzhiqiang.antigravity.i18n.strings()
     val effectivePlaceholder = placeholder ?: s.commonSearch
+    var isFocused by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
+    val bg = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
+    val borderClr = if (isFocused) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
+    }
+
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyMedium.copy(
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body
         ),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+        modifier = modifier
+            .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.searchFieldHeight)
+            .onFocusChanged { isFocused = it.isFocused },
         decorationBox = { innerTextField ->
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(AppTokens.Radius.small))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(AppTokens.Radius.small))
-                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                    .fillMaxWidth()
+                    .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.searchFieldHeight)
+                    .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+                    .background(bg)
+                    .border(1.dp, borderClr, RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+                    .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -310,33 +337,135 @@ fun StudioSearchField(
                     imageVector = Icons.Outlined.Search,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(AppTokens.Size.iconSmall)
+                    modifier = Modifier.size(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.cardActionIconSize)
                 )
-                Box(modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart
+                ) {
                     if (value.isEmpty()) {
                         Text(
                             text = effectivePlaceholder,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             maxLines = 1
                         )
                     }
                     innerTextField()
                 }
                 if (value.isNotEmpty()) {
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = s.commonClear,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .size(AppTokens.Size.iconSmall)
-                            .clickable { onValueChange("") }
-                    )
+                    androidx.compose.material3.IconButton(
+                        onClick = { onValueChange("") },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = s.commonClear,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             }
-        },
-        modifier = modifier
+        }
     )
+}
+
+/**
+ * 桌面端标准统一表单输入框 (StudioTextField)：
+ * - 统一小圆角 StudioDesignTokens.CornerRadius.sm (6.dp)
+ * - 统一边框与背景，与全 App 设计系统 100% 呼应
+ * - 统一文字与占位符排版，垂直居中
+ * - 支持单行/多行、Leading/Trailing 自定义内容
+ */
+@Composable
+fun StudioTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String? = null,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    minLines: Int = 1,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    isError: Boolean = false,
+    errorMessage: String? = null,
+    enabled: Boolean = true
+) {
+    var isFocused by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
+    val bg = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
+    val borderClr = when {
+        isError   -> MaterialTheme.colorScheme.error
+        isFocused -> MaterialTheme.colorScheme.primary
+        else      -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
+    }
+
+    Column(modifier = modifier) {
+        androidx.compose.foundation.text.BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = singleLine,
+            maxLines = maxLines,
+            minLines = minLines,
+            enabled = enabled,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body
+            ),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { isFocused = it.isFocused },
+            decorationBox = { innerTextField ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+                        .background(bg)
+                        .border(1.dp, borderClr, RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+                        .padding(horizontal = 10.dp, vertical = if (singleLine) 8.dp else 10.dp),
+                    verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    leadingIcon?.invoke()
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
+                    ) {
+                        if (value.isEmpty() && placeholder != null) {
+                            Text(
+                                text = placeholder,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                maxLines = maxLines
+                            )
+                        }
+                        innerTextField()
+                    }
+                    trailingIcon?.invoke()
+                }
+            }
+        )
+
+        if (isError && !errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.caption,
+                    color = MaterialTheme.colorScheme.error
+                ),
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+    }
 }
 
 
@@ -455,3 +584,217 @@ fun SkeletonCard(
         }
     }
 }
+
+/**
+ * 桌面端高质感统一弹出菜单组件 (StudioDropdownMenu)：
+ * - 纯净底色 surfaceContainer
+ * - 极细微边框 outlineVariant (1.dp)
+ * - 优雅中圆角 8.dp + 柔和投影
+ * - 紧凑桌面端间距
+ */
+@Composable
+fun StudioDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    offset: androidx.compose.ui.unit.DpOffset = androidx.compose.ui.unit.DpOffset(0.dp, 4.dp),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val bg = if (isDark) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface
+    val borderClr = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
+
+    androidx.compose.material3.DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        offset = offset,
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(bg)
+            .border(1.dp, borderClr, RoundedCornerShape(8.dp)),
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+            content = content
+        )
+    }
+}
+
+/**
+ * 桌面端高质感统一菜单条目组件 (StudioDropdownMenuItem)：
+ * - 紧凑桌面端高度 32dp
+ * - 内嵌 6dp 圆角 Hover 高亮背景（macOS 原生交互）
+ * - 精致图标与文字对齐
+ * - 支持危险操作警示色
+ */
+@Composable
+fun StudioDropdownMenuItem(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    trailingText: String? = null,
+    isDestructive: Boolean = false,
+    enabled: Boolean = true
+) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    val itemBg = when {
+        !enabled -> Color.Transparent
+        isHovered -> if (isDestructive) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = if (isDark) 0.35f else 0.8f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.5f else 0.8f)
+        }
+        else -> Color.Transparent
+    }
+
+    val textColor = when {
+        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        isDestructive -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    val iconTint = when {
+        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        isDestructive -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(32.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(itemBg)
+            .hoverable(interactionSource = interactionSource)
+            .clickable(
+                enabled = enabled,
+                onClick = onClick,
+                interactionSource = interactionSource,
+                indication = null
+            )
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            leadingIcon?.invoke()
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                color = textColor,
+                maxLines = 1
+            )
+        }
+
+        if (!trailingText.isNullOrBlank()) {
+            Text(
+                text = trailingText,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * 菜单分割线
+ */
+@Composable
+fun StudioMenuDivider(modifier: Modifier = Modifier) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    androidx.compose.material3.HorizontalDivider(
+        modifier = modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.6f),
+        thickness = 0.5.dp
+    )
+}
+
+/**
+ * 桌面端标准统一紧凑下拉选择框组件 (StudioSelectField)：
+ * - 统一高度 36.dp，与全 App 输入框、按钮严格等高
+ * - 统一圆角 CornerRadius.sm (6.dp)
+ * - 支持旋转指示箭头动画、Hover 微灰底高亮、展开聚焦状态
+ */
+@Composable
+fun StudioSelectField(
+    label: String,
+    isExpanded: Boolean = false,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    placeholder: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
+    val chevronRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(150)
+    )
+    val borderColor = when {
+        isExpanded -> MaterialTheme.colorScheme.primary
+        isHovered  -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.8f else 1.0f)
+        else       -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
+    }
+    val bgColor = when {
+        isExpanded -> if (isDark) MaterialTheme.colorScheme.surface else Color.White
+        isHovered  -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.5f else 0.8f)
+        else       -> if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.topButtonHeight)
+            .hoverable(interactionSource)
+            .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+            .border(if (isExpanded) 1.5.dp else 1.dp, borderColor, RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+            .clickable(enabled = enabled, onClick = onClick),
+        shape = RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm),
+        color = bgColor
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = label.ifBlank { placeholder ?: "" },
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body,
+                    color = if (label.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Normal
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Outlined.ExpandMore,
+                contentDescription = null,
+                tint = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(16.dp)
+                    .graphicsLayer { rotationZ = chevronRotation }
+            )
+        }
+    }
+}
+

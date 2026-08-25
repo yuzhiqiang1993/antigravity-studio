@@ -169,8 +169,8 @@ fun ActivityScreen(
                     ) {
                         OutlinedButton(
                             onClick = { viewModel.setActivityAutoScroll(!autoScroll) },
-                            modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.topButtonHeight),
+                            shape = RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = if (autoScroll) {
@@ -213,8 +213,8 @@ fun ActivityScreen(
                                 viewModel.clearActivityLogs()
                                 selectedTags = emptySet()
                             },
-                            modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.topButtonHeight),
+                            shape = RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                         ) {
@@ -751,9 +751,10 @@ private fun TagFilterDropdown(
     Box(modifier = modifier) {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(AppTokens.Radius.small))
+                .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.topButtonHeight)
+                .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
                 .background(containerColor)
-                .border(1.dp, borderColor, RoundedCornerShape(AppTokens.Radius.small))
+                .border(1.dp, borderColor, RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
                 .pointerHoverIcon(PointerIcon.Hand)
                 .hoverable(interactionSource = interactionSource)
                 .clickable(
@@ -761,7 +762,7 @@ private fun TagFilterDropdown(
                     indication = null,
                     onClick = { expanded = !expanded }
                 )
-                .padding(horizontal = 10.dp, vertical = 7.dp),
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -775,6 +776,7 @@ private fun TagFilterDropdown(
             Text(
                 text = buttonLabel,
                 style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body,
                     fontWeight = if (isFiltered) FontWeight.SemiBold else FontWeight.Normal
                 ),
                 color = textColor,
@@ -806,16 +808,13 @@ private fun TagFilterDropdown(
             }
         }
 
-        DropdownMenu(
+        StudioDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier
-                .widthIn(min = 260.dp, max = 340.dp)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+            modifier = Modifier.widthIn(min = 260.dp, max = 340.dp)
         ) {
             // Header: Title + Select All / Reset Actions
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
