@@ -39,7 +39,7 @@ fun CompactDualQuotaBar(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         groups.take(2).forEach { group ->
             CompactGroupRow(group = group)
@@ -63,15 +63,15 @@ private fun CompactGroupRow(
         // Family Name (如 "Gemini" / "Claude")
         Text(
             text = group.label,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
             ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(52.dp)
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.width(60.dp)
         )
 
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(8.dp))
 
         // 5小时限额
         if (fiveHour != null) {
@@ -82,7 +82,7 @@ private fun CompactGroupRow(
             )
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(16.dp))
 
         // 周额度
         if (weekly != null) {
@@ -114,13 +114,13 @@ private fun MiniBarCell(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body,
-                fontWeight = FontWeight.SemiBold
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium
             ),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -129,15 +129,15 @@ private fun MiniBarCell(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.progressBarHeight)
-                .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.pill))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(animatedProgress)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.pill))
+                    .clip(RoundedCornerShape(3.dp))
                     .background(barColor)
             )
         }
@@ -147,7 +147,7 @@ private fun MiniBarCell(
             style = MaterialTheme.typography.bodySmall.copy(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body
+                fontSize = 12.sp
             ),
             color = barColor,
             modifier = Modifier.width(38.dp)
