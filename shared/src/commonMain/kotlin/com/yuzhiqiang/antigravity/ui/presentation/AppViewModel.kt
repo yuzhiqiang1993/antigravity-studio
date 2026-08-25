@@ -22,22 +22,89 @@ import com.yuzhiqiang.antigravity.update.model.AppVersion
 import com.yuzhiqiang.antigravity.update.model.ReleaseInfo
 import com.yuzhiqiang.antigravity.update.model.UpdateState
 import kotlinx.coroutines.Job
+import com.yuzhiqiang.antigravity.data.storage.AccountStore
+import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
+import com.yuzhiqiang.antigravity.services.auth.GoogleAuthService
+import com.yuzhiqiang.antigravity.services.auth.TokenRenewalManager
 import kotlinx.coroutines.flow.*
+import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
+import com.yuzhiqiang.antigravity.services.quota.QuotaFetchService
+import com.yuzhiqiang.antigravity.services.quota.QuotaPoller
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
+import com.yuzhiqiang.antigravity.domain.model.account.SmartSwitchConfig
+import com.yuzhiqiang.antigravity.services.auth.HostAccountDetector
+import com.yuzhiqiang.antigravity.services.auth.HotSwitchCoordinator
+import com.yuzhiqiang.antigravity.services.auth.SmartSwitchCoordinator
+import kotlinx.coroutines.isActive
 
 class AppViewModel(
+
+
+
     val configStore: ConfigStore = ConfigStore(),
     val proxyServer: LocalProxyServer = LocalProxyServer(configStore),
-    val doctorEngine: DoctorEngine = DoctorEngine(configStore, proxyServer)
+    val doctorEngine: DoctorEngine = DoctorEngine(configStore, proxyServer),
+    val accountStore: AccountStore = AccountStore(),
+    val googleAuthService: GoogleAuthService = GoogleAuthService(),
+    val quotaFetchService: QuotaFetchService = QuotaFetchService(
+        tokenRefreshCallback = { refreshToken ->
+            googleAuthService.refreshAccessToken(refreshToken).map { it.accessToken }
+        }
+    )
 ) : ViewModel() {
+
+
+    val hotSwitchCoordinator = HotSwitchCoordinator(accountStore)
+    val smartSwitchCoordinator = SmartSwitchCoordinator(accountStore, configStore, hotSwitchCoordinator) { quotaPoller.quotaSnapshots.value }
+    val tokenRenewalManager = TokenRenewalManager(accountStore, googleAuthService, viewModelScope)
+    val quotaPoller = QuotaPoller(quotaFetchService, viewModelScope) { snapshot ->
+        val acc = accountStore.currentAccounts().firstOrNull { it.id == snapshot.accountId }
+        if (acc != null && acc.profile.tier != snapshot.tier && snapshot.tier != com.yuzhiqiang.antigravity.domain.model.account.AccountTier.FREE) {
+            val updated = acc.copy(profile = acc.profile.copy(tier = snapshot.tier))
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                accountStore.upsertAccount(updated)
+            }
+        }
+    }
+
+
+
+
 
     val config: StateFlow<AppConfig> = configStore.configState
     val configLoadError: StateFlow<String?> = configStore.loadError
     val isProxyRunning: StateFlow<Boolean> = proxyServer.isRunning
     val actualProxyPort: StateFlow<Int> = proxyServer.actualPort
     val activityLogs: StateFlow<List<ActivityLog>> = ActivityRecorder.logs
+
+    val accounts: StateFlow<List<AccountInfo>> = accountStore.accountsState
+    val activeAccount: StateFlow<AccountInfo?> = accountStore.activeAccountState
+
+    private val _cliActiveEmail = MutableStateFlow<String?>(null)
+    val cliActiveEmail: StateFlow<String?> = _cliActiveEmail.asStateFlow()
+
+    private val _ideActiveEmail = MutableStateFlow<String?>(null)
+    val ideActiveEmail: StateFlow<String?> = _ideActiveEmail.asStateFlow()
+
+    val cliActiveAccount: StateFlow<AccountInfo?> = accountStore.activeAccountState
+    val ideActiveAccount: StateFlow<AccountInfo?> = hotSwitchCoordinator.ideActiveAccount
+
+
+
+    val accountQuotas: StateFlow<Map<String, AccountQuotaSnapshot>> get() = quotaPoller.quotaSnapshots
+    val isRefreshingQuotas: StateFlow<Boolean> get() = quotaPoller.isRefreshing
+    val refreshingAccountIds: StateFlow<Set<String>> get() = quotaPoller.refreshingAccountIds
+
+    private val _isOAuthAuthorizing = MutableStateFlow(false)
+
+    val isOAuthAuthorizing: StateFlow<Boolean> = _isOAuthAuthorizing.asStateFlow()
+
+
+    private val _oauthAuthUrl = MutableStateFlow<String?>(null)
+    val oauthAuthUrl: StateFlow<String?> = _oauthAuthUrl.asStateFlow()
+
 
     private val _currentTab = MutableStateFlow(NavTab.OVERVIEW)
     val currentTab: StateFlow<NavTab> = _currentTab.asStateFlow()
@@ -218,6 +285,12 @@ class AppViewModel(
         I18nManager.currentLanguage = initialLang
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            startHostAccountDetectionLoop()
+            tokenRenewalManager.start()
+            quotaPoller.start(
+                accountsProvider = { accountStore.currentAccounts() },
+                activeAccountProvider = { accountStore.currentActiveAccount() }
+            )
             proxyServer.start(configStore.currentConfig.proxyPort)
             refreshHostStatus()
             fetchOfficialModels().join()
@@ -226,6 +299,23 @@ class AppViewModel(
             }
         }
     }
+
+    private fun startHostAccountDetectionLoop() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            while (this.isActive) {
+                try {
+                    val cliEmail = HostAccountDetector.detectCliAppActiveEmail()
+                    val ideEmail = HostAccountDetector.detectIdeActiveEmail()
+                    _cliActiveEmail.value = cliEmail
+                    _ideActiveEmail.value = ideEmail
+                } catch (_: Exception) {
+                }
+                kotlinx.coroutines.delay(3000)
+            }
+        }
+    }
+
+
 
     fun fetchOfficialModels(): Job {
         return viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -1020,11 +1110,191 @@ class AppViewModel(
             .toSet()
     }
 
+    // --- 账号管理与 OAuth 交互方法 ---
+
+    fun startGoogleOAuthFlow(onFinished: ((Boolean) -> Unit)? = null) {
+        if (_isOAuthAuthorizing.value) return
+        _isOAuthAuthorizing.value = true
+        _oauthAuthUrl.value = null
+
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = googleAuthService.startOAuthFlow { authUrl ->
+                _oauthAuthUrl.value = authUrl
+            }
+            _isOAuthAuthorizing.value = false
+            _oauthAuthUrl.value = null
+
+            result.fold(
+                onSuccess = { account ->
+                    accountStore.upsertAccount(account)
+                    showNotice(s.accountsAuthSuccess, NoticeKind.SUCCESS)
+                    onFinished?.invoke(true)
+                },
+                onFailure = { error ->
+                    showNotice("${s.accountsAuthFailed}: ${error.message ?: "未知错误"}", NoticeKind.ERROR)
+                    onFinished?.invoke(false)
+                }
+            )
+        }
+    }
+
+    fun importAccountViaRefreshToken(token: String, onFinished: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = googleAuthService.importViaRefreshToken(token)
+            result.fold(
+                onSuccess = { account ->
+                    accountStore.upsertAccount(account)
+                    showNotice(s.accountsAuthSuccess, NoticeKind.SUCCESS)
+                    onFinished?.invoke(true)
+                },
+                onFailure = { error ->
+                    showNotice("${s.accountsAuthFailed}: ${error.message ?: "未知错误"}", NoticeKind.ERROR)
+                    onFinished?.invoke(false)
+                }
+            )
+        }
+    }
+
+    fun setActiveAccount(idOrEmail: String) {
+        val target = accountStore.currentAccounts().firstOrNull { it.id == idOrEmail || it.email.equals(idOrEmail, ignoreCase = true) }
+        if (target == null) {
+            showNotice("未找到账号: $idOrEmail", NoticeKind.ERROR)
+            return
+        }
+
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = hotSwitchCoordinator.switchAccount(target)
+            result.fold(
+                onSuccess = {
+                    showNotice("已无感切换至账号: ${target.email}", NoticeKind.SUCCESS)
+                    quotaPoller.refreshSingle(target, true)
+                },
+                onFailure = { error ->
+                    showNotice("切换账号失败: ${error.message ?: "未知错误"}", NoticeKind.ERROR)
+                }
+            )
+        }
+    }
+
+    fun updateSmartSwitchConfig(smartSwitchConfig: SmartSwitchConfig) {
+        configStore.updateConfig { it.copy(smartSwitchConfig = smartSwitchConfig) }
+        showNotice(if (smartSwitchConfig.enabled) "已启用自动智能切号" else "已停用自动智能切号", NoticeKind.INFO)
+    }
+
+
+    fun removeAccount(idOrEmail: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            accountStore.removeAccount(idOrEmail)
+            showNotice("已移除账号", NoticeKind.INFO)
+        }
+    }
+
+    fun refreshAccountTokens(email: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = tokenRenewalManager.refreshAccount(email)
+            result.fold(
+                onSuccess = { showNotice("账号凭据已成功刷新", NoticeKind.SUCCESS) },
+                onFailure = { showNotice("凭据刷新失败: ${it.message ?: "未知错误"}", NoticeKind.ERROR) }
+            )
+        }
+    }
+
+    private val _isPrivacyMode = MutableStateFlow(false)
+    val isPrivacyMode: StateFlow<Boolean> = _isPrivacyMode.asStateFlow()
+
+    fun togglePrivacyMode() {
+        _isPrivacyMode.value = !_isPrivacyMode.value
+    }
+
+    fun updateAccountNote(id: String, note: String?) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            accountStore.updateAccountNote(id, note)
+            showNotice("已更新账号备注", NoticeKind.SUCCESS)
+        }
+    }
+
+    fun togglePinAccount(id: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            accountStore.togglePinAccount(id)
+        }
+    }
+
+    fun cleanInvalidAccounts() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = accountStore.cleanInvalidAccounts()
+            result.fold(
+                onSuccess = { count -> showNotice("已清理 $count 个异常/过期账号", NoticeKind.SUCCESS) },
+                onFailure = { showNotice("清理失败: ${it.message ?: "未知错误"}", NoticeKind.ERROR) }
+            )
+        }
+    }
+
+    fun exportAccountsJson(): String {
+        return accountStore.exportAccountsJson()
+    }
+
+    fun importAccountsBatch(rawText: String, onFinished: ((successCount: Int, failedCount: Int) -> Unit)? = null) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val results = googleAuthService.importBatch(rawText)
+            var successCount = 0
+            var failedCount = 0
+            for (res in results) {
+                res.fold(
+                    onSuccess = { acc ->
+                        accountStore.upsertAccount(acc)
+                        successCount++
+                    },
+                    onFailure = {
+                        failedCount++
+                    }
+                )
+            }
+            if (successCount > 0 && failedCount == 0) {
+                showNotice("成功批量导入 $successCount 个账号", NoticeKind.SUCCESS)
+                quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
+            } else if (successCount > 0 && failedCount > 0) {
+                showNotice("批量导入完成：成功 $successCount 个，已跳过 $failedCount 个无效 Token", NoticeKind.SUCCESS)
+                quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
+            } else if (failedCount > 0) {
+                showNotice("批量导入失败：所有输入的 $failedCount 个 Token 均已失效或被撤销", NoticeKind.ERROR)
+            }
+            onFinished?.invoke(successCount, failedCount)
+        }
+    }
+
+
+    fun refreshAllQuotas() {
+
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
+            result.fold(
+                onSuccess = { showNotice("已更新所有账号配额数据", NoticeKind.SUCCESS) },
+                onFailure = { showNotice("配额刷新异常: ${it.message ?: "未知错误"}", NoticeKind.ERROR) }
+            )
+        }
+    }
+
+    fun refreshSingleAccountQuota(accountId: String) {
+        val account = accountStore.currentAccounts().firstOrNull { it.id == accountId } ?: return
+        val isActive = account.id == accountStore.currentActiveAccount()?.id
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = quotaPoller.refreshSingle(account, isActive)
+            result.fold(
+                onSuccess = { showNotice("已刷新账号配额", NoticeKind.SUCCESS) },
+                onFailure = { showNotice("配额拉取失败: ${it.message ?: "网络异常"}", NoticeKind.ERROR) }
+            )
+        }
+    }
+
     override fun onCleared() {
+        tokenRenewalManager.stop()
+        quotaPoller.stop()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             proxyServer.stop()
         }
         super.onCleared()
     }
 }
+
+
 

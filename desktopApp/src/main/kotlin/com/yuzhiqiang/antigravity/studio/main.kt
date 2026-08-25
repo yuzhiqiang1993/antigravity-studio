@@ -220,8 +220,9 @@ fun main() {
             }
 
             LaunchedEffect(Unit) {
-                window.minimumSize = java.awt.Dimension(1020, 680)
+                window.minimumSize = java.awt.Dimension(1280, 820)
             }
+
 
             App(window = window)
         }
