@@ -33,6 +33,32 @@ fun formatDuration(durationMs: Long?): String {
 }
 
 /**
+ * 将上次刷新时间戳转换为自然语言相对时间描述 (刚刚更新、上次刷新 2 分钟前、上次刷新 3 小时前等)
+ */
+fun formatLastRefreshedText(lastRefreshedAt: Long, now: Long = System.currentTimeMillis()): String {
+    if (lastRefreshedAt <= 0L) return "从未刷新"
+    val diffMs = (now - lastRefreshedAt).coerceAtLeast(0L)
+    val diffSec = diffMs / 1000L
+    if (diffSec < 60L) return "刚刚更新"
+    val diffMin = diffSec / 60L
+    if (diffMin < 60L) return "上次刷新 $diffMin 分钟前"
+    val diffHours = diffMin / 60L
+    if (diffHours < 24L) return "上次刷新 $diffHours 小时前"
+    val diffDays = diffHours / 24L
+    return "上次刷新 $diffDays 天前"
+}
+
+/**
+ * 格式化当前时分秒 (如 "13:04:50")
+ */
+fun formatCurrentTimeClock(timestamp: Long = System.currentTimeMillis()): String {
+    val date = java.util.Date(timestamp)
+    val format = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+    return format.format(date)
+}
+
+
+/**
  * 格式化 Token 数量（添加千分位逗号）：
  * - 例如: 292 -> "292", 16512 -> "16,512", 55532 -> "55,532", 1000000 -> "1,000,000"
  */
