@@ -142,9 +142,9 @@ class OfficialPassthroughHandler(
                     return@execute
                 }
                 val bodyBytes = withTimeout(120_000L) {
-                    ProviderAdapter.readLimitedResponseBytes(response)
+                    ProviderAdapter.readResponseBodyBytes(response)
                 }.getOrElse { error ->
-                    throw IllegalStateException(error.message ?: "Official response body exceeds 4 MiB limit", error)
+                    throw IllegalStateException(error.message ?: "Failed to read official response body", error)
                 }
                 ActivityRecorder.finishActivity(
                     id = logId,
@@ -201,8 +201,8 @@ class OfficialPassthroughHandler(
                     }
                 }
             }.execute()
-            val body = ProviderAdapter.readLimitedResponseText(response).getOrElse { error ->
-                throw IllegalStateException(error.message ?: "官方目录响应过大", error)
+            val body = ProviderAdapter.readResponseBodyText(response).getOrElse { error ->
+                throw IllegalStateException(error.message ?: "Failed to read official catalog response", error)
             }
             if (response.status.value !in 200..299) {
                 recordFailure(path, null, startTime, response.status.value, body)
