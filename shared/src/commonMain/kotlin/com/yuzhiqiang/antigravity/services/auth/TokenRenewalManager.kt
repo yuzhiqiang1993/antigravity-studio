@@ -55,6 +55,7 @@ class TokenRenewalManager(
         var refreshedCount = 0
         val accounts = accountStore.currentAccounts()
         for (account in accounts) {
+            if (account.tokens.refreshToken.isBlank()) continue
             try {
                 val newTokensResult = googleAuthService.refreshAccessToken(account.tokens.refreshToken)
                 if (newTokensResult.isSuccess) {
@@ -79,6 +80,10 @@ class TokenRenewalManager(
         val account = accountStore.currentAccounts().firstOrNull { it.email.equals(email, ignoreCase = true) }
             ?: return Result.failure(IllegalArgumentException("未找到账号: $email"))
 
+        if (account.tokens.refreshToken.isBlank()) {
+            return Result.failure(IllegalArgumentException("账号暂无可用 Refresh Token: $email"))
+        }
+
         try {
             val newTokensResult = googleAuthService.refreshAccessToken(account.tokens.refreshToken)
             if (newTokensResult.isSuccess) {
@@ -99,7 +104,7 @@ class TokenRenewalManager(
     private suspend fun checkAndRenewTokens() = mutex.withLock {
         val accounts = accountStore.currentAccounts()
         for (account in accounts) {
-            if (account.tokens.isExpiringSoon(EXPIRY_BUFFER_SECONDS)) {
+            if (account.tokens.refreshToken.isNotBlank() && account.tokens.isExpiringSoon(EXPIRY_BUFFER_SECONDS)) {
                 try {
                     val newTokensResult = googleAuthService.refreshAccessToken(account.tokens.refreshToken)
                     if (newTokensResult.isSuccess) {
