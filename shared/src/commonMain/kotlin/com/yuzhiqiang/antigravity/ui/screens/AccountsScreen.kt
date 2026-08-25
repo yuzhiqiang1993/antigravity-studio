@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,12 +24,12 @@ import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.AccountStatus
 import com.yuzhiqiang.antigravity.domain.model.account.AccountTier
 import com.yuzhiqiang.antigravity.i18n.strings
-import com.yuzhiqiang.antigravity.ui.components.QuotaFooterStatusBar
 import com.yuzhiqiang.antigravity.ui.components.StudioAccountCard
 import com.yuzhiqiang.antigravity.ui.components.StudioSearchField
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
 import com.yuzhiqiang.antigravity.ui.dialogs.AddAccountDialog
+import com.yuzhiqiang.antigravity.ui.dialogs.QuotaRefreshConfigDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.SmartSwitchDialog
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.components.NoticeKind
@@ -76,19 +77,13 @@ fun AccountsScreen(
 
 
     var sortMode by remember { mutableStateOf(AccountsSortMode.DEFAULT) }
-    var isBatchMode by remember { mutableStateOf(false) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showSmartSwitchDialog by remember { mutableStateOf(false) }
+    var showQuotaRefreshConfigDialog by remember { mutableStateOf(false) }
     var accountToDelete by remember { mutableStateOf<AccountInfo?>(null) }
-    var accountToEditNote by remember { mutableStateOf<AccountInfo?>(null) }
-    var showBatchDeleteConfirm by remember { mutableStateOf(false) }
 
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-
-    // 选中项集合 (用于全选与批量操作)
-    var selectedAccountIds by remember { mutableStateOf(setOf<String>()) }
-    val effectiveSelectionMode = isBatchMode || selectedAccountIds.isNotEmpty()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     val scrollState = rememberScrollState()
 
@@ -100,8 +95,7 @@ fun AccountsScreen(
         } else {
             accounts.filter { acc ->
                 acc.email.lowercase().contains(query) ||
-                        acc.displayName.lowercase().contains(query) ||
-                        acc.customNote?.lowercase()?.contains(query) == true
+                        acc.displayName.lowercase().contains(query)
             }
         }
 
@@ -130,7 +124,6 @@ fun AccountsScreen(
             AccountsSortMode.DEFAULT -> {
                 list.sortedWith(
                     compareBy<AccountInfo> { hostActiveRank(it) }
-                        .thenByDescending { it.isPinned }
                         .thenByDescending { it.isActive }
                         .thenBy { it.addedAt }
                 )
@@ -150,12 +143,6 @@ fun AccountsScreen(
         }
     }
 
-
-    val isAllSelected = displayAccounts.isNotEmpty() && displayAccounts.all { selectedAccountIds.contains(it.id) }
-
-    val lastRefreshedAt = remember(quotas) {
-        quotas.values.maxOfOrNull { it.fetchedAt } ?: 0L
-    }
 
     Column(
         modifier = modifier
@@ -201,306 +188,110 @@ fun AccountsScreen(
             }
         }
 
-        // 2. 现代 MD3 顶栏操作栏 (常态工具栏 / 批量操作栏平滑无缝切换)
+        // 2. 现代 MD3 顶栏操作栏
         Surface(
-            modifier = Modifier.fillMaxWidth().animateContentSize(),
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card),
-            color = if (effectiveSelectionMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+            color = MaterialTheme.colorScheme.surface,
             border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                if (effectiveSelectionMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
             ),
-            shadowElevation = if (effectiveSelectionMode) AppTokens.Elevation.level2 else AppTokens.Elevation.level1
+            shadowElevation = AppTokens.Elevation.level1
         ) {
-            if (effectiveSelectionMode) {
-                // ── 模式 A: 批量管理操作模式 ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = StudioDesignTokens.Padding.topBarHorizontal, vertical = StudioDesignTokens.Padding.topBarVertical),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 左侧工具组: [搜索框] + [排序 Chip 胶囊]
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = StudioDesignTokens.Padding.topBarHorizontal, vertical = StudioDesignTokens.Padding.topBarVertical),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
                 ) {
-                    // 左侧全选与计数
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm),
-                        modifier = Modifier.clickable {
-                            selectedAccountIds = if (isAllSelected) {
-                                emptySet()
-                            } else {
-                                displayAccounts.map { it.id }.toSet()
-                            }
-                        }
-                    ) {
-                        CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
-                            Checkbox(
-                                checked = isAllSelected,
-                                onCheckedChange = { checked ->
-                                    selectedAccountIds = if (checked) {
-                                        displayAccounts.map { it.id }.toSet()
-                                    } else {
-                                        emptySet()
-                                    }
-                                },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = MaterialTheme.colorScheme.primary,
-                                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        }
+                    // 搜索输入框 (Studio 沉稳精致设计)
+                    StudioSearchField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = "按邮箱快速检索...",
+                        modifier = Modifier
+                            .width(StudioDesignTokens.Sizes.searchFieldWidth)
+                            .height(StudioDesignTokens.Sizes.searchFieldHeight)
+                    )
 
-                        Text(
-                            text = "已选择 ${selectedAccountIds.size} / ${displayAccounts.size} 个账号",
-                            fontSize = StudioDesignTokens.TextSize.body,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                    // 智能排序 Chip
+                    StudioTooltip(text = if (sortMode == AccountsSortMode.QUOTA_DESC) "当前按剩余配额从高到低排序 (点击切换为默认排序)" else "按账号剩余配额从高到低排序") {
+                        FilterChip(
+                            selected = sortMode == AccountsSortMode.QUOTA_DESC,
+                            onClick = {
+                                sortMode = if (sortMode == AccountsSortMode.QUOTA_DESC) {
+                                    AccountsSortMode.DEFAULT
+                                } else {
+                                    AccountsSortMode.QUOTA_DESC
+                                }
+                            },
+                            label = {
+                                Text(
+                                    text = "按配额排序",
+                                    fontSize = StudioDesignTokens.TextSize.label,
+                                    fontWeight = if (sortMode == AccountsSortMode.QUOTA_DESC) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Sort,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
+                                )
+                            },
+                            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
+                            modifier = Modifier.height(StudioDesignTokens.Sizes.chipHeight),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = sortMode == AccountsSortMode.QUOTA_DESC,
+                                borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                selectedBorderColor = MaterialTheme.colorScheme.primary
+                            ),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         )
                     }
+                }
 
-                    // 右侧批量操作组: [全量刷新] + [批量导出] + [批量删除] + [退出]
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
-                    ) {
-                        // 批量刷新配额
-                        FilledTonalButton(
-                            onClick = {
-                                selectedAccountIds.forEach { id ->
-                                    accounts.firstOrNull { it.id == id }?.let { acc ->
-                                        viewModel.refreshSingleAccountQuota(acc.id)
-                                        viewModel.refreshAccountTokens(acc.email)
-                                    }
-                                }
-                                viewModel.showNotice("已批量刷新选中的 ${selectedAccountIds.size} 个账号", NoticeKind.SUCCESS)
-                                isBatchMode = false
-                                selectedAccountIds = emptySet()
-                            },
-                            enabled = selectedAccountIds.isNotEmpty() && !isRefreshingQuotas,
-                            modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight),
-                            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Refresh,
-                                contentDescription = null,
-                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "刷新所选",
-                                fontSize = StudioDesignTokens.TextSize.badge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        // 批量导出
-                        FilledTonalButton(
-                            onClick = {
-                                val selectedAccounts = accounts.filter { selectedAccountIds.contains(it.id) }
-                                val jsonStr = kotlinx.serialization.json.Json.encodeToString(
-                                    com.yuzhiqiang.antigravity.data.storage.AccountStoreData.serializer(),
-                                    com.yuzhiqiang.antigravity.data.storage.AccountStoreData(version = 1, accounts = selectedAccounts)
-                                )
-                                Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                    StringSelection(jsonStr),
-                                    null
-                                )
-                                viewModel.showNotice("已将 ${selectedAccounts.size} 个账号备份复制到剪贴板", NoticeKind.SUCCESS)
-                                isBatchMode = false
-                                selectedAccountIds = emptySet()
-                            },
-                            enabled = selectedAccountIds.isNotEmpty(),
-                            modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight),
-                            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.FileUpload,
-                                contentDescription = null,
-                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "导出所选",
-                                fontSize = StudioDesignTokens.TextSize.badge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        // 批量删除 (危险操作)
+                // 右侧功能图标组: [MD3 添加按钮] + [辅助图标组]
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm - 2.dp)
+                ) {
+                    // MD3 主按钮: 添加账号 (Studio 统一 Primary 品牌色)
+                    StudioTooltip(text = "添加单个 Refresh Token 或批量导入多个凭据") {
                         Button(
-                            onClick = { showBatchDeleteConfirm = true },
-                            enabled = selectedAccountIds.isNotEmpty(),
+                            onClick = { showAddDialog = true },
                             modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight),
                             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                                contentColor = MaterialTheme.colorScheme.onError
-                            ),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = 0.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.Delete,
+                                imageVector = Icons.Outlined.Add,
                                 contentDescription = null,
                                 modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(AppTokens.Spacing.xs))
                             Text(
-                                text = "批量删除",
-                                fontSize = StudioDesignTokens.TextSize.badge,
+                                text = "添加账号",
+                                fontSize = StudioDesignTokens.TextSize.body,
                                 fontWeight = FontWeight.Bold
                             )
                         }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        // 退出批量模式
-                        TextButton(
-                            onClick = {
-                                isBatchMode = false
-                                selectedAccountIds = emptySet()
-                            },
-                            modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight),
-                            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Close,
-                                contentDescription = "退出批量模式",
-                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(
-                                text = "完成",
-                                fontSize = StudioDesignTokens.TextSize.badge,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
                     }
-                }
-            } else {
-                // ── 模式 B: 常态操作工具栏 ──
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = StudioDesignTokens.Padding.topBarHorizontal, vertical = StudioDesignTokens.Padding.topBarVertical),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 左侧工具组: [搜索框] + [排序 Chip 胶囊]
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
-                    ) {
-                        // 搜索输入框 (Studio 沉稳精致设计)
-                        StudioSearchField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = "按邮箱或备注快速检索...",
-                            modifier = Modifier
-                                .width(StudioDesignTokens.Sizes.searchFieldWidth)
-                                .height(StudioDesignTokens.Sizes.searchFieldHeight)
-                        )
-
-                        // 智能排序 Chip
-                        StudioTooltip(text = if (sortMode == AccountsSortMode.QUOTA_DESC) "当前按剩余配额从高到低排序 (点击切换为默认排序)" else "按账号剩余配额从高到低排序") {
-                            FilterChip(
-                                selected = sortMode == AccountsSortMode.QUOTA_DESC,
-                                onClick = {
-                                    sortMode = if (sortMode == AccountsSortMode.QUOTA_DESC) {
-                                        AccountsSortMode.DEFAULT
-                                    } else {
-                                        AccountsSortMode.QUOTA_DESC
-                                    }
-                                },
-                                label = {
-                                    Text(
-                                        text = "按配额排序",
-                                        fontSize = StudioDesignTokens.TextSize.label,
-                                        fontWeight = if (sortMode == AccountsSortMode.QUOTA_DESC) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Sort,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
-                                    )
-                                },
-                                shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
-                                modifier = Modifier.height(StudioDesignTokens.Sizes.chipHeight),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    enabled = true,
-                                    selected = sortMode == AccountsSortMode.QUOTA_DESC,
-                                    borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                    selectedBorderColor = MaterialTheme.colorScheme.primary
-                                ),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                    labelColor = MaterialTheme.colorScheme.onSurface,
-                                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            )
-                        }
-                    }
-
-                    // 右侧功能图标组: [☑️ 批量操作] + [MD3 添加按钮] + [辅助图标组]
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm - 2.dp)
-                    ) {
-                        // 批量操作入口按钮
-                        StudioTooltip(text = "开启批量管理模式，支持批量导出、刷新与删除") {
-                            FilledTonalButton(
-                                onClick = { isBatchMode = true },
-                                modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight),
-                                shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                    contentColor = MaterialTheme.colorScheme.onSurface
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Checklist,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "批量操作",
-                                    fontSize = StudioDesignTokens.TextSize.body,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-
-                        // MD3 主按钮: 添加账号 (Studio 统一 Primary 品牌色)
-                        StudioTooltip(text = "添加单个 Refresh Token 或批量导入多个凭据") {
-                            Button(
-                                onClick = { showAddDialog = true },
-                                modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight),
-                                shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
-                                contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = 0.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
-                                )
-                                Spacer(modifier = Modifier.width(AppTokens.Spacing.xs))
-                                Text(
-                                    text = "添加账号",
-                                    fontSize = StudioDesignTokens.TextSize.body,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
 
                         // 辅助功能胶囊工具条: [刷新] [脱敏] [导出] [智能切号]
                         Surface(
@@ -534,6 +325,21 @@ fun AccountsScreen(
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
+                                    }
+                                }
+
+                                // 额度自动刷新设置
+                                StudioTooltip(text = "配置配额自动刷新周期 (当前: 活跃 ${config.quotaActiveIntervalSeconds}s / 其他 ${config.quotaBackgroundIntervalSeconds / 60}min)") {
+                                    IconButton(
+                                        onClick = { showQuotaRefreshConfigDialog = true },
+                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Timer,
+                                            contentDescription = "额度自动刷新设置",
+                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
+                                            tint = if (config.quotaAutoRefreshEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
 
@@ -593,7 +399,6 @@ fun AccountsScreen(
                     }
                 }
             }
-        }
 
         // 3. 底部可滚动区域 (账号列表 + 刷新状态栏)
         Column(
@@ -689,22 +494,11 @@ fun AccountsScreen(
                                             StudioAccountCard(
                                                 account = acc,
                                                 quotaSnapshot = quotas[acc.id],
-                                                isSelected = selectedAccountIds.contains(acc.id),
-                                                isSelectionMode = effectiveSelectionMode,
                                                 isRefreshing = refreshingAccountIds.contains(acc.id),
                                                 isPrivacyMode = isPrivacyMode,
                                                 isIdeActive = matchesIde,
                                                 isCliActive = matchesCli,
-                                                onToggleSelect = {
-                                                    selectedAccountIds = if (selectedAccountIds.contains(acc.id)) {
-                                                        selectedAccountIds - acc.id
-                                                    } else {
-                                                        selectedAccountIds + acc.id
-                                                    }
-                                                },
                                                 onSetActive = { viewModel.setActiveAccount(acc.id) },
-                                                onTogglePin = { viewModel.togglePinAccount(acc.id) },
-                                                onEditNote = { accountToEditNote = acc },
                                                 onRefresh = {
                                                     viewModel.refreshSingleAccountQuota(acc.id)
                                                     viewModel.refreshAccountTokens(acc.email)
@@ -729,10 +523,6 @@ fun AccountsScreen(
                 }
             }
 
-            // 4. 底部常驻刷新周期状态栏
-            QuotaFooterStatusBar(
-                lastRefreshedTimestamp = lastRefreshedAt
-            )
         }
     }
 
@@ -743,21 +533,17 @@ fun AccountsScreen(
         )
     }
 
+    if (showQuotaRefreshConfigDialog) {
+        QuotaRefreshConfigDialog(
+            viewModel = viewModel,
+            onDismiss = { showQuotaRefreshConfigDialog = false }
+        )
+    }
+
     if (showSmartSwitchDialog) {
         SmartSwitchDialog(
             viewModel = viewModel,
             onDismiss = { showSmartSwitchDialog = false }
-        )
-    }
-
-    accountToEditNote?.let { acc ->
-        EditAccountNoteDialog(
-            account = acc,
-            onConfirm = { note ->
-                viewModel.updateAccountNote(acc.id, note)
-                accountToEditNote = null
-            },
-            onDismiss = { accountToEditNote = null }
         )
     }
 
@@ -770,65 +556,11 @@ fun AccountsScreen(
                 isDestructive = true,
                 onConfirm = {
                     viewModel.removeAccount(acc.id)
-                    selectedAccountIds = selectedAccountIds - acc.id
                     accountToDelete = null
                 }
             )
         )
     }
-
-    if (showBatchDeleteConfirm) {
-        viewModel.showConfirmDialog(
-            AppViewModel.ConfirmDialogState(
-                title = "批量删除账号",
-                message = "确定要从 Studio 批量移除选中的 ${selectedAccountIds.size} 个账号吗？",
-                confirmLabel = "确定删除",
-                isDestructive = true,
-                onConfirm = {
-                    selectedAccountIds.forEach { id ->
-                        viewModel.removeAccount(id)
-                    }
-                    selectedAccountIds = emptySet()
-                    showBatchDeleteConfirm = false
-                }
-            )
-        )
-    }
-}
-
-@Composable
-private fun EditAccountNoteDialog(
-    account: AccountInfo,
-    onConfirm: (String?) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var note by remember { mutableStateOf(account.customNote ?: "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("修改账号备注") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                StudioTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    placeholder = "例如：个人 Pro 主号、公司开发号",
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(note.takeIf { it.isNotBlank() }) }) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
-    )
 }
 
 @Composable

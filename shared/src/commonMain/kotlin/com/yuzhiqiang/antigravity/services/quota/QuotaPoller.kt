@@ -44,41 +44,53 @@ class QuotaPoller(
 
     companion object {
         const val ACTIVE_INTERVAL_MS = 60_000L      // 激活账号 1 分钟刷新一次
-        const val BACKGROUND_INTERVAL_MS = 300_000L // 后台账号 5 分钟刷新一次
+        const val BACKGROUND_INTERVAL_MS = 600_000L // 后台账号 10 分钟刷新一次
     }
 
     private var lastBackgroundFetchTime = 0L
 
-    fun start(accountsProvider: () -> List<AccountInfo>, activeAccountProvider: () -> AccountInfo?) {
+    fun start(
+        accountsProvider: () -> List<AccountInfo>,
+        activeAccountProvider: () -> AccountInfo?,
+        configProvider: (() -> com.yuzhiqiang.antigravity.domain.model.AppConfig)? = null
+    ) {
         if (isRunning) return
         isRunning = true
         pollerJob = coroutineScope.launch {
             while (isActive) {
-                try {
-                    val accounts = accountsProvider()
-                    val active = activeAccountProvider()
-                    if (accounts.isNotEmpty()) {
-                        val now = System.currentTimeMillis()
-                        val shouldFetchBg = (now - lastBackgroundFetchTime) >= BACKGROUND_INTERVAL_MS
+                val cfg = configProvider?.invoke()
+                val isEnabled = cfg?.quotaAutoRefreshEnabled ?: true
+                val activeIntervalMs = (cfg?.quotaActiveIntervalSeconds ?: 60).toLong() * 1000L
+                val backgroundIntervalMs = (cfg?.quotaBackgroundIntervalSeconds ?: 600).toLong() * 1000L
 
-                        // 1. 并发刷新激活账号
-                        if (active != null) {
-                            launch { refreshSingleInternal(active, isActiveAccount = true) }
-                        }
+                if (isEnabled) {
+                    try {
+                        val accounts = accountsProvider()
+                        val active = activeAccountProvider()
+                        if (accounts.isNotEmpty()) {
+                            val now = System.currentTimeMillis()
+                            val shouldFetchBg = (now - lastBackgroundFetchTime) >= backgroundIntervalMs
 
-                        // 2. 周期性多协程并发刷新后台账号
-                        if (shouldFetchBg) {
-                            val backgroundAccounts = accounts.filter { it.id != active?.id }
-                            val deferredList = backgroundAccounts.map { bgAccount ->
-                                async { refreshSingleInternal(bgAccount, isActiveAccount = false) }
+                            // 1. 并发刷新激活账号
+                            if (active != null) {
+                                launch { refreshSingleInternal(active, isActiveAccount = true) }
                             }
-                            deferredList.awaitAll()
-                            lastBackgroundFetchTime = now
+
+                            // 2. 周期性多协程并发刷新后台账号
+                            if (shouldFetchBg) {
+                                val backgroundAccounts = accounts.filter { it.id != active?.id }
+                                val deferredList = backgroundAccounts.map { bgAccount ->
+                                    async { refreshSingleInternal(bgAccount, isActiveAccount = false) }
+                                }
+                                deferredList.awaitAll()
+                                lastBackgroundFetchTime = now
+                            }
                         }
+                    } catch (_: Exception) {
                     }
-                } catch (_: Exception) {
                 }
-                delay(ACTIVE_INTERVAL_MS)
+                val sleepMs = if (isEnabled) activeIntervalMs.coerceAtLeast(10_000L) else 30_000L
+                delay(sleepMs)
             }
         }
     }

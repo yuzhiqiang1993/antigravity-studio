@@ -10,7 +10,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,6 +23,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -41,7 +41,9 @@ import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
 import com.yuzhiqiang.antigravity.domain.model.quota.ModelQuotaInfo
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaGroup
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaWindow
+import com.yuzhiqiang.antigravity.ui.icons.StudioIcons
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.LocalAppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors
 
@@ -57,16 +59,11 @@ import com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors
 fun StudioAccountCard(
     account: AccountInfo,
     quotaSnapshot: AccountQuotaSnapshot?,
-    isSelected: Boolean,
-    isSelectionMode: Boolean = false,
     isRefreshing: Boolean = false,
     isPrivacyMode: Boolean,
     isIdeActive: Boolean = false,
     isCliActive: Boolean = account.isActive,
-    onToggleSelect: () -> Unit,
     onSetActive: () -> Unit,
-    onTogglePin: () -> Unit,
-    onEditNote: () -> Unit,
     onRefresh: () -> Unit,
     onCopyToken: () -> Unit,
     onDelete: () -> Unit,
@@ -75,11 +72,10 @@ fun StudioAccountCard(
 
     val isDualActive = isIdeActive && isCliActive
     val isAnyActive = isIdeActive || isCliActive
-    val isDark = isSystemInDarkTheme()
-    var showMoreMenu by remember { mutableStateOf(false) }
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    // 卡片整体背景 (遵循 M3 标准 surface / surfaceContainerLow)
-    val targetCardBg = if (isDark) MaterialTheme.colorScheme.surface else Color.White
+    // 卡片整体背景 (完全遵循 M3 标准 surface，自动完美适配亮暗主题)
+    val targetCardBg = MaterialTheme.colorScheme.surface
 
     val animatedCardBg by androidx.compose.animation.animateColorAsState(
         targetValue = targetCardBg,
@@ -122,7 +118,7 @@ fun StudioAccountCard(
             verticalArrangement = Arrangement.spacedBy(StudioDesignTokens.Padding.spaceBetweenRows)
         ) {
 
-            // 1. 顶部身份行: [MD3 Checkbox(仅批量模式可见)] [邮箱] [🏷 备注微胶囊(有则显示)] [置顶] [当前激活] [PRO/FREE]
+            // 1. 顶部身份行: [邮箱] [当前激活] [PRO/FREE]
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -133,21 +129,6 @@ fun StudioAccountCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isSelectionMode || isSelected) {
-                        StudioTooltip(text = if (isSelected) "取消勾选" else "勾选用于批量操作") {
-                            CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
-                                Checkbox(
-                                    checked = isSelected,
-                                    onCheckedChange = { onToggleSelect() },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = MaterialTheme.colorScheme.primary,
-                                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                )
-                            }
-                        }
-                    }
-
                     StudioTooltip(text = "账号邮箱: ${account.email}") {
                         Text(
                             text = displayEmail,
@@ -161,39 +142,6 @@ fun StudioAccountCard(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-
-                    // 如果有自定义备注，紧随邮箱展示优雅微胶囊
-                    if (!account.customNote.isNullOrBlank()) {
-                        StudioTooltip(text = "账号备注: ${account.customNote}") {
-                            Surface(
-                                shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.5f else 0.8f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                modifier = Modifier.clickable { onEditNote() }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Outlined.Label,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(10.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = account.customNote!!,
-                                        fontSize = StudioDesignTokens.TextSize.badge,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
 
                 // 右侧状态徽章组
@@ -201,23 +149,6 @@ fun StudioAccountCard(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (account.isPinned) {
-                        StudioTooltip(text = "此账号已置顶固定") {
-                            Surface(
-                                shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                                color = MaterialTheme.colorScheme.tertiaryContainer
-                            ) {
-                                Text(
-                                    text = "已置顶",
-                                    fontSize = StudioDesignTokens.TextSize.badge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-
                     if (isIdeActive && isCliActive) {
                         Surface(
                             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
@@ -344,12 +275,12 @@ fun StudioAccountCard(
                     )
                 }
 
-                // 右侧极简操作组: [设为活跃 ⚡] + [刷新 🔄] + [更多操作 ⋮ 下拉菜单]
+                // 右侧平铺展开操作组: [切换账号 🔀] + [复制 Token 📋] + [刷新配额 🔄] + [删除账号 🗑️]
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs - 1.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 快捷操作 1: 设为活跃/切换账号
+                    // 1. 切换账号 (非当前活跃账号时提供一键设为活跃)
                     if (!isAnyActive) {
                         StudioTooltip(text = "设为 IDE 与 App/CLI 激活生效账号") {
                             FilledTonalIconButton(
@@ -362,7 +293,7 @@ fun StudioAccountCard(
                                 )
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.SwitchAccount,
+                                    imageVector = StudioIcons.SwitchAccount,
                                     contentDescription = "切换账号",
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
                                 )
@@ -370,7 +301,22 @@ fun StudioAccountCard(
                         }
                     }
 
-                    // 快捷操作 2: 刷新 (支持实时旋转 loading 动画)
+                    // 2. 复制 Token
+                    StudioTooltip(text = "复制 Refresh Token") {
+                        IconButton(
+                            onClick = onCopyToken,
+                            modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ContentCopy,
+                                contentDescription = "复制 Token",
+                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize - 2.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // 4. 刷新 (支持实时旋转 loading 动画)
                     val infiniteTransition = rememberInfiniteTransition()
                     val rotateAngle by infiniteTransition.animateFloat(
                         initialValue = 0f,
@@ -398,91 +344,17 @@ fun StudioAccountCard(
                         }
                     }
 
-                    // 快捷操作 3: 更多操作下拉菜单 (收拢置顶、修改备注、复制、删除)
-                    Box {
-                        StudioTooltip(text = "更多账号操作") {
-                            IconButton(
-                                onClick = { showMoreMenu = true },
-                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.MoreVert,
-                                    contentDescription = "更多操作",
-                                    modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        StudioDropdownMenu(
-                            expanded = showMoreMenu,
-                            onDismissRequest = { showMoreMenu = false }
+                    // 5. 删除账号
+                    StudioTooltip(text = "删除此账号") {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize)
                         ) {
-                            StudioDropdownMenuItem(
-                                text = if (account.isPinned) "取消置顶" else "置顶账号",
-                                onClick = {
-                                    showMoreMenu = false
-                                    onTogglePin()
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.PushPin,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                        tint = if (account.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            )
-
-                            StudioDropdownMenuItem(
-                                text = if (account.customNote.isNullOrBlank()) "添加备注" else "修改备注",
-                                onClick = {
-                                    showMoreMenu = false
-                                    onEditNote()
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.EditNote,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize + 2.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            )
-
-                            StudioDropdownMenuItem(
-                                text = "复制 Token",
-                                onClick = {
-                                    showMoreMenu = false
-                                    onCopyToken()
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.ContentCopy,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            )
-
-                            StudioMenuDivider()
-
-                            StudioDropdownMenuItem(
-                                text = "删除账号",
-                                isDestructive = true,
-                                onClick = {
-                                    showMoreMenu = false
-                                    onDelete()
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Delete,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                }
+                            Icon(
+                                imageVector = Icons.Outlined.Delete,
+                                contentDescription = "删除账号",
+                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
                             )
                         }
                     }
@@ -503,8 +375,16 @@ private fun RingQuotaMatrixBlock(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val innerBg = if (isDark) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surfaceContainerLowest
-    val borderClr = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
+    val innerBg = if (isDark) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f)
+    }
+    val borderClr = if (isDark) {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    } else {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+    }
 
     Box(
         modifier = modifier
@@ -516,7 +396,7 @@ private fun RingQuotaMatrixBlock(
     ) {
         if (groups.isEmpty()) {
             // 骨架屏仪表盘：保持高度与正常卡片 100% 严格一致，彻底消除卡片高低不平
-            QuotaDashboardSkeleton(borderClr = borderClr)
+            QuotaDashboardSkeleton(borderClr = borderClr, isDark = isDark)
         } else {
             val claudeGroup = groups.firstOrNull { it.family == "claude" } ?: groups.first()
             val geminiGroup = groups.firstOrNull { it.family == "gemini" } ?: groups.getOrNull(1) ?: groups.first()
@@ -539,23 +419,23 @@ private fun RingQuotaMatrixBlock(
  * 结构与真实数据 1:1 镜像，保证卡片高度 100% 绝对一致，杜绝 Grid 凹凸不平
  */
 @Composable
-private fun QuotaDashboardSkeleton(borderClr: Color) {
+private fun QuotaDashboardSkeleton(borderClr: Color, isDark: Boolean) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // 1. Claude 模型骨架
-        SkeletonFamilyBlock(title = "Claude 模型")
+        SkeletonFamilyBlock(title = "Claude 模型", isDark = isDark)
 
         HorizontalDivider(color = borderClr.copy(alpha = 0.7f), thickness = 0.5.dp)
 
         // 2. Gemini 模型骨架
-        SkeletonFamilyBlock(title = "Gemini 模型")
+        SkeletonFamilyBlock(title = "Gemini 模型", isDark = isDark)
     }
 }
 
 @Composable
-private fun SkeletonFamilyBlock(title: String) {
+private fun SkeletonFamilyBlock(title: String, isDark: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = title,
@@ -566,14 +446,14 @@ private fun SkeletonFamilyBlock(title: String) {
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
 
-        SkeletonQuotaRow(title = "五小时额度")
-        SkeletonQuotaRow(title = "周额度")
+        SkeletonQuotaRow(title = "五小时额度", isDark = isDark)
+        SkeletonQuotaRow(title = "周额度", isDark = isDark)
     }
 }
 
 @Composable
-private fun SkeletonQuotaRow(title: String) {
-    val trackBg = MaterialTheme.colorScheme.surfaceVariant
+private fun SkeletonQuotaRow(title: String, isDark: Boolean) {
+    val trackBg = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.16f else 0.12f)
 
     Row(
         modifier = Modifier
@@ -643,7 +523,7 @@ private fun SkeletonQuotaRow(title: String) {
 @Composable
 private fun RingFamilySection(
     group: QuotaGroup,
-    isDark: Boolean = isSystemInDarkTheme()
+    isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 ) {
     val fiveHour = group.buckets.firstOrNull { it.window == QuotaWindow.FIVE_HOUR }
         ?: group.buckets.firstOrNull()
@@ -671,6 +551,17 @@ private fun RingFamilySection(
     }
 }
 
+@Composable
+private fun quotaThemeColor(percentage: Int): Color {
+    val statusColors = LocalAppStatusColors.current
+    return when {
+        percentage >= 80 -> MaterialTheme.colorScheme.primary
+        percentage >= 50 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+        percentage >= 20 -> statusColors.warning
+        else             -> MaterialTheme.colorScheme.error
+    }
+}
+
 /**
  * 单条配额环形条目：
  * 左侧：窗口名称 + 精简高亮倒计时；右侧：百分比 + 环形进度圈 (绝对垂直对齐！)
@@ -680,9 +571,9 @@ private fun RingQuotaRow(
     groupName: String,
     title: String,
     item: ModelQuotaInfo,
-    isDark: Boolean = isSystemInDarkTheme()
+    isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 ) {
-    val barColor = StudioThemeColors.quotaColor(item.percentage, isDark)
+    val barColor = quotaThemeColor(item.percentage)
     val isFull = item.percentage >= 100
     val countdown = item.formattedCountdown() ?: "即将重置"
     val formattedDate = item.resetTimeEpochSeconds?.let { epochSec ->
@@ -690,9 +581,9 @@ private fun RingQuotaRow(
         java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.getDefault()).format(date)
     }
 
-    // 精简沉稳倒计时与精确时间点 (2天 20小时后重置 · 08/28 14:53)
-    val fullColor = if (isDark) StudioThemeColors.QuotaLevelFullDark else StudioThemeColors.QuotaLevelFullLight
-    val descAnnotated = remember(item.percentage, countdown, formattedDate, isFull, isDark) {
+    // 精简沉稳倒计时与精确时间点 (2天 20小时后重置 · 08/28 14:53)，满额时使用当前主题色
+    val fullColor = MaterialTheme.colorScheme.primary
+    val descAnnotated = remember(item.percentage, countdown, formattedDate, isFull, isDark, fullColor) {
         buildAnnotatedString {
             if (isFull) {
                 withStyle(
@@ -778,7 +669,8 @@ private fun RingQuotaRow(
             QuotaRingGauge(
                 percentage = item.percentage,
                 size = 22.dp,
-                strokeWidth = 3.dp
+                strokeWidth = 3.dp,
+                isDark = isDark
             )
         }
     }
@@ -789,19 +681,19 @@ private fun RingQuotaRow(
 /**
  * 高质感 Canvas 环形进度圈组件 (Circular Quota Ring Gauge)：
  * - 动态平滑弧度过渡动画
- * - 翠绿/金橙/珊瑚红 三级精准配色
- * - 中性浅灰底槽
+ * - 翠绿/金橙/珊瑚红 三级精准配色，健康/满额状态跟随 MaterialTheme 主题色
+ * - 主题微柔光底槽
  */
 @Composable
 fun QuotaRingGauge(
     percentage: Int,
     modifier: Modifier = Modifier,
     size: Dp = 22.dp,
-    strokeWidth: Dp = 3.dp
+    strokeWidth: Dp = 3.dp,
+    isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 ) {
-    val isDark = isSystemInDarkTheme()
-    val barColor = StudioThemeColors.quotaColor(percentage, isDark)
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val barColor = quotaThemeColor(percentage)
+    val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.16f else 0.12f)
 
     val animatedProgress by animateFloatAsState(
         targetValue = (percentage / 100f).coerceIn(0f, 1f),
