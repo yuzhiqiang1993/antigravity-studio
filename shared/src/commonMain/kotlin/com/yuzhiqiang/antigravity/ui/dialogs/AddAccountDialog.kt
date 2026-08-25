@@ -1,23 +1,28 @@
 package com.yuzhiqiang.antigravity.ui.dialogs
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.OpenInBrowser
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,16 +30,59 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.services.auth.RefreshTokenParser
+import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
-import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
+import java.awt.FileDialog
+import java.awt.Frame
 import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
+import java.io.File
 
 private enum class AddAccountMode {
     BROWSER_OAUTH,
     MANUAL_TOKEN
+}
+
+private fun copyToClipboard(text: String) {
+    try {
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+    } catch (_: Exception) {}
+}
+
+private fun readFromClipboard(): String? {
+    return try {
+        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+        val contents = clipboard.getContents(null)
+        if (contents != null && contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+            contents.getTransferData(DataFlavor.stringFlavor) as? String
+        } else {
+            null
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun pickJsonFile(): String? {
+    return try {
+        val fileDialog = FileDialog(null as Frame?, "选择账号备份 JSON 文件", FileDialog.LOAD)
+        fileDialog.setFilenameFilter { _, name -> name.endsWith(".json", ignoreCase = true) }
+        fileDialog.isVisible = true
+        val file = fileDialog.file
+        val dir = fileDialog.directory
+        if (file != null && dir != null) {
+            File(dir, file).readText(Charsets.UTF_8)
+        } else {
+            null
+        }
+    } catch (_: Exception) {
+        null
+    }
 }
 
 @Composable
@@ -60,16 +108,15 @@ fun AddAccountDialog(
     ) {
         StudioCard(
             modifier = Modifier
-                .widthIn(min = 480.dp, max = 540.dp)
+                .widthIn(min = 520.dp, max = 580.dp)
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp)
-
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 // Header
                 Row(
@@ -93,8 +140,13 @@ fun AddAccountDialog(
                     }
 
                     IconButton(
-                        onClick = onDismiss,
-                        enabled = !isAuthorizing && !isSubmittingManual
+                        onClick = {
+                            if (isAuthorizing) {
+                                viewModel.cancelOAuthFlow()
+                            }
+                            onDismiss()
+                        },
+                        enabled = !isSubmittingManual
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
@@ -109,18 +161,18 @@ fun AddAccountDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .padding(4.dp),
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                        .padding(3.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     TabButton(
-                        text = s.accountsAddViaBrowser,
+                        text = "Google 浏览器登录 (OAuth)",
                         selected = selectedMode == AddAccountMode.BROWSER_OAUTH,
                         onClick = { selectedMode = AddAccountMode.BROWSER_OAUTH },
                         modifier = Modifier.weight(1f)
                     )
                     TabButton(
-                        text = s.accountsAddViaToken,
+                        text = "Token / JSON 导入",
                         selected = selectedMode == AddAccountMode.MANUAL_TOKEN,
                         onClick = { selectedMode = AddAccountMode.MANUAL_TOKEN },
                         modifier = Modifier.weight(1f)
@@ -133,10 +185,19 @@ fun AddAccountDialog(
                         BrowserOAuthContent(
                             isAuthorizing = isAuthorizing,
                             authUrl = authUrl,
-                            onStartAuth = {
-                                viewModel.startGoogleOAuthFlow { success ->
+                            onStartAuth = { openBrowser ->
+                                viewModel.startGoogleOAuthFlow(openBrowserDirectly = openBrowser) { success ->
                                     if (success) onDismiss()
                                 }
+                            },
+                            onSubmitManualCallback = { callbackUrl ->
+                                val success = viewModel.submitManualOAuthCallback(callbackUrl)
+                                if (!success) {
+                                    viewModel.showNotice("未识别出有效授权码，请确认完整 URL", NoticeKind.ERROR)
+                                }
+                            },
+                            onCancel = {
+                                viewModel.cancelOAuthFlow()
                             }
                         )
                     }
@@ -157,7 +218,6 @@ fun AddAccountDialog(
                             }
                         )
                     }
-
                 }
             }
         }
@@ -168,14 +228,16 @@ fun AddAccountDialog(
 private fun BrowserOAuthContent(
     isAuthorizing: Boolean,
     authUrl: String?,
-    onStartAuth: () -> Unit
+    onStartAuth: (openBrowser: Boolean) -> Unit,
+    onSubmitManualCallback: (String) -> Unit,
+    onCancel: () -> Unit
 ) {
     val s = strings()
+    var manualCallbackInput by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             text = s.accountsAddDialogBrowserDesc,
@@ -184,60 +246,15 @@ private fun BrowserOAuthContent(
             lineHeight = 20.sp
         )
 
-        if (isAuthorizing) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                        RoundedCornerShape(12.dp)
-                    )
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(36.dp),
-                        strokeWidth = 3.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = s.accountsWaitingBrowserAuth,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    if (!authUrl.isNullOrBlank()) {
-                        OutlinedButton(
-                            onClick = {
-                                Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                    StringSelection(authUrl),
-                                    null
-                                )
-                            },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ContentCopy,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text("复制授权链接", fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-        } else {
+        // 1. 顶部主操作按钮行：[🌐 打开浏览器授权] + [📋 复制授权链接] (1:1 对齐 Cockpit 规范)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Button(
-                onClick = onStartAuth,
-                modifier = Modifier.fillMaxWidth().height(44.dp),
+                onClick = { onStartAuth(true) },
+                modifier = Modifier.weight(1.3f).height(42.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
@@ -248,11 +265,138 @@ private fun BrowserOAuthContent(
                     contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "在浏览器中打开 Google 授权",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                    text = if (isAuthorizing) "重新在浏览器打开" else "在浏览器中打开授权",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    fontSize = 13.sp
                 )
+            }
+
+            OutlinedButton(
+                onClick = {
+                    if (!authUrl.isNullOrBlank()) {
+                        copyToClipboard(authUrl)
+                    } else {
+                        onStartAuth(false)
+                    }
+                },
+                modifier = Modifier.weight(1f).height(42.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ContentCopy,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "复制授权链接",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        // 2. 等待授权返回微动画提示
+        if (isAuthorizing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = s.accountsWaitingBrowserAuth,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 12.5.sp
+                            )
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onCancel,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text(
+                            text = "取消授权",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. 手动回调 URL 容错录入区 (1:1 对齐 Cockpit 规范)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                    RoundedCornerShape(10.dp)
+                )
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "若自动回调受阻，可将浏览器地址栏中的完整网址复制粘贴至下方：",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StudioTextField(
+                    value = manualCallbackInput,
+                    onValueChange = { manualCallbackInput = it },
+                    placeholder = "http://127.0.0.1:41321/... 或授权码",
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Button(
+                    onClick = {
+                        if (manualCallbackInput.isNotBlank()) {
+                            onSubmitManualCallback(manualCallbackInput)
+                        }
+                    },
+                    enabled = manualCallbackInput.isNotBlank(),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.height(34.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp)
+                ) {
+                    Text("提交", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -266,34 +410,161 @@ private fun ManualTokenContent(
     onSubmit: () -> Unit
 ) {
     val parsedEntries = remember(token) {
-        com.yuzhiqiang.antigravity.services.auth.RefreshTokenParser.parse(token)
+        RefreshTokenParser.parse(token)
     }
     val count = parsedEntries.size
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "支持粘贴单个/多行 Refresh Token（每行一个）进行批量导入，或直接粘贴备份的账号 JSON 数据。",
+            text = "支持粘贴单个/多行 Refresh Token（每行一个）、Cockpit 导出的 JSON 数组，或直接选择备份文件。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            lineHeight = 20.sp
+            lineHeight = 18.sp
         )
 
+        // 顶部操作工具条: [📁 导入 JSON 文件] [📋 从剪贴板粘贴] [清空]
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(
+                onClick = {
+                    val fileContent = pickJsonFile()
+                    if (!fileContent.isNullOrBlank()) {
+                        onTokenChange(fileContent)
+                    }
+                },
+                modifier = Modifier.height(34.dp),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.FileOpen,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("导入 JSON 文件", fontSize = 12.sp)
+            }
+
+            OutlinedButton(
+                onClick = {
+                    val clipText = readFromClipboard()
+                    if (!clipText.isNullOrBlank()) {
+                        onTokenChange(clipText)
+                    }
+                },
+                modifier = Modifier.height(34.dp),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ContentPaste,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("从剪贴板粘贴", fontSize = 12.sp)
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            if (token.isNotEmpty()) {
+                TextButton(
+                    onClick = { onTokenChange("") },
+                    modifier = Modifier.height(34.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Clear,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "清空",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // 统一规范输入框
         StudioTextField(
             value = token,
             onValueChange = onTokenChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 180.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 180.dp),
             placeholder = "粘贴 1//0g... 字符串（支持多行批量粘贴或 JSON 数组/对象）",
             singleLine = false,
             maxLines = 8,
             minLines = 4
         )
 
+        // 实时识别状态提示 (对齐 Cockpit 规范)
+        AnimatedVisibility(
+            visible = token.isNotBlank(),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            if (count > 0) {
+                val emails = parsedEntries.mapNotNull { it.email }.filter { it.isNotBlank() }
+                val previewText = when {
+                    emails.isNotEmpty() -> "（${emails.take(2).joinToString(", ")}${if (count > 2) " 等" else ""}）"
+                    else -> ""
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(start = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "已识别 $count 个有效账号凭据 $previewText",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(start = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.WarningAmber,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "未能识别出有效的 Refresh Token 或 JSON 数据",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    )
+                }
+            }
+        }
+
+        // 提交按钮
         Button(
             onClick = onSubmit,
-            modifier = Modifier.fillMaxWidth().height(44.dp),
+            modifier = Modifier.fillMaxWidth().height(42.dp),
             enabled = count > 0 && !isSubmitting,
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(
@@ -325,7 +596,6 @@ private fun ManualTokenContent(
         }
     }
 }
-
 
 @Composable
 private fun TabButton(

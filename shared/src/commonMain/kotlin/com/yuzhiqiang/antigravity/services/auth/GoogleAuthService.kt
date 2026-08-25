@@ -100,10 +100,48 @@ class GoogleAuthService {
         }
     }
 
+    private var currentOAuthDeferred: CompletableDeferred<String>? = null
+    private var currentOAuthServer: EmbeddedServer<*, *>? = null
+
+    fun submitManualCallback(urlOrCode: String): Boolean {
+        val trimmed = urlOrCode.trim()
+        if (trimmed.isEmpty()) return false
+
+        val code = when {
+            trimmed.contains("code=") -> {
+                val params = trimmed.substringAfter("?").split("&")
+                params.firstOrNull { it.startsWith("code=") }
+                    ?.removePrefix("code=")
+                    ?.substringBefore("&")
+                    ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+            }
+            else -> trimmed
+        }
+
+        if (!code.isNullOrBlank()) {
+            val deferred = currentOAuthDeferred
+            if (deferred != null && deferred.isActive) {
+                deferred.complete(code)
+                return true
+            }
+        }
+        return false
+    }
+
+    fun cancelOAuthFlow() {
+        currentOAuthDeferred?.completeExceptionally(java.util.concurrent.CancellationException("用户取消了授权"))
+        currentOAuthDeferred = null
+        try {
+            currentOAuthServer?.stop(200, 500)
+        } catch (_: Exception) {}
+        currentOAuthServer = null
+    }
+
     /**
      * 启动完整的 Google OAuth 2.0 浏览器授权流程
      */
     suspend fun startOAuthFlow(
+        openBrowserDirectly: Boolean = true,
         onAuthUrlReady: ((authUrl: String) -> Unit)? = null
     ): Result<AccountInfo> = withContext(Dispatchers.IO) {
         val port = findAvailableCallbackPort(41321, 41350)
@@ -126,6 +164,7 @@ class GoogleAuthService {
                 "&prompt=consent"
 
         val codeDeferred = CompletableDeferred<String>()
+        currentOAuthDeferred = codeDeferred
         var server: EmbeddedServer<*, *>? = null
 
         try {
@@ -167,7 +206,9 @@ class GoogleAuthService {
             }.start(wait = false)
 
             onAuthUrlReady?.invoke(authUrl)
-            openBrowser(authUrl)
+            if (openBrowserDirectly) {
+                openBrowser(authUrl)
+            }
 
             val code = withTimeoutOrNull(180_000L) {
                 codeDeferred.await()
@@ -431,7 +472,7 @@ class GoogleAuthService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(hash)
     }
 
-    private fun openBrowser(url: String) {
+    fun openBrowser(url: String) {
         try {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(URI(url))
