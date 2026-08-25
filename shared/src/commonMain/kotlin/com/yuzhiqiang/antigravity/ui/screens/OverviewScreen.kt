@@ -38,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,6 +53,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.BadgeTone
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
@@ -144,6 +147,58 @@ fun OverviewScreen(
             },
             onDiagnostics = { viewModel.openDoctorDialog() }
         )
+
+        // 当前激活账号与核心模型配额摘要卡片
+        val activeAccount by viewModel.activeAccount.collectAsState()
+        val quotas by viewModel.accountQuotas.collectAsState()
+        val activeQuota = activeAccount?.id?.let { quotas[it] }
+
+        activeAccount?.let { acc ->
+            StudioCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            StatusBadge(text = "激活账号: ${acc.displayName}", tone = BadgeTone.SUCCESS, pulse = true)
+                            val tierName = activeQuota?.tierName ?: if (acc.profile.tier == com.yuzhiqiang.antigravity.domain.model.account.AccountTier.PRO) "Pro 订阅" else null
+                            if (tierName != null) {
+                                StatusBadge(text = tierName, tone = BadgeTone.INFO)
+                            }
+                        }
+
+                        TextButton(
+                            onClick = { viewModel.selectTab(com.yuzhiqiang.antigravity.ui.presentation.NavTab.ACCOUNTS) },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("配额中心 ➔", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    if (activeQuota != null) {
+                        com.yuzhiqiang.antigravity.ui.components.CompactDualQuotaBar(quotaSnapshot = activeQuota)
+                    } else {
+                        Text(
+                            text = "正在拉取配额数据或暂未加载...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+
 
         // 宿主环境卡片网格
         val hostCardItems = remember(

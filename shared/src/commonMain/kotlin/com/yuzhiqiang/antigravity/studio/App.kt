@@ -27,10 +27,12 @@ import com.yuzhiqiang.antigravity.ui.dialogs.UpdateDialog
 import com.yuzhiqiang.antigravity.update.model.AppVersion
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
+import com.yuzhiqiang.antigravity.ui.screens.AccountsScreen
 import com.yuzhiqiang.antigravity.ui.screens.ActivityScreen
 import com.yuzhiqiang.antigravity.ui.screens.ModelsScreen
 import com.yuzhiqiang.antigravity.ui.screens.OverviewScreen
 import com.yuzhiqiang.antigravity.ui.screens.SettingsScreen
+
 import com.yuzhiqiang.antigravity.ui.theme.AntigravityTheme
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import org.koin.compose.KoinContext
@@ -96,9 +98,11 @@ fun App(
                             ) { tab ->
                                 when (tab) {
                                     NavTab.OVERVIEW -> OverviewScreen(viewModel = viewModel)
+                                    NavTab.ACCOUNTS -> AccountsScreen(viewModel = viewModel)
                                     NavTab.MODELS -> ModelsScreen(viewModel = viewModel)
                                     NavTab.ACTIVITY -> ActivityScreen(viewModel = viewModel)
                                     NavTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
+
                                 }
                             }
                         }
