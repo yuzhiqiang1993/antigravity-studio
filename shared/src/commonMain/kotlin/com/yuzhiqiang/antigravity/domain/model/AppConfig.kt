@@ -1,5 +1,7 @@
 package com.yuzhiqiang.antigravity.domain.model
 
+import com.yuzhiqiang.antigravity.domain.model.account.SmartSwitchConfig
+
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -19,6 +21,8 @@ data class AppConfig(
     val disabledOfficialModels: List<String> = emptyList(),
     @SerialName("custom_host_paths")
     val customHostPaths: Map<String, String?> = emptyMap(),
+    @SerialName("smart_switch_config")
+    val smartSwitchConfig: SmartSwitchConfig = SmartSwitchConfig(),
     @SerialName("language")
     val language: String = "zh-CN",
     @SerialName("theme_mode")
@@ -36,6 +40,7 @@ data class AppConfig(
     @SerialName("activity_auto_scroll")
     val activityAutoScroll: Boolean = true
 ) {
+
     val isDebugMode: Boolean
         get() = developerMode
 }

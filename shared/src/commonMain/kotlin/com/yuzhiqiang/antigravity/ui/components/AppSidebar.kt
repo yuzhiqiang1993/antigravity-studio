@@ -13,6 +13,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Description
@@ -56,9 +57,11 @@ fun AppSidebar(
 
     val mainItems = listOf(
         SidebarItem(NavTab.OVERVIEW, s.navOverview, Icons.Outlined.Dashboard),
+        SidebarItem(NavTab.ACCOUNTS, s.navAccounts, Icons.Outlined.AccountCircle),
         SidebarItem(NavTab.MODELS, s.navModels, Icons.Outlined.Memory),
         SidebarItem(NavTab.ACTIVITY, s.navActivity, Icons.Outlined.Description)
     )
+
 
     val targetWidth = if (isCollapsed) 72.dp else 228.dp
     val sidebarWidth by animateDpAsState(

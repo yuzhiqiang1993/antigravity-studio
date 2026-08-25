@@ -6,12 +6,39 @@ interface Strings {
 
     // Navigation & Sidebar
     val navOverview: String
+    val navAccounts: String
     val navModels: String
     val navActivity: String
     val navSettings: String
     val navDoctor: String
     val sidebarCollapse: String
     val sidebarExpand: String
+
+    // Accounts Screen
+    val accountsTitle: String
+    val accountsSubtitle: String
+    val accountsAddAccount: String
+    val accountsAddViaBrowser: String
+    val accountsAddViaToken: String
+    val accountsActiveInIde: String
+    val accountsSetActive: String
+    val accountsDelete: String
+    val accountsRefreshToken: String
+    val accountsCopyToken: String
+    val accountsEmptyState: String
+    val accountsEmptyDesc: String
+    val accountsTokenExpiringSoon: String
+    val accountsTokenExpired: String
+    val accountsTokenHealthy: String
+    val accountsExpiresIn: String
+    val accountsAddDialogTitle: String
+    val accountsAddDialogBrowserDesc: String
+    val accountsAddDialogTokenDesc: String
+    val accountsAddDialogTokenPlaceholder: String
+    val accountsWaitingBrowserAuth: String
+    val accountsAuthSuccess: String
+    val accountsAuthFailed: String
+
 
     // Overview & Proxy Card
     val overviewProxyCardTitle: String
@@ -699,12 +726,38 @@ object StringsZh : Strings {
     override val appSubtitle = "Antigravity 全能桌面中枢与 BYOK 模型接入套件"
 
     override val navOverview = "运行概览"
+    override val navAccounts = "账号配额"
     override val navModels = "模型管理"
     override val navActivity = "调用日志"
     override val navSettings = "应用设置"
     override val navDoctor = "全链路体检"
     override val sidebarCollapse = "折叠侧边栏"
     override val sidebarExpand = "展开侧边栏"
+
+    override val accountsTitle = "账号与配额管理"
+    override val accountsSubtitle = "集中管理多账号、监控 AI 配额并支持无感秒级热切"
+    override val accountsAddAccount = "添加账号"
+    override val accountsAddViaBrowser = "Google 浏览器登录"
+    override val accountsAddViaToken = "手动输入 Token"
+    override val accountsActiveInIde = "当前 IDE 激活账号"
+    override val accountsSetActive = "设为活跃"
+    override val accountsDelete = "删除账号"
+    override val accountsRefreshToken = "刷新凭证"
+    override val accountsCopyToken = "复制凭证"
+    override val accountsEmptyState = "暂无托管账号"
+    override val accountsEmptyDesc = "点击右上角「添加账号」以登录 Google 账号或导入 Refresh Token"
+    override val accountsTokenExpiringSoon = "凭证即将到期"
+    override val accountsTokenExpired = "凭证已过期"
+    override val accountsTokenHealthy = "正常"
+    override val accountsExpiresIn = "后到期"
+    override val accountsAddDialogTitle = "添加 Google 账号"
+    override val accountsAddDialogBrowserDesc = "将在系统默认浏览器中打开 Google 授权页面，授权后自动返回并录入。"
+    override val accountsAddDialogTokenDesc = "直接粘贴 Google OAuth Refresh Token 字符串，系统将自动换取并拉取用户资料。"
+    override val accountsAddDialogTokenPlaceholder = "粘贴 Refresh Token (例如 1//0g...)"
+    override val accountsWaitingBrowserAuth = "正在等待浏览器授权回调..."
+    override val accountsAuthSuccess = "账号授权成功！"
+    override val accountsAuthFailed = "账号授权失败"
+
 
     override val overviewProxyCardTitle = "本地代理服务"
     override val overviewProxyRunning = "运行中"
@@ -1374,12 +1427,38 @@ object StringsEn : Strings {
     override val appSubtitle = "The all-in-one desktop hub and BYOK model suite for Antigravity"
 
     override val navOverview = "Overview"
+    override val navAccounts = "Accounts"
     override val navModels = "Models"
     override val navActivity = "Activity"
     override val navSettings = "Settings"
     override val navDoctor = "Doctor"
     override val sidebarCollapse = "Collapse sidebar"
     override val sidebarExpand = "Expand sidebar"
+
+    override val accountsTitle = "Accounts & Quota"
+    override val accountsSubtitle = "Manage multiple accounts, monitor AI quotas, and switch seamlessly"
+    override val accountsAddAccount = "Add Account"
+    override val accountsAddViaBrowser = "Google Sign In"
+    override val accountsAddViaToken = "Manual Token"
+    override val accountsActiveInIde = "Active in IDE"
+    override val accountsSetActive = "Set Active"
+    override val accountsDelete = "Delete"
+    override val accountsRefreshToken = "Refresh Token"
+    override val accountsCopyToken = "Copy Token"
+    override val accountsEmptyState = "No accounts configured"
+    override val accountsEmptyDesc = "Click 'Add Account' above to sign in or import a Refresh Token"
+    override val accountsTokenExpiringSoon = "Expiring soon"
+    override val accountsTokenExpired = "Expired"
+    override val accountsTokenHealthy = "Active"
+    override val accountsExpiresIn = "expires in"
+    override val accountsAddDialogTitle = "Add Google Account"
+    override val accountsAddDialogBrowserDesc = "Opens Google authorization in your default browser and automatically captures the token."
+    override val accountsAddDialogTokenDesc = "Paste a Google OAuth Refresh Token. Studio will fetch user profile and tokens automatically."
+    override val accountsAddDialogTokenPlaceholder = "Paste Refresh Token (e.g. 1//0g...)"
+    override val accountsWaitingBrowserAuth = "Waiting for browser authorization..."
+    override val accountsAuthSuccess = "Account authorized successfully!"
+    override val accountsAuthFailed = "Authorization failed"
+
 
     override val overviewProxyCardTitle = "Local Proxy Server"
     override val overviewProxyRunning = "Running"
