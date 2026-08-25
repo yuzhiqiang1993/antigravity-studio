@@ -289,7 +289,8 @@ class AppViewModel(
             tokenRenewalManager.start()
             quotaPoller.start(
                 accountsProvider = { accountStore.currentAccounts() },
-                activeAccountProvider = { accountStore.currentActiveAccount() }
+                activeAccountProvider = { accountStore.currentActiveAccount() },
+                configProvider = { configStore.currentConfig }
             )
             proxyServer.start(configStore.currentConfig.proxyPort)
             refreshHostStatus()
@@ -1183,6 +1184,17 @@ class AppViewModel(
     fun updateSmartSwitchConfig(smartSwitchConfig: SmartSwitchConfig) {
         configStore.updateConfig { it.copy(smartSwitchConfig = smartSwitchConfig) }
         showNotice(if (smartSwitchConfig.enabled) "已启用自动智能切号" else "已停用自动智能切号", NoticeKind.INFO)
+    }
+
+    fun updateQuotaRefreshConfig(enabled: Boolean, activeIntervalSec: Int, backgroundIntervalSec: Int) {
+        configStore.updateConfig {
+            it.copy(
+                quotaAutoRefreshEnabled = enabled,
+                quotaActiveIntervalSeconds = activeIntervalSec,
+                quotaBackgroundIntervalSeconds = backgroundIntervalSec
+            )
+        }
+        showNotice(if (enabled) "已更新配额自动刷新配置" else "已停用配额自动刷新", NoticeKind.INFO)
     }
 
 

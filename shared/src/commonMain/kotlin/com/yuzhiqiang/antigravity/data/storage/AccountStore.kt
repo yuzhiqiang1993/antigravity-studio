@@ -11,7 +11,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -314,12 +317,21 @@ class AccountStore(
     }
 
     /**
-     * 导出所有账号凭据为标准 JSON 字符串
+     * 导出所有账号凭据（完全对齐 Cockpit 插件标准 JSON 数组格式）
      */
     fun exportAccountsJson(): String {
         val current = _accountsState.value
-        val data = AccountStoreData(version = 1, accounts = current, activeAccountId = _activeAccountState.value?.id)
-        return json.encodeToString(AccountStoreData.serializer(), data)
+        val exportList = current.map { acc ->
+            buildJsonObject {
+                put("email", JsonPrimitive(acc.email))
+                put("refreshToken", JsonPrimitive(acc.tokens.refreshToken))
+                acc.profile.name?.takeIf { it.isNotBlank() }?.let {
+                    put("name", JsonPrimitive(it))
+                }
+            }
+        }
+        val jsonArray = JsonArray(exportList)
+        return json.encodeToString(JsonArray.serializer(), jsonArray)
     }
 
     /**

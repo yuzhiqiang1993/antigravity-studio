@@ -40,7 +40,13 @@ data class AppConfig(
     @SerialName("developer_mode")
     val developerMode: Boolean = false,
     @SerialName("activity_auto_scroll")
-    val activityAutoScroll: Boolean = true
+    val activityAutoScroll: Boolean = true,
+    @SerialName("quota_auto_refresh_enabled")
+    val quotaAutoRefreshEnabled: Boolean = true,
+    @SerialName("quota_active_interval_seconds")
+    val quotaActiveIntervalSeconds: Int = 60,
+    @SerialName("quota_background_interval_seconds")
+    val quotaBackgroundIntervalSeconds: Int = 600
 ) {
 
     val isDebugMode: Boolean
