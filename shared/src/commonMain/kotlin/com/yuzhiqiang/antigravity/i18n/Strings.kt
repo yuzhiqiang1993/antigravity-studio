@@ -525,6 +525,14 @@ interface Strings {
     val settingsThemeSystem: String
     val settingsThemeLight: String
     val settingsThemeDark: String
+    val settingsThemePalette: String
+    val settingsThemePaletteDescription: String
+    val paletteIndigo: String
+    val paletteOcean: String
+    val paletteEmerald: String
+    val paletteViolet: String
+    val paletteRose: String
+    val paletteAmber: String
     val settingsPort: String
     val settingsPortDescription: String
     val settingsPortInvalid: String
@@ -1230,6 +1238,14 @@ object StringsZh : Strings {
     override val settingsThemeSystem = "跟随系统"
     override val settingsThemeLight = "浅色模式"
     override val settingsThemeDark = "深色模式"
+    override val settingsThemePalette = "配色方案"
+    override val settingsThemePaletteDescription = "选择应用核心主题色系 (Material Design 3)"
+    override val paletteIndigo = "极光靛蓝"
+    override val paletteOcean = "深海青蓝"
+    override val paletteEmerald = "自然翠绿"
+    override val paletteViolet = "幻境紫罗兰"
+    override val paletteRose = "活力珊瑚"
+    override val paletteAmber = "晨曦金珀"
     override val settingsPort = "本地代理默认端口"
     override val settingsPortDescription = "修改后会重启本地代理服务"
     override val settingsPortInvalid = "端口必须在 1024 到 65535 之间"
@@ -1931,6 +1947,14 @@ object StringsEn : Strings {
     override val settingsThemeSystem = "System Default"
     override val settingsThemeLight = "Light Theme"
     override val settingsThemeDark = "Dark Theme"
+    override val settingsThemePalette = "Color Palette"
+    override val settingsThemePaletteDescription = "Choose core theme color scheme (Material Design 3)"
+    override val paletteIndigo = "Aurora Indigo"
+    override val paletteOcean = "Ocean Teal"
+    override val paletteEmerald = "Natural Emerald"
+    override val paletteViolet = "Mystic Violet"
+    override val paletteRose = "Vibrant Coral"
+    override val paletteAmber = "Dawn Amber"
     override val settingsPort = "Local Proxy Default Port"
     override val settingsPortDescription = "The local proxy server will restart after saving"
     override val settingsPortInvalid = "Port must be between 1024 and 65535"

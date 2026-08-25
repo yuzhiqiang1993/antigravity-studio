@@ -73,25 +73,24 @@ fun StudioAccountCard(
     modifier: Modifier = Modifier
 ) {
 
-    val isAnyActive = isIdeActive || isCliActive || account.isActive
+    val isDualActive = isIdeActive && isCliActive
+    val isAnyActive = isIdeActive || isCliActive
     val isDark = isSystemInDarkTheme()
     var showMoreMenu by remember { mutableStateOf(false) }
 
-    val targetCardBg = if (isAnyActive) {
-        if (isDark) Color(0xFF1E293B) else StudioThemeColors.ActiveBgLight
-    } else {
-        if (isDark) MaterialTheme.colorScheme.surface else Color.White
-    }
+    // 卡片整体背景 (遵循 M3 标准 surface / surfaceContainerLow)
+    val targetCardBg = if (isDark) MaterialTheme.colorScheme.surface else Color.White
 
     val animatedCardBg by androidx.compose.animation.animateColorAsState(
         targetValue = targetCardBg,
         animationSpec = androidx.compose.animation.core.tween(durationMillis = 300)
     )
 
-    val targetBorderColor = if (isAnyActive) {
-        StudioThemeColors.ActiveBorder
-    } else {
-        if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f) else StudioThemeColors.BorderCardLight
+    val targetBorderColor = when {
+        isDualActive -> MaterialTheme.colorScheme.primary
+        isIdeActive  -> MaterialTheme.colorScheme.secondary
+        isCliActive  -> MaterialTheme.colorScheme.tertiary
+        else         -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
     }
 
     val animatedBorderColor by androidx.compose.animation.animateColorAsState(
@@ -99,19 +98,21 @@ fun StudioAccountCard(
         animationSpec = androidx.compose.animation.core.tween(durationMillis = 300)
     )
 
+    val borderWidth = if (isAnyActive) 1.5.dp else 1.dp
+
     val displayEmail = if (isPrivacyMode) account.maskedEmail() else account.email
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .border(
-                width = 1.dp,
+                width = borderWidth,
                 color = animatedBorderColor,
                 shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card)
             ),
         shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card),
         color = animatedCardBg,
-        shadowElevation = if (isAnyActive) 1.5.dp else 0.5.dp
+        shadowElevation = if (isDark) 0.dp else 0.5.dp
     ) {
 
         Column(
@@ -140,7 +141,7 @@ fun StudioAccountCard(
                                     onCheckedChange = { onToggleSelect() },
                                     colors = CheckboxDefaults.colors(
                                         checkedColor = MaterialTheme.colorScheme.primary,
-                                        uncheckedColor = StudioThemeColors.TextSecondary
+                                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 )
                             }
@@ -155,21 +156,19 @@ fun StudioAccountCard(
                                 fontSize = 13.5.sp,
                                 letterSpacing = (-0.2).sp
                             ),
-                            color = StudioThemeColors.TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-
-
 
                     // 如果有自定义备注，紧随邮箱展示优雅微胶囊
                     if (!account.customNote.isNullOrBlank()) {
                         StudioTooltip(text = "账号备注: ${account.customNote}") {
                             Surface(
                                 shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                                color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else StudioThemeColors.InnerCardLight,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, StudioThemeColors.BorderSubtleLight),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.5f else 0.8f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                                 modifier = Modifier.clickable { onEditNote() }
                             ) {
                                 Row(
@@ -181,13 +180,13 @@ fun StudioAccountCard(
                                         imageVector = Icons.AutoMirrored.Outlined.Label,
                                         contentDescription = null,
                                         modifier = Modifier.size(10.dp),
-                                        tint = StudioThemeColors.TextSecondary
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = account.customNote!!,
                                         fontSize = StudioDesignTokens.TextSize.badge,
                                         fontWeight = FontWeight.Medium,
-                                        color = StudioThemeColors.TextPrimary,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -206,13 +205,13 @@ fun StudioAccountCard(
                         StudioTooltip(text = "此账号已置顶固定") {
                             Surface(
                                 shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                                color = StudioThemeColors.BadgeProBg
+                                color = MaterialTheme.colorScheme.tertiaryContainer
                             ) {
                                 Text(
                                     text = "已置顶",
                                     fontSize = StudioDesignTokens.TextSize.badge,
                                     fontWeight = FontWeight.Bold,
-                                    color = StudioThemeColors.BadgeProText,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
@@ -222,39 +221,39 @@ fun StudioAccountCard(
                     if (isIdeActive && isCliActive) {
                         Surface(
                             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                            color = StudioThemeColors.BadgeActiveBg
+                            color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
                                 text = "IDE & App/CLI",
                                 fontSize = StudioDesignTokens.TextSize.badge,
                                 fontWeight = FontWeight.Bold,
-                                color = StudioThemeColors.BadgeActiveText,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     } else if (isIdeActive) {
                         Surface(
                             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                            color = StudioThemeColors.BadgeIdeBg
+                            color = MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Text(
                                 text = "IDE",
                                 fontSize = StudioDesignTokens.TextSize.badge,
                                 fontWeight = FontWeight.Bold,
-                                color = StudioThemeColors.BadgeIdeText,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     } else if (isCliActive) {
                         Surface(
                             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                            color = StudioThemeColors.BadgeCliBg
+                            color = MaterialTheme.colorScheme.tertiaryContainer
                         ) {
                             Text(
                                 text = "App/CLI",
                                 fontSize = StudioDesignTokens.TextSize.badge,
                                 fontWeight = FontWeight.Bold,
-                                color = StudioThemeColors.BadgeCliText,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -279,17 +278,17 @@ fun StudioAccountCard(
                     }
 
                     val badgeBg = when (tier) {
-                        AccountTier.ULTRA -> StudioThemeColors.BadgeUltraBg
-                        AccountTier.PRO -> StudioThemeColors.BadgeProBg
-                        AccountTier.ENTERPRISE -> StudioThemeColors.BadgeEnterpriseBg
-                        AccountTier.FREE -> StudioThemeColors.BadgeFreeBg
+                        AccountTier.ULTRA -> MaterialTheme.colorScheme.tertiaryContainer
+                        AccountTier.PRO -> MaterialTheme.colorScheme.primaryContainer
+                        AccountTier.ENTERPRISE -> MaterialTheme.colorScheme.secondaryContainer
+                        AccountTier.FREE -> MaterialTheme.colorScheme.surfaceVariant
                     }
 
                     val badgeText = when (tier) {
-                        AccountTier.ULTRA -> StudioThemeColors.BadgeUltraText
-                        AccountTier.PRO -> StudioThemeColors.BadgeProText
-                        AccountTier.ENTERPRISE -> StudioThemeColors.BadgeEnterpriseText
-                        AccountTier.FREE -> StudioThemeColors.BadgeFreeText
+                        AccountTier.ULTRA -> MaterialTheme.colorScheme.onTertiaryContainer
+                        AccountTier.PRO -> MaterialTheme.colorScheme.onPrimaryContainer
+                        AccountTier.ENTERPRISE -> MaterialTheme.colorScheme.onSecondaryContainer
+                        AccountTier.FREE -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
 
                     val badgeLabel = when (tier) {
@@ -311,8 +310,6 @@ fun StudioAccountCard(
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
-
-
 
                 }
             }
@@ -343,7 +340,7 @@ fun StudioAccountCard(
                             fontSize = StudioDesignTokens.TextSize.caption,
                             fontWeight = FontWeight.Medium
                         ),
-                        color = StudioThemeColors.TextMuted
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -352,22 +349,21 @@ fun StudioAccountCard(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 快捷操作 1: 设为活跃
+                    // 快捷操作 1: 设为活跃/切换账号
                     if (!isAnyActive) {
                         StudioTooltip(text = "设为 IDE 与 App/CLI 激活生效账号") {
                             FilledTonalIconButton(
                                 onClick = onSetActive,
-
                                 modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize),
                                 shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
                                 colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = StudioThemeColors.ActiveBgLight,
-                                    contentColor = StudioThemeColors.ActiveBorder
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.FlashOn,
-                                    contentDescription = "设为活跃",
+                                    imageVector = Icons.Outlined.SwitchAccount,
+                                    contentDescription = "切换账号",
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
                                 )
                             }
@@ -397,11 +393,10 @@ fun StudioAccountCard(
                                 modifier = Modifier
                                     .size(StudioDesignTokens.Sizes.cardActionIconSize)
                                     .rotate(if (isRefreshing) rotateAngle else 0f),
-                                tint = if (isRefreshing) MaterialTheme.colorScheme.primary else StudioThemeColors.ActionIconDefault
+                                tint = if (isRefreshing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-
 
                     // 快捷操作 3: 更多操作下拉菜单 (收拢置顶、修改备注、复制、删除)
                     Box {
@@ -414,17 +409,17 @@ fun StudioAccountCard(
                                     imageVector = Icons.Outlined.MoreVert,
                                     contentDescription = "更多操作",
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                    tint = StudioThemeColors.ActionIconDefault
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
-                        DropdownMenu(
+                        StudioDropdownMenu(
                             expanded = showMoreMenu,
                             onDismissRequest = { showMoreMenu = false }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text(if (account.isPinned) "取消置顶" else "置顶账号", fontSize = StudioDesignTokens.TextSize.body) },
+                            StudioDropdownMenuItem(
+                                text = if (account.isPinned) "取消置顶" else "置顶账号",
                                 onClick = {
                                     showMoreMenu = false
                                     onTogglePin()
@@ -434,13 +429,13 @@ fun StudioAccountCard(
                                         imageVector = Icons.Outlined.PushPin,
                                         contentDescription = null,
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                        tint = if (account.isPinned) StudioThemeColors.ActiveBorder else StudioThemeColors.TextSecondary
+                                        tint = if (account.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             )
 
-                            DropdownMenuItem(
-                                text = { Text(if (account.customNote.isNullOrBlank()) "添加备注" else "修改备注", fontSize = StudioDesignTokens.TextSize.body) },
+                            StudioDropdownMenuItem(
+                                text = if (account.customNote.isNullOrBlank()) "添加备注" else "修改备注",
                                 onClick = {
                                     showMoreMenu = false
                                     onEditNote()
@@ -450,13 +445,13 @@ fun StudioAccountCard(
                                         imageVector = Icons.Outlined.EditNote,
                                         contentDescription = null,
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize + 2.dp),
-                                        tint = StudioThemeColors.TextSecondary
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             )
 
-                            DropdownMenuItem(
-                                text = { Text("复制 Token", fontSize = StudioDesignTokens.TextSize.body) },
+                            StudioDropdownMenuItem(
+                                text = "复制 Token",
                                 onClick = {
                                     showMoreMenu = false
                                     onCopyToken()
@@ -466,15 +461,16 @@ fun StudioAccountCard(
                                         imageVector = Icons.Outlined.ContentCopy,
                                         contentDescription = null,
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                        tint = StudioThemeColors.TextSecondary
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             )
 
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            StudioMenuDivider()
 
-                            DropdownMenuItem(
-                                text = { Text("删除账号", fontSize = StudioDesignTokens.TextSize.body, color = StudioThemeColors.ActionIconDelete) },
+                            StudioDropdownMenuItem(
+                                text = "删除账号",
+                                isDestructive = true,
                                 onClick = {
                                     showMoreMenu = false
                                     onDelete()
@@ -484,7 +480,7 @@ fun StudioAccountCard(
                                         imageVector = Icons.Outlined.Delete,
                                         contentDescription = null,
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                        tint = StudioThemeColors.ActionIconDelete
+                                        tint = MaterialTheme.colorScheme.error
                                     )
                                 }
                             )
@@ -507,8 +503,8 @@ private fun RingQuotaMatrixBlock(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val innerBg = if (isDark) StudioThemeColors.InnerCardDark else StudioThemeColors.InnerCardLight
-    val borderClr = if (isDark) StudioThemeColors.TrackDark.copy(alpha = 0.5f) else StudioThemeColors.BorderSubtleLight
+    val innerBg = if (isDark) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surfaceContainerLowest
+    val borderClr = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
 
     Box(
         modifier = modifier
@@ -527,12 +523,12 @@ private fun RingQuotaMatrixBlock(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // 上部分: Claude 模型族
-                RingFamilySection(group = claudeGroup)
+                RingFamilySection(group = claudeGroup, isDark = isDark)
 
                 HorizontalDivider(color = borderClr.copy(alpha = 0.7f), thickness = 0.5.dp)
 
                 // 下部分: Gemini 模型族
-                RingFamilySection(group = geminiGroup)
+                RingFamilySection(group = geminiGroup, isDark = isDark)
             }
         }
     }
@@ -567,7 +563,7 @@ private fun SkeletonFamilyBlock(title: String) {
                 fontWeight = FontWeight.Bold,
                 fontSize = StudioDesignTokens.TextSize.body
             ),
-            color = StudioThemeColors.TextPrimary.copy(alpha = 0.6f)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
 
         SkeletonQuotaRow(title = "五小时额度")
@@ -577,7 +573,7 @@ private fun SkeletonFamilyBlock(title: String) {
 
 @Composable
 private fun SkeletonQuotaRow(title: String) {
-    val trackBg = if (isSystemInDarkTheme()) StudioThemeColors.TrackDark else StudioThemeColors.TrackLight
+    val trackBg = MaterialTheme.colorScheme.surfaceVariant
 
     Row(
         modifier = Modifier
@@ -597,7 +593,7 @@ private fun SkeletonQuotaRow(title: String) {
                     fontSize = StudioDesignTokens.TextSize.label,
                     fontWeight = FontWeight.SemiBold
                 ),
-                color = StudioThemeColors.TextPrimary.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
 
             Text(
@@ -605,7 +601,7 @@ private fun SkeletonQuotaRow(title: String) {
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = StudioDesignTokens.TextSize.resetCountdown
                 ),
-                color = StudioThemeColors.TextMuted.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 maxLines = 1
             )
         }
@@ -622,7 +618,7 @@ private fun SkeletonQuotaRow(title: String) {
                     fontWeight = FontWeight.Bold,
                     fontSize = StudioDesignTokens.TextSize.cardTitle
                 ),
-                color = StudioThemeColors.TextMuted.copy(alpha = 0.5f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(42.dp)
             )
@@ -646,7 +642,8 @@ private fun SkeletonQuotaRow(title: String) {
 
 @Composable
 private fun RingFamilySection(
-    group: QuotaGroup
+    group: QuotaGroup,
+    isDark: Boolean = isSystemInDarkTheme()
 ) {
     val fiveHour = group.buckets.firstOrNull { it.window == QuotaWindow.FIVE_HOUR }
         ?: group.buckets.firstOrNull()
@@ -661,15 +658,15 @@ private fun RingFamilySection(
                 fontWeight = FontWeight.Bold,
                 fontSize = StudioDesignTokens.TextSize.body
             ),
-            color = StudioThemeColors.TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         fiveHour?.let { item ->
-            RingQuotaRow(groupName = group.label, title = "五小时额度", item = item)
+            RingQuotaRow(groupName = group.label, title = "五小时额度", item = item, isDark = isDark)
         }
 
         weekly?.let { item ->
-            RingQuotaRow(groupName = group.label, title = "周额度", item = item)
+            RingQuotaRow(groupName = group.label, title = "周额度", item = item, isDark = isDark)
         }
     }
 }
@@ -682,9 +679,10 @@ private fun RingFamilySection(
 private fun RingQuotaRow(
     groupName: String,
     title: String,
-    item: ModelQuotaInfo
+    item: ModelQuotaInfo,
+    isDark: Boolean = isSystemInDarkTheme()
 ) {
-    val barColor = StudioThemeColors.quotaColor(item.percentage)
+    val barColor = StudioThemeColors.quotaColor(item.percentage, isDark)
     val isFull = item.percentage >= 100
     val countdown = item.formattedCountdown() ?: "即将重置"
     val formattedDate = item.resetTimeEpochSeconds?.let { epochSec ->
@@ -692,36 +690,39 @@ private fun RingQuotaRow(
         java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.getDefault()).format(date)
     }
 
-    // 直接在面板中呈现完整倒计时与精确重置时间点 (08/28 14:53)
-    val descAnnotated = remember(item.percentage, countdown, formattedDate, isFull) {
+    // 精简沉稳倒计时与精确时间点 (2天 20小时后重置 · 08/28 14:53)
+    val fullColor = if (isDark) StudioThemeColors.QuotaLevelFullDark else StudioThemeColors.QuotaLevelFullLight
+    val descAnnotated = remember(item.percentage, countdown, formattedDate, isFull, isDark) {
         buildAnnotatedString {
             if (isFull) {
                 withStyle(
                     SpanStyle(
-                        color = StudioThemeColors.QuotaHealthy,
+                        color = fullColor,
                         fontWeight = FontWeight.SemiBold
                     )
                 ) {
                     append("● 满额可用")
                 }
             } else {
-                withStyle(SpanStyle(color = StudioThemeColors.TextMuted)) {
-                    append("将在 ")
-                }
                 withStyle(
                     SpanStyle(
-                        color = StudioThemeColors.ActiveBorder,
-                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) Color(0xFF94A3B8) else Color(0xFF475569),
+                        fontWeight = FontWeight.Medium,
                         fontFamily = FontFamily.Monospace
                     )
                 ) {
                     append(countdown)
-                    if (formattedDate != null) {
+                    append("后重置")
+                }
+                if (formattedDate != null) {
+                    withStyle(
+                        SpanStyle(
+                            color = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8),
+                            fontFamily = FontFamily.Monospace
+                        )
+                    ) {
                         append(" ($formattedDate)")
                     }
-                }
-                withStyle(SpanStyle(color = StudioThemeColors.TextMuted)) {
-                    append(" 后重置")
                 }
             }
         }
@@ -745,7 +746,7 @@ private fun RingQuotaRow(
                     fontSize = StudioDesignTokens.TextSize.label,
                     fontWeight = FontWeight.SemiBold
                 ),
-                color = StudioThemeColors.TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Text(
@@ -798,9 +799,9 @@ fun QuotaRingGauge(
     size: Dp = 22.dp,
     strokeWidth: Dp = 3.dp
 ) {
-    val barColor = StudioThemeColors.quotaColor(percentage)
     val isDark = isSystemInDarkTheme()
-    val trackColor = if (isDark) StudioThemeColors.TrackDark else StudioThemeColors.TrackLight
+    val barColor = StudioThemeColors.quotaColor(percentage, isDark)
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
 
     val animatedProgress by animateFloatAsState(
         targetValue = (percentage / 100f).coerceIn(0f, 1f),

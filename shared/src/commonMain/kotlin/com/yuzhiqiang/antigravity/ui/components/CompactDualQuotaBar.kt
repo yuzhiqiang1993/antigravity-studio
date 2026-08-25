@@ -103,12 +103,13 @@ private fun MiniBarCell(
     percentage: Int,
     modifier: Modifier = Modifier
 ) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val animatedProgress by animateFloatAsState(
         targetValue = (percentage / 100f).coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 350)
     )
 
-    val barColor = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(percentage)
+    val barColor = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(percentage, isDark)
 
     Row(
         modifier = modifier,
@@ -121,7 +122,7 @@ private fun MiniBarCell(
                 fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body,
                 fontWeight = FontWeight.SemiBold
             ),
-            color = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         // Progress Bar
@@ -130,7 +131,7 @@ private fun MiniBarCell(
                 .weight(1f)
                 .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.progressBarHeight)
                 .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.pill))
-                .background(com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.TrackLight)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Box(
                 modifier = Modifier

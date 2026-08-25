@@ -7,8 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -73,33 +72,20 @@ fun FallbackSelector(
                 )
             }
         }
-        DropdownMenu(
+        StudioDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = s.modelsNoFallback,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                },
+            StudioDropdownMenuItem(
+                text = s.modelsNoFallback,
                 onClick = {
                     expanded = false
                     onSelected(null)
                 }
             )
             candidates.forEach { candidate ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = candidate.displayName
-                                ?: candidate.name.ifBlank { ModelIdentity.catalogKey(candidate) },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    },
+                StudioDropdownMenuItem(
+                    text = candidate.displayName ?: candidate.name.ifBlank { ModelIdentity.catalogKey(candidate) },
                     onClick = {
                         expanded = false
                         onSelected(candidate.id)

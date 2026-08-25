@@ -25,16 +25,13 @@ fun ModelQuotaBar(
     modifier: Modifier = Modifier,
     compact: Boolean = false
 ) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val animatedProgress by animateFloatAsState(
         targetValue = (quota.percentage / 100f).coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 400)
     )
 
-    val barColor = when {
-        quota.percentage > 40 -> Color(0xFF00E676)
-        quota.percentage >= 15 -> Color(0xFFFFB74D)
-        else -> Color(0xFFFF5252)
-    }
+    val barColor = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(quota.percentage, isDark)
 
     val countdownText = quota.formattedCountdown()
 
