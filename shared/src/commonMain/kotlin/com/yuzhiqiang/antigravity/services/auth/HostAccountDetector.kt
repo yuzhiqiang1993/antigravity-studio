@@ -57,7 +57,7 @@ object HostAccountDetector {
         val userHome = System.getProperty("user.home")
         val os = System.getProperty("os.name").lowercase()
 
-        // 1. 扫描官方物理凭据文件
+        // 1. 扫描官方物理凭据文件（严格限定为 App / CLI 专用路径，不混入任何 IDE 插件目录）
         val candidateFiles = buildList {
             customCredentialsFile?.let { add(it) }
             add(File(userHome, ".gemini/oauth_credentials.json"))
@@ -68,14 +68,6 @@ object HostAccountDetector {
             } else if (os.contains("win")) {
                 val appData = System.getenv("APPDATA") ?: "$userHome/AppData/Roaming"
                 add(File(appData, "Antigravity/oauth_credentials.json"))
-            }
-            // IDE 凭据作为凭据文件的低优先级候选
-            add(File(userHome, ".gemini/antigravity-ide/oauth_credentials.json"))
-            if (os.contains("mac")) {
-                add(File(userHome, "Library/Application Support/Antigravity IDE/oauth_credentials.json"))
-            } else if (os.contains("win")) {
-                val appData = System.getenv("APPDATA") ?: "$userHome/AppData/Roaming"
-                add(File(appData, "Antigravity IDE/oauth_credentials.json"))
             }
         }
 
