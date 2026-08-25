@@ -36,8 +36,11 @@ import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 
+import java.awt.FileDialog
+import java.awt.Frame
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.io.File
 
 private enum class AccountsViewMode {
     GRID,
@@ -351,24 +354,62 @@ fun AccountsScreen(
                                     }
                                 }
 
-                                // 导出备份
-                                StudioTooltip(text = "将全部账号凭据以 JSON 格式导出到剪贴板") {
-                                    IconButton(
-                                        onClick = {
-                                            val exportedJson = viewModel.exportAccountsJson()
-                                            Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                                StringSelection(exportedJson),
-                                                null
+                                // 导出备份 (复制到剪贴板 / 保存为 JSON 文件)
+                                var showExportMenu by remember { mutableStateOf(false) }
+
+                                Box {
+                                    StudioTooltip(text = "导出账号凭据 (支持复制到剪贴板或保存为 JSON 文件)") {
+                                        IconButton(
+                                            onClick = { showExportMenu = true },
+                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.FileUpload,
+                                                contentDescription = "导出账号",
+                                                modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
-                                            viewModel.showNotice("已将全部账号备份复制到剪贴板", NoticeKind.SUCCESS)
-                                        },
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
+                                        }
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = showExportMenu,
+                                        onDismissRequest = { showExportMenu = false },
+                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.FileUpload,
-                                            contentDescription = "导出备份",
-                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        DropdownMenuItem(
+                                            text = { Text("复制到剪贴板", style = MaterialTheme.typography.bodyMedium) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Outlined.ContentCopy,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            },
+                                            onClick = {
+                                                showExportMenu = false
+                                                val count = viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
+                                                val exportedJson = viewModel.exportAccountsJson()
+                                                Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                                                    StringSelection(exportedJson),
+                                                    null
+                                                )
+                                                viewModel.showNotice("已将 $count 个账号凭据复制到剪贴板", NoticeKind.SUCCESS)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("保存为 JSON 文件...", style = MaterialTheme.typography.bodyMedium) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Outlined.FileDownload,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            },
+                                            onClick = {
+                                                showExportMenu = false
+                                                exportAccountsToFile(viewModel)
+                                            }
                                         )
                                     }
                                 }
@@ -594,3 +635,29 @@ private fun EmptyAccountsCard(onAddClick: () -> Unit) {
         }
     }
 }
+
+private fun exportAccountsToFile(viewModel: AppViewModel) {
+    try {
+        val fileDialog = FileDialog(null as Frame?, "保存账号凭据", FileDialog.SAVE)
+        fileDialog.file = "antigravity_accounts.json"
+        fileDialog.setFilenameFilter { _, name -> name.endsWith(".json", ignoreCase = true) }
+        fileDialog.isVisible = true
+
+        val dir = fileDialog.directory
+        val filename = fileDialog.file
+        if (!dir.isNullOrBlank() && !filename.isNullOrBlank()) {
+            val targetFile = if (filename.endsWith(".json", ignoreCase = true)) {
+                File(dir, filename)
+            } else {
+                File(dir, "$filename.json")
+            }
+            val count = viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
+            val exportedJson = viewModel.exportAccountsJson()
+            targetFile.writeText(exportedJson, Charsets.UTF_8)
+            viewModel.showNotice("已成功导出 $count 个账号凭据至 ${targetFile.name}", NoticeKind.SUCCESS)
+        }
+    } catch (e: Exception) {
+        viewModel.showNotice("导出文件失败: ${e.message ?: "未知错误"}", NoticeKind.ERROR)
+    }
+}
+
