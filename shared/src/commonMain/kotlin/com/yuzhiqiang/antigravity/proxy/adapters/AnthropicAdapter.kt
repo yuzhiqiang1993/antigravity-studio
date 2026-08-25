@@ -96,9 +96,9 @@ class AnthropicAdapter : ProviderAdapter {
                     responseStarted = true
 
                     if (!request.stream) {
-                        val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                        val responseBody = ProviderAdapter.readResponseBodyText(response)
                         if (responseBody.isFailure) {
-                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Anthropic response body exceeds 4 MiB buffered limit", 502))
+                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Failed to read Anthropic response body", 502))
                             return@execute
                         }
                         val parsed = parseNonStreamingResponse(responseBody.getOrThrow())

@@ -352,15 +352,7 @@ object ConnectionTester {
             } else {
                 val body = try {
                     connection.inputStream.use { stream ->
-                        val bytes = stream.readNBytes(4 * 1024 * 1024 + 1)
-                        if (bytes.size > 4 * 1024 * 1024) {
-                            return@withContext TestResult(
-                                success = false,
-                                latencyMs = latency,
-                                statusCode = responseCode,
-                                error = "上游响应超过 4 MiB 限制"
-                            )
-                        }
+                        val bytes = stream.readBytes()
                         bytes.toString(Charsets.UTF_8)
                     }
                 } catch (error: Exception) {

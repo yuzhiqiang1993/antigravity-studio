@@ -121,9 +121,9 @@ class GeminiAdapter : ProviderAdapter {
                         }
                         if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed())
                     } else {
-                        val responseBody = ProviderAdapter.readLimitedResponseText(response)
+                        val responseBody = ProviderAdapter.readResponseBodyText(response)
                         if (responseBody.isFailure) {
-                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Gemini response body exceeds 4 MiB buffered limit", 502))
+                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Failed to read Gemini response body", 502))
                             return@execute
                         }
                         val parsed = parseResponse(responseBody.getOrThrow())

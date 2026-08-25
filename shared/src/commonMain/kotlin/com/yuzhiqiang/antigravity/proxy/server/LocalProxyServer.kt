@@ -32,9 +32,6 @@ import java.io.ByteArrayOutputStream
 class LocalProxyServer(
     private val configStore: ConfigStore
 ) {
-    private companion object {
-        const val MAX_REQUEST_BODY_BYTES = 4L * 1024L * 1024L
-    }
 
     private var serverEngine: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
     private val lifecycleMutex = Mutex()
@@ -182,23 +179,10 @@ class LocalProxyServer(
     private suspend fun handleChatRequest(call: ApplicationCall) {
         val startTime = System.currentTimeMillis()
         val path = normalizeProxyPath(call.request.path())
-        val contentLength = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-        if (contentLength != null && contentLength > MAX_REQUEST_BODY_BYTES) {
-            val message = "Request body exceeds ${MAX_REQUEST_BODY_BYTES / (1024 * 1024)} MiB limit"
-            recordFailure(path, null, startTime, 413, message)
-            respondError(call, HttpStatusCode.PayloadTooLarge, message)
-            return
-        }
-        val rawBody = readLimitedRequestBody(call).getOrElse { error ->
-            val message = error.message ?: "Request body exceeds ${MAX_REQUEST_BODY_BYTES / (1024 * 1024)} MiB limit"
-            recordFailure(path, null, startTime, 413, message)
-            respondError(call, HttpStatusCode.PayloadTooLarge, message)
-            return
-        }
-        if (rawBody.toByteArray(Charsets.UTF_8).size.toLong() > MAX_REQUEST_BODY_BYTES) {
-            val message = "Request body exceeds ${MAX_REQUEST_BODY_BYTES / (1024 * 1024)} MiB limit"
-            recordFailure(path, null, startTime, 413, message)
-            respondError(call, HttpStatusCode.PayloadTooLarge, message)
+        val rawBody = readRequestBody(call).getOrElse { error ->
+            val message = error.message ?: "Failed to read request body"
+            recordFailure(path, null, startTime, 400, message)
+            respondError(call, HttpStatusCode.BadRequest, message)
             return
         }
         val config = configStore.currentConfig
@@ -262,17 +246,10 @@ class LocalProxyServer(
         val rawBody = if (call.request.httpMethod == HttpMethod.Head) {
             ByteArray(0)
         } else {
-            val contentLength = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-            if (contentLength != null && contentLength > MAX_REQUEST_BODY_BYTES) {
-                val message = "Request body exceeds ${MAX_REQUEST_BODY_BYTES / (1024 * 1024)} MiB limit"
-                recordFailure(path, null, startTime, 413, message, method = call.request.httpMethod.value)
-                respondError(call, HttpStatusCode.PayloadTooLarge, message)
-                return
-            }
-            val body = readLimitedRequestBodyBytes(call).getOrElse { error ->
-                val message = error.message ?: "Request body exceeds ${MAX_REQUEST_BODY_BYTES / (1024 * 1024)} MiB limit"
-                recordFailure(path, null, startTime, 413, message, method = call.request.httpMethod.value)
-                respondError(call, HttpStatusCode.PayloadTooLarge, message)
+            val body = readRequestBodyBytes(call).getOrElse { error ->
+                val message = error.message ?: "Failed to read request body"
+                recordFailure(path, null, startTime, 400, message, method = call.request.httpMethod.value)
+                respondError(call, HttpStatusCode.BadRequest, message)
                 return
             }
             body
@@ -359,27 +336,22 @@ class LocalProxyServer(
         respondError(call, HttpStatusCode.BadGateway, "未获取到官方原始模型目录（请先启动 Antigravity IDE 或 App）", "native_forwarding_failed")
     }
 
-    private suspend fun readLimitedRequestBody(call: ApplicationCall): Result<String> {
-        return readLimitedRequestBodyBytes(call).map { it.toString(Charsets.UTF_8) }
+    private suspend fun readRequestBody(call: ApplicationCall): Result<String> {
+        return readRequestBodyBytes(call).map { it.toString(Charsets.UTF_8) }
     }
 
-    private suspend fun readLimitedRequestBodyBytes(call: ApplicationCall): Result<ByteArray> {
-        val channel: ByteReadChannel = call.receiveChannel()
-        val output = ByteArrayOutputStream()
-        val buffer = ByteArray(8192)
-        var totalBytes = 0L
-        while (!channel.isClosedForRead) {
-            val read = channel.readAvailable(buffer, 0, buffer.size)
-            if (read <= 0) break
-            totalBytes += read.toLong()
-            if (totalBytes > MAX_REQUEST_BODY_BYTES) {
-                return Result.failure(
-                    IllegalArgumentException("Request body exceeds ${MAX_REQUEST_BODY_BYTES / (1024 * 1024)} MiB limit")
-                )
+    private suspend fun readRequestBodyBytes(call: ApplicationCall): Result<ByteArray> {
+        return runCatching {
+            val channel: ByteReadChannel = call.receiveChannel()
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(16 * 1024)
+            while (!channel.isClosedForRead) {
+                val read = channel.readAvailable(buffer, 0, buffer.size)
+                if (read <= 0) break
+                output.write(buffer, 0, read)
             }
-            output.write(buffer, 0, read)
+            output.toByteArray()
         }
-        return Result.success(output.toByteArray())
     }
 
     private fun isOfficialCatalogFetchPath(path: String): Boolean {
