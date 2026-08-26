@@ -152,6 +152,7 @@ fun OverviewScreen(
 
         // 宿主实际生效活跃账号与核心模型配额摘要 (同时适配双端不同账号或统一单账号)
         val accounts by viewModel.accounts.collectAsState()
+        val appActiveEmail by viewModel.appActiveEmail.collectAsState()
         val cliActiveEmail by viewModel.cliActiveEmail.collectAsState()
         val ideActiveEmail by viewModel.ideActiveEmail.collectAsState()
         val activeAccount by viewModel.activeAccount.collectAsState()
@@ -162,41 +163,47 @@ fun OverviewScreen(
             viewModel.syncHostAccounts()
         }
 
-        val displayActiveAccounts = remember(accounts, cliActiveEmail, ideActiveEmail, activeAccount) {
-            val result = mutableListOf<HostActiveAccountDisplay>()
-            val seenEmails = mutableSetOf<String>()
-
-            val hasCli = !cliActiveEmail.isNullOrBlank()
-            val hasIde = !ideActiveEmail.isNullOrBlank()
-            val isSameEmail = hasCli && hasIde && cliActiveEmail.equals(ideActiveEmail, ignoreCase = true)
-
-            if (isSameEmail) {
-                // IDE、App 与 CLI 均登录使用同一个账号 (展示单个全宽卡片，标注全端正在使用)
-                val acc = accounts.firstOrNull { it.email.equals(cliActiveEmail, ignoreCase = true) }
-                    ?: activeAccount
-                if (acc != null && seenEmails.add(acc.email.lowercase())) {
-                    result.add(HostActiveAccountDisplay(acc, "IDE & App/CLI 正在使用", isIde = true, isCli = true))
-                }
-            } else {
-                // App / CLI 宿主账号
-                if (hasCli) {
-                    val acc = accounts.firstOrNull { it.email.equals(cliActiveEmail, ignoreCase = true) }
-                    if (acc != null && seenEmails.add(acc.email.lowercase())) {
-                        result.add(HostActiveAccountDisplay(acc, "App/CLI 正在使用", isIde = false, isCli = true))
-                    }
-                }
-                // IDE 宿主账号
-                if (hasIde) {
-                    val acc = accounts.firstOrNull { it.email.equals(ideActiveEmail, ignoreCase = true) }
-                    if (acc != null && seenEmails.add(acc.email.lowercase())) {
-                        result.add(HostActiveAccountDisplay(acc, "IDE 正在使用", isIde = true, isCli = false))
-                    }
+        val displayActiveAccounts = remember(
+            accounts,
+            appActiveEmail,
+            cliActiveEmail,
+            ideActiveEmail,
+            activeAccount
+        ) {
+            val sourceGroups = linkedMapOf<String, MutableList<String>>()
+            listOf(
+                "IDE" to ideActiveEmail,
+                "App" to appActiveEmail,
+                "CLI" to cliActiveEmail
+            ).forEach { (source, email) ->
+                email?.trim()?.takeIf { it.isNotEmpty() }?.let { value ->
+                    sourceGroups.getOrPut(value.lowercase()) { mutableListOf() }.add(source)
                 }
             }
 
+            val result = sourceGroups.mapNotNull { (email, sources) ->
+                val account = accounts.firstOrNull { it.email.equals(email, ignoreCase = true) }
+                    ?: return@mapNotNull null
+                HostActiveAccountDisplay(
+                    account = account,
+                    sourceLabel = "${sources.joinToString(" & ")} 正在使用",
+                    isIde = sources.contains("IDE"),
+                    isApp = sources.contains("App"),
+                    isCli = sources.contains("CLI")
+                )
+            }.toMutableList()
+
             // 若未探测到任何宿主账号，则回退展示 Studio 当前激活账号
             if (result.isEmpty() && activeAccount != null) {
-                result.add(HostActiveAccountDisplay(activeAccount!!, "激活账号", isIde = false, isCli = false))
+                result.add(
+                    HostActiveAccountDisplay(
+                        activeAccount!!,
+                        "激活账号",
+                        isIde = false,
+                        isApp = false,
+                        isCli = false
+                    )
+                )
             }
             result
         }
@@ -228,7 +235,6 @@ fun OverviewScreen(
                 }
             }
         }
-
 
 
         // 宿主环境卡片网格
@@ -376,6 +382,7 @@ private data class HostActiveAccountDisplay(
     val account: AccountInfo,
     val sourceLabel: String,
     val isIde: Boolean,
+    val isApp: Boolean,
     val isCli: Boolean
 )
 

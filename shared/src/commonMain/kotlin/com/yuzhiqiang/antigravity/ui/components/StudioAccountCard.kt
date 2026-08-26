@@ -65,7 +65,9 @@ fun StudioAccountCard(
     isRefreshing: Boolean = false,
     isPrivacyMode: Boolean,
     isIdeActive: Boolean = false,
-    isCliActive: Boolean = account.isActive,
+    isAppActive: Boolean = false,
+    isCliActive: Boolean = false,
+    isSwitching: Boolean = false,
     onSetActive: () -> Unit,
     onRefresh: () -> Unit,
     onCopyToken: () -> Unit,
@@ -73,8 +75,8 @@ fun StudioAccountCard(
     modifier: Modifier = Modifier
 ) {
 
-    val isDualActive = isIdeActive && isCliActive
-    val isAnyActive = isIdeActive || isCliActive
+    val isDualActive = isIdeActive && (isAppActive || isCliActive)
+    val isAnyActive = isIdeActive || isAppActive || isCliActive
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     // 卡片整体背景 (完全遵循 M3 标准 surface，自动完美适配亮暗主题)
@@ -87,9 +89,9 @@ fun StudioAccountCard(
 
     val targetBorderColor = when {
         isDualActive -> MaterialTheme.colorScheme.primary
-        isIdeActive  -> MaterialTheme.colorScheme.secondary
-        isCliActive  -> MaterialTheme.colorScheme.tertiary
-        else         -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
+        isIdeActive -> MaterialTheme.colorScheme.secondary
+        isAppActive || isCliActive -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
     }
 
     val animatedBorderColor by androidx.compose.animation.animateColorAsState(
@@ -152,42 +154,31 @@ fun StudioAccountCard(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isIdeActive && isCliActive) {
-                        Surface(
-                            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = "IDE & App/CLI",
-                                fontSize = StudioDesignTokens.TextSize.badge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                    val activeHostLabel = listOfNotNull(
+                        "IDE".takeIf { isIdeActive },
+                        "App".takeIf { isAppActive },
+                        "CLI".takeIf { isCliActive }
+                    ).joinToString(" & ")
+                    if (activeHostLabel.isNotEmpty()) {
+                        val activeHostContainerColor = when {
+                            isDualActive -> MaterialTheme.colorScheme.primaryContainer
+                            isIdeActive -> MaterialTheme.colorScheme.secondaryContainer
+                            else -> MaterialTheme.colorScheme.tertiaryContainer
                         }
-                    } else if (isIdeActive) {
-                        Surface(
-                            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                text = "IDE",
-                                fontSize = StudioDesignTokens.TextSize.badge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                        val activeHostContentColor = when {
+                            isDualActive -> MaterialTheme.colorScheme.onPrimaryContainer
+                            isIdeActive -> MaterialTheme.colorScheme.onSecondaryContainer
+                            else -> MaterialTheme.colorScheme.onTertiaryContainer
                         }
-                    } else if (isCliActive) {
                         Surface(
                             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                            color = MaterialTheme.colorScheme.tertiaryContainer
+                            color = activeHostContainerColor
                         ) {
                             Text(
-                                text = "App/CLI",
+                                text = activeHostLabel,
                                 fontSize = StudioDesignTokens.TextSize.badge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                color = activeHostContentColor,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -283,11 +274,12 @@ fun StudioAccountCard(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs - 1.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 1. 切换账号 (非当前活跃账号时提供一键设为活跃)
-                    if (!isAnyActive) {
-                        StudioTooltip(text = "设为 IDE 与 App/CLI 激活生效账号") {
+                    // 单宿主激活时仍允许将账号同步到另一宿主。
+                    if (!isDualActive) {
+                        StudioTooltip(text = if (isAnyActive) "同步到另一宿主" else "设为 IDE 与 App/CLI 激活生效账号") {
                             FilledTonalIconButton(
                                 onClick = onSetActive,
+                                enabled = !isSwitching,
                                 modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize),
                                 shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
                                 colors = IconButtonDefaults.filledTonalIconButtonColors(
@@ -584,7 +576,7 @@ private fun quotaThemeColor(percentage: Int): Color {
         percentage >= 80 -> MaterialTheme.colorScheme.primary
         percentage >= 50 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
         percentage >= 20 -> statusColors.warning
-        else             -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.error
     }
 }
 
