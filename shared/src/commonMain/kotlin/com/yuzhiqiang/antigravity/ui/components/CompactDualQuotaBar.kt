@@ -1,8 +1,9 @@
 package com.yuzhiqiang.antigravity.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +13,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -21,6 +24,7 @@ import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
 import com.yuzhiqiang.antigravity.domain.model.quota.ModelQuotaInfo
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaGroup
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaWindow
+import com.yuzhiqiang.antigravity.ui.animation.*
 
 /**
  * 完全对齐 Cockpit 插件的紧凑双限额微进度条行：
@@ -32,18 +36,68 @@ fun CompactDualQuotaBar(
     quotaSnapshot: AccountQuotaSnapshot?,
     modifier: Modifier = Modifier
 ) {
-    if (quotaSnapshot == null) return
+    val isDark = isSystemInDarkTheme()
+    val groups = quotaSnapshot?.normalizedDisplayGroups().orEmpty()
 
-    val groups = quotaSnapshot.normalizedDisplayGroups()
-    if (groups.isEmpty()) return
-
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        groups.take(2).forEach { group ->
-            CompactGroupRow(group = group)
+    StudioCrossfade(
+        targetState = groups.isNotEmpty(),
+        label = "compact_quota_crossfade"
+    ) { hasData ->
+        if (!hasData) {
+            // 骨架屏加载条
+            Column(
+                modifier = modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CompactSkeletonRow(label = "Gemini", isDark = isDark)
+                CompactSkeletonRow(label = "Claude", isDark = isDark)
+            }
+        } else {
+            Column(
+                modifier = modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                groups.take(2).forEach { group ->
+                    CompactGroupRow(group = group)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun CompactSkeletonRow(label: String, isDark: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            ),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.width(60.dp)
+        )
+
+        Spacer(Modifier.width(8.dp))
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .studioShimmer(shape = RoundedCornerShape(3.dp), isDark = isDark)
+        )
+
+        Spacer(Modifier.width(16.dp))
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .studioShimmer(shape = RoundedCornerShape(3.dp), isDark = isDark)
+        )
     }
 }
 
@@ -103,13 +157,13 @@ private fun MiniBarCell(
     percentage: Int,
     modifier: Modifier = Modifier
 ) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val animatedProgress by animateFloatAsState(
-        targetValue = (percentage / 100f).coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 350)
-    )
+    val isDark = isSystemInDarkTheme()
+    val targetPct = percentage.coerceIn(0, 100)
 
-    val barColor = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(percentage, isDark)
+    val animatedProgress by rememberAnimatedQuotaProgress(targetPercentage = targetPct)
+    val animatedPctFloat by rememberAnimatedQuotaPercentage(targetPercentage = targetPct)
+
+    val barColor = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(targetPct, isDark)
 
     Row(
         modifier = modifier,
@@ -143,7 +197,7 @@ private fun MiniBarCell(
         }
 
         Text(
-            text = "$percentage%",
+            text = "${animatedPctFloat.toInt()}%",
             style = MaterialTheme.typography.bodySmall.copy(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,

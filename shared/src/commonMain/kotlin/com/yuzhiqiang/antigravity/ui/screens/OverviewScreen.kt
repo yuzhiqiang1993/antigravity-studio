@@ -166,29 +166,30 @@ fun OverviewScreen(
             val result = mutableListOf<HostActiveAccountDisplay>()
             val seenEmails = mutableSetOf<String>()
 
-            val isSameEmail = !cliActiveEmail.isNullOrBlank() &&
-                    !ideActiveEmail.isNullOrBlank() &&
-                    cliActiveEmail.equals(ideActiveEmail, ignoreCase = true)
+            val hasCli = !cliActiveEmail.isNullOrBlank()
+            val hasIde = !ideActiveEmail.isNullOrBlank()
+            val isSameEmail = hasCli && hasIde && cliActiveEmail.equals(ideActiveEmail, ignoreCase = true)
 
             if (isSameEmail) {
+                // IDE、App 与 CLI 均登录使用同一个账号 (展示单个全宽卡片，标注全端正在使用)
                 val acc = accounts.firstOrNull { it.email.equals(cliActiveEmail, ignoreCase = true) }
                     ?: activeAccount
                 if (acc != null && seenEmails.add(acc.email.lowercase())) {
-                    result.add(HostActiveAccountDisplay(acc, "双端活跃账号", isIde = true, isCli = true))
+                    result.add(HostActiveAccountDisplay(acc, "IDE & App/CLI 正在使用", isIde = true, isCli = true))
                 }
             } else {
                 // App / CLI 宿主账号
-                if (!cliActiveEmail.isNullOrBlank()) {
+                if (hasCli) {
                     val acc = accounts.firstOrNull { it.email.equals(cliActiveEmail, ignoreCase = true) }
                     if (acc != null && seenEmails.add(acc.email.lowercase())) {
-                        result.add(HostActiveAccountDisplay(acc, "App / CLI 活跃账号", isIde = false, isCli = true))
+                        result.add(HostActiveAccountDisplay(acc, "App/CLI 正在使用", isIde = false, isCli = true))
                     }
                 }
                 // IDE 宿主账号
-                if (!ideActiveEmail.isNullOrBlank()) {
+                if (hasIde) {
                     val acc = accounts.firstOrNull { it.email.equals(ideActiveEmail, ignoreCase = true) }
                     if (acc != null && seenEmails.add(acc.email.lowercase())) {
-                        result.add(HostActiveAccountDisplay(acc, "IDE 活跃账号", isIde = true, isCli = false))
+                        result.add(HostActiveAccountDisplay(acc, "IDE 正在使用", isIde = true, isCli = false))
                     }
                 }
             }
@@ -427,26 +428,6 @@ private fun ActiveAccountQuotaCard(
         AccountTier.FREE -> "Free"
     }
 
-    val (hostIcon, hostIconTint, hostIconBg) = remember(item.isIde, item.isCli) {
-        when {
-            item.isIde && item.isCli -> Triple(
-                Icons.Outlined.Devices,
-                Color(0xFF6366F1),
-                Color(0xFF6366F1).copy(alpha = 0.12f)
-            )
-            item.isIde -> Triple(
-                Icons.Outlined.Code,
-                Color(0xFF6366F1),
-                Color(0xFF6366F1).copy(alpha = 0.12f)
-            )
-            else -> Triple(
-                Icons.Outlined.Laptop,
-                Color(0xFF0D9488),
-                Color(0xFF0D9488).copy(alpha = 0.12f)
-            )
-        }
-    }
-
     OutlinedCard(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
@@ -459,55 +440,19 @@ private fun ActiveAccountQuotaCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // === 头部身份区: 平台专属图标 + 纵向 (角色标签 + 邮箱) + 右上角等级徽章 ===
+            // === 头部第一行: 宿主正在使用状态徽标 + 右侧订阅等级徽章 ===
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = hostIconBg,
-                        modifier = Modifier.size(38.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = hostIcon,
-                                contentDescription = null,
-                                tint = hostIconTint,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        StatusBadge(
-                            text = item.sourceLabel,
-                            tone = badgeTone,
-                            pulse = true
-                        )
-
-                        Text(
-                            text = displayEmail,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.5.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-                }
+                StatusBadge(
+                    text = item.sourceLabel,
+                    tone = badgeTone,
+                    pulse = true
+                )
 
                 Surface(
                     shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
@@ -522,6 +467,18 @@ private fun ActiveAccountQuotaCard(
                     )
                 }
             }
+
+            // === 头部第二行: 纯邮箱地址独立成行 ===
+            Text(
+                text = displayEmail,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
 
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),

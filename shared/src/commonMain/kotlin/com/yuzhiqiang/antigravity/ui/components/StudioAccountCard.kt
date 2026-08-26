@@ -1,14 +1,16 @@
 package com.yuzhiqiang.antigravity.ui.components
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.*
-
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -41,6 +43,7 @@ import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
 import com.yuzhiqiang.antigravity.domain.model.quota.ModelQuotaInfo
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaGroup
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaWindow
+import com.yuzhiqiang.antigravity.ui.animation.*
 import com.yuzhiqiang.antigravity.ui.icons.StudioIcons
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.LocalAppStatusColors
@@ -247,7 +250,7 @@ fun StudioAccountCard(
 
             // 2. 核心配额面板 (对齐插件官方经典：环形进度圈仪表盘，右侧绝对对齐)
             val displayGroups = quotaSnapshot?.normalizedDisplayGroups().orEmpty()
-            RingQuotaMatrixBlock(groups = displayGroups, isDark = isDark)
+            RingQuotaMatrixBlock(groups = displayGroups, isDark = isDark, isRefreshing = isRefreshing)
 
             // 3. 底部元数据与极简操作栏
             Row(
@@ -316,17 +319,7 @@ fun StudioAccountCard(
                         }
                     }
 
-                    // 4. 刷新 (支持实时旋转 loading 动画)
-                    val infiniteTransition = rememberInfiniteTransition()
-                    val rotateAngle by infiniteTransition.animateFloat(
-                        initialValue = 0f,
-                        targetValue = 360f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(durationMillis = 800, easing = LinearEasing),
-                            repeatMode = RepeatMode.Restart
-                        )
-                    )
-
+                    // 4. 刷新 (复用 studioRotating 规范动效)
                     StudioTooltip(text = if (isRefreshing) "正在刷新配额..." else "刷新此账号实时配额") {
                         IconButton(
                             onClick = { if (!isRefreshing) onRefresh() },
@@ -338,7 +331,7 @@ fun StudioAccountCard(
                                 contentDescription = "刷新",
                                 modifier = Modifier
                                     .size(StudioDesignTokens.Sizes.cardActionIconSize)
-                                    .rotate(if (isRefreshing) rotateAngle else 0f),
+                                    .studioRotating(isRefreshing),
                                 tint = if (isRefreshing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -352,9 +345,9 @@ fun StudioAccountCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Delete,
-                                contentDescription = "删除账号",
+                                contentDescription = "删除",
                                 modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                             )
                         }
                     }
@@ -365,14 +358,15 @@ fun StudioAccountCard(
 }
 
 /**
- * 经典环形进度圈仪表盘面板（完全对齐插件经典呈现）：
- * - 左侧：窗口名称与自然语言倒计时文案
- * - 右侧：绝对垂直拉齐的百分比 + 环形进度圈 (QuotaRingGauge)
+ * 仪表盘核心矩阵容器：
+ * - 采用无缝 StudioCrossfade 交叉淡入溶解过渡动画，消除数据加载完成时的生硬跳变
+ * - 支持流光骨架屏与真实配额仪表盘之间的丝滑切换
  */
 @Composable
 private fun RingQuotaMatrixBlock(
     groups: List<QuotaGroup>,
     isDark: Boolean,
+    isRefreshing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val innerBg = if (isDark) {
@@ -394,67 +388,83 @@ private fun RingQuotaMatrixBlock(
             .border(1.dp, borderClr, RoundedCornerShape(StudioDesignTokens.CornerRadius.md))
             .padding(horizontal = StudioDesignTokens.Padding.innerBlock, vertical = 10.dp)
     ) {
-        if (groups.isEmpty()) {
-            // 骨架屏仪表盘：保持高度与正常卡片 100% 严格一致，彻底消除卡片高低不平
-            QuotaDashboardSkeleton(borderClr = borderClr, isDark = isDark)
-        } else {
-            val claudeGroup = groups.firstOrNull { it.family == "claude" } ?: groups.first()
-            val geminiGroup = groups.firstOrNull { it.family == "gemini" } ?: groups.getOrNull(1) ?: groups.first()
+        StudioCrossfade(
+            targetState = groups.isNotEmpty(),
+            label = "quota_matrix_crossfade"
+        ) { hasData ->
+            if (!hasData) {
+                // 骨架屏仪表盘：保持高度与正常卡片 100% 严格一致，流光呼吸加载
+                QuotaDashboardSkeleton(borderClr = borderClr, isDark = isDark, isRefreshing = isRefreshing)
+            } else {
+                val geminiGroup = groups.firstOrNull { it.family == "gemini" } ?: groups.first()
+                val claudeGroup = groups.firstOrNull { it.family == "claude" } ?: groups.getOrNull(1) ?: groups.first()
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 上部分: Claude 模型族
-                RingFamilySection(group = claudeGroup, isDark = isDark)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // 上部分: Gemini 模型族
+                    RingFamilySection(group = geminiGroup, isDark = isDark)
 
-                HorizontalDivider(color = borderClr.copy(alpha = 0.7f), thickness = 0.5.dp)
+                    HorizontalDivider(color = borderClr.copy(alpha = 0.7f), thickness = 0.5.dp)
 
-                // 下部分: Gemini 模型族
-                RingFamilySection(group = geminiGroup, isDark = isDark)
+                    // 下部分: Claude 模型族
+                    RingFamilySection(group = claudeGroup, isDark = isDark)
+                }
             }
         }
     }
 }
 
 /**
- * 仪表盘骨架屏组件：
- * 结构与真实数据 1:1 镜像，保证卡片高度 100% 绝对一致，杜绝 Grid 凹凸不平
+ * 仪表盘流光骨架屏组件：
+ * 结构与真实数据 1:1 镜像，引入智能流光扫光 (studioShimmer)，保证高度 100% 绝对一致
  */
 @Composable
-private fun QuotaDashboardSkeleton(borderClr: Color, isDark: Boolean) {
+private fun QuotaDashboardSkeleton(borderClr: Color, isDark: Boolean, isRefreshing: Boolean = false) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 1. Claude 模型骨架
-        SkeletonFamilyBlock(title = "Claude 模型", isDark = isDark)
+        // 1. Gemini 模型骨架
+        SkeletonFamilyBlock(title = "Gemini 模型", isDark = isDark, isRefreshing = isRefreshing)
 
         HorizontalDivider(color = borderClr.copy(alpha = 0.7f), thickness = 0.5.dp)
 
-        // 2. Gemini 模型骨架
-        SkeletonFamilyBlock(title = "Gemini 模型", isDark = isDark)
+        // 2. Claude 模型骨架
+        SkeletonFamilyBlock(title = "Claude 模型", isDark = isDark, isRefreshing = isRefreshing)
     }
 }
 
 @Composable
-private fun SkeletonFamilyBlock(title: String, isDark: Boolean) {
+private fun SkeletonFamilyBlock(title: String, isDark: Boolean, isRefreshing: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = StudioDesignTokens.TextSize.body
-            ),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = StudioDesignTokens.TextSize.body
+                ),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            if (isRefreshing) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .studioShimmer(shape = CircleShape, isDark = isDark)
+                )
+            }
+        }
 
-        SkeletonQuotaRow(title = "五小时额度", isDark = isDark)
-        SkeletonQuotaRow(title = "周额度", isDark = isDark)
+        SkeletonQuotaRow(title = "五小时额度", isDark = isDark, isRefreshing = isRefreshing)
+        SkeletonQuotaRow(title = "周额度", isDark = isDark, isRefreshing = isRefreshing)
     }
 }
 
 @Composable
-private fun SkeletonQuotaRow(title: String, isDark: Boolean) {
-    val trackBg = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.16f else 0.12f)
-
+private fun SkeletonQuotaRow(title: String, isDark: Boolean, isRefreshing: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -465,7 +475,7 @@ private fun SkeletonQuotaRow(title: String, isDark: Boolean) {
         // 左侧骨架
         Column(
             modifier = Modifier.weight(1f).padding(end = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
                 text = title,
@@ -476,17 +486,39 @@ private fun SkeletonQuotaRow(title: String, isDark: Boolean) {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
 
-            Text(
-                text = "正在同步额度水位...",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = StudioDesignTokens.TextSize.resetCountdown
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                maxLines = 1
-            )
+            if (isRefreshing) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .height(10.dp)
+                            .width(86.dp)
+                            .studioShimmer(shape = RoundedCornerShape(3.dp), isDark = isDark)
+                    )
+                    Text(
+                        text = "正在获取额度数据...",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = StudioDesignTokens.TextSize.resetCountdown
+                        ),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
+                        maxLines = 1
+                    )
+                }
+            } else {
+                Text(
+                    text = "暂无数据",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = StudioDesignTokens.TextSize.resetCountdown
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    maxLines = 1
+                )
+            }
         }
 
-        // 右侧骨架：占位数值 + 占位空圆环
+        // 右侧骨架：占位数值 + 流光扫光空圆环
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -498,23 +530,17 @@ private fun SkeletonQuotaRow(title: String, isDark: Boolean) {
                     fontWeight = FontWeight.Bold,
                     fontSize = StudioDesignTokens.TextSize.cardTitle
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(42.dp)
             )
 
-            // 占位底槽圆环
-            Canvas(modifier = Modifier.size(22.dp)) {
-                drawArc(
-                    color = trackBg,
-                    startAngle = 0f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = androidx.compose.ui.geometry.Offset(1.5.dp.toPx(), 1.5.dp.toPx()),
-                    size = androidx.compose.ui.geometry.Size(19.dp.toPx(), 19.dp.toPx()),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                )
-            }
+            // 占位圆环（流光动画）
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .studioShimmer(shape = CircleShape, isDark = isDark)
+            )
         }
     }
 }
@@ -564,7 +590,8 @@ private fun quotaThemeColor(percentage: Int): Color {
 
 /**
  * 单条配额环形条目：
- * 左侧：窗口名称 + 精简高亮倒计时；右侧：百分比 + 环形进度圈 (绝对垂直对齐！)
+ * - 左侧：名称 + 高亮倒计时
+ * - 右侧：动态滚动递增数值 (Animated Numeric Counter) + 弹性 Spring 环形进度圈
  */
 @Composable
 private fun RingQuotaRow(
@@ -573,17 +600,21 @@ private fun RingQuotaRow(
     item: ModelQuotaInfo,
     isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 ) {
-    val barColor = quotaThemeColor(item.percentage)
-    val isFull = item.percentage >= 100
+    val targetPct = item.percentage.coerceIn(0, 100)
+    val barColor = quotaThemeColor(targetPct)
+    val isFull = targetPct >= 100
     val countdown = item.formattedCountdown() ?: "即将重置"
     val formattedDate = item.resetTimeEpochSeconds?.let { epochSec ->
         val date = java.util.Date(epochSec * 1000L)
         java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.getDefault()).format(date)
     }
 
+    // 复用全局统一的智能记忆滚动数字计数动画 (首次挂载 snap 稳定呈现，数据真实变更才平滑动画)
+    val animatedPctFloat by rememberAnimatedQuotaPercentage(targetPercentage = targetPct)
+
     // 精简沉稳倒计时与精确时间点 (2天 20小时后重置 · 08/28 14:53)，满额时使用当前主题色
     val fullColor = MaterialTheme.colorScheme.primary
-    val descAnnotated = remember(item.percentage, countdown, formattedDate, isFull, isDark, fullColor) {
+    val descAnnotated = remember(targetPct, countdown, formattedDate, isFull, isDark, fullColor) {
         buildAnnotatedString {
             if (isFull) {
                 withStyle(
@@ -626,7 +657,7 @@ private fun RingQuotaRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左侧：名称 + 高亮完整时间文案 (名称 + 倒计时 + 精确时间点直接呈现)
+        // 左侧：名称 + 高亮完整时间文案
         Column(
             modifier = Modifier.weight(1f).padding(end = 8.dp),
             verticalArrangement = Arrangement.spacedBy(1.dp)
@@ -649,13 +680,13 @@ private fun RingQuotaRow(
             )
         }
 
-        // 右侧：绝对垂直拉齐的 [百分比] + [环形圈 Gauge]
+        // 右侧：绝对垂直拉齐的 [平滑滚动百分比] + [弹性 Spring 环形圈 Gauge]
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "${item.percentage}%",
+                text = "${animatedPctFloat.toInt()}%",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
@@ -666,66 +697,11 @@ private fun RingQuotaRow(
                 modifier = Modifier.width(42.dp)
             )
 
-            QuotaRingGauge(
-                percentage = item.percentage,
+            StudioCircularGauge(
+                percentage = targetPct,
+                barColor = barColor,
                 size = 22.dp,
-                strokeWidth = 3.dp,
-                isDark = isDark
-            )
-        }
-    }
-
-}
-
-
-/**
- * 高质感 Canvas 环形进度圈组件 (Circular Quota Ring Gauge)：
- * - 动态平滑弧度过渡动画
- * - 翠绿/金橙/珊瑚红 三级精准配色，健康/满额状态跟随 MaterialTheme 主题色
- * - 主题微柔光底槽
- */
-@Composable
-fun QuotaRingGauge(
-    percentage: Int,
-    modifier: Modifier = Modifier,
-    size: Dp = 22.dp,
-    strokeWidth: Dp = 3.dp,
-    isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-) {
-    val barColor = quotaThemeColor(percentage)
-    val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.16f else 0.12f)
-
-    val animatedProgress by animateFloatAsState(
-        targetValue = (percentage / 100f).coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 400)
-    )
-
-    Canvas(modifier = modifier.size(size)) {
-        val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
-        val arcSize = size.toPx() - strokeWidth.toPx()
-        val topLeft = Offset(strokeWidth.toPx() / 2f, strokeWidth.toPx() / 2f)
-
-        // 1. 绘制底槽圆环
-        drawArc(
-            color = trackColor,
-            startAngle = 0f,
-            sweepAngle = 360f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = Size(arcSize, arcSize),
-            style = stroke
-        )
-
-        // 2. 绘制动态进度圆环 (从正上方 -90 度顺时针旋转)
-        if (animatedProgress > 0f) {
-            drawArc(
-                color = barColor,
-                startAngle = -90f,
-                sweepAngle = 360f * animatedProgress,
-                useCenter = false,
-                topLeft = topLeft,
-                size = Size(arcSize, arcSize),
-                style = stroke
+                strokeWidth = 3.dp
             )
         }
     }
