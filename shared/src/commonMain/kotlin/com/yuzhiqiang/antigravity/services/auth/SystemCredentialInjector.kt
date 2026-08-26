@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.services.auth
 
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
+import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -21,6 +22,7 @@ import java.util.TimeZone
  */
 object SystemCredentialInjector {
 
+    private const val TAG = "Auth/Keychain"
     private val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
 
     /**
@@ -31,7 +33,7 @@ object SystemCredentialInjector {
             if (isMac) {
                 injectMacKeychain(account)
             } else {
-                println("[SystemCredentialInjector] 当前平台无需独立 Keychain 注入")
+                AppLog.d(TAG) { "当前平台无需独立 Keychain 注入" }
             }
         }
     }
@@ -71,10 +73,10 @@ object SystemCredentialInjector {
         val exitCode = process.waitFor()
         if (exitCode != 0) {
             val errorText = process.errorStream.bufferedReader().readText()
-            System.err.println("[SystemCredentialInjector] macOS Keychain 注入失败: exitCode=$exitCode, err=$errorText")
+            AppLog.e(TAG) { "macOS Keychain 注入失败: exitCode=$exitCode, err=$errorText" }
             throw IllegalStateException("macOS Keychain 注入失败 (code=$exitCode): $errorText")
         }
 
-        println("[SystemCredentialInjector] 已成功将账号 ${account.email} 凭据写入 macOS Keychain (service=gemini, account=antigravity)")
+        AppLog.i(TAG) { "已成功将账号 ${AppLog.maskEmail(account.email)} 凭据写入 macOS Keychain (service=gemini, account=antigravity)" }
     }
 }

@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.services.events
 
+import com.yuzhiqiang.antigravity.logging.AppLog
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -62,7 +63,7 @@ object HostProcessWatcher {
             }
         } catch (error: Exception) {
             trackedProcesses.remove(pid, trackedProcess)
-            System.err.println("注册宿主进程退出监听失败：pid=$pid，原因=${error.message ?: "未知错误"}")
+            AppLog.w("Host/Process", error) { "注册宿主进程退出监听失败：pid=$pid，原因=${error.message ?: "未知错误"}" }
         }
     }
 

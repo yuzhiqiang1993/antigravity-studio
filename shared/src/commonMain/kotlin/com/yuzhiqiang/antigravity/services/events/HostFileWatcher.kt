@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.services.events
 
+import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -86,7 +87,7 @@ object HostFileWatcher {
         val currentWatchService = try {
             FileSystems.getDefault().newWatchService()
         } catch (error: Exception) {
-            System.err.println("创建宿主文件监听服务失败：${error.message ?: "未知错误"}")
+            AppLog.e("Host/Watcher", error) { "创建宿主文件监听服务失败：${error.message ?: "未知错误"}" }
             clearStoppedScope(scope)
             return
         }
@@ -116,11 +117,11 @@ object HostFileWatcher {
             )
         } catch (error: ClosedWatchServiceException) {
             if (isRunning.get()) {
-                System.err.println("宿主文件监听服务意外关闭：${error.message ?: "未知错误"}")
+                AppLog.w("Host/Watcher") { "宿主文件监听服务意外关闭：${error.message ?: "未知错误"}" }
             }
         } catch (error: Exception) {
             if (isRunning.get()) {
-                System.err.println("宿主文件监听异常：${error.message ?: "未知错误"}")
+                AppLog.e("Host/Watcher", error) { "宿主文件监听异常：${error.message ?: "未知错误"}" }
             }
         } finally {
             registeredKeys.values.forEach { key -> key.cancel() }
@@ -181,9 +182,7 @@ object HostFileWatcher {
                 failedRegistrations.remove(path)
             } catch (error: Exception) {
                 if (failedRegistrations.add(path)) {
-                    System.err.println(
-                        "注册宿主文件目录失败：path=$path，原因=${error.message ?: "未知错误"}"
-                    )
+                    AppLog.w("Host/Watcher", error) { "注册宿主文件目录失败：path=$path，原因=${error.message ?: "未知错误"}" }
                 }
             }
         }
@@ -292,7 +291,7 @@ object HostFileWatcher {
         try {
             service.close()
         } catch (error: Exception) {
-            System.err.println("关闭宿主文件监听服务失败：${error.message ?: "未知错误"}")
+            AppLog.w("Host/Watcher", error) { "关闭宿主文件监听服务失败：${error.message ?: "未知错误"}" }
         }
     }
 

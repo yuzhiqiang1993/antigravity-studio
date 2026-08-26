@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.services.auth
 
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
+import com.yuzhiqiang.antigravity.logging.AppLog
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
@@ -194,8 +195,7 @@ object StateDbInjector {
             }
             true
         } catch (exception: Exception) {
-            System.err.println("写入宿主状态数据库失败: ${dbFile.absolutePath}")
-            exception.printStackTrace(System.err)
+            AppLog.e("Auth/StateDb", exception) { "写入宿主状态数据库失败: ${dbFile.absolutePath}" }
             false
         }
     }
@@ -257,8 +257,7 @@ object StateDbInjector {
             }
             true
         } catch (exception: Exception) {
-            System.err.println("恢复宿主状态数据库失败: ${snapshot.file.absolutePath}")
-            exception.printStackTrace(System.err)
+            AppLog.e("Auth/StateDb", exception) { "恢复宿主状态数据库失败: ${snapshot.file.absolutePath}" }
             false
         }
     }
