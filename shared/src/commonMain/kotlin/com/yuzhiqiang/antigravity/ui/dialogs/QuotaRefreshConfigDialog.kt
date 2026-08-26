@@ -381,7 +381,7 @@ fun QuotaRefreshConfigDialog(
                     }
 
                     Text(
-                        text = "提示：当前账号的刷新间隔会同时影响配额水位更新和自动切号触发时机，建议不要设置过长。",
+                        text = "提示：当前账号的刷新间隔会同时影响配额数据更新和自动切号触发时机，建议不要设置过长。",
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
                     )

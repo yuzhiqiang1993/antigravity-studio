@@ -19,9 +19,24 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
+import com.yuzhiqiang.antigravity.data.storage.AccountStore
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.ATOMIC_MOVE
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
+
+@Serializable
+data class QuotaStoreData(
+    val version: Int = 1,
+    val snapshots: Map<String, AccountQuotaSnapshot> = emptyMap()
+)
+
 /**
  * 多线程/高并发配额智能轮询器。
- * 激活账号 60 秒高频刷新，后台账号 300 秒（5分钟）低频轮询，支持多协程并发极速拉取配额（Semaphore 并发限流为 8）。
+ * 支持磁盘缓存极速秒开、多协程并发极速拉取配额（Semaphore 并发限流为 8）。
  */
 class QuotaPoller(
     private val quotaFetchService: QuotaFetchService = QuotaFetchService(),
@@ -29,6 +44,16 @@ class QuotaPoller(
     private val onAccountSnapshotUpdated: ((snapshot: AccountQuotaSnapshot) -> Unit)? = null
 ) {
     private val concurrencySemaphore = Semaphore(permits = 8)
+    private val json = Json {
+        prettyPrint = false
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+        isLenient = true
+    }
+
+    private val quotasFile: File by lazy {
+        File(AccountStore.resolveDefaultRootDir(), "quotas.v1.json")
+    }
 
     private var pollerJob: Job? = null
     private var isRunning = false
@@ -42,9 +67,66 @@ class QuotaPoller(
     private val _refreshingAccountIds = MutableStateFlow<Set<String>>(emptySet())
     val refreshingAccountIds: StateFlow<Set<String>> = _refreshingAccountIds.asStateFlow()
 
+    init {
+        loadCachedSnapshots()
+    }
+
+    private fun loadCachedSnapshots() {
+        try {
+            if (quotasFile.exists()) {
+                val text = quotasFile.readText(Charsets.UTF_8)
+                if (text.isNotBlank()) {
+                    val data = json.decodeFromString(QuotaStoreData.serializer(), text)
+                    if (data.snapshots.isNotEmpty()) {
+                        _quotaSnapshots.value = data.snapshots
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun persistSnapshots(snapshots: Map<String, AccountQuotaSnapshot>) {
+        coroutineScope.launch {
+            try {
+                val parent = quotasFile.parentFile
+                if (parent != null && !parent.exists()) {
+                    parent.mkdirs()
+                }
+                val content = json.encodeToString(
+                    QuotaStoreData.serializer(),
+                    QuotaStoreData(snapshots = snapshots)
+                )
+                val temp = File.createTempFile("${quotasFile.name}-", ".tmp", parent)
+                try {
+                    temp.writeText(content, Charsets.UTF_8)
+                    try {
+                        Files.move(temp.toPath(), quotasFile.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+                    } catch (_: AtomicMoveNotSupportedException) {
+                        Files.move(temp.toPath(), quotasFile.toPath(), REPLACE_EXISTING)
+                    }
+                } finally {
+                    if (temp.exists()) {
+                        temp.delete()
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     companion object {
         const val ACTIVE_INTERVAL_MS = 60_000L      // 激活账号 1 分钟刷新一次
         const val BACKGROUND_INTERVAL_MS = 600_000L // 后台账号 10 分钟刷新一次
+
+        /**
+         * 根据账号总数自适应计算最优并发数：
+         * 账号少时保底 8 并发，账号多时为账号总数的 1/2，上限封顶 32 并发。
+         */
+        fun calculateConcurrency(accountsCount: Int): Int {
+            val dynamic = (accountsCount + 1) / 2
+            return dynamic.coerceIn(8, 32)
+        }
     }
 
     private var lastBackgroundFetchTime = 0L
@@ -71,19 +153,19 @@ class QuotaPoller(
                             val now = System.currentTimeMillis()
                             val shouldFetchBg = (now - lastBackgroundFetchTime) >= backgroundIntervalMs
 
-                            // 1. 并发刷新激活账号
+                            // 1. 优先刷新激活账号
                             if (active != null) {
                                 launch { refreshSingleInternal(active, isActiveAccount = true) }
                             }
 
-                            // 2. 周期性多协程并发刷新后台账号
+                            // 2. 非阻塞异步并发刷新后台账号
                             if (shouldFetchBg) {
-                                val backgroundAccounts = accounts.filter { it.id != active?.id }
-                                val deferredList = backgroundAccounts.map { bgAccount ->
-                                    async { refreshSingleInternal(bgAccount, isActiveAccount = false) }
-                                }
-                                deferredList.awaitAll()
                                 lastBackgroundFetchTime = now
+                                val backgroundAccounts = accounts.filter { it.id != active?.id }
+                                val bgSemaphore = Semaphore(calculateConcurrency(backgroundAccounts.size))
+                                backgroundAccounts.forEach { bgAccount ->
+                                    launch { refreshSingleInternal(bgAccount, isActiveAccount = false, customSemaphore = bgSemaphore) }
+                                }
                             }
                         }
                     } catch (_: Exception) {
@@ -102,7 +184,7 @@ class QuotaPoller(
     }
 
     /**
-     * 手动触发全量并发极速刷新
+     * 手动触发全量动态自适应并发极速刷新
      */
     suspend fun refreshAllNow(
         accounts: List<AccountInfo>,
@@ -113,12 +195,15 @@ class QuotaPoller(
         }
 
         _isRefreshing.value = true
+        val dynamicPermits = calculateConcurrency(accounts.size)
+        val dynamicSemaphore = Semaphore(permits = dynamicPermits)
+
         return try {
             coroutineScope.launch {
                 val tasks = accounts.map { account ->
                     val isActive = account.id == activeAccount?.id
                     async {
-                        refreshSingleInternal(account, isActive)
+                        refreshSingleInternal(account, isActive, customSemaphore = dynamicSemaphore)
                     }
                 }
                 tasks.awaitAll()
@@ -137,8 +222,13 @@ class QuotaPoller(
         return refreshSingleInternal(account, isActive)
     }
 
-    private suspend fun refreshSingleInternal(account: AccountInfo, isActiveAccount: Boolean): Result<AccountQuotaSnapshot> {
-        return concurrencySemaphore.withPermit {
+    private suspend fun refreshSingleInternal(
+        account: AccountInfo,
+        isActiveAccount: Boolean,
+        customSemaphore: Semaphore? = null
+    ): Result<AccountQuotaSnapshot> {
+        val semaphoreToUse = customSemaphore ?: concurrencySemaphore
+        return semaphoreToUse.withPermit {
             _refreshingAccountIds.value = _refreshingAccountIds.value + account.id
             try {
                 val result = if (isActiveAccount) {
@@ -147,18 +237,43 @@ class QuotaPoller(
                     quotaFetchService.fetchRemoteAccountQuota(account)
                 }
 
-                result.onSuccess { snapshot ->
-                    synchronized(this) {
-                        val currentMap = _quotaSnapshots.value.toMutableMap()
-                        currentMap[account.id] = snapshot
-                        _quotaSnapshots.value = currentMap
+                result.fold(
+                    onSuccess = { snapshot ->
+                        val currentMap = synchronized(this) {
+                            val updated = _quotaSnapshots.value.toMutableMap()
+                            updated[account.id] = snapshot
+                            _quotaSnapshots.value = updated
+                            updated
+                        }
+                        persistSnapshots(currentMap)
+                        onAccountSnapshotUpdated?.invoke(snapshot)
+                    },
+                    onFailure = { error ->
+                        // 如果失败且当前本地尚未有此账号快照，生成一个保底的基础快照，避免 UI 永远卡在骨架屏
+                        synchronized(this) {
+                            if (!_quotaSnapshots.value.containsKey(account.id)) {
+                                val fallbackSnapshot = AccountQuotaSnapshot(
+                                    accountId = account.id,
+                                    email = account.email,
+                                    fetchedAt = System.currentTimeMillis(),
+                                    tierName = account.profile.tier.name,
+                                    tier = account.profile.tier,
+                                    isPro = account.profile.tier != com.yuzhiqiang.antigravity.domain.model.account.AccountTier.FREE,
+                                    models = emptyList(),
+                                    groups = emptyList(),
+                                    isError = true,
+                                    errorMessage = error.message
+                                )
+                                val updated = _quotaSnapshots.value.toMutableMap()
+                                updated[account.id] = fallbackSnapshot
+                                _quotaSnapshots.value = updated
+                            }
+                        }
                     }
-                    onAccountSnapshotUpdated?.invoke(snapshot)
-                }
+                )
 
                 result
             } finally {
-
                 _refreshingAccountIds.value = _refreshingAccountIds.value - account.id
             }
         }

@@ -456,33 +456,29 @@ class AccountStore(
     }
 
 
-    private fun resolveDefaultRootDir(): File {
-        val configuredPath = (System.getenv("ANTIGRAVITY_STUDIO_CONFIG_PATH")
-            ?: System.getenv("AGY_STUDIO_CONFIG_PATH"))
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?.let(::File)
-            ?.takeIf { it.isAbsolute }
-
-        if (configuredPath != null) {
-            return configuredPath.parentFile ?: configuredPath
-        }
-
-        val userHome = System.getProperty("user.home")
-        val osName = System.getProperty("os.name", "").lowercase()
-        return when {
-            osName.contains("mac") -> File(userHome, "Library/Application Support/Antigravity Studio")
-            osName.contains("win") -> {
-                val appData = System.getenv("APPDATA")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: File(userHome, "AppData/Roaming").absolutePath
-                File(appData, "Antigravity Studio")
+    companion object {
+        fun resolveDefaultRootDir(): File {
+            val studioHome = System.getenv("ANTIGRAVITY_STUDIO_HOME")
+            if (!studioHome.isNullOrBlank()) {
+                return File(studioHome)
             }
-            else -> {
-                val configHome = System.getenv("XDG_CONFIG_HOME")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: File(userHome, ".config").absolutePath
-                File(configHome, "Antigravity Studio")
+
+            val userHome = System.getProperty("user.home")
+            val osName = System.getProperty("os.name", "").lowercase()
+            return when {
+                osName.contains("mac") -> File(userHome, "Library/Application Support/Antigravity Studio")
+                osName.contains("win") -> {
+                    val appData = System.getenv("APPDATA")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: File(userHome, "AppData/Roaming").absolutePath
+                    File(appData, "Antigravity Studio")
+                }
+                else -> {
+                    val configHome = System.getenv("XDG_CONFIG_HOME")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: File(userHome, ".config").absolutePath
+                    File(configHome, "Antigravity Studio")
+                }
             }
         }
     }
