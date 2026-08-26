@@ -28,6 +28,7 @@ import com.yuzhiqiang.antigravity.ui.components.StudioAccountCard
 import com.yuzhiqiang.antigravity.ui.components.StudioSearchField
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
+import com.yuzhiqiang.antigravity.ui.dialogs.AccountSwitchDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.AddAccountDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.QuotaRefreshConfigDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.SmartSwitchDialog
@@ -62,6 +63,7 @@ fun AccountsScreen(
     val s = strings()
     val accounts by viewModel.accounts.collectAsState()
     val activeAccount by viewModel.activeAccount.collectAsState()
+    val appActiveEmail by viewModel.appActiveEmail.collectAsState(initial = null)
     val cliActiveEmail by viewModel.cliActiveEmail.collectAsState(initial = null)
     val ideActiveEmail by viewModel.ideActiveEmail.collectAsState(initial = null)
     val quotas by viewModel.accountQuotas.collectAsState()
@@ -69,6 +71,11 @@ fun AccountsScreen(
     val isPrivacyMode by viewModel.isPrivacyMode.collectAsState()
     val config by viewModel.config.collectAsState()
     val refreshingAccountIds by viewModel.refreshingAccountIds.collectAsState(initial = emptySet())
+    val isIdeRunning by viewModel.isIdeRunning.collectAsState()
+    val isAppRunning by viewModel.isAppRunning.collectAsState()
+    val isIdeInstalled by viewModel.isIdeInstalled.collectAsState()
+    val isAppInstalled by viewModel.isAppInstalled.collectAsState()
+    val isAccountSwitching by viewModel.isAccountSwitching.collectAsState()
 
 
 
@@ -80,20 +87,29 @@ fun AccountsScreen(
     var viewMode by remember { mutableStateOf(AccountsViewMode.GRID) }
 
 
-
     var sortMode by remember { mutableStateOf(AccountsSortMode.DEFAULT) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showSmartSwitchDialog by remember { mutableStateOf(false) }
     var showQuotaRefreshConfigDialog by remember { mutableStateOf(false) }
     var accountToDelete by remember { mutableStateOf<AccountInfo?>(null) }
+    var accountToSwitch by remember { mutableStateOf<AccountInfo?>(null) }
 
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     val scrollState = rememberScrollState()
 
-    // 过滤与排序 (将 App/CLI 和 IDE 活跃账号固定置顶在前两位)
-    val displayAccounts = remember(accounts, searchQuery, sortMode, quotas, activeAccount, cliActiveEmail, ideActiveEmail) {
+    // 过滤与排序 (将 App、CLI 和 IDE 活跃账号固定置顶在前面)
+    val displayAccounts = remember(
+        accounts,
+        searchQuery,
+        sortMode,
+        quotas,
+        activeAccount,
+        appActiveEmail,
+        cliActiveEmail,
+        ideActiveEmail
+    ) {
         val query = searchQuery.trim().lowercase()
         val list = if (query.isEmpty()) {
             accounts
@@ -106,13 +122,16 @@ fun AccountsScreen(
 
         fun hostActiveRank(acc: AccountInfo): Int {
             val isIde = !ideActiveEmail.isNullOrBlank() && acc.email.equals(ideActiveEmail, ignoreCase = true)
+            val isApp = !appActiveEmail.isNullOrBlank() && acc.email.equals(appActiveEmail, ignoreCase = true)
             val isCli = !cliActiveEmail.isNullOrBlank() && acc.email.equals(cliActiveEmail, ignoreCase = true)
+            val isNonIdeActive = isApp || isCli
 
             return when {
-                isIde && isCli -> 0 // 双端共同活跃排第 1 位
-                isCli -> 1          // App/CLI 活跃固定置顶前排
-                isIde -> 2          // IDE 活跃固定置顶前排
-                else -> 3           // 普通账号排在后续
+                isIde && isNonIdeActive -> 0 // 多宿主共同活跃排第 1 位
+                isApp -> 1                   // App 运行态活跃固定置顶前排
+                isCli -> 2                   // CLI 活跃固定置顶前排
+                isIde -> 3                   // IDE 活跃固定置顶前排
+                else -> 4                    // 普通账号排在后续
             }
         }
 
@@ -124,12 +143,14 @@ fun AccountsScreen(
                         .thenBy { it.addedAt }
                 )
             }
+
             AccountsSortMode.QUOTA_DESC -> {
                 list.sortedWith(
                     compareBy<AccountInfo> { hostActiveRank(it) }
                         .thenByDescending { quotas[it.id]?.lowestQuotaPct() ?: 0 }
                 )
             }
+
             AccountsSortMode.EMAIL_ASC -> {
                 list.sortedWith(
                     compareBy<AccountInfo> { hostActiveRank(it) }
@@ -198,7 +219,10 @@ fun AccountsScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = StudioDesignTokens.Padding.topBarHorizontal, vertical = StudioDesignTokens.Padding.topBarVertical),
+                    .padding(
+                        horizontal = StudioDesignTokens.Padding.topBarHorizontal,
+                        vertical = StudioDesignTokens.Padding.topBarVertical
+                    ),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -289,150 +313,162 @@ fun AccountsScreen(
                         }
                     }
 
-                        // 辅助功能胶囊工具条: [刷新] [脱敏] [导出] [智能切号]
-                        Surface(
-                            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight)
+                    // 辅助功能胶囊工具条: [刷新] [脱敏] [导出] [智能切号]
+                    Surface(
+                        shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.padding(horizontal = 4.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            ) {
-                                // 刷新全量配额
-                                StudioTooltip(text = "立即并发刷新所有账号的最新配额数据") {
+                            // 刷新全量配额
+                            StudioTooltip(text = "立即并发刷新所有账号的最新配额数据") {
+                                IconButton(
+                                    onClick = { viewModel.refreshAllQuotas() },
+                                    modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
+                                ) {
+                                    if (isRefreshingQuotas) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Refresh,
+                                            contentDescription = "刷新全部配额",
+                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 额度自动刷新设置
+                            StudioTooltip(text = "配置配额自动刷新周期 (当前: 活跃 ${config.quotaActiveIntervalSeconds}s / 其他 ${config.quotaBackgroundIntervalSeconds / 60}min)") {
+                                IconButton(
+                                    onClick = { showQuotaRefreshConfigDialog = true },
+                                    modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Timer,
+                                        contentDescription = "额度自动刷新设置",
+                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
+                                        tint = if (config.quotaAutoRefreshEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // 隐私脱敏开关
+                            StudioTooltip(text = if (isPrivacyMode) "关闭脱敏，显示完整邮箱地址" else "开启隐私脱敏，隐藏邮箱敏感字符") {
+                                IconButton(
+                                    onClick = { viewModel.togglePrivacyMode() },
+                                    modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPrivacyMode) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                        contentDescription = "隐私模式",
+                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
+                                        tint = if (isPrivacyMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // 导出备份 (复制到剪贴板 / 保存为 JSON 文件)
+                            var showExportMenu by remember { mutableStateOf(false) }
+
+                            Box {
+                                StudioTooltip(text = "导出账号凭据 (支持复制到剪贴板或保存为 JSON 文件)") {
                                     IconButton(
-                                        onClick = { viewModel.refreshAllQuotas() },
+                                        onClick = { showExportMenu = true },
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
                                     ) {
-                                        if (isRefreshingQuotas) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
-                                                strokeWidth = 2.dp,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        } else {
+                                        Icon(
+                                            imageVector = Icons.Outlined.FileUpload,
+                                            contentDescription = "导出账号",
+                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    expanded = showExportMenu,
+                                    onDismissRequest = { showExportMenu = false },
+                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("复制到剪贴板", style = MaterialTheme.typography.bodyMedium) },
+                                        leadingIcon = {
                                             Icon(
-                                                imageVector = Icons.Outlined.Refresh,
-                                                contentDescription = "刷新全部配额",
-                                                modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                Icons.Outlined.ContentCopy,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = {
+                                            showExportMenu = false
+                                            val count =
+                                                viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
+                                            val exportedJson = viewModel.exportAccountsJson()
+                                            Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                                                StringSelection(exportedJson),
+                                                null
+                                            )
+                                            viewModel.showNotice(
+                                                "已将 $count 个账号凭据复制到剪贴板",
+                                                NoticeKind.SUCCESS
                                             )
                                         }
-                                    }
-                                }
-
-                                // 额度自动刷新设置
-                                StudioTooltip(text = "配置配额自动刷新周期 (当前: 活跃 ${config.quotaActiveIntervalSeconds}s / 其他 ${config.quotaBackgroundIntervalSeconds / 60}min)") {
-                                    IconButton(
-                                        onClick = { showQuotaRefreshConfigDialog = true },
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Timer,
-                                            contentDescription = "额度自动刷新设置",
-                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
-                                            tint = if (config.quotaAutoRefreshEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                // 隐私脱敏开关
-                                StudioTooltip(text = if (isPrivacyMode) "关闭脱敏，显示完整邮箱地址" else "开启隐私脱敏，隐藏邮箱敏感字符") {
-                                    IconButton(
-                                        onClick = { viewModel.togglePrivacyMode() },
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isPrivacyMode) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                                            contentDescription = "隐私模式",
-                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
-                                            tint = if (isPrivacyMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                // 导出备份 (复制到剪贴板 / 保存为 JSON 文件)
-                                var showExportMenu by remember { mutableStateOf(false) }
-
-                                Box {
-                                    StudioTooltip(text = "导出账号凭据 (支持复制到剪贴板或保存为 JSON 文件)") {
-                                        IconButton(
-                                            onClick = { showExportMenu = true },
-                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.FileUpload,
-                                                contentDescription = "导出账号",
-                                                modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "保存为 JSON 文件...",
+                                                style = MaterialTheme.typography.bodyMedium
                                             )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Outlined.FileDownload,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = {
+                                            showExportMenu = false
+                                            exportAccountsToFile(viewModel)
                                         }
-                                    }
-
-                                    DropdownMenu(
-                                        expanded = showExportMenu,
-                                        onDismissRequest = { showExportMenu = false },
-                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("复制到剪贴板", style = MaterialTheme.typography.bodyMedium) },
-                                            leadingIcon = {
-                                                Icon(
-                                                    Icons.Outlined.ContentCopy,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            },
-                                            onClick = {
-                                                showExportMenu = false
-                                                val count = viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
-                                                val exportedJson = viewModel.exportAccountsJson()
-                                                Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                                    StringSelection(exportedJson),
-                                                    null
-                                                )
-                                                viewModel.showNotice("已将 $count 个账号凭据复制到剪贴板", NoticeKind.SUCCESS)
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("保存为 JSON 文件...", style = MaterialTheme.typography.bodyMedium) },
-                                            leadingIcon = {
-                                                Icon(
-                                                    Icons.Outlined.FileDownload,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            },
-                                            onClick = {
-                                                showExportMenu = false
-                                                exportAccountsToFile(viewModel)
-                                            }
-                                        )
-                                    }
+                                    )
                                 }
+                            }
 
-                                // 智能切号策略
-                                StudioTooltip(text = "配置低配额/限流(429)时的自动故障转移切号策略") {
-                                    IconButton(
-                                        onClick = { showSmartSwitchDialog = true },
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Bolt,
-                                            contentDescription = "智能切号策略",
-                                            modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
-                                            tint = if (config.smartSwitchConfig.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                            // 智能切号策略
+                            StudioTooltip(text = "配置低配额/限流(429)时的自动故障转移切号策略") {
+                                IconButton(
+                                    onClick = { showSmartSwitchDialog = true },
+                                    modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Bolt,
+                                        contentDescription = "智能切号策略",
+                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
+                                        tint = if (config.smartSwitchConfig.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
+        }
 
         // 3. 底部可滚动区域 (账号列表 + 刷新状态栏)
         Column(
@@ -467,8 +503,8 @@ fun AccountsScreen(
                     val columns = if (viewMode == AccountsViewMode.GRID) {
                         when {
                             availableWidth >= 1480.dp -> 4 // 宽屏/4K: 4 列
-                            availableWidth >= 880.dp  -> 3 // 正常桌面窗口: 一行显示 3 个
-                            availableWidth >= 580.dp  -> 2 // 分屏窗口: 2 列
+                            availableWidth >= 880.dp -> 3 // 正常桌面窗口: 一行显示 3 个
+                            availableWidth >= 580.dp -> 2 // 分屏窗口: 2 列
                             else -> 1                      // 紧凑窄窗口: 1 列
                         }
                     } else {
@@ -503,8 +539,18 @@ fun AccountsScreen(
                                 for (i in 0 until columns) {
                                     if (i < rowAccounts.size) {
                                         val acc = rowAccounts[i]
-                                        val matchesIde = !ideActiveEmail.isNullOrBlank() && acc.email.equals(ideActiveEmail, ignoreCase = true)
-                                        val matchesCli = !cliActiveEmail.isNullOrBlank() && acc.email.equals(cliActiveEmail, ignoreCase = true)
+                                        val matchesIde = !ideActiveEmail.isNullOrBlank() && acc.email.equals(
+                                            ideActiveEmail,
+                                            ignoreCase = true
+                                        )
+                                        val matchesApp = !appActiveEmail.isNullOrBlank() && acc.email.equals(
+                                            appActiveEmail,
+                                            ignoreCase = true
+                                        )
+                                        val matchesCli = !cliActiveEmail.isNullOrBlank() && acc.email.equals(
+                                            cliActiveEmail,
+                                            ignoreCase = true
+                                        )
 
                                         Box(
                                             modifier = Modifier
@@ -522,8 +568,14 @@ fun AccountsScreen(
                                                 isRefreshing = refreshingAccountIds.contains(acc.id),
                                                 isPrivacyMode = isPrivacyMode,
                                                 isIdeActive = matchesIde,
+                                                isAppActive = matchesApp,
                                                 isCliActive = matchesCli,
-                                                onSetActive = { viewModel.setActiveAccount(acc.id) },
+                                                isSwitching = isAccountSwitching,
+                                                onSetActive = {
+                                                    if (!isAccountSwitching) {
+                                                        accountToSwitch = acc
+                                                    }
+                                                },
                                                 onRefresh = {
                                                     viewModel.refreshSingleAccountQuota(acc.id)
                                                     viewModel.refreshAccountTokens(acc.email)
@@ -569,6 +621,39 @@ fun AccountsScreen(
         SmartSwitchDialog(
             viewModel = viewModel,
             onDismiss = { showSmartSwitchDialog = false }
+        )
+    }
+
+    accountToSwitch?.let { targetAcc ->
+        val isTargetIdeActive = !ideActiveEmail.isNullOrBlank() &&
+                targetAcc.email.equals(ideActiveEmail, ignoreCase = true)
+        val isTargetAppCliActive = (appActiveEmail?.let { email ->
+            targetAcc.email.equals(email, ignoreCase = true)
+        } == true) || (cliActiveEmail?.let { email ->
+            targetAcc.email.equals(email, ignoreCase = true)
+        } == true)
+
+        AccountSwitchDialog(
+            targetAccount = targetAcc,
+            isIdeInstalled = isIdeInstalled,
+            isAppInstalled = isAppInstalled,
+            isIdeRunning = isIdeRunning,
+            isAppRunning = isAppRunning,
+            isIdeActive = isTargetIdeActive,
+            isAppCliActive = isTargetAppCliActive,
+            isPrivacyMode = isPrivacyMode,
+            isSwitching = isAccountSwitching,
+            onConfirm = { applyToIde, applyToAppCli, restartIde, restartApp ->
+                if (!isAccountSwitching) {
+                    viewModel.switchAccount(targetAcc, applyToIde, applyToAppCli, restartIde, restartApp)
+                    accountToSwitch = null
+                }
+            },
+            onDismiss = {
+                if (!isAccountSwitching) {
+                    accountToSwitch = null
+                }
+            }
         )
     }
 
@@ -660,4 +745,3 @@ private fun exportAccountsToFile(viewModel: AppViewModel) {
         viewModel.showNotice("导出文件失败: ${e.message ?: "未知错误"}", NoticeKind.ERROR)
     }
 }
-
