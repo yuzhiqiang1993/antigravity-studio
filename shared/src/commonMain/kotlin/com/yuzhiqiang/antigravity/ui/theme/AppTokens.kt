@@ -15,10 +15,13 @@ object AppTokens {
         const val durationShort = 180
         const val durationMedium = 280
         const val durationLong = 400
+        const val durationShimmer = 1200
+        const val durationRotate = 800
 
         val standardEasing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
         val decelerateEasing = androidx.compose.animation.core.CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)
         val accelerateEasing = androidx.compose.animation.core.CubicBezierEasing(0.3f, 0.0f, 1.0f, 1.0f)
+        val fastOutSlowIn = androidx.compose.animation.core.FastOutSlowInEasing
     }
 
 

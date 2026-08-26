@@ -302,7 +302,7 @@ fun AccountsScreen(
                                 modifier = Modifier.padding(horizontal = 4.dp)
                             ) {
                                 // 刷新全量配额
-                                StudioTooltip(text = "立即并发刷新所有账号的最新配额水位") {
+                                StudioTooltip(text = "立即并发刷新所有账号的最新配额数据") {
                                     IconButton(
                                         onClick = { viewModel.refreshAllQuotas() },
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
