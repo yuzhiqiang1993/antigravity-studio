@@ -1,6 +1,6 @@
 package com.yuzhiqiang.antigravity.services.auth
 
-import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
+import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -8,15 +8,16 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
+import java.io.RandomAccessFile
 import java.sql.DriverManager
 import java.util.Base64
 import java.util.regex.Pattern
 
 /**
  * 多端宿主活跃账号探测引擎。
- * 能够精确穿透 Antigravity 宿主底层物理数据，实时探测：
- * 1. Antigravity IDE 物理生效的 Google 账号 Profile (通过 state.vscdb SQLite Protobuf 物理数据直接提取)
- * 2. Antigravity App / CLI 物理生效的 Google 账号 (通过 oauth_credentials.json 官方凭证)
+ * 探测 Antigravity 宿主的账号信息。
+ * IDE 使用 state.vscdb 中的官方 userStatus；App 在 macOS 优先使用运行中 language_server 的 RPC，
+ * 运行态不可用时仅在显式授权后读取 Keychain。文件凭据和日志只能作为非 macOS 的兼容回退，不能冒充 macOS App 的运行态。
  *
  * 注：完全基于 Antigravity 官方物理底层数据源，不依赖任何第三方插件或扩展。
  */
@@ -44,76 +45,29 @@ object HostAccountDetector {
     private val emailPattern = Pattern.compile("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+")
 
     /**
-     * 探测 Antigravity App / CLI 当前物理生效登录的账号 Profile
+     * 探测 App / CLI 的账号 Profile。
      *
-     * 探测与仲裁机制：
-     * 1. 物理静态凭证扫描：优先扫描官方 oauth_credentials.json 提取结构化数据（邮箱、姓名、Token 类型、有效期、文件修改时间）；
-     * 2. 运行时证据扫描：从官方运行日志（cli.log / app.log）中提取最近一次实际执行认证的邮箱与日志时间戳；
-     * 3. 双向交叉仲裁：
-     *    - 若两者邮箱一致：直接返回结构完整的物理 Profile；
-     *    - 若两者不一致：比较文件修改时间戳（mtime），以最新发生认证行为的介质作为生效真理源，彻底杜绝历史旧凭据残留误判。
+     * 探测与仲裁机制（仅用于 CLI/非 macOS 兼容路径）：
+     * 1. 存在 jetski 独立凭据时，用 Refresh Token 与 Studio 已导入账号做精确匹配；
+     * 2. 独立凭据存在但无法归属时返回未知，禁止使用旧文件或配额缓存猜测账号；
+     * 3. 不存在独立凭据时，才使用官方静态凭据与最近认证日志进行兼容探测。
+     *
+     * 此方法不代表 macOS App 的运行态；macOS App 的权威探测必须走 [detectAppActiveProfile]。
      */
-    fun detectCliAppProfile(customCredentialsFile: File? = null): CliAppAccountProfile? {
-        val userHome = System.getProperty("user.home")
-        val os = System.getProperty("os.name").lowercase()
-
-        // 1. 扫描官方物理凭据文件（严格限定为 App / CLI 专用路径，不混入任何 IDE 插件目录）
-        val candidateFiles = buildList {
-            customCredentialsFile?.let { add(it) }
-            add(File(userHome, ".gemini/oauth_credentials.json"))
-            add(File(userHome, ".config/antigravity/oauth_credentials.json"))
-            add(File(userHome, ".antigravity/oauth_credentials.json"))
-            if (os.contains("mac")) {
-                add(File(userHome, "Library/Application Support/Antigravity/oauth_credentials.json"))
-            } else if (os.contains("win")) {
-                val appData = System.getenv("APPDATA") ?: "$userHome/AppData/Roaming"
-                add(File(appData, "Antigravity/oauth_credentials.json"))
-            }
+    fun detectCliAppProfile(
+        customCredentialsFile: File? = null,
+        knownAccounts: List<AccountInfo> = emptyList()
+    ): CliAppAccountProfile? {
+        val staticSnapshot = detectStaticCliAppProfile(customCredentialsFile)
+        val staticProfile = staticSnapshot?.first
+        val staticFileMtime = staticSnapshot?.second ?: 0L
+        if (customCredentialsFile != null) {
+            return staticProfile
         }
 
-        var staticProfile: CliAppAccountProfile? = null
-        var staticFileMtime: Long = 0L
-
-        for (file in candidateFiles) {
-            if (!file.exists() || !file.isFile) continue
-            try {
-                val content = file.readText(Charsets.UTF_8)
-                val root = json.parseToJsonElement(content) as? JsonObject ?: continue
-                val directEmail = root["email"]?.jsonPrimitive?.contentOrNull
-                val name = root["name"]?.jsonPrimitive?.contentOrNull
-                val expiry = root["expiry_timestamp"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
-                    ?: root["expiry_date"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
-                val tokenType = root["token_type"]?.jsonPrimitive?.contentOrNull
-
-                if (!directEmail.isNullOrBlank() && directEmail.contains("@")) {
-                    staticProfile = CliAppAccountProfile(
-                        email = directEmail.trim().lowercase(),
-                        name = name?.trim(),
-                        expiryTimestamp = expiry,
-                        tokenType = tokenType
-                    )
-                    staticFileMtime = file.lastModified()
-                    break
-                }
-
-                // 若 email 字段为空，尝试从 refresh_token 解析 sub/email
-                val refreshToken = root["refresh_token"]?.jsonPrimitive?.contentOrNull
-                    ?: root["refreshToken"]?.jsonPrimitive?.contentOrNull
-                if (!refreshToken.isNullOrBlank()) {
-                    val parsed = RefreshTokenParser.parse(refreshToken).firstOrNull()
-                    if (!parsed?.email.isNullOrBlank()) {
-                        staticProfile = CliAppAccountProfile(
-                            email = parsed!!.email!!.trim().lowercase(),
-                            name = name?.trim(),
-                            expiryTimestamp = expiry,
-                            tokenType = tokenType
-                        )
-                        staticFileMtime = file.lastModified()
-                        break
-                    }
-                }
-            } catch (_: Exception) {
-            }
+        val activeCredentialFile = resolveActiveCredentialFile()
+        if (activeCredentialFile != null) {
+            return resolveProfileFromActiveCredential(activeCredentialFile, knownAccounts)
         }
 
         // 2. 扫描官方运行时日志中的最新认证记录
@@ -152,11 +106,159 @@ object HostAccountDetector {
         return null
     }
 
+    private fun resolveActiveCredentialFile(): File? {
+        val customDataDir = System.getenv("ANTIGRAVITY_DATA_DIR")
+            ?: System.getenv("GEMINI_DATA_DIR")
+        val dataDir = customDataDir
+            ?.takeIf { path -> path.isNotBlank() }
+            ?.let(::File)
+            ?: File(System.getProperty("user.home"), ".gemini")
+        return File(dataDir, "jetski-standalone-oauth-token")
+            .takeIf { file -> file.isFile }
+    }
+
+    private fun resolveProfileFromActiveCredential(
+        credentialFile: File,
+        knownAccounts: List<AccountInfo>
+    ): CliAppAccountProfile? {
+        return try {
+            val root = json.parseToJsonElement(credentialFile.readText(Charsets.UTF_8)) as? JsonObject
+                ?: return null
+            val tokenObj = root["token"] as? JsonObject ?: root
+            val refreshToken = tokenObj["refresh_token"]?.jsonPrimitive?.contentOrNull
+                ?: tokenObj["refreshToken"]?.jsonPrimitive?.contentOrNull
+            val idToken = tokenObj["id_token"]?.jsonPrimitive?.contentOrNull
+            val matchedAccount = refreshToken
+                ?.takeIf { token -> token.isNotBlank() }
+                ?.let { token ->
+                    knownAccounts.firstOrNull { account ->
+                        account.tokens.refreshToken.isNotBlank() && account.tokens.refreshToken == token
+                    }
+                }
+            if (matchedAccount != null) {
+                return CliAppAccountProfile(
+                    email = matchedAccount.email.lowercase(),
+                    name = matchedAccount.profile.name,
+                    expiryTimestamp = matchedAccount.tokens.expiryTimestamp,
+                    tokenType = tokenObj["token_type"]?.jsonPrimitive?.contentOrNull ?: "Bearer"
+                )
+            }
+
+            val email = idToken?.let(::parseEmailFromJwt) ?: return null
+            CliAppAccountProfile(
+                email = email.lowercase(),
+                expiryTimestamp = resolveExpiryTimestamp(tokenObj),
+                tokenType = tokenObj["token_type"]?.jsonPrimitive?.contentOrNull ?: "Bearer"
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /**
-     * 探测 App / CLI 当前生效登录的账号邮箱
+     * 严格探测 App / CLI 当前凭据文件中的账号邮箱。
+     * 运行日志只作为宽松诊断证据，不参与切号成功确认。
      */
     fun detectCliAppActiveEmail(customCredentialsFile: File? = null): String? {
-        return detectCliAppProfile(customCredentialsFile)?.email
+        return detectStaticCliAppProfile(customCredentialsFile)?.first?.email
+    }
+
+    private fun detectStaticCliAppProfile(customCredentialsFile: File?): Pair<CliAppAccountProfile, Long>? {
+        val latestFile = resolveCliCredentialFiles(customCredentialsFile)
+            .filter { file -> file.isFile }
+            .maxByOrNull { file -> file.lastModified() }
+            ?: return null
+        return readCliAppProfile(latestFile)?.let { profile -> profile to latestFile.lastModified() }
+    }
+
+    private fun resolveCliCredentialFiles(customCredentialsFile: File?): List<File> {
+        if (customCredentialsFile != null) {
+            return listOf(customCredentialsFile)
+        }
+
+        val userHome = System.getProperty("user.home")
+        val customDataDir = System.getenv("ANTIGRAVITY_DATA_DIR")
+            ?: System.getenv("GEMINI_DATA_DIR")
+        if (!customDataDir.isNullOrBlank()) {
+            return listOf(File(customDataDir, "oauth_credentials.json"))
+        }
+        return listOf(
+            File(userHome, "Library/Application Support/Antigravity/oauth_credentials.json"),
+            File(userHome, ".gemini/oauth_creds.json"),
+            File(userHome, ".gemini/oauth_credentials.json"),
+            File(System.getenv("APPDATA") ?: "$userHome/AppData/Roaming", "Antigravity/oauth_credentials.json"),
+            File(
+                System.getenv("XDG_CONFIG_HOME") ?: File(userHome, ".config").absolutePath,
+                "antigravity/oauth_credentials.json"
+            )
+        ).distinct()
+    }
+
+    private fun readCliAppProfile(file: File): CliAppAccountProfile? {
+        return try {
+            val root = json.parseToJsonElement(file.readText(Charsets.UTF_8)) as? JsonObject ?: return null
+            val tokenObj = root["token"] as? JsonObject
+            val directEmail = root["email"]?.jsonPrimitive?.contentOrNull
+                ?: root["user_email"]?.jsonPrimitive?.contentOrNull
+                ?: root["antigravity_cockpit_active_email"]?.jsonPrimitive?.contentOrNull
+            val name = root["name"]?.jsonPrimitive?.contentOrNull
+            val expiryTimestamp = resolveExpiryTimestamp(root)
+            val tokenType = root["token_type"]?.jsonPrimitive?.contentOrNull
+            val email = directEmail?.takeIf { value -> value.contains("@") }
+                ?: parseEmailFromRefreshToken(root)
+                ?: tokenObj?.get("id_token")?.jsonPrimitive?.contentOrNull?.let(::parseEmailFromJwt)
+                ?: tokenObj?.get("access_token")?.jsonPrimitive?.contentOrNull?.let(::parseEmailFromJwt)
+                ?: return null
+
+            CliAppAccountProfile(
+                email = email.trim().lowercase(),
+                name = name?.trim(),
+                expiryTimestamp = expiryTimestamp,
+                tokenType = tokenType
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseEmailFromJwt(token: String): String? {
+        return try {
+            val parts = token.split(".")
+            if (parts.size == 3) {
+                val payload = parts[1]
+                val padded = when (payload.length % 4) {
+                    2 -> "$payload=="
+                    3 -> "$payload="
+                    else -> payload
+                }.replace('-', '+').replace('_', '/')
+                val decoded = Base64.getDecoder().decode(padded).toString(Charsets.UTF_8)
+                val obj = json.parseToJsonElement(decoded) as? JsonObject
+                obj?.get("email")?.jsonPrimitive?.contentOrNull?.takeIf { it.contains("@") }
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseEmailFromRefreshToken(root: JsonObject): String? {
+        val tokenObj = root["token"] as? JsonObject
+        val refreshToken = root["refresh_token"]?.jsonPrimitive?.contentOrNull
+            ?: root["refreshToken"]?.jsonPrimitive?.contentOrNull
+            ?: tokenObj?.get("refresh_token")?.jsonPrimitive?.contentOrNull
+            ?: tokenObj?.get("refreshToken")?.jsonPrimitive?.contentOrNull
+            ?: return null
+        return RefreshTokenParser.parse(refreshToken).firstOrNull()?.email
+    }
+
+    private fun resolveExpiryTimestamp(root: JsonObject): Long? {
+        val rawTimestamp = root["expiry_timestamp"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+            ?: root["expiry_date"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+            ?: return null
+        return if (rawTimestamp >= EPOCH_MILLIS_THRESHOLD) {
+            rawTimestamp / MILLIS_PER_SECOND
+        } else {
+            rawTimestamp
+        }
     }
 
     /**
@@ -176,7 +278,7 @@ object HostAccountDetector {
 
             for (logFile in candidateLogs) {
                 if (!logFile.exists() || !logFile.isFile) continue
-                val lines = logFile.readLines(Charsets.UTF_8).takeLast(150)
+                val lines = readLastLogLines(logFile, 150)
                 for (line in lines.reversed()) {
                     if (line.contains("authenticated successfully as", ignoreCase = true) ||
                         line.contains("applyAuthResult: email=", ignoreCase = true) ||
@@ -198,7 +300,7 @@ object HostAccountDetector {
                 val latestLog = logDir.listFiles { f -> f.name.endsWith(".log") }
                     ?.maxByOrNull { it.lastModified() }
                 if (latestLog != null) {
-                    val lines = latestLog.readLines(Charsets.UTF_8).takeLast(100)
+                    val lines = readLastLogLines(latestLog, 100)
                     for (line in lines.reversed()) {
                         if (line.contains("authenticated successfully as", ignoreCase = true) ||
                             line.contains("applyAuthResult: email=", ignoreCase = true)
@@ -216,6 +318,20 @@ object HostAccountDetector {
         return Pair(null, 0L)
     }
 
+    private fun readLastLogLines(file: File, maxLines: Int): List<String> {
+        return RandomAccessFile(file, "r").use { randomAccessFile ->
+            val length = randomAccessFile.length()
+            val start = (length - MAX_LOG_TAIL_BYTES).coerceAtLeast(0L)
+            randomAccessFile.seek(start)
+            val bytes = ByteArray((length - start).toInt())
+            randomAccessFile.readFully(bytes)
+            bytes.toString(Charsets.UTF_8)
+                .lineSequence()
+                .toList()
+                .takeLast(maxLines)
+        }
+    }
+
     /**
      * 探测 Antigravity IDE 当前生效登录的账号邮箱
      */
@@ -224,50 +340,73 @@ object HostAccountDetector {
     }
 
     /**
-     * 探测 Antigravity IDE 完整的活跃用户 Profile（包含邮箱、姓名、头像、订阅文本）
+     * 探测 Antigravity App 当前生效登录的账号 Profile。
+     *
+     * App 运行时优先读取本地 language_server 的官方状态接口；仅当调用方显式允许且运行态不可用时，
+     * macOS 才读取 Keychain 中的下次启动凭据。发现 App 进程但 RPC 无法确认账号时，不回退到 CLI 静态凭据。
      */
-    suspend fun detectIdeActiveProfile(): IdeAccountProfile? = withContext(Dispatchers.IO) {
-        // 1. 穿透读取 IDE globalStorage state.vscdb SQLite 数据库中的 userStatus Protobuf
-        val sqliteProfile = detectIdeProfileFromSqlite()
-        if (sqliteProfile != null) {
-            return@withContext sqliteProfile
+    suspend fun detectAppActiveProfile(
+        knownAccounts: List<AccountInfo> = emptyList(),
+        allowKeychainAccess: Boolean = false
+    ): IdeAccountProfile? = withContext(Dispatchers.IO) {
+        val macOs = isMacOs()
+        val runtimeResult = RuntimeAppAccountProbe.detectProfile()
+        val runtimeProfile = runtimeResult.getOrNull()
+        if (runtimeProfile != null) {
+            return@withContext runtimeProfile
         }
 
-        // 2. 尝试从 workspaceStorage 提取
-        val workspaceProfile = detectIdeProfileFromWorkspaceStorage()
-        if (workspaceProfile != null) {
-            return@withContext workspaceProfile
+        // 进程已发现但运行态接口失败/响应无效时，禁止用 CLI 或旧状态文件猜测 App 账号。
+        if (runtimeResult.isFailure && !macOs) {
+            return@withContext null
         }
 
-        null
+        if (macOs) {
+            if (!allowKeychainAccess) {
+                return@withContext null
+            }
+            return@withContext MacKeychainInjector.readMatchingAccount(knownAccounts)
+                .getOrNull()
+                ?.let { account ->
+                    IdeAccountProfile(
+                        email = account.email,
+                        name = account.profile.name
+                    )
+                }
+        }
+
+        val cliAppProfile = detectCliAppProfile(knownAccounts = knownAccounts)
+        if (cliAppProfile != null) {
+            return@withContext IdeAccountProfile(
+                email = cliAppProfile.email,
+                name = cliAppProfile.name
+            )
+        }
+        detectProfileFromCanonicalStateDb(StateDbInjector.TargetHost.APP)
     }
 
     /**
-     * 从 Antigravity IDE 的 globalStorage/state.vscdb 物理提取 Profile
+     * 探测 Antigravity App 当前生效登录的账号邮箱
      */
-    private fun detectIdeProfileFromSqlite(): IdeAccountProfile? {
-        val userHome = System.getProperty("user.home")
-        val os = System.getProperty("os.name").lowercase()
+    suspend fun detectAppActiveEmail(
+        knownAccounts: List<AccountInfo> = emptyList(),
+        allowKeychainAccess: Boolean = false
+    ): String? {
+        return detectAppActiveProfile(knownAccounts, allowKeychainAccess)?.email
+    }
 
-        val candidateDbFiles = when {
-            os.contains("mac") -> listOf(
-                File(userHome, "Library/Application Support/Antigravity IDE/User/globalStorage/state.vscdb"),
-                File(userHome, "Library/Application Support/Antigravity/User/globalStorage/state.vscdb")
-            )
+    /**
+     * 探测 Antigravity IDE 完整的活跃用户 Profile（包含邮箱、姓名、头像、订阅文本）
+     */
+    suspend fun detectIdeActiveProfile(): IdeAccountProfile? = withContext(Dispatchers.IO) {
+        detectProfileFromCanonicalStateDb(StateDbInjector.TargetHost.IDE)
+    }
 
-            os.contains("win") -> {
-                val appData = System.getenv("APPDATA") ?: "$userHome/AppData/Roaming"
-                listOf(
-                    File(appData, "Antigravity IDE/User/globalStorage/state.vscdb"),
-                    File(appData, "Antigravity/User/globalStorage/state.vscdb")
-                )
-            }
-
-            else -> listOf(
-                File(userHome, ".config/Antigravity IDE/User/globalStorage/state.vscdb"),
-                File(userHome, ".config/Antigravity/User/globalStorage/state.vscdb")
-            )
-        }
+    /**
+     * 仅从与注入器一致的 canonical globalStorage/state.vscdb 提取 Profile。
+     */
+    private fun detectProfileFromCanonicalStateDb(targetHost: StateDbInjector.TargetHost): IdeAccountProfile? {
+        val candidateDbFiles = StateDbInjector.resolveCandidateDbFiles(targetHost)
 
         for (dbFile in candidateDbFiles) {
             if (!dbFile.exists() || !dbFile.isFile) continue
@@ -283,37 +422,27 @@ object HostAccountDetector {
      * 从单个 state.vscdb 文件中读取并递归解码 Protobuf 提取完整 Profile
      */
     private fun readProfileFromStateDb(dbFile: File): IdeAccountProfile? {
-        try {
-            // 使用 read-only 模式打开 SQLite 数据库
+        return try {
             val url = "jdbc:sqlite:${dbFile.absolutePath}"
             DriverManager.getConnection(url).use { conn ->
-                val query = """
-                    SELECT key, value FROM ItemTable 
-                    WHERE key IN (
-                        'antigravityUnifiedStateSync.userStatus',
-                        'antigravityIdeUnifiedStateSync.userStatus'
-                    )
-                """.trimIndent()
-
-                conn.createStatement().use { stmt ->
-                    val rs = stmt.executeQuery(query)
-                    while (rs.next()) {
-                        val valueStr = rs.getString("value") ?: continue
-                        val profile = parseProfileFromUserStatusRaw(valueStr)
-                        if (profile != null && profile.email.isNotBlank()) {
-                            return profile
+                conn.prepareStatement(
+                    "SELECT value FROM ItemTable WHERE key = ? LIMIT 1"
+                ).use { statement ->
+                    statement.setString(1, USER_STATUS_STATE_KEY)
+                    statement.executeQuery().use { resultSet ->
+                        if (resultSet.next()) {
+                            resultSet.getString("value")?.let { raw ->
+                                parseProfileFromUserStatusRaw(raw)
+                            }
+                        } else {
+                            null
                         }
                     }
                 }
             }
         } catch (_: Exception) {
-            // fallback: 使用纯文本/二进制流正规正则扫描邮箱
-            val fallbackEmail = fallbackScanRawDbForEmail(dbFile)
-            if (!fallbackEmail.isNullOrBlank()) {
-                return IdeAccountProfile(email = fallbackEmail)
-            }
+            null
         }
-        return null
     }
 
     /**
@@ -358,12 +487,15 @@ object HostAccountDetector {
                                             foundEmail = str
                                         }
                                     }
+
                                     3 -> { // Name
                                         foundName = f4.bytesValue?.decodeToString()?.trim()
                                     }
+
                                     36 -> { // Tier
                                         foundTier = f4.bytesValue?.decodeToString()?.trim()
                                     }
+
                                     38 -> { // Avatar URL
                                         foundAvatar = f4.bytesValue?.decodeToString()?.trim()
                                     }
@@ -380,15 +512,6 @@ object HostAccountDetector {
                             }
                         }
 
-                        // 兜底：直接从文本中正则扫描
-                        val text = b3.decodeToString()
-                        val matcher = emailPattern.matcher(text)
-                        if (matcher.find()) {
-                            val candidate = matcher.group(0).trim().lowercase()
-                            if (!candidate.contains("example.com") && !candidate.contains("schema")) {
-                                return IdeAccountProfile(email = candidate)
-                            }
-                        }
                     }
                 }
             }
@@ -405,48 +528,22 @@ object HostAccountDetector {
     }
 
     /**
-     * 从 workspaceStorage 中探测
-     */
-    private fun detectIdeProfileFromWorkspaceStorage(): IdeAccountProfile? {
-        val userHome = System.getProperty("user.home")
-        val workspaceDir = File(userHome, "Library/Application Support/Antigravity IDE/User/workspaceStorage")
-        if (!workspaceDir.exists() || !workspaceDir.isDirectory) return null
-
-        val subDirs = workspaceDir.listFiles() ?: return null
-        for (sub in subDirs) {
-            val db = File(sub, "state.vscdb")
-            if (db.exists()) {
-                val profile = readProfileFromStateDb(db)
-                if (profile != null && profile.email.isNotBlank()) return profile
-            }
-        }
-        return null
-    }
-
-    /**
      * 根据邮箱查找系统中可用的 RefreshToken
      */
     fun findAvailableRefreshToken(email: String): String? {
         val targetEmail = email.trim().lowercase()
-        val userHome = System.getProperty("user.home")
-        val candidateFiles = listOf(
-            File(userHome, ".gemini/oauth_creds.json"),
-            File(userHome, ".gemini/jetski-standalone-oauth-token"),
-            File(userHome, ".gemini/antigravity-ide/oauth_credentials.json"),
-            File(userHome, ".gemini/oauth_credentials.json"),
-            File(userHome, ".config/antigravity/oauth_credentials.json"),
-            File(userHome, "Library/Application Support/Antigravity/oauth_credentials.json")
-        )
+        val candidateFiles = resolveCliCredentialFiles(customCredentialsFile = null)
 
         for (file in candidateFiles) {
             if (!file.exists() || !file.isFile) continue
             try {
                 val content = file.readText(Charsets.UTF_8)
                 val root = json.parseToJsonElement(content) as? JsonObject ?: continue
-                
+
                 val fileEmail = root["email"]?.jsonPrimitive?.contentOrNull
+                    ?: root["user_email"]?.jsonPrimitive?.contentOrNull
                     ?: root["antigravity_cockpit_active_email"]?.jsonPrimitive?.contentOrNull
-                
+
                 val tokenObj = root["token"] as? JsonObject
                 val directRt = root["refresh_token"]?.jsonPrimitive?.contentOrNull
                     ?: tokenObj?.get("refresh_token")?.jsonPrimitive?.contentOrNull
@@ -454,12 +551,6 @@ object HostAccountDetector {
                 if (!directRt.isNullOrBlank()) {
                     if (fileEmail?.equals(targetEmail, ignoreCase = true) == true) {
                         return directRt
-                    }
-                    if (file.name.contains("jetski")) {
-                        val cliEmail = detectCliAppActiveEmail()
-                        if (cliEmail?.equals(targetEmail, ignoreCase = true) == true) {
-                            return directRt
-                        }
                     }
                     val parsed = RefreshTokenParser.parse(directRt).firstOrNull()
                     if (parsed?.email?.equals(targetEmail, ignoreCase = true) == true) {
@@ -472,23 +563,12 @@ object HostAccountDetector {
         return null
     }
 
-    /**
-     * 极简兜底扫描
-     */
-    private fun fallbackScanRawDbForEmail(dbFile: File): String? {
-        try {
-            val bytes = dbFile.readBytes()
-            val text = bytes.decodeToString()
-            val matcher = emailPattern.matcher(text)
-            while (matcher.find()) {
-                val match = matcher.group(0).trim().lowercase()
-                if (!match.contains("example.com") && !match.contains("schema") && match.endsWith("@gmail.com")) {
-                    return match
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return null
+    private const val USER_STATUS_STATE_KEY = "antigravityUnifiedStateSync.userStatus"
+    private const val MILLIS_PER_SECOND = 1_000L
+    private const val EPOCH_MILLIS_THRESHOLD = 10_000_000_000L
+    private const val MAX_LOG_TAIL_BYTES = 256 * 1024L
+
+    private fun isMacOs(): Boolean {
+        return System.getProperty("os.name", "").lowercase().contains("mac")
     }
 }
-

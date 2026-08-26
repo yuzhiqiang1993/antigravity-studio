@@ -53,11 +53,25 @@ class HostLifecycleDelegate(
             isIdeInstalledFlow.value = ideStatus.isInstalled
             isIdeRunningFlow.value = ideStatus.isRunning
 
+            if (ideStatus.isRunning) {
+                com.yuzhiqiang.antigravity.services.events.HostProcessWatcher.trackPids(
+                    "Antigravity IDE",
+                    IdeHostManager.findPids(hostPaths["ide"])
+                )
+            }
+
             val appStatus = AppHostManager.inspect(actualPort, isProxyRunning, hostPaths["app"])
             appDetailedStatusFlow.value = appStatus
             isAppHostActiveFlow.value = appStatus.isProxyActive
             isAppInstalledFlow.value = appStatus.isInstalled
             isAppRunningFlow.value = appStatus.isRunning
+
+            if (appStatus.isRunning) {
+                com.yuzhiqiang.antigravity.services.events.HostProcessWatcher.trackPids(
+                    "Antigravity App",
+                    AppHostManager.findPids(hostPaths["app"])
+                )
+            }
 
             val cliStatus = CliHostManager.inspect(actualPort, isProxyRunning, hostPaths["cli"])
             cliDetailedStatusFlow.value = cliStatus
@@ -127,7 +141,7 @@ class HostLifecycleDelegate(
             operatingHostKeys.value = operatingHostKeys.value + "ide"
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["ide"]
-                val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning()
+                val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning(customInstallation)
                 val operationSucceeded = IdeHostManager.enable(actualPort)
                 val restartSucceeded = if (isCurrentlyRunning) IdeHostManager.restart(customInstallation) else true
                 val newStatus = IdeHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
@@ -157,7 +171,7 @@ class HostLifecycleDelegate(
             operatingHostKeys.value = operatingHostKeys.value + "ide"
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["ide"]
-                val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning()
+                val isCurrentlyRunning = wasRunning || IdeHostManager.isRunning(customInstallation)
                 val operationSucceeded = IdeHostManager.disable(actualPort)
                 val restartSucceeded = if (isCurrentlyRunning) IdeHostManager.restart(customInstallation) else true
                 val newStatus = IdeHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
@@ -244,7 +258,7 @@ class HostLifecycleDelegate(
             operatingHostKeys.value = operatingHostKeys.value + "app"
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["app"]
-                val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
+                val isCurrentlyRunning = wasRunning || AppHostManager.isRunning(customInstallation)
                 val operationSucceeded = AppHostManager.enable(actualPort, customInstallation)
                 val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation, actualPort) else true
                 val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
@@ -273,7 +287,7 @@ class HostLifecycleDelegate(
             operatingHostKeys.value = operatingHostKeys.value + "app"
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["app"]
-                val isCurrentlyRunning = wasRunning || AppHostManager.isRunning()
+                val isCurrentlyRunning = wasRunning || AppHostManager.isRunning(customInstallation)
                 val operationSucceeded = AppHostManager.disable(customInstallation)
                 val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation, null) else true
                 val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
@@ -398,8 +412,8 @@ class HostLifecycleDelegate(
             try {
                 when (hostKey) {
                     "ide" -> {
-                        val isRunning = IdeHostManager.isRunning()
                         val customPath = configStore.currentConfig.customHostPaths["ide"]
+                        val isRunning = IdeHostManager.isRunning(customPath)
                         IdeHostManager.forceReset()
                         if (isRunning) {
                             IdeHostManager.restart(customPath)
@@ -407,8 +421,8 @@ class HostLifecycleDelegate(
                         showNotice(s.hostForceResetSuccess(s.hostIdeTitle), NoticeKind.SUCCESS)
                     }
                     "app" -> {
-                        val isRunning = AppHostManager.isRunning()
                         val customPath = configStore.currentConfig.customHostPaths["app"]
+                        val isRunning = AppHostManager.isRunning(customPath)
                         AppHostManager.forceReset(customPath)
                         if (isRunning) {
                             AppHostManager.restart(customPath, null)
@@ -450,13 +464,15 @@ class HostLifecycleDelegate(
             showNotice(s.hostLaunchProxyNotRunning(s.hostIdeTitle), NoticeKind.ERROR)
             return
         }
-        val ok = IdeHostManager.launch(configStore.currentConfig.customHostPaths["ide"])
-        if (ok) {
-            showNotice(s.hostLaunchSuccess(s.hostIdeTitle), NoticeKind.SUCCESS)
-        } else {
-            showNotice(s.hostLaunchFailed(s.hostIdeTitle), NoticeKind.ERROR)
+        scope.launch(Dispatchers.IO) {
+            val ok = IdeHostManager.launch(configStore.currentConfig.customHostPaths["ide"])
+            if (ok) {
+                showNotice(s.hostLaunchSuccess(s.hostIdeTitle), NoticeKind.SUCCESS)
+            } else {
+                showNotice(s.hostLaunchFailed(s.hostIdeTitle), NoticeKind.ERROR)
+            }
+            refreshHostStatus(actualPort)
         }
-        refreshHostStatus(actualPort)
     }
 
     fun restartApp(actualPort: Int) {
@@ -482,13 +498,14 @@ class HostLifecycleDelegate(
             showNotice(s.hostLaunchProxyNotRunning(s.hostAppTitle), NoticeKind.ERROR)
             return
         }
-        val ok = AppHostManager.launch(configStore.currentConfig.customHostPaths["app"], actualPort)
-        if (ok) {
-            showNotice(s.hostLaunchSuccess(s.hostAppTitle), NoticeKind.SUCCESS)
-        } else {
-            showNotice(s.hostLaunchFailed(s.hostAppTitle), NoticeKind.ERROR)
+        scope.launch(Dispatchers.IO) {
+            val ok = AppHostManager.launch(configStore.currentConfig.customHostPaths["app"], actualPort)
+            if (ok) {
+                showNotice(s.hostLaunchSuccess(s.hostAppTitle), NoticeKind.SUCCESS)
+            } else {
+                showNotice(s.hostLaunchFailed(s.hostAppTitle), NoticeKind.ERROR)
+            }
+            refreshHostStatus(actualPort)
         }
-        refreshHostStatus(actualPort)
     }
 }
-

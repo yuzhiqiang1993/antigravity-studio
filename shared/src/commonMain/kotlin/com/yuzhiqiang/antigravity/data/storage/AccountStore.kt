@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -33,11 +34,24 @@ data class AccountStoreData(
 
 /**
  * 账号与凭据持久化存储器。
- * 支持多账号安全持久化存储，并双向兼容官方 `oauth_credentials.json`。
+ * 支持多账号安全持久化存储，并双向兼容官方 OAuth 凭据文件。
  */
 class AccountStore(
     private val customRootDir: File? = null
 ) {
+    /**
+     * 官方 OAuth 凭据文件在切换前的物理快照。
+     *
+     * @property file 快照对应的官方凭据文件
+     * @property existed 捕获快照时文件是否存在
+     * @property originalBytes 捕获到的原始字节
+     */
+    internal data class OfficialCredentialsSnapshot(
+        val file: File,
+        val existed: Boolean,
+        val originalBytes: ByteArray
+    )
+
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
@@ -74,7 +88,7 @@ class AccountStore(
 
     /**
      * 加载本地账号列表。
-     * 若 accounts.v1.json 不存在但系统已有官方 oauth_credentials.json，自动导入为初始激活账号。
+     * 若 accounts.v1.json 不存在但系统已有官方 OAuth 凭据，自动导入为初始激活账号。
      */
     fun loadAccounts(): Result<List<AccountInfo>> {
         try {
@@ -143,9 +157,6 @@ class AccountStore(
             _accountsState.value = finalAccounts
             _activeAccountState.value = active
 
-            if (makeActive) {
-                syncToOfficialCredentials(updatedAccount)
-            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -170,7 +181,6 @@ class AccountStore(
             _accountsState.value = updatedAccounts
             _activeAccountState.value = active
 
-            syncToOfficialCredentials(active)
             Result.success(active)
         } catch (e: Exception) {
             Result.failure(e)
@@ -200,9 +210,6 @@ class AccountStore(
             _accountsState.value = updatedAccounts
             _activeAccountState.value = newActive
 
-            if (newActive != null && wasActiveRemoved) {
-                syncToOfficialCredentials(newActive)
-            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -244,7 +251,6 @@ class AccountStore(
             _accountsState.value = current
             if (updatedAccount.isActive) {
                 _activeAccountState.value = updatedAccount
-                syncToOfficialCredentials(updatedAccount)
             }
             Result.success(Unit)
         } catch (e: Exception) {
@@ -374,7 +380,7 @@ class AccountStore(
     }
 
     /**
-     * 尝试从官方 `~/.gemini/antigravity-ide/oauth_credentials.json` 导入激活凭据
+     * 尝试从官方 OAuth 凭据文件导入激活账号。
      */
     fun importOfficialCredentials(): AccountInfo? {
         val file = officialCredentialsFile()
@@ -388,9 +394,9 @@ class AccountStore(
                 ?: element["user_email"]?.jsonPrimitive?.contentOrNull
                 ?: "default-user@antigravity"
             val name = element["name"]?.jsonPrimitive?.contentOrNull
-            val expiryTimestamp = element["expiry_date"]?.jsonPrimitive?.longOrNull
-                ?: element["expiry_timestamp"]?.jsonPrimitive?.longOrNull
-                ?: (System.currentTimeMillis() / 1000L + 3600L)
+            val expiryTimestamp = resolveExpiryTimestamp(element)
+            val tokenType = element["token_type"]?.jsonPrimitive?.contentOrNull ?: "Bearer"
+            val idToken = element["id_token"]?.jsonPrimitive?.contentOrNull
 
             AccountInfo(
                 id = "acc_${email.hashCode().toUInt().toString(16)}",
@@ -401,7 +407,9 @@ class AccountStore(
                 tokens = OAuthTokens(
                     accessToken = accessToken,
                     refreshToken = refreshToken,
-                    expiryTimestamp = expiryTimestamp
+                    expiryTimestamp = expiryTimestamp,
+                    tokenType = tokenType,
+                    idToken = idToken
                 ),
                 isActive = true,
                 status = AccountStatus.ACTIVE
@@ -412,31 +420,83 @@ class AccountStore(
     }
 
     /**
-     * 同步当前激活账号至官方 `oauth_credentials.json`
+     * 同步当前激活账号至官方 OAuth 凭据文件。
      */
     fun syncToOfficialCredentials(account: AccountInfo): Boolean {
         return try {
             val file = officialCredentialsFile()
-            val parent = file.parentFile
-            if (parent != null && !parent.exists()) {
-                parent.mkdirs()
+            val fields = readOfficialCredentialFields(file)
+            val expiryTimestamp = normalizeEpochSeconds(account.tokens.expiryTimestamp)
+
+            fields["access_token"] = JsonPrimitive(account.tokens.accessToken)
+            fields["refresh_token"] = JsonPrimitive(account.tokens.refreshToken)
+            fields["email"] = JsonPrimitive(account.email)
+            fields["name"] = JsonPrimitive(account.profile.name ?: "")
+            fields["expiry_timestamp"] = JsonPrimitive(expiryTimestamp)
+            fields["expiry_date"] = JsonPrimitive(expiryTimestamp * MILLIS_PER_SECOND)
+            fields["token_type"] = JsonPrimitive(account.tokens.tokenType)
+            if ("user_email" in fields) {
+                fields["user_email"] = JsonPrimitive(account.email)
             }
-            val content = json.encodeToString(
-                JsonObject.serializer(),
-                JsonObject(
-                    mapOf(
-                        "access_token" to kotlinx.serialization.json.JsonPrimitive(account.tokens.accessToken),
-                        "refresh_token" to kotlinx.serialization.json.JsonPrimitive(account.tokens.refreshToken),
-                        "email" to kotlinx.serialization.json.JsonPrimitive(account.email),
-                        "name" to kotlinx.serialization.json.JsonPrimitive(account.profile.name ?: ""),
-                        "expiry_timestamp" to kotlinx.serialization.json.JsonPrimitive(account.tokens.expiryTimestamp),
-                        "expiry_date" to kotlinx.serialization.json.JsonPrimitive(account.tokens.expiryTimestamp),
-                        "token_type" to kotlinx.serialization.json.JsonPrimitive(account.tokens.tokenType)
-                    )
-                )
-            )
+            if ("antigravity_cockpit_active_email" in fields) {
+                fields["antigravity_cockpit_active_email"] = JsonPrimitive(account.email)
+            }
+
+            val idToken = account.tokens.idToken?.takeIf { it.isNotBlank() }
+            if (idToken != null) {
+                fields["id_token"] = JsonPrimitive(idToken)
+            } else {
+                fields.remove("id_token")
+            }
+
+            val content = json.encodeToString(JsonObject.serializer(), JsonObject(fields))
             writeTextAtomically(file, content)
             true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 捕获官方 OAuth 凭据文件的原始字节，供切换失败时回滚。
+     */
+    internal fun captureOfficialCredentialsSnapshot(): Result<OfficialCredentialsSnapshot> {
+        val file = officialCredentialsFile()
+        return try {
+            val existed = file.exists()
+            val originalBytes = if (existed) {
+                file.readBytes()
+            } else {
+                byteArrayOf()
+            }
+            Result.success(
+                OfficialCredentialsSnapshot(
+                    file = file,
+                    existed = existed,
+                    originalBytes = originalBytes
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 恢复官方 OAuth 凭据文件快照。
+     */
+    internal fun restoreOfficialCredentialsSnapshot(snapshot: OfficialCredentialsSnapshot): Boolean {
+        return try {
+            val officialFile = officialCredentialsFile()
+            if (snapshot.file.canonicalFile != officialFile.canonicalFile) {
+                return false
+            }
+
+            if (snapshot.existed) {
+                writeBytesAtomically(officialFile, snapshot.originalBytes)
+                true
+            } else {
+                !officialFile.exists() || (officialFile.isFile && officialFile.delete())
+            }
         } catch (_: Exception) {
             false
         }
@@ -452,11 +512,43 @@ class AccountStore(
             return File(customDataDir, "oauth_credentials.json")
         }
         val userHome = System.getProperty("user.home")
-        return File(userHome, ".gemini/antigravity-ide/oauth_credentials.json")
+        return File(userHome, ".gemini/oauth_creds.json")
+    }
+
+    private fun resolveExpiryTimestamp(element: JsonObject): Long {
+        val rawTimestamp = element["expiry_timestamp"]?.jsonPrimitive?.longOrNull
+            ?: element["expiry_date"]?.jsonPrimitive?.longOrNull
+            ?: (System.currentTimeMillis() / MILLIS_PER_SECOND + DEFAULT_TOKEN_LIFETIME_SECONDS)
+        return normalizeEpochSeconds(rawTimestamp)
+    }
+
+    private fun normalizeEpochSeconds(timestamp: Long): Long {
+        return if (timestamp >= EPOCH_MILLIS_THRESHOLD) {
+            timestamp / MILLIS_PER_SECOND
+        } else {
+            timestamp
+        }
+    }
+
+    private fun readOfficialCredentialFields(file: File): MutableMap<String, JsonElement> {
+        if (!file.exists()) {
+            return mutableMapOf()
+        }
+
+        return try {
+            val existing = json.parseToJsonElement(file.readText(Charsets.UTF_8)) as? JsonObject
+            existing?.toMutableMap() ?: mutableMapOf()
+        } catch (_: Exception) {
+            mutableMapOf()
+        }
     }
 
 
     companion object {
+        private const val MILLIS_PER_SECOND = 1_000L
+        private const val EPOCH_MILLIS_THRESHOLD = 10_000_000_000L
+        private const val DEFAULT_TOKEN_LIFETIME_SECONDS = 3_600L
+
         fun resolveDefaultRootDir(): File {
             val studioHome = System.getenv("ANTIGRAVITY_STUDIO_HOME")
             if (!studioHome.isNullOrBlank()) {
@@ -484,13 +576,17 @@ class AccountStore(
     }
 
     private fun writeTextAtomically(file: File, content: String) {
+        writeBytesAtomically(file, content.toByteArray(Charsets.UTF_8))
+    }
+
+    private fun writeBytesAtomically(file: File, content: ByteArray) {
         val parent = file.parentFile
         if (parent != null && !parent.exists()) {
             parent.mkdirs()
         }
         val temp = File.createTempFile("${file.name}-", ".tmp", parent)
         try {
-            temp.writeText(content, Charsets.UTF_8)
+            temp.writeBytes(content)
             val moved = try {
                 try {
                     Files.move(temp.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
@@ -502,7 +598,7 @@ class AccountStore(
                 false
             }
             if (!moved) {
-                file.writeText(content, Charsets.UTF_8)
+                file.writeBytes(content)
             }
         } finally {
             if (temp.exists()) {

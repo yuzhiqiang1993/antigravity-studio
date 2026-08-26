@@ -7,6 +7,7 @@ import com.yuzhiqiang.antigravity.doctor.engine.DoctorEngine
 import com.yuzhiqiang.antigravity.doctor.model.DoctorReport
 import com.yuzhiqiang.antigravity.doctor.model.DoctorFixAction
 import com.yuzhiqiang.antigravity.domain.model.*
+import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.network.ConnectionTester
@@ -38,9 +39,9 @@ import com.yuzhiqiang.antigravity.services.auth.HostAccountDetector
 import com.yuzhiqiang.antigravity.services.auth.HotSwitchCoordinator
 import com.yuzhiqiang.antigravity.services.auth.SmartSwitchCoordinator
 import kotlinx.coroutines.isActive
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AppViewModel(
-
 
 
     val configStore: ConfigStore = ConfigStore(),
@@ -56,8 +57,13 @@ class AppViewModel(
 ) : ViewModel() {
 
 
-    val hotSwitchCoordinator = HotSwitchCoordinator(accountStore)
-    val smartSwitchCoordinator = SmartSwitchCoordinator(accountStore, configStore, hotSwitchCoordinator) { quotaPoller.quotaSnapshots.value }
+    val hotSwitchCoordinator = HotSwitchCoordinator(
+        accountStore = accountStore,
+        customHostPathsProvider = { configStore.currentConfig.customHostPaths },
+        proxyPortProvider = { actualProxyPort.value }
+    )
+    val smartSwitchCoordinator =
+        SmartSwitchCoordinator(accountStore, configStore, hotSwitchCoordinator) { quotaPoller.quotaSnapshots.value }
     val tokenRenewalManager = TokenRenewalManager(accountStore, googleAuthService, viewModelScope)
     val quotaPoller = QuotaPoller(quotaFetchService, viewModelScope) { snapshot ->
         val acc = accountStore.currentAccounts().firstOrNull { it.id == snapshot.accountId }
@@ -70,9 +76,6 @@ class AppViewModel(
     }
 
 
-
-
-
     val config: StateFlow<AppConfig> = configStore.configState
     val configLoadError: StateFlow<String?> = configStore.loadError
     val isProxyRunning: StateFlow<Boolean> = proxyServer.isRunning
@@ -82,6 +85,9 @@ class AppViewModel(
     val accounts: StateFlow<List<AccountInfo>> = accountStore.accountsState
     val activeAccount: StateFlow<AccountInfo?> = accountStore.activeAccountState
 
+    private val _appActiveEmail = MutableStateFlow<String?>(null)
+    val appActiveEmail: StateFlow<String?> = _appActiveEmail.asStateFlow()
+
     private val _cliActiveEmail = MutableStateFlow<String?>(null)
     val cliActiveEmail: StateFlow<String?> = _cliActiveEmail.asStateFlow()
 
@@ -90,7 +96,9 @@ class AppViewModel(
 
     val cliActiveAccount: StateFlow<AccountInfo?> = accountStore.activeAccountState
     val ideActiveAccount: StateFlow<AccountInfo?> = hotSwitchCoordinator.ideActiveAccount
-
+    private val accountSwitchRequestActive = AtomicBoolean(false)
+    private val _isAccountSwitching = MutableStateFlow(false)
+    val isAccountSwitching: StateFlow<Boolean> = _isAccountSwitching.asStateFlow()
 
 
     val accountQuotas: StateFlow<Map<String, AccountQuotaSnapshot>> get() = quotaPoller.quotaSnapshots
@@ -172,7 +180,8 @@ class AppViewModel(
             configurationState = com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
         )
     )
-    val ideDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> = _ideDetailedStatus.asStateFlow()
+    val ideDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> =
+        _ideDetailedStatus.asStateFlow()
 
     private val _appDetailedStatus = MutableStateFlow(
         com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
@@ -183,7 +192,8 @@ class AppViewModel(
             configurationState = com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
         )
     )
-    val appDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> = _appDetailedStatus.asStateFlow()
+    val appDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> =
+        _appDetailedStatus.asStateFlow()
 
     private val _cliDetailedStatus = MutableStateFlow(
         com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
@@ -194,7 +204,8 @@ class AppViewModel(
             configurationState = com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
         )
     )
-    val cliDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> = _cliDetailedStatus.asStateFlow()
+    val cliDetailedStatus: StateFlow<com.yuzhiqiang.antigravity.host.model.HostDetailedStatus> =
+        _cliDetailedStatus.asStateFlow()
 
     private val _isTestingConnection = MutableStateFlow(false)
     val isTestingConnection: StateFlow<Boolean> = _isTestingConnection.asStateFlow()
@@ -226,7 +237,7 @@ class AppViewModel(
 
     private val _providerTestingIds = MutableStateFlow<Set<String>>(emptySet())
     val providerTestingIds: StateFlow<Set<String>> = _providerTestingIds.asStateFlow()
-    
+
     private val hostDelegate = HostLifecycleDelegate(
         scope = viewModelScope,
         configStore = configStore,
@@ -249,7 +260,9 @@ class AppViewModel(
     val operatingHostKeys: StateFlow<Set<String>> = hostDelegate.operatingHostKeys
     private val _isSidebarCollapsed = MutableStateFlow(false)
     val isSidebarCollapsed: StateFlow<Boolean> = _isSidebarCollapsed.asStateFlow()
-    fun toggleSidebar() { _isSidebarCollapsed.value = !_isSidebarCollapsed.value }
+    fun toggleSidebar() {
+        _isSidebarCollapsed.value = !_isSidebarCollapsed.value
+    }
 
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
@@ -284,6 +297,27 @@ class AppViewModel(
         val initialLang = AppLanguage.fromCode(configStore.currentConfig.language)
         I18nManager.currentLanguage = initialLang
 
+        // 启动底层文件与进程生命周期异步监听器
+        com.yuzhiqiang.antigravity.services.events.HostFileWatcher.start()
+        com.yuzhiqiang.antigravity.services.events.HostProcessWatcher.start()
+
+        // 订阅全局跨进程被动事件流
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            com.yuzhiqiang.antigravity.services.events.HostEventHub.events.collect { event ->
+                when (event) {
+                    is com.yuzhiqiang.antigravity.services.events.HostEvent.FileModified -> {
+                        syncHostAccounts()
+                    }
+
+                    is com.yuzhiqiang.antigravity.services.events.HostEvent.ProcessExited -> {
+                        refreshHostStatus()
+                    }
+
+                    else -> Unit
+                }
+            }
+        }
+
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             startHostAccountDetectionLoop()
             tokenRenewalManager.start()
@@ -304,9 +338,18 @@ class AppViewModel(
     fun syncHostAccounts(): Job {
         return viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val cliProfile = HostAccountDetector.detectCliAppProfile()
+                val knownAccounts = accountStore.currentAccounts()
+                val cliProfile = HostAccountDetector.detectCliAppProfile(
+                    knownAccounts = knownAccounts
+                )
+                val appProfile = HostAccountDetector.detectAppActiveProfile(
+                    knownAccounts = knownAccounts
+                )
                 val ideProfile = HostAccountDetector.detectIdeActiveProfile()
+                val appIsRunning = AppHostManager.isRunning(configStore.currentConfig.customHostPaths["app"])
 
+                // App 与 CLI 是两个独立状态源：App 运行中只接受 language_server RPC，CLI 只接受 CLI 凭据/日志。
+                _appActiveEmail.value = if (appIsRunning) appProfile?.email else null
                 _cliActiveEmail.value = cliProfile?.email
                 _ideActiveEmail.value = ideProfile?.email
 
@@ -368,27 +411,47 @@ class AppViewModel(
                     }
                 }
 
-                // 2. 自动同步 App/CLI 宿主账号至 Studio 账号列表
-                if (cliProfile != null && cliProfile.email.isNotBlank()) {
+                // 2. 自动同步 App 与 CLI 宿主账号至 Studio 账号列表；两端账号不同也不能互相覆盖。
+                val appCliProfiles = buildList {
+                    appProfile?.let { profile ->
+                        add(
+                            HostAccountDetector.CliAppAccountProfile(
+                                email = profile.email,
+                                name = profile.name
+                            )
+                        )
+                    }
+                    cliProfile?.let { profile ->
+                        if (appProfile?.email?.equals(profile.email, ignoreCase = true) != true) {
+                            add(profile)
+                        }
+                    }
+                }
+                for (appCliProfile in appCliProfiles) {
+                    if (appCliProfile.email.isBlank()) continue
+
                     val currentList = accountStore.currentAccounts()
-                    val existing = currentList.firstOrNull { it.email.equals(cliProfile.email, ignoreCase = true) }
+                    val existing = currentList.firstOrNull {
+                        it.email.equals(appCliProfile.email, ignoreCase = true)
+                    }
                     val rt = existing?.tokens?.refreshToken?.takeIf { it.isNotBlank() }
-                        ?: HostAccountDetector.findAvailableRefreshToken(cliProfile.email)
+                        ?: HostAccountDetector.findAvailableRefreshToken(appCliProfile.email)
                         ?: ""
 
                     if (existing == null) {
                         val newAccount = AccountInfo(
-                            id = "acc_${cliProfile.email.hashCode().toUInt().toString(16)}",
+                            id = "acc_${appCliProfile.email.hashCode().toUInt().toString(16)}",
                             profile = AccountProfile(
-                                email = cliProfile.email,
-                                name = cliProfile.name,
+                                email = appCliProfile.email,
+                                name = appCliProfile.name,
                                 avatarUrl = null,
                                 tier = AccountTier.PRO
                             ),
                             tokens = OAuthTokens(
                                 accessToken = "",
                                 refreshToken = rt,
-                                expiryTimestamp = cliProfile.expiryTimestamp ?: (System.currentTimeMillis() / 1000L + 3600L)
+                                expiryTimestamp = appCliProfile.expiryTimestamp
+                                    ?: (System.currentTimeMillis() / 1000L + 3600L)
                             ),
                             isActive = true,
                             status = AccountStatus.ACTIVE
@@ -399,11 +462,11 @@ class AppViewModel(
                         }
                     } else {
                         val needsUpdate = (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) ||
-                                (existing.profile.name != cliProfile.name && cliProfile.name != null)
+                                (existing.profile.name != appCliProfile.name && appCliProfile.name != null)
                         if (needsUpdate) {
                             val updated = existing.copy(
                                 profile = existing.profile.copy(
-                                    name = cliProfile.name ?: existing.profile.name
+                                    name = appCliProfile.name ?: existing.profile.name
                                 ),
                                 tokens = if (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) {
                                     existing.tokens.copy(refreshToken = rt)
@@ -426,13 +489,14 @@ class AppViewModel(
             while (this.isActive) {
                 try {
                     syncHostAccounts().join()
+                    refreshHostStatus()
                 } catch (_: Exception) {
                 }
-                kotlinx.coroutines.delay(3000)
+                // 启动事件无法跨平台可靠订阅，保留 10 秒心跳补齐外部启动发现。
+                kotlinx.coroutines.delay(10000)
             }
         }
     }
-
 
 
     fun fetchOfficialModels(): Job {
@@ -587,6 +651,7 @@ class AppViewModel(
             hostDelegate.launchIde(actualProxyPort.value)
         }
     }
+
     fun restartIde() = hostDelegate.restartIde(actualProxyPort.value)
     fun launchIde() = hostDelegate.launchIde(actualProxyPort.value)
 
@@ -614,6 +679,7 @@ class AppViewModel(
             hostDelegate.launchApp(actualProxyPort.value)
         }
     }
+
     fun restartApp() = hostDelegate.restartApp(actualProxyPort.value)
     fun launchApp() = hostDelegate.launchApp(actualProxyPort.value)
 
@@ -673,7 +739,10 @@ class AppViewModel(
             configStore.updateConfig { current ->
                 val updatedProviders = current.providers.filterNot { it.id == provider.id } + provider
                 val removedUpstreams = current.upstreamModels
-                    .filter { it.providerId == provider.id && it.id !in syncResult.upstreamModels.map(UpstreamModel::id).toSet() }
+                    .filter {
+                        it.providerId == provider.id && it.id !in syncResult.upstreamModels.map(UpstreamModel::id)
+                            .toSet()
+                    }
                 val removedVirtualModels = current.virtualModels.filter { previous ->
                     previous.upstreamModelId in removedUpstreams.map { it.id }.toSet() &&
                             previous.id !in syncResult.virtualModels.map { it.id }.toSet()
@@ -914,7 +983,8 @@ class AppViewModel(
                 // 同步更新 UpstreamModel 实体内部的 compressionPolicy 字段，确保双向一致
                 updatedUpstreams = current.upstreamModels.map { upstream ->
                     val isDirectMatch = upstream.id == modelId || upstream.upstreamModelId == modelId
-                    val isVirtualMatch = current.virtualModels.any { it.id == modelId && it.upstreamModelId == upstream.id }
+                    val isVirtualMatch =
+                        current.virtualModels.any { it.id == modelId && it.upstreamModelId == upstream.id }
                     if (isDirectMatch || isVirtualMatch) {
                         upstream.copy(compressionPolicy = policy)
                     } else {
@@ -960,7 +1030,10 @@ class AppViewModel(
                     error = result.error ?: "HTTP ${result.statusCode}"
                 )
                 showNotice(
-                    s.modelsModelTestFailed(model.displayName ?: model.upstreamModelId, result.error ?: result.statusCode.toString()),
+                    s.modelsModelTestFailed(
+                        model.displayName ?: model.upstreamModelId,
+                        result.error ?: result.statusCode.toString()
+                    ),
                     NoticeKind.ERROR
                 )
             }
@@ -1052,7 +1125,10 @@ class AppViewModel(
                 if (result.isSuccess) {
                     showNotice(s.settingsPortUpdated(result.getOrThrow()), NoticeKind.SUCCESS)
                 } else {
-                    showNotice(s.settingsPortRestartFailed(result.exceptionOrNull()?.message ?: s.commonUnknown), NoticeKind.ERROR)
+                    showNotice(
+                        s.settingsPortRestartFailed(result.exceptionOrNull()?.message ?: s.commonUnknown),
+                        NoticeKind.ERROR
+                    )
                 }
             } catch (error: Exception) {
                 showNotice(s.settingsPortUpdateFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
@@ -1076,7 +1152,8 @@ class AppViewModel(
                             isManual = isManual
                         )
                         _activeRelease.value = release
-                        val isIgnored = configStore.currentConfig.ignoredVersion.equals(release.cleanVersion, ignoreCase = true)
+                        val isIgnored =
+                            configStore.currentConfig.ignoredVersion.equals(release.cleanVersion, ignoreCase = true)
                         if (isManual || !isIgnored) {
                             _showUpdateDialog.value = true
                         }
@@ -1132,24 +1209,26 @@ class AppViewModel(
                 speedBytesPerSec = 0L
             )
             try {
-                com.yuzhiqiang.antigravity.update.engine.AppUpdateDownloader.download(downloadUrl, targetFile).collect { progress ->
-                    when (progress) {
-                        is com.yuzhiqiang.antigravity.update.engine.DownloadProgress.Progress -> {
-                            _downloadState.value = AppUpdateDownloadState.Downloading(
-                                bytesDownloaded = progress.bytesDownloaded,
-                                totalBytes = progress.totalBytes,
-                                progressRatio = progress.progressRatio,
-                                speedBytesPerSec = progress.speedBytesPerSec
-                            )
-                        }
-                        is com.yuzhiqiang.antigravity.update.engine.DownloadProgress.Completed -> {
-                            _downloadState.value = AppUpdateDownloadState.Completed(progress.targetFile)
-                            showNotice(s.updateDownloadCompleted, NoticeKind.SUCCESS)
-                            // 下载完成自动预览挂载/打开，不强杀当前进程
-                            installUpdate(progress.targetFile, exitCurrentApp = false)
+                com.yuzhiqiang.antigravity.update.engine.AppUpdateDownloader.download(downloadUrl, targetFile)
+                    .collect { progress ->
+                        when (progress) {
+                            is com.yuzhiqiang.antigravity.update.engine.DownloadProgress.Progress -> {
+                                _downloadState.value = AppUpdateDownloadState.Downloading(
+                                    bytesDownloaded = progress.bytesDownloaded,
+                                    totalBytes = progress.totalBytes,
+                                    progressRatio = progress.progressRatio,
+                                    speedBytesPerSec = progress.speedBytesPerSec
+                                )
+                            }
+
+                            is com.yuzhiqiang.antigravity.update.engine.DownloadProgress.Completed -> {
+                                _downloadState.value = AppUpdateDownloadState.Completed(progress.targetFile)
+                                showNotice(s.updateDownloadCompleted, NoticeKind.SUCCESS)
+                                // 下载完成自动预览挂载/打开，不强杀当前进程
+                                installUpdate(progress.targetFile, exitCurrentApp = false)
+                            }
                         }
                     }
-                }
             } catch (ce: kotlinx.coroutines.CancellationException) {
                 _downloadState.value = AppUpdateDownloadState.Idle
             } catch (e: Exception) {
@@ -1311,25 +1390,88 @@ class AppViewModel(
         }
     }
 
+    fun switchAccount(
+        targetAccount: AccountInfo,
+        applyToIde: Boolean = true,
+        applyToAppCli: Boolean = true,
+        restartIde: Boolean = true,
+        restartApp: Boolean = true
+    ) {
+        if (!accountSwitchRequestActive.compareAndSet(false, true)) {
+            showNotice("已有账号切换任务正在执行，请稍后再试", NoticeKind.WARNING)
+            return
+        }
+        _isAccountSwitching.value = true
+
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val result = hotSwitchCoordinator.switchAccountWithRestart(
+                    targetAccount = targetAccount,
+                    applyToIde = applyToIde,
+                    applyToAppCli = applyToAppCli,
+                    restartIde = restartIde,
+                    restartApp = restartApp
+                )
+                result.fold(
+                    onSuccess = { report ->
+                        syncHostAccounts().join()
+                        refreshHostStatus()
+
+                        val statuses = listOfNotNull(
+                            formatSwitchTarget("IDE", report.ide),
+                            formatSwitchTarget("App", report.app),
+                            formatSwitchTarget("CLI", report.cli)
+                        )
+                        val summary = statuses.joinToString("，")
+                        val noticeKind = when (report.overallStatus) {
+                            HotSwitchCoordinator.OverallStatus.SUCCESS -> NoticeKind.SUCCESS
+                            HotSwitchCoordinator.OverallStatus.WARNING -> NoticeKind.WARNING
+                            HotSwitchCoordinator.OverallStatus.ERROR -> NoticeKind.ERROR
+                        }
+                        showNotice("账号切换结果：$summary", noticeKind)
+                        if (report.overallStatus == HotSwitchCoordinator.OverallStatus.SUCCESS) {
+                            quotaPoller.refreshSingle(targetAccount, true)
+                        }
+                    },
+                    onFailure = { error ->
+                        syncHostAccounts().join()
+                        refreshHostStatus()
+                        showNotice("切换账号失败: ${error.message ?: "未知错误"}", NoticeKind.ERROR)
+                    }
+                )
+            } finally {
+                _isAccountSwitching.value = false
+                accountSwitchRequestActive.set(false)
+            }
+        }
+    }
+
+    private fun formatSwitchTarget(
+        label: String,
+        result: HotSwitchCoordinator.TargetResult
+    ): String? {
+        return when (result.status) {
+            HotSwitchCoordinator.TargetStatus.NOT_REQUESTED -> null
+            HotSwitchCoordinator.TargetStatus.NOT_AVAILABLE -> result.message ?: "$label 当前不可用"
+            HotSwitchCoordinator.TargetStatus.CONFIGURED -> result.message ?: "$label 已配置，待运行态确认"
+            HotSwitchCoordinator.TargetStatus.CONFIRMED -> "$label 已确认"
+            HotSwitchCoordinator.TargetStatus.PENDING_RESTART -> "$label 待用户确认重启"
+            HotSwitchCoordinator.TargetStatus.FAILED -> result.message ?: "$label 未确认生效"
+        }
+    }
+
     fun setActiveAccount(idOrEmail: String) {
-        val target = accountStore.currentAccounts().firstOrNull { it.id == idOrEmail || it.email.equals(idOrEmail, ignoreCase = true) }
+        val target = accountStore.currentAccounts()
+            .firstOrNull { it.id == idOrEmail || it.email.equals(idOrEmail, ignoreCase = true) }
         if (target == null) {
             showNotice("未找到账号: $idOrEmail", NoticeKind.ERROR)
             return
         }
-
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val result = hotSwitchCoordinator.switchAccount(target)
-            result.fold(
-                onSuccess = {
-                    showNotice("已无感切换至账号: ${target.email}", NoticeKind.SUCCESS)
-                    quotaPoller.refreshSingle(target, true)
-                },
-                onFailure = { error ->
-                    showNotice("切换账号失败: ${error.message ?: "未知错误"}", NoticeKind.ERROR)
-                }
-            )
-        }
+        switchAccount(
+            target,
+            restartIde = isIdeRunning.value,
+            restartApp = isAppRunning.value
+        )
     }
 
     fun updateSmartSwitchConfig(smartSwitchConfig: SmartSwitchConfig) {
@@ -1462,6 +1604,3 @@ class AppViewModel(
         super.onCleared()
     }
 }
-
-
-

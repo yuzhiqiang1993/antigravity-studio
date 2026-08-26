@@ -23,7 +23,8 @@ class SmartSwitchCoordinator(
     data class SmartSwitchOutcome(
         val triggered: Boolean,
         val targetAccount: AccountInfo? = null,
-        val reason: String? = null
+        val reason: String? = null,
+        val requiresUserAction: Boolean = false
     )
 
     /**
@@ -57,13 +58,8 @@ class SmartSwitchCoordinator(
         val candidate = selectBestCandidate(accounts, config.strategy, failedModelId)
             ?: return SmartSwitchOutcome(triggered = false, reason = "未找到满足配额要求的备用账号")
 
-        val switchResult = hotSwitchCoordinator.switchAccount(candidate)
-        return if (switchResult.isSuccess) {
-            lastAutoSwitchTime = now
-            SmartSwitchOutcome(triggered = true, targetAccount = candidate, reason = "遭遇 429，已自动切号至 ${candidate.email}")
-        } else {
-            SmartSwitchOutcome(triggered = false, reason = switchResult.exceptionOrNull()?.message ?: "切号执行失败")
-        }
+        lastAutoSwitchTime = now
+        return buildConfirmationOutcome(candidate, "遭遇 429")
     }
 
     /**
@@ -101,13 +97,25 @@ class SmartSwitchCoordinator(
         val candidate = selectBestCandidate(candidates, config.strategy, null)
             ?: return SmartSwitchOutcome(triggered = false, reason = "未找到额度充足的备用账号")
 
-        val switchResult = hotSwitchCoordinator.switchAccount(candidate)
-        return if (switchResult.isSuccess) {
-            lastAutoSwitchTime = now
-            SmartSwitchOutcome(triggered = true, targetAccount = candidate, reason = "配额低于阈值，已自动切号至 ${candidate.email}")
+        lastAutoSwitchTime = now
+        return buildConfirmationOutcome(candidate, "配额低于阈值")
+    }
+
+    private fun buildConfirmationOutcome(
+        candidate: AccountInfo,
+        triggerReason: String
+    ): SmartSwitchOutcome {
+        val reason = if (hotSwitchCoordinator.isSwitching.value) {
+            "$triggerReason，但当前已有切号任务正在执行"
         } else {
-            SmartSwitchOutcome(triggered = false, reason = switchResult.exceptionOrNull()?.message ?: "切号失败")
+            "$triggerReason，建议切换至 ${candidate.email}；请在账号页确认宿主重启"
         }
+        return SmartSwitchOutcome(
+            triggered = false,
+            targetAccount = candidate,
+            reason = reason,
+            requiresUserAction = true
+        )
     }
 
     private fun selectBestCandidate(
