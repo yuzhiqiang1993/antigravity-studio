@@ -150,10 +150,9 @@ fun OverviewScreen(
             onDiagnostics = { viewModel.openDoctorDialog() }
         )
 
-        // 宿主实际生效活跃账号与核心模型配额摘要 (同时适配双端不同账号或统一单账号)
+        // 宿主实际生效活跃账号与核心模型配额摘要 (按 IDE 与 App & CLI 两大通道归集)
         val accounts by viewModel.accounts.collectAsState()
-        val appActiveEmail by viewModel.appActiveEmail.collectAsState()
-        val cliActiveEmail by viewModel.cliActiveEmail.collectAsState()
+        val appCliActiveEmail by viewModel.appCliActiveEmail.collectAsState()
         val ideActiveEmail by viewModel.ideActiveEmail.collectAsState()
         val activeAccount by viewModel.activeAccount.collectAsState()
         val isPrivacyMode by viewModel.isPrivacyMode.collectAsState()
@@ -165,16 +164,14 @@ fun OverviewScreen(
 
         val displayActiveAccounts = remember(
             accounts,
-            appActiveEmail,
-            cliActiveEmail,
+            appCliActiveEmail,
             ideActiveEmail,
             activeAccount
         ) {
             val sourceGroups = linkedMapOf<String, MutableList<String>>()
             listOf(
                 "IDE" to ideActiveEmail,
-                "App" to appActiveEmail,
-                "CLI" to cliActiveEmail
+                "App & CLI" to appCliActiveEmail
             ).forEach { (source, email) ->
                 email?.trim()?.takeIf { it.isNotEmpty() }?.let { value ->
                     sourceGroups.getOrPut(value.lowercase()) { mutableListOf() }.add(source)
@@ -188,8 +185,8 @@ fun OverviewScreen(
                     account = account,
                     sourceLabel = "${sources.joinToString(" & ")} 正在使用",
                     isIde = sources.contains("IDE"),
-                    isApp = sources.contains("App"),
-                    isCli = sources.contains("CLI")
+                    isApp = sources.contains("App & CLI"),
+                    isCli = sources.contains("App & CLI")
                 )
             }.toMutableList()
 

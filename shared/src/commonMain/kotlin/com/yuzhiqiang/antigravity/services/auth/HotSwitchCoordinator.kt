@@ -60,32 +60,30 @@ class HotSwitchCoordinator(
     data class SwitchResultReport(
         val targetEmail: String,
         val ide: TargetResult,
-        val app: TargetResult,
-        val cli: TargetResult,
+        val appCli: TargetResult,
         val ideWasRunning: Boolean,
         val appWasRunning: Boolean
     ) {
         val overallStatus: OverallStatus
             get() {
-                val statuses = listOf(ide.status, app.status, cli.status)
+                val statuses = listOf(ide.status, appCli.status)
                     .filter { it != TargetStatus.NOT_REQUESTED }
                 return when {
                     statuses.any { it == TargetStatus.FAILED } -> OverallStatus.ERROR
                     statuses.any {
                         it == TargetStatus.CONFIGURED ||
-                            it == TargetStatus.PENDING_RESTART ||
-                            it == TargetStatus.NOT_AVAILABLE
+                                it == TargetStatus.PENDING_RESTART ||
+                                it == TargetStatus.NOT_AVAILABLE
                     } -> OverallStatus.WARNING
+
                     else -> OverallStatus.SUCCESS
                 }
             }
 
         val ideConfirmed: Boolean get() = ide.isConfirmed
-        val appConfirmed: Boolean get() = app.isConfirmed
-        val cliConfirmed: Boolean get() = cli.isConfirmed
+        val appCliConfirmed: Boolean get() = appCli.isConfirmed
         val actualIdeEmail: String? get() = ide.actualEmail
-        val actualAppEmail: String? get() = app.actualEmail
-        val actualCliEmail: String? get() = cli.actualEmail
+        val actualAppCliEmail: String? get() = appCli.actualEmail
     }
 
     /**
@@ -184,7 +182,7 @@ class HotSwitchCoordinator(
     }
 
     private fun buildReportMessage(report: SwitchResultReport): String {
-        return listOf(report.ide, report.app, report.cli)
+        return listOf(report.ide, report.appCli)
             .mapNotNull { result -> result.message }
             .ifEmpty { listOf("账号尚未在所有目标宿主生效") }
             .joinToString("；")

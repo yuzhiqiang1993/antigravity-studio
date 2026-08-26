@@ -65,6 +65,7 @@ fun StudioAccountCard(
     isRefreshing: Boolean = false,
     isPrivacyMode: Boolean,
     isIdeActive: Boolean = false,
+    isAppCliActive: Boolean = false,
     isAppActive: Boolean = false,
     isCliActive: Boolean = false,
     isSwitching: Boolean = false,
@@ -74,9 +75,9 @@ fun StudioAccountCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-
-    val isDualActive = isIdeActive && (isAppActive || isCliActive)
-    val isAnyActive = isIdeActive || isAppActive || isCliActive
+    val effectiveAppCliActive = isAppCliActive || isAppActive || isCliActive
+    val isDualActive = isIdeActive && effectiveAppCliActive
+    val isAnyActive = isIdeActive || effectiveAppCliActive
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     // 卡片整体背景 (完全遵循 M3 标准 surface，自动完美适配亮暗主题)
@@ -90,7 +91,7 @@ fun StudioAccountCard(
     val targetBorderColor = when {
         isDualActive -> MaterialTheme.colorScheme.primary
         isIdeActive -> MaterialTheme.colorScheme.secondary
-        isAppActive || isCliActive -> MaterialTheme.colorScheme.tertiary
+        effectiveAppCliActive -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
     }
 
@@ -154,12 +155,13 @@ fun StudioAccountCard(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val activeHostLabel = listOfNotNull(
-                        "IDE".takeIf { isIdeActive },
-                        "App".takeIf { isAppActive },
-                        "CLI".takeIf { isCliActive }
-                    ).joinToString(" & ")
-                    if (activeHostLabel.isNotEmpty()) {
+                    val activeHostLabel = when {
+                        isDualActive -> "IDE & App & CLI"
+                        isIdeActive -> "IDE"
+                        effectiveAppCliActive -> "App & CLI"
+                        else -> null
+                    }
+                    if (activeHostLabel != null) {
                         val activeHostContainerColor = when {
                             isDualActive -> MaterialTheme.colorScheme.primaryContainer
                             isIdeActive -> MaterialTheme.colorScheme.secondaryContainer
@@ -277,20 +279,16 @@ fun StudioAccountCard(
                     // 单宿主激活时仍允许将账号同步到另一宿主。
                     if (!isDualActive) {
                         StudioTooltip(text = if (isAnyActive) "同步到另一宿主" else "设为 IDE 与 App/CLI 激活生效账号") {
-                            FilledTonalIconButton(
+                            IconButton(
                                 onClick = onSetActive,
                                 enabled = !isSwitching,
-                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize),
-                                shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize)
                             ) {
                                 Icon(
                                     imageVector = StudioIcons.SwitchAccount,
                                     contentDescription = "切换账号",
-                                    modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
+                                    modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }

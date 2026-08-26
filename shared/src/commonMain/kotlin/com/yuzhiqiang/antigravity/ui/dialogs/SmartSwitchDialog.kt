@@ -20,6 +20,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.domain.model.account.SmartSwitchConfig
 import com.yuzhiqiang.antigravity.domain.model.account.SmartSwitchStrategy
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.components.StudioCheckbox
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
@@ -188,7 +189,7 @@ fun SmartSwitchDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Checkbox(
+                        StudioCheckbox(
                             checked = protectActiveGeneration,
                             onCheckedChange = { protectActiveGeneration = it }
                         )

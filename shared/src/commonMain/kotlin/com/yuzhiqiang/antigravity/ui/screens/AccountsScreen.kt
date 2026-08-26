@@ -63,8 +63,7 @@ fun AccountsScreen(
     val s = strings()
     val accounts by viewModel.accounts.collectAsState()
     val activeAccount by viewModel.activeAccount.collectAsState()
-    val appActiveEmail by viewModel.appActiveEmail.collectAsState(initial = null)
-    val cliActiveEmail by viewModel.cliActiveEmail.collectAsState(initial = null)
+    val appCliActiveEmail by viewModel.appCliActiveEmail.collectAsState(initial = null)
     val ideActiveEmail by viewModel.ideActiveEmail.collectAsState(initial = null)
     val quotas by viewModel.accountQuotas.collectAsState()
     val isRefreshingQuotas by viewModel.isRefreshingQuotas.collectAsState()
@@ -99,15 +98,14 @@ fun AccountsScreen(
 
     val scrollState = rememberScrollState()
 
-    // 过滤与排序 (将 App、CLI 和 IDE 活跃账号固定置顶在前面)
+    // 过滤与排序 (将 App & CLI 和 IDE 活跃账号固定置顶在前面)
     val displayAccounts = remember(
         accounts,
         searchQuery,
         sortMode,
         quotas,
         activeAccount,
-        appActiveEmail,
-        cliActiveEmail,
+        appCliActiveEmail,
         ideActiveEmail
     ) {
         val query = searchQuery.trim().lowercase()
@@ -122,16 +120,13 @@ fun AccountsScreen(
 
         fun hostActiveRank(acc: AccountInfo): Int {
             val isIde = !ideActiveEmail.isNullOrBlank() && acc.email.equals(ideActiveEmail, ignoreCase = true)
-            val isApp = !appActiveEmail.isNullOrBlank() && acc.email.equals(appActiveEmail, ignoreCase = true)
-            val isCli = !cliActiveEmail.isNullOrBlank() && acc.email.equals(cliActiveEmail, ignoreCase = true)
-            val isNonIdeActive = isApp || isCli
+            val isAppCli = !appCliActiveEmail.isNullOrBlank() && acc.email.equals(appCliActiveEmail, ignoreCase = true)
 
             return when {
-                isIde && isNonIdeActive -> 0 // 多宿主共同活跃排第 1 位
-                isApp -> 1                   // App 运行态活跃固定置顶前排
-                isCli -> 2                   // CLI 活跃固定置顶前排
-                isIde -> 3                   // IDE 活跃固定置顶前排
-                else -> 4                    // 普通账号排在后续
+                isIde && isAppCli -> 0 // 多宿主共同活跃排第 1 位
+                isIde -> 1             // IDE 活跃排前
+                isAppCli -> 2          // App & CLI 活跃排前
+                else -> 3              // 普通账号排在后续
             }
         }
 
@@ -543,12 +538,8 @@ fun AccountsScreen(
                                             ideActiveEmail,
                                             ignoreCase = true
                                         )
-                                        val matchesApp = !appActiveEmail.isNullOrBlank() && acc.email.equals(
-                                            appActiveEmail,
-                                            ignoreCase = true
-                                        )
-                                        val matchesCli = !cliActiveEmail.isNullOrBlank() && acc.email.equals(
-                                            cliActiveEmail,
+                                        val matchesAppCli = !appCliActiveEmail.isNullOrBlank() && acc.email.equals(
+                                            appCliActiveEmail,
                                             ignoreCase = true
                                         )
 
@@ -568,8 +559,7 @@ fun AccountsScreen(
                                                 isRefreshing = refreshingAccountIds.contains(acc.id),
                                                 isPrivacyMode = isPrivacyMode,
                                                 isIdeActive = matchesIde,
-                                                isAppActive = matchesApp,
-                                                isCliActive = matchesCli,
+                                                isAppCliActive = matchesAppCli,
                                                 isSwitching = isAccountSwitching,
                                                 onSetActive = {
                                                     if (!isAccountSwitching) {
@@ -627,11 +617,6 @@ fun AccountsScreen(
     accountToSwitch?.let { targetAcc ->
         val isTargetIdeActive = !ideActiveEmail.isNullOrBlank() &&
                 targetAcc.email.equals(ideActiveEmail, ignoreCase = true)
-        val isTargetAppCliActive = (appActiveEmail?.let { email ->
-            targetAcc.email.equals(email, ignoreCase = true)
-        } == true) || (cliActiveEmail?.let { email ->
-            targetAcc.email.equals(email, ignoreCase = true)
-        } == true)
 
         AccountSwitchDialog(
             targetAccount = targetAcc,
@@ -640,7 +625,6 @@ fun AccountsScreen(
             isIdeRunning = isIdeRunning,
             isAppRunning = isAppRunning,
             isIdeActive = isTargetIdeActive,
-            isAppCliActive = isTargetAppCliActive,
             isPrivacyMode = isPrivacyMode,
             isSwitching = isAccountSwitching,
             onConfirm = { applyToIde, applyToAppCli, restartIde, restartApp ->

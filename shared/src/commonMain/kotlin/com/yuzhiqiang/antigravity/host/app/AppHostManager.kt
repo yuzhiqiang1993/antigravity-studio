@@ -447,16 +447,16 @@ object AppHostManager {
     }
 
     /**
-     * 安全终止 Antigravity App，不在超时后自动强杀。
+     * 终止 Antigravity App 及其 language_server 子进程。
      */
-    suspend fun terminate(customInstallation: String? = null): Boolean {
+    suspend fun terminate(customInstallation: String? = null, force: Boolean = true): Boolean {
         return HostProcessManager.terminateApplication(
             bundleId = "com.google.antigravity",
             matchPatterns = buildProcessPatterns(customInstallation),
             excludePatterns = appExcludePatterns,
             languageServerPatterns = buildLanguageServerPatterns(customInstallation),
             label = "Antigravity App",
-            force = false
+            force = force
         )
     }
 
@@ -464,8 +464,8 @@ object AppHostManager {
      * 跨平台重启 Antigravity App（仅终止与重启 App 自身，绝不干扰 IDE）。
      */
     suspend fun restart(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
-        if (!terminate(customInstallation)) return false
-        delay(300)
+        if (!terminate(customInstallation, force = true)) return false
+        delay(500)
         if (!launch(customInstallation, proxyPort)) return false
         return waitUntilRunning(customInstallation)
     }
