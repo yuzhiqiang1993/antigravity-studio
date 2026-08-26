@@ -2,15 +2,23 @@ package com.yuzhiqiang.antigravity.host.process
 
 import kotlinx.coroutines.delay
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
- * 跨平台宿主进程管理工具，对标 agy-byok 的 host/process 实现。
- * 提供精准的进程检测、优雅退出、超时强制终止与干净启动能力。
+ * 跨平台宿主进程管理工具。
+ *
+ * 进程终止只作用于已匹配的宿主进程、其子进程，以及能由宿主专属路径证明归属的进程。
  */
 object HostProcessManager {
 
-    private val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
-    private val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+    private const val GRACEFUL_EXIT_TIMEOUT_MILLIS = 8_000L
+    private const val FORCE_EXIT_TIMEOUT_MILLIS = 1_500L
+    private const val POLL_INTERVAL_MILLIS = 200L
+    private const val COMMAND_TIMEOUT_MILLIS = 3_000L
+
+    private val osName = System.getProperty("os.name", "").lowercase()
+    private val isWindows = osName.contains("win")
+    private val isMac = osName.contains("mac")
 
     /**
      * 检测指定特征的进程是否在运行。
@@ -23,185 +31,184 @@ object HostProcessManager {
     }
 
     /**
-     * 查找符合匹配特征的所有进程 PID（排除 studio 自身与 grep 过滤进程，且支持排除特定模式）。
+     * 查找符合匹配特征的所有进程 PID。
      */
     fun findProcessPids(
         matchPatterns: List<String>,
         excludePatterns: List<String> = emptyList()
     ): List<Long> {
         if (matchPatterns.isEmpty()) return emptyList()
-        return try {
-            if (isWindows) {
-                val process = ProcessBuilder("tasklist", "/FO", "CSV", "/NH").start()
-                val output = process.inputStream.bufferedReader().readText()
-                process.waitFor()
-                val pids = mutableListOf<Long>()
-                output.lineSequence().forEach { line ->
-                    val parts = line.split("\",\"").map { it.replace("\"", "").trim() }
-                    if (parts.size >= 2) {
-                        val imageName = parts[0]
-                        val pidStr = parts[1]
-                        val matches = matchPatterns.any { pattern ->
-                            if (pattern.endsWith(".exe", ignoreCase = true)) {
-                                imageName.equals(pattern, ignoreCase = true)
-                            } else {
-                                imageName.contains(pattern, ignoreCase = true)
-                            }
-                        }
-                        val excluded = excludePatterns.any { exclude ->
-                            imageName.contains(exclude, ignoreCase = true)
-                        }
-                        if (matches && !excluded) {
-                            pidStr.toLongOrNull()?.let { pids.add(it) }
-                        }
-                    }
-                }
-                pids
-            } else {
-                val process = ProcessBuilder("ps", "-axo", "pid,command").start()
-                val output = process.inputStream.bufferedReader().readText()
-                process.waitFor()
-                val pids = mutableListOf<Long>()
-                val studioPid = ProcessHandle.current().pid()
-                output.lineSequence().forEach { line ->
-                    val trimmed = line.trim()
-                    if (trimmed.isEmpty()) return@forEach
-                    val spaceIdx = trimmed.indexOf(' ')
-                    if (spaceIdx > 0) {
-                        val pidStr = trimmed.substring(0, spaceIdx).trim()
-                        val cmd = trimmed.substring(spaceIdx).trim()
-                        val pid = pidStr.toLongOrNull() ?: return@forEach
-                        if (pid == studioPid) return@forEach
-                        if (cmd.contains("grep", ignoreCase = true)) return@forEach
-                        if (cmd.contains("antigravity-studio", ignoreCase = true) ||
-                            cmd.contains("Antigravity Studio", ignoreCase = true) ||
-                            cmd.contains("AntigravityStudio", ignoreCase = true)) {
-                            return@forEach
-                        }
-
-                        val excluded = excludePatterns.any { exclude ->
-                            cmd.contains(exclude, ignoreCase = true)
-                        }
-                        if (excluded) return@forEach
-
-                        val matches = matchPatterns.any { pattern ->
-                            cmd.contains(pattern, ignoreCase = true)
-                        }
-                        if (matches) {
-                            pids.add(pid)
-                        }
-                    }
-                }
-                pids
-            }
-        } catch (_: Exception) {
-            emptyList()
-        }
+        return (readProcessSnapshots() ?: return emptyList())
+            .filter { snapshot -> snapshot.matches(matchPatterns, excludePatterns) }
+            .map(ProcessSnapshot::pid)
     }
 
     /**
-     * 优雅终止宿主及其子进程树，超时则强制 SIGKILL。
+     * 优雅终止宿主及能证明归属的子进程。
+     *
+     * 默认超时后返回 `false`，不会自动强杀。只有调用方明确传入 [force] 时，才会对本次
+     * 已确认归属的 PID 集合执行强制终止，不会按进程名扩大终止范围。
      */
     suspend fun terminateApplication(
         bundleId: String?,
         matchPatterns: List<String>,
         excludePatterns: List<String> = emptyList(),
         languageServerPatterns: List<String> = emptyList(),
-        label: String
+        label: String,
+        force: Boolean = false
     ): Boolean {
-        try {
-            if (isWindows) {
-                matchPatterns.forEach { pattern ->
-                    runCatching {
-                        ProcessBuilder("taskkill", "/IM", pattern).start().waitFor()
-                    }
-                }
-                delay(500)
-                if (isProcessRunning(matchPatterns, excludePatterns)) {
-                    matchPatterns.forEach { pattern ->
-                        runCatching {
-                            ProcessBuilder("taskkill", "/F", "/T", "/IM", pattern).start().waitFor()
-                        }
-                    }
-                }
-                if (languageServerPatterns.isNotEmpty()) {
-                    stopLanguageServer(languageServerPatterns, excludePatterns)
-                }
-                return !isProcessRunning(matchPatterns, excludePatterns)
+        val snapshots = readProcessSnapshots() ?: return false
+        val hostPids = snapshots
+            .filter { snapshot -> snapshot.matches(matchPatterns, excludePatterns) }
+            .mapTo(linkedSetOf(), ProcessSnapshot::pid)
+        val descendantPids = collectDescendantPids(hostPids, snapshots)
+        val scopedServerPatterns = languageServerPatterns.filter(::isPathScopedPattern)
+        val pathOwnedServerPids = snapshots
+            .filter { snapshot -> snapshot.matches(scopedServerPatterns, excludePatterns) }
+            .mapTo(linkedSetOf(), ProcessSnapshot::pid)
+        val ownedPids = linkedSetOf<Long>().apply {
+            addAll(hostPids)
+            addAll(descendantPids)
+            addAll(pathOwnedServerPids)
+        }
+        if (ownedPids.isEmpty()) return true
+        val rootPids = ownedPids.filterTo(linkedSetOf()) { pid ->
+            snapshots.firstOrNull { it.pid == pid }?.parentPid !in ownedPids
+        }
+
+        val gracefulRequestSent = requestGracefulExit(bundleId, rootPids)
+        if (!gracefulRequestSent) return false
+        if (waitUntilStopped(ownedPids, GRACEFUL_EXIT_TIMEOUT_MILLIS)) {
+            return areProcessesStopped(matchPatterns + scopedServerPatterns, excludePatterns)
+        }
+        if (!force) return false
+
+        forceStopOwnedProcesses(ownedPids, snapshots)
+        val stopped = waitUntilStopped(ownedPids, FORCE_EXIT_TIMEOUT_MILLIS)
+        return stopped && areProcessesStopped(matchPatterns + scopedServerPatterns, excludePatterns)
+    }
+
+    private fun areProcessesStopped(
+        matchPatterns: List<String>,
+        excludePatterns: List<String>
+    ): Boolean {
+        val snapshots = readProcessSnapshots() ?: return false
+        return snapshots.none { snapshot -> snapshot.matches(matchPatterns, excludePatterns) }
+    }
+
+    private fun requestGracefulExit(bundleId: String?, rootPids: Set<Long>): Boolean {
+        if (rootPids.isEmpty()) return true
+        return when {
+            isMac && !bundleId.isNullOrBlank() -> runCommand(
+                "/usr/bin/osascript",
+                "-e",
+                "tell application id \"$bundleId\" to quit"
+            )
+
+            isWindows -> rootPids.all { pid ->
+                runCommand("taskkill", "/PID", pid.toString())
             }
 
-            // macOS 处理流程
-            if (bundleId != null) {
-                runCatching {
-                    ProcessBuilder("/usr/bin/osascript", "-e", "tell application id \"" + bundleId + "\" to quit")
-                        .start()
-                        .waitFor()
-                }
+            else -> rootPids.all { pid ->
+                runCommand("kill", "-15", pid.toString())
             }
-
-            // 轮询等待优雅退出，最多 1.5 秒
-            var remainingPids = findProcessPids(matchPatterns, excludePatterns)
-            var waited = 0
-            while (remainingPids.isNotEmpty() && waited < 1500) {
-                delay(200)
-                waited += 200
-                remainingPids = findProcessPids(matchPatterns, excludePatterns)
-            }
-
-            // 若仍有残留 PID，发送 SIGTERM (kill -15)
-            if (remainingPids.isNotEmpty()) {
-                remainingPids.forEach { pid ->
-                    runCatching { ProcessBuilder("kill", "-15", pid.toString()).start().waitFor() }
-                }
-                delay(500)
-                remainingPids = findProcessPids(matchPatterns, excludePatterns)
-            }
-
-            // 若仍有残留 PID，强杀 SIGKILL (kill -9)
-            if (remainingPids.isNotEmpty()) {
-                remainingPids.forEach { pid ->
-                    runCatching { ProcessBuilder("kill", "-9", pid.toString()).start().waitFor() }
-                }
-                delay(300)
-            }
-
-            // 仅按宿主专属模式清理孤儿 language_server，严防误伤其他宿主
-            if (languageServerPatterns.isNotEmpty()) {
-                stopLanguageServer(languageServerPatterns, excludePatterns)
-            }
-            return findProcessPids(matchPatterns, excludePatterns).isEmpty()
-        } catch (_: Exception) {
-            return false
         }
     }
 
-    /**
-     * 深度清理指定宿主专属的 language_server 进程。
-     */
-    fun stopLanguageServer(
-        patterns: List<String>,
-        excludePatterns: List<String> = emptyList()
-    ) {
-        if (patterns.isEmpty()) return
-        try {
+    private fun forceStopOwnedProcesses(ownedPids: Set<Long>, snapshots: List<ProcessSnapshot>) {
+        val depthByPid = buildProcessDepths(ownedPids, snapshots)
+        ownedPids.sortedByDescending { depthByPid[it] ?: 0 }.forEach { pid ->
+            if (!isPidAlive(pid)) return@forEach
             if (isWindows) {
-                val serverPids = findProcessPids(patterns, excludePatterns)
-                serverPids.forEach { pid ->
-                    runCatching { ProcessBuilder("taskkill", "/F", "/PID", pid.toString()).start().waitFor() }
-                }
+                runCommand("taskkill", "/F", "/PID", pid.toString())
             } else {
-                val serverPids = findProcessPids(patterns, excludePatterns)
-                serverPids.forEach { pid ->
-                    runCatching { ProcessBuilder("kill", "-9", pid.toString()).start().waitFor() }
-                }
+                runCommand("kill", "-9", pid.toString())
+            }
+        }
+    }
+
+    private suspend fun waitUntilStopped(pids: Set<Long>, timeoutMillis: Long): Boolean {
+        var waitedMillis = 0L
+        while (waitedMillis < timeoutMillis) {
+            if (pids.none(::isPidAlive)) return true
+            delay(POLL_INTERVAL_MILLIS)
+            waitedMillis += POLL_INTERVAL_MILLIS
+        }
+        return pids.none(::isPidAlive)
+    }
+
+    private fun isPidAlive(pid: Long): Boolean {
+        return ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false)
+    }
+
+    private fun collectDescendantPids(
+        parentPids: Set<Long>,
+        snapshots: List<ProcessSnapshot>
+    ): Set<Long> {
+        val descendants = linkedSetOf<Long>()
+        var frontier = parentPids.toSet()
+        while (frontier.isNotEmpty()) {
+            val children = snapshots
+                .filter { snapshot -> snapshot.parentPid in frontier }
+                .mapTo(linkedSetOf(), ProcessSnapshot::pid)
+                .filterNotTo(linkedSetOf()) { it in parentPids || it in descendants }
+            descendants.addAll(children)
+            frontier = children
+        }
+        return descendants
+    }
+
+    private fun buildProcessDepths(
+        ownedPids: Set<Long>,
+        snapshots: List<ProcessSnapshot>
+    ): Map<Long, Int> {
+        val parentByPid = snapshots.associate { it.pid to it.parentPid }
+        return ownedPids.associateWith { pid ->
+            var depth = 0
+            var parentPid = parentByPid[pid]
+            val visited = mutableSetOf<Long>()
+            while (parentPid != null && parentPid in ownedPids && visited.add(parentPid)) {
+                depth++
+                parentPid = parentByPid[parentPid]
+            }
+            depth
+        }
+    }
+
+    private fun isPathScopedPattern(pattern: String): Boolean {
+        return pattern.contains('/') || pattern.contains('\\')
+    }
+
+    private fun readProcessSnapshots(): List<ProcessSnapshot>? {
+        val studioPid = ProcessHandle.current().pid()
+        return try {
+            ProcessHandle.allProcesses().use { processes ->
+                processes.map { handle ->
+                    val info = handle.info()
+                    val command = info.command().orElse("")
+                    val arguments = info.arguments().orElse(emptyArray()).joinToString(" ")
+                    val commandLine = info.commandLine().orElse("").ifBlank {
+                        listOf(command, arguments).filter(String::isNotBlank).joinToString(" ")
+                    }
+                    ProcessSnapshot(
+                        pid = handle.pid(),
+                        parentPid = handle.parent().map(ProcessHandle::pid).orElse(null),
+                        executablePath = command,
+                        commandLine = commandLine
+                    )
+                }.filter { snapshot ->
+                    snapshot.pid != studioPid &&
+                        snapshot.commandLine.isNotBlank() &&
+                        !snapshot.isStudioProcess()
+                }.toList()
             }
         } catch (_: Exception) {
-            // 忽略清理异常
+            null
         }
     }
 
     /**
-     * 跨平台启动应用，并支持环境隔离（防止旧环境或污染变量继承）。
+     * 跨平台启动应用，并支持自定义安装路径与环境隔离。
      */
     fun launch(
         installationPath: String?,
@@ -209,43 +216,168 @@ object HostProcessManager {
         defaultWinExe: String,
         environment: Map<String, String>? = null
     ): Boolean {
-        return try {
-            if (isWindows) {
-                val userHome = System.getProperty("user.home") ?: ""
-                val localAppData = System.getenv("LOCALAPPDATA") ?: (userHome + "/AppData/Local")
-                val customTarget = installationPath?.trim()?.takeIf { it.isNotEmpty() }
-                    ?.let { File(it).let { root -> if (root.isFile) root else File(root, defaultWinExe) } }
-                val target = customTarget?.takeIf(File::isFile)
-                    ?: File(localAppData, "Programs/" + defaultMacApp + "/" + defaultWinExe)
-                val pb = if (target.exists()) {
-                    ProcessBuilder(target.absolutePath)
-                } else {
-                    ProcessBuilder("cmd.exe", "/c", "start", "", defaultWinExe)
-                }
-                pb.environment().remove("CLOUD_CODE_URL")
-                environment?.forEach { (k, v) -> pb.environment()[k] = v }
-                pb.start()
-                true
+        return when {
+            isWindows -> launchWindows(installationPath, defaultMacApp, defaultWinExe, environment)
+            isMac -> launchMac(installationPath, defaultMacApp, environment)
+            else -> launchLinux(installationPath, defaultMacApp, defaultWinExe, environment)
+        }
+    }
+
+    private fun launchWindows(
+        installationPath: String?,
+        defaultAppName: String,
+        defaultExecutableName: String,
+        environment: Map<String, String>?
+    ): Boolean {
+        val customPath = installationPath?.trim()?.takeIf(String::isNotEmpty)
+        val target = if (customPath != null) {
+            resolveExecutable(File(customPath), defaultExecutableName) ?: return false
+        } else {
+            val userHome = System.getProperty("user.home").orEmpty()
+            val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome/AppData/Local"
+            resolveExecutable(
+                File(localAppData, "Programs/$defaultAppName"),
+                defaultExecutableName
+            ) ?: findExecutableOnPath(defaultExecutableName) ?: return false
+        }
+        return runLaunchCommand(listOf(target.absolutePath), environment, waitForExit = false)
+    }
+
+    private fun launchMac(
+        installationPath: String?,
+        defaultAppName: String,
+        environment: Map<String, String>?
+    ): Boolean {
+        val customPath = installationPath?.trim()?.takeIf(String::isNotEmpty)
+        if (customPath != null && File(customPath).isFile) {
+            return runLaunchCommand(listOf(File(customPath).absolutePath), environment, waitForExit = false)
+        }
+        val command = if (customPath != null) {
+            val target = File(customPath)
+            if (!target.isDirectory) return false
+            listOf("/usr/bin/open", "-n", target.absolutePath)
+        } else {
+            val systemApp = File("/Applications/$defaultAppName.app")
+            val userApp = File(System.getProperty("user.home"), "Applications/$defaultAppName.app")
+            val target = listOf(systemApp, userApp).firstOrNull(File::isDirectory)
+            if (target != null) {
+                listOf("/usr/bin/open", "-n", target.absolutePath)
             } else {
-                val app = installationPath?.trim()?.takeIf { it.isNotEmpty() }
-                val targetApp = if (app != null && File(app).isDirectory) app else "/Applications/" + defaultMacApp + ".app"
-                val command = mutableListOf("/usr/bin/env", "-u", "CLOUD_CODE_URL", "/usr/bin/open", "-n")
-                if (File(targetApp).isDirectory) {
-                    command.addAll(listOf("-a", targetApp))
+                listOf("/usr/bin/open", "-n", "-a", defaultAppName)
+            }
+        }
+        return runLaunchCommand(command, environment, waitForExit = true)
+    }
+
+    private fun launchLinux(
+        installationPath: String?,
+        defaultAppName: String,
+        defaultWinExe: String,
+        environment: Map<String, String>?
+    ): Boolean {
+        val executableName = defaultWinExe.removeSuffix(".exe")
+        val customPath = installationPath?.trim()?.takeIf(String::isNotEmpty)
+        val command = if (customPath != null) {
+            val target = resolveExecutable(File(customPath), executableName)
+                ?: resolveExecutable(File(customPath), defaultAppName)
+                ?: return false
+            listOf(target.absolutePath)
+        } else {
+            listOf(defaultAppName.lowercase().replace(' ', '-'))
+        }
+        return runLaunchCommand(command, environment, waitForExit = false)
+    }
+
+    private fun resolveExecutable(path: File, executableName: String): File? {
+        return when {
+            path.isFile -> path
+            path.isDirectory -> File(path, executableName).takeIf(File::isFile)
+            else -> null
+        }
+    }
+
+    private fun findExecutableOnPath(executableName: String): File? {
+        val pathValue = System.getenv("PATH").orEmpty()
+        return pathValue.split(File.pathSeparatorChar)
+            .asSequence()
+            .map { directory -> File(directory, executableName) }
+            .firstOrNull(File::isFile)
+    }
+
+    private fun runLaunchCommand(
+        command: List<String>,
+        environment: Map<String, String>?,
+        waitForExit: Boolean
+    ): Boolean {
+        return try {
+            val processBuilder = ProcessBuilder(command)
+            processBuilder.environment().remove("CLOUD_CODE_URL")
+            environment?.forEach { (key, value) -> processBuilder.environment()[key] = value }
+            val process = processBuilder.start()
+            if (waitForExit) {
+                val exited = process.waitFor(COMMAND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
+                if (!exited) {
+                    process.destroy()
+                    false
                 } else {
-                    command.addAll(listOf("-a", defaultMacApp))
+                    process.exitValue() == 0
                 }
-                environment?.forEach { (k, v) ->
-                    command.add("--env")
-                    command.add(k + "=" + v)
-                }
-                val pb = ProcessBuilder(command)
-                pb.environment().remove("CLOUD_CODE_URL")
-                pb.start()
-                true
+            } else {
+                val exited = process.waitFor(300, TimeUnit.MILLISECONDS)
+                !exited || process.exitValue() == 0
             }
         } catch (_: Exception) {
             false
+        }
+    }
+
+    private fun runCommand(vararg command: String): Boolean {
+        var process: Process? = null
+        return try {
+            process = ProcessBuilder(*command).start()
+            val completed = process.waitFor(COMMAND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
+            if (!completed) {
+                process.destroy()
+                if (process.isAlive) {
+                    process.destroyForcibly()
+                }
+                false
+            } else {
+                process.exitValue() == 0
+            }
+        } catch (_: Exception) {
+            process?.destroyForcibly()
+            false
+        }
+    }
+
+    private data class ProcessSnapshot(
+        val pid: Long,
+        val parentPid: Long?,
+        val executablePath: String,
+        val commandLine: String
+    ) {
+        fun matches(matchPatterns: List<String>, excludePatterns: List<String>): Boolean {
+            if (matchPatterns.isEmpty()) return false
+            val normalizedCommand = commandLine.replace('\\', '/').lowercase()
+            val excluded = excludePatterns.any { pattern ->
+                normalizedCommand.contains(pattern.replace('\\', '/').lowercase())
+            }
+            if (excluded) return false
+            return matchPatterns.any { pattern ->
+                val normalizedPattern = pattern.replace('\\', '/').lowercase()
+                if (normalizedPattern.endsWith(".exe") && !normalizedPattern.contains('/')) {
+                    File(executablePath).name.equals(pattern, ignoreCase = true)
+                } else {
+                    normalizedCommand.contains(normalizedPattern)
+                }
+            }
+        }
+
+        fun isStudioProcess(): Boolean {
+            return commandLine.contains("antigravity-studio", ignoreCase = true) ||
+                commandLine.contains("Antigravity Studio", ignoreCase = true) ||
+                commandLine.contains("AntigravityStudio", ignoreCase = true)
         }
     }
 }

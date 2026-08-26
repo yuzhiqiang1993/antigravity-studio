@@ -2,213 +2,191 @@ package com.yuzhiqiang.antigravity.services.auth
 
 import com.yuzhiqiang.antigravity.data.storage.AccountStore
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
-import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
+import com.yuzhiqiang.antigravity.host.app.AppHostManager
+import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.URL
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.HostnameVerifier
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLSocketFactory
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
-
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 
 /**
- * 跨宿主无感热切号协调器。
- * 协调凭证原子写入、系统环境变量更新、Language Server 进程凭证热注册与快照安全回滚。
- * 区分 IDE 独立认证与 App/CLI 共享认证。
+ * 管理账号切换互斥状态，并将单次宿主切换交给 [AccountSwitchSession] 执行。
  */
 class HotSwitchCoordinator(
-    private val accountStore: AccountStore
+    private val accountStore: AccountStore,
+    private val customHostPathsProvider: () -> Map<String, String?> = { emptyMap() },
+    private val proxyPortProvider: () -> Int? = { null }
 ) {
-    private val mutex = Mutex()
+    private val switchMutex = Mutex()
+
+    private val _isSwitching = MutableStateFlow(false)
+    val isSwitching: StateFlow<Boolean> = _isSwitching.asStateFlow()
 
     private val _ideActiveAccount = MutableStateFlow<AccountInfo?>(null)
     val ideActiveAccount: StateFlow<AccountInfo?> = _ideActiveAccount.asStateFlow()
 
     init {
-        // 初始时 IDE 默认与 CLI/App 当前活跃账号对齐
         _ideActiveAccount.value = accountStore.currentActiveAccount()
     }
 
-    private data class LsCandidate(
-        val pid: Long,
-        val port: Int,
-        val csrf: String
-    )
+    enum class TargetStatus {
+        NOT_REQUESTED,
+        NOT_AVAILABLE,
+        CONFIGURED,
+        CONFIRMED,
+        PENDING_RESTART,
+        FAILED
+    }
+
+    enum class OverallStatus {
+        SUCCESS,
+        WARNING,
+        ERROR
+    }
+
+    data class TargetResult(
+        val status: TargetStatus,
+        val actualEmail: String? = null,
+        val message: String? = null
+    ) {
+        val isConfirmed: Boolean
+            get() = status == TargetStatus.CONFIRMED
+        val isApplied: Boolean
+            get() = status == TargetStatus.CONFIRMED || status == TargetStatus.CONFIGURED
+    }
+
+    data class SwitchResultReport(
+        val targetEmail: String,
+        val ide: TargetResult,
+        val app: TargetResult,
+        val cli: TargetResult,
+        val ideWasRunning: Boolean,
+        val appWasRunning: Boolean
+    ) {
+        val overallStatus: OverallStatus
+            get() {
+                val statuses = listOf(ide.status, app.status, cli.status)
+                    .filter { it != TargetStatus.NOT_REQUESTED }
+                return when {
+                    statuses.any { it == TargetStatus.FAILED } -> OverallStatus.ERROR
+                    statuses.any {
+                        it == TargetStatus.CONFIGURED ||
+                            it == TargetStatus.PENDING_RESTART ||
+                            it == TargetStatus.NOT_AVAILABLE
+                    } -> OverallStatus.WARNING
+                    else -> OverallStatus.SUCCESS
+                }
+            }
+
+        val ideConfirmed: Boolean get() = ide.isConfirmed
+        val appConfirmed: Boolean get() = app.isConfirmed
+        val cliConfirmed: Boolean get() = cli.isConfirmed
+        val actualIdeEmail: String? get() = ide.actualEmail
+        val actualAppEmail: String? get() = app.actualEmail
+        val actualCliEmail: String? get() = cli.actualEmail
+    }
 
     /**
-     * 执行全局无感热切号（同时更新 App/CLI 共享凭据与 IDE Language Server）
+     * 执行一次分目标账号切换；已有任务执行时立即拒绝新请求。
+     */
+    suspend fun switchAccountWithRestart(
+        targetAccount: AccountInfo,
+        applyToIde: Boolean = true,
+        applyToAppCli: Boolean = true,
+        restartIde: Boolean = true,
+        restartApp: Boolean = true,
+        progressCallback: ((phase: String) -> Unit)? = null
+    ): Result<SwitchResultReport> {
+        if (!switchMutex.tryLock()) {
+            return Result.failure(IllegalStateException("已有账号切换任务正在执行，请稍后再试"))
+        }
+
+        _isSwitching.value = true
+        return try {
+            val paths = customHostPathsProvider()
+            val request = AccountSwitchSession.Request(
+                targetAccount = targetAccount,
+                applyToIde = applyToIde,
+                applyToAppCli = applyToAppCli,
+                restartIde = restartIde,
+                restartApp = restartApp,
+                ideInstallationPath = paths["ide"],
+                appInstallationPath = paths["app"],
+                proxyPort = proxyPortProvider(),
+                progressCallback = progressCallback
+            )
+            val result = withContext(Dispatchers.IO) {
+                AccountSwitchSession(accountStore).execute(request)
+            }
+            result.onSuccess { report ->
+                if (report.ide.isApplied) {
+                    _ideActiveAccount.value = targetAccount
+                }
+            }
+        } finally {
+            _isSwitching.value = false
+            switchMutex.unlock()
+        }
+    }
+
+    /**
+     * 兼容原有全局切号入口；运行中的宿主会采用可靠的重启流程。
      */
     suspend fun switchAccount(
         targetAccount: AccountInfo,
         progressCallback: ((phase: String) -> Unit)? = null
-    ): Result<Unit> = mutex.withLock {
-        withContext(Dispatchers.IO) {
-            val originalActive = accountStore.currentActiveAccount()
-            val originalIdeActive = _ideActiveAccount.value
-
-            try {
-                // 阶段 1: 凭据写入与 App/CLI 本地状态持久化
-                progressCallback?.invoke("1/3 正在更新 App/CLI 本地凭据...")
-                val setTargetResult = accountStore.setActiveAccount(targetAccount.id)
-                if (setTargetResult.isFailure) {
-                    return@withContext Result.failure(setTargetResult.exceptionOrNull() ?: IllegalStateException("写入凭证失败"))
+    ): Result<Unit> {
+        val paths = customHostPathsProvider()
+        return switchAccountWithRestart(
+            targetAccount = targetAccount,
+            restartIde = IdeHostManager.isRunning(paths["ide"]),
+            restartApp = AppHostManager.isRunning(paths["app"]),
+            progressCallback = progressCallback
+        ).fold(
+            onSuccess = { report ->
+                if (report.overallStatus == OverallStatus.SUCCESS) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(IllegalStateException(buildReportMessage(report)))
                 }
-
-                // 阶段 2: 发现并调用 IDE Language Server 进行凭证热注册
-                progressCallback?.invoke("2/3 正在向 IDE 后台语言服务注册新凭据...")
-                val lsRegistered = registerToActiveLanguageServers(targetAccount)
-                _ideActiveAccount.value = targetAccount
-
-                // 阶段 3: 预热可用模型
-                progressCallback?.invoke("3/3 正在刷新模型目录...")
-                OfficialCatalogProbe.clearRawOfficialCatalog()
-                OfficialCatalogProbe.fetchOfficialModels()
-
-                Result.success(Unit)
-            } catch (e: Exception) {
-                // 异常时尝试原子回滚
-                if (originalActive != null) {
-                    try {
-                        accountStore.setActiveAccount(originalActive.id)
-                        _ideActiveAccount.value = originalIdeActive
-                        OfficialCatalogProbe.fetchOfficialModels()
-                    } catch (_: Exception) {
-                    }
-                }
-                Result.failure(IllegalStateException("热切号失败，已自动回滚至原账号: ${e.message ?: "未知异常"}", e))
-            }
-        }
+            },
+            onFailure = { error -> Result.failure(error) }
+        )
     }
 
     /**
-     * 仅无感切换 IDE 的当前活跃账号（不影响 App/CLI 的全局凭据）
+     * 仅切换 IDE；运行中但不允许重启时返回待重启失败。
      */
     suspend fun switchIdeOnly(
         targetAccount: AccountInfo,
+        restartIde: Boolean = true,
         progressCallback: ((phase: String) -> Unit)? = null
-    ): Result<Unit> = mutex.withLock {
-        withContext(Dispatchers.IO) {
-            try {
-                progressCallback?.invoke("1/2 正在向 IDE 注册新凭据...")
-                registerToActiveLanguageServers(targetAccount)
-                _ideActiveAccount.value = targetAccount
-
-                progressCallback?.invoke("2/2 正在刷新 IDE 模型目录...")
-                OfficialCatalogProbe.clearRawOfficialCatalog()
-                OfficialCatalogProbe.fetchOfficialModels()
-
-                Result.success(Unit)
-            } catch (e: Exception) {
-                Result.failure(IllegalStateException("IDE 独立切号失败: ${e.message ?: "未知异常"}", e))
-            }
-        }
+    ): Result<Unit> {
+        return switchAccountWithRestart(
+            targetAccount = targetAccount,
+            applyToIde = true,
+            applyToAppCli = false,
+            restartIde = restartIde,
+            restartApp = false,
+            progressCallback = progressCallback
+        ).fold(
+            onSuccess = { report ->
+                if (report.ide.isApplied) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(IllegalStateException(report.ide.message ?: "IDE 账号尚未生效"))
+                }
+            },
+            onFailure = { error -> Result.failure(error) }
+        )
     }
 
-
-    private fun registerToActiveLanguageServers(targetAccount: AccountInfo): Boolean {
-        val candidates = discoverLsCandidates()
-        if (candidates.isEmpty()) {
-            return true // 未启动 IDE 时忽略，凭证已写入文件，IDE 启动时会自动读取
-        }
-
-        val trustAllSsl = createInsecureSslSocketFactory()
-        var anySuccess = false
-
-        for (candidate in candidates) {
-            try {
-                val url = URL("https://127.0.0.1:${candidate.port}/exa.language_server_pb.LanguageServerService/RegisterGdmUser")
-                val connection = (url.openConnection() as HttpsURLConnection).apply {
-                    sslSocketFactory = trustAllSsl
-                    hostnameVerifier = HostnameVerifier { _, _ -> true }
-                    requestMethod = "POST"
-                    connectTimeout = 3000
-                    readTimeout = 5000
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Accept", "application/json")
-                    setRequestProperty("X-Codeium-Csrf-Token", candidate.csrf)
-                    doOutput = true
-                }
-
-                connection.outputStream.use { os ->
-                    os.write("{}".toByteArray(Charsets.UTF_8))
-                }
-
-                val responseCode = connection.responseCode
-                if (responseCode in 200..299) {
-                    anySuccess = true
-                }
-            } catch (_: Exception) {
-            }
-        }
-
-        return anySuccess
-    }
-
-    private fun discoverLsCandidates(): List<LsCandidate> {
-        val candidates = mutableListOf<LsCandidate>()
-        val os = System.getProperty("os.name", "").lowercase()
-        try {
-            if (os.contains("mac") || os.contains("linux")) {
-                val process = ProcessBuilder("/bin/ps", "-axo", "pid=,command=").start()
-                val lines = BufferedReader(InputStreamReader(process.inputStream)).readLines()
-                process.waitFor()
-
-                for (line in lines) {
-                    val trimmed = line.trim()
-                    if (!trimmed.contains("language_server")) continue
-                    val separator = trimmed.indexOfFirst { it.isWhitespace() }
-                    if (separator <= 0) continue
-                    val pid = trimmed.substring(0, separator).trim().toLongOrNull() ?: continue
-                    val command = trimmed.substring(separator).trim()
-
-                    val csrf = extractFlagValue(command, "--csrf_token") ?: continue
-                    val port = extractFlagValue(command, "--https_server_port")?.toIntOrNull()
-                    if (port != null && port > 0) {
-                        candidates.add(LsCandidate(pid, port, csrf))
-                    }
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return candidates
-    }
-
-    private fun extractFlagValue(command: String, flag: String): String? {
-        val prefix = "$flag="
-        val parts = command.split(Regex("\\s+"))
-        for (i in parts.indices) {
-            val part = parts[i]
-            if (part == flag && i + 1 < parts.size) {
-                return parts[i + 1].trim('"', '\'')
-            }
-            if (part.startsWith(prefix)) {
-                return part.removePrefix(prefix).trim('"', '\'')
-            }
-        }
-        return null
-    }
-
-    private fun createInsecureSslSocketFactory(): SSLSocketFactory {
-        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-            override fun getAcceptedIssuers(): Array<X509Certificate>? = null
-            override fun checkClientTrusted(certs: Array<X509Certificate>?, authType: String?) {}
-            override fun checkServerTrusted(certs: Array<X509Certificate>?, authType: String?) {}
-        })
-        val sslContext = SSLContext.getInstance("TLS")
-        sslContext.init(null, trustAllCerts, SecureRandom())
-        return sslContext.socketFactory
+    private fun buildReportMessage(report: SwitchResultReport): String {
+        return listOf(report.ide, report.app, report.cli)
+            .mapNotNull { result -> result.message }
+            .ifEmpty { listOf("账号尚未在所有目标宿主生效") }
+            .joinToString("；")
     }
 }

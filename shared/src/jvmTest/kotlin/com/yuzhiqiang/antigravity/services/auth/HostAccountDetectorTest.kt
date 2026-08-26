@@ -1,64 +1,21 @@
 package com.yuzhiqiang.antigravity.services.auth
 
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 class HostAccountDetectorTest {
 
     @Test
-    fun testDetectCliAppProfile() {
-        val profile = HostAccountDetector.detectCliAppProfile()
-        println("=== Detected CLI App Profile (Ground Truth via Physical Storage) ===")
-        println("Email: ${profile?.email}")
-        println("Name: ${profile?.name}")
-        println("TokenType: ${profile?.tokenType}")
-        println("Expiry: ${profile?.expiryTimestamp}")
+    fun testProtobufEncoderAndRoundtrip() {
+        val targetEmail = "fixture-user@example.invalid"
+        val targetName = "Fixture User"
+        val payload = ProtobufEncoder.createMinimalUssStatus(targetEmail, targetName)
+        val unifiedTopic = ProtobufEncoder.createUnifiedStateEntry("userStatusSentinelKey", payload)
 
-        val email = HostAccountDetector.detectCliAppActiveEmail()
-        println("CLI Active Email shortcut: $email")
-        if (profile != null) {
-            assertEquals(profile.email, email)
-            assertTrue(profile.email.contains("@"))
-        }
-    }
-
-    @Test
-    fun testDetectIdeProfile() = runBlocking {
-        val profile = HostAccountDetector.detectIdeActiveProfile()
-        println("=== Detected IDE Profile (Ground Truth via state.vscdb Protobuf) ===")
-        println("Email: ${profile?.email}")
-        println("Name: ${profile?.name}")
-        println("Tier: ${profile?.tierText}")
-        println("Avatar: ${profile?.avatarUrl}")
-
-        val ideEmail = HostAccountDetector.detectIdeActiveEmail()
-        println("Detected IDE email shortcut: $ideEmail")
-        if (profile != null) {
-            assertEquals(profile.email, ideEmail)
-            assertTrue(profile.email.contains("@"))
-        }
-    }
-
-    @Test
-    fun testDualActiveAccountCaseResolution() = runBlocking {
-        // 模拟验证：当 IDE 和 App/CLI 生效同一账号时的仲裁与排序
-        val sameEmail = "yuzhiqiang0904@gmail.com"
-        val isIdeMatch = sameEmail.equals("yuzhiqiang0904@gmail.com", ignoreCase = true)
-        val isCliMatch = sameEmail.equals("yuzhiqiang0904@gmail.com", ignoreCase = true)
-        val isDualActive = isIdeMatch && isCliMatch
-
-        assertTrue(isDualActive, "双端同一账号应正确识别为 isDualActive")
-    }
-
-    @Test
-    fun testFindAvailableRefreshToken() {
-        val rt = HostAccountDetector.findAvailableRefreshToken("yuzhiqiang0904@gmail.com")
-        println("=== Find RefreshToken for yuzhiqiang0904@gmail.com ===")
-        println("RefreshToken: $rt")
-        assertNotNull(rt, "应该能从 jetski-standalone-oauth-token 查找到可用 refreshToken")
-        assertTrue(rt.startsWith("1//"), "RefreshToken 应以 1// 开头")
+        val decodedProfile = HostAccountDetector.parseProfileFromUserStatusRaw(unifiedTopic)
+        assertNotNull(decodedProfile, "Protobuf 解码应该成功")
+        assertEquals(targetEmail, decodedProfile.email, "解码邮箱应该与目标完全一致")
+        assertEquals(targetName, decodedProfile.name, "解码名称应该与目标完全一致")
     }
 }
