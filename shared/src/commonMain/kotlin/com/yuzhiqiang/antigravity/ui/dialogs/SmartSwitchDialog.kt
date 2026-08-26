@@ -19,6 +19,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.domain.model.account.SmartSwitchConfig
 import com.yuzhiqiang.antigravity.domain.model.account.SmartSwitchStrategy
+import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.components.StudioCheckbox
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
@@ -29,6 +30,7 @@ fun SmartSwitchDialog(
     viewModel: AppViewModel,
     onDismiss: () -> Unit
 ) {
+    val s = strings()
     val config by viewModel.config.collectAsState()
     val smartConfig = config.smartSwitchConfig
 
@@ -44,9 +46,8 @@ fun SmartSwitchDialog(
     ) {
         StudioCard(
             modifier = Modifier
-                .widthIn(min = 480.dp, max = 540.dp)
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
+                .widthIn(min = 400.dp, max = 500.dp)
+                .fillMaxWidth(0.9f)
         ) {
             Column(
                 modifier = Modifier
@@ -62,14 +63,14 @@ fun SmartSwitchDialog(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "自动智能切号策略",
+                            text = s.smartSwitchTitle,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
                             )
                         )
                         Text(
-                            text = "当额度耗尽或遭遇 429 报错时，自动无感调度最佳备用账号",
+                            text = s.smartSwitchSubtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -78,7 +79,7 @@ fun SmartSwitchDialog(
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "Close",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -96,11 +97,11 @@ fun SmartSwitchDialog(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = "启用自动智能切号",
+                            text = s.smartSwitchEnableTitle,
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
                         )
                         Text(
-                            text = "遭遇 429 或配额见底时自动执行无感切号",
+                            text = s.smartSwitchEnableDesc,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -119,7 +120,7 @@ fun SmartSwitchDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("触发切号配额下限阈值", style = MaterialTheme.typography.bodyMedium)
+                            Text(s.smartSwitchThresholdLabel, style = MaterialTheme.typography.bodyMedium)
                             Text(
                                 "${thresholdPercent.toInt()}%",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
@@ -136,7 +137,7 @@ fun SmartSwitchDialog(
 
                     // Strategy Selector
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("备用账号调度策略", style = MaterialTheme.typography.bodyMedium)
+                        Text(s.smartSwitchStrategyLabel, style = MaterialTheme.typography.bodyMedium)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -144,12 +145,12 @@ fun SmartSwitchDialog(
                             FilterChip(
                                 selected = strategy == SmartSwitchStrategy.HIGHEST_QUOTA_FIRST,
                                 onClick = { strategy = SmartSwitchStrategy.HIGHEST_QUOTA_FIRST },
-                                label = { Text(SmartSwitchStrategy.HIGHEST_QUOTA_FIRST.displayName) }
+                                label = { Text(SmartSwitchStrategy.HIGHEST_QUOTA_FIRST.displayName(s)) }
                             )
                             FilterChip(
                                 selected = strategy == SmartSwitchStrategy.ROUND_ROBIN,
                                 onClick = { strategy = SmartSwitchStrategy.ROUND_ROBIN },
-                                label = { Text(SmartSwitchStrategy.ROUND_ROBIN.displayName) }
+                                label = { Text(SmartSwitchStrategy.ROUND_ROBIN.displayName(s)) }
                             )
                         }
                     }
@@ -160,9 +161,9 @@ fun SmartSwitchDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("切号最小冷却间隔", style = MaterialTheme.typography.bodyMedium)
+                            Text(s.smartSwitchCooldownLabel, style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "${cooldownSeconds.toInt()} 秒",
+                                s.smartSwitchSeconds(cooldownSeconds.toInt()),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -182,9 +183,9 @@ fun SmartSwitchDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("长对话生成加锁保护", style = MaterialTheme.typography.bodyMedium)
+                            Text(s.smartSwitchProtectGenerationTitle, style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "流式生成或 Agent 执行期间禁止自动打断切号",
+                                s.smartSwitchProtectGenerationDesc,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -203,7 +204,7 @@ fun SmartSwitchDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("取消")
+                        Text(s.commonCancel)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
@@ -221,7 +222,7 @@ fun SmartSwitchDialog(
                         },
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("保存策略配置")
+                        Text(s.commonSave)
                     }
                 }
             }

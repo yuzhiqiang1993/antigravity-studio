@@ -35,17 +35,21 @@ fun formatDuration(durationMs: Long?): String {
 /**
  * 将上次刷新时间戳转换为自然语言相对时间描述 (刚刚更新、上次刷新 2 分钟前、上次刷新 3 小时前等)
  */
-fun formatLastRefreshedText(lastRefreshedAt: Long, now: Long = System.currentTimeMillis()): String {
-    if (lastRefreshedAt <= 0L) return "从未刷新"
+fun formatLastRefreshedText(
+    lastRefreshedAt: Long,
+    now: Long = System.currentTimeMillis(),
+    s: com.yuzhiqiang.antigravity.i18n.Strings = com.yuzhiqiang.antigravity.i18n.currentStrings()
+): String {
+    if (lastRefreshedAt <= 0L) return s.timeNeverRefreshed
     val diffMs = (now - lastRefreshedAt).coerceAtLeast(0L)
     val diffSec = diffMs / 1000L
-    if (diffSec < 60L) return "刚刚更新"
+    if (diffSec < 60L) return s.timeJustNow
     val diffMin = diffSec / 60L
-    if (diffMin < 60L) return "上次刷新 $diffMin 分钟前"
+    if (diffMin < 60L) return s.timeMinutesAgo(diffMin)
     val diffHours = diffMin / 60L
-    if (diffHours < 24L) return "上次刷新 $diffHours 小时前"
+    if (diffHours < 24L) return s.timeHoursAgo(diffHours)
     val diffDays = diffHours / 24L
-    return "上次刷新 $diffDays 天前"
+    return s.timeDaysAgo(diffDays)
 }
 
 /**

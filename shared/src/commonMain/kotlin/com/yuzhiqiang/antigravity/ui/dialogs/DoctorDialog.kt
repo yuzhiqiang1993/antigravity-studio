@@ -301,7 +301,7 @@ fun DoctorDialog(
 }
 
 /**
- * 现代精致的体检扫描动效与骨架屏组合视图
+ * 现代精致的诊断扫描动效与骨架屏组合视图
  */
 @Composable
 private fun DoctorScanningView() {

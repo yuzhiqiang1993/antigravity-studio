@@ -27,3 +27,5 @@ val LocalStrings = compositionLocalOf<Strings> { StringsZh }
 
 @Composable
 fun strings(): Strings = LocalStrings.current
+
+fun currentStrings(): Strings = I18nManager.strings

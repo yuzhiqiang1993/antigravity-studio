@@ -2,6 +2,8 @@ package com.yuzhiqiang.antigravity.domain.model.quota
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import com.yuzhiqiang.antigravity.i18n.Strings
+import com.yuzhiqiang.antigravity.i18n.currentStrings
 
 @Serializable
 enum class QuotaWindow {
@@ -17,13 +19,15 @@ enum class QuotaWindow {
     @SerialName("unknown")
     UNKNOWN;
 
+    fun displayName(s: Strings = currentStrings()): String = when (this) {
+        FIVE_HOUR -> s.quotaWindowFiveHour
+        WEEKLY -> s.quotaWindowWeekly
+        DAILY -> s.quotaWindowDaily
+        UNKNOWN -> s.quotaWindowGeneral
+    }
+
     val displayName: String
-        get() = when (this) {
-            FIVE_HOUR -> "5 小时额度"
-            WEEKLY -> "周度额度"
-            DAILY -> "每日额度"
-            UNKNOWN -> "周期额度"
-        }
+        get() = displayName(currentStrings())
 }
 
 /**
@@ -63,43 +67,54 @@ data class ModelQuotaInfo(
     }
 
     /**
-     * 格式化紧凑倒计时文本 (如 "2小时 12分钟" 或 "2天 2小时")
+     * 格式化紧凑倒计时文本 (如 "2小时 12分钟" / "2h 12m" 或 "2天 2小时" / "2d 2h")
+     * 当剩余时间 <= 0 时返回 null，由调用方展示“即将重置”状态
      */
-    fun formattedCountdown(): String? {
+    fun formattedCountdown(s: Strings = currentStrings()): String? {
         val seconds = secondsUntilReset() ?: return null
-        if (seconds <= 0) return "已重置"
-        val totalMinutes = seconds / 60
-        val hours = totalMinutes / 60
-        val minutes = totalMinutes % 60
-        val days = hours / 24
-        val remHours = hours % 24
+        if (seconds <= 0L) return null
+        val totalMinutes = seconds / 60L
+        val hours = totalMinutes / 60L
+        val minutes = totalMinutes % 60L
+        val days = hours / 24L
+        val remHours = hours % 24L
 
         return when {
-            days > 0 -> if (remHours > 0) "${days}天 ${remHours}小时" else "${days}天"
-            hours > 0 -> "${hours}小时 ${minutes}分钟"
-            minutes > 0 -> "${minutes}分钟"
-            else -> "< 1分钟"
+            days > 0L -> if (remHours > 0L) s.formatCountdownDaysHours(days, remHours) else s.formatCountdownDays(days)
+            hours > 0L -> if (minutes > 0L) s.formatCountdownHoursMinutes(hours, minutes) else s.formatCountdownHours(hours)
+            minutes > 0L -> s.formatCountdownMinutes(minutes)
+            else -> s.formatCountdownLessThanMinute
         }
+    }
+
+    /**
+     * 获取多语言友好的槽位显示标题
+     */
+    fun displayTitle(s: Strings = currentStrings()): String = when (window) {
+        QuotaWindow.FIVE_HOUR -> s.accountsQuotaFiveHour
+        QuotaWindow.WEEKLY -> s.accountsQuotaWeekly
+        QuotaWindow.DAILY -> s.quotaWindowDaily
+        QuotaWindow.UNKNOWN -> displayName.ifBlank { s.quotaWindowGeneral }
     }
 
     /**
      * 对齐 Cockpit 插件的标准自然语言配额描述文案
      */
-    fun naturalLanguageDescription(): String {
+    fun naturalLanguageDescription(s: Strings = currentStrings()): String {
         if (percentage >= 100) {
             return when (window) {
-                QuotaWindow.FIVE_HOUR -> "您的五小时额度目前处于完全可用状态。"
-                QuotaWindow.WEEKLY -> "您的周额度目前处于完全可用状态。"
-                else -> "您的额度目前处于完全可用状态。"
+                QuotaWindow.FIVE_HOUR -> s.quotaDescFiveHourFull
+                QuotaWindow.WEEKLY -> s.quotaDescWeeklyFull
+                else -> s.quotaDescGeneralFull
             }
         }
 
-        val countdown = formattedCountdown()
-        val timeStr = countdown ?: "稍后"
+        val countdown = formattedCountdown(s)
+        val timeStr = countdown ?: s.accountsQuotaResetSoon
         return when (window) {
-            QuotaWindow.FIVE_HOUR -> "您已消耗部分五小时额度，将在 $timeStr 后完全重置。"
-            QuotaWindow.WEEKLY -> "您已消耗部分周额度，将在 $timeStr 后完全重置。"
-            else -> "额度将在 $timeStr 后完全重置。"
+            QuotaWindow.FIVE_HOUR -> s.quotaDescFiveHourResetting(timeStr)
+            QuotaWindow.WEEKLY -> s.quotaDescWeeklyResetting(timeStr)
+            else -> s.quotaDescGeneralResetting(timeStr)
         }
     }
 }

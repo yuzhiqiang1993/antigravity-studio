@@ -37,6 +37,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
+
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.AccountTier
 import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
@@ -73,8 +80,10 @@ fun StudioAccountCard(
     onRefresh: () -> Unit,
     onCopyToken: () -> Unit,
     onDelete: () -> Unit,
+    onCopyEmail: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val s = strings()
     val effectiveAppCliActive = isAppCliActive || isAppActive || isCliActive
     val isDualActive = isIdeActive && effectiveAppCliActive
     val isAnyActive = isIdeActive || effectiveAppCliActive
@@ -130,23 +139,48 @@ fun StudioAccountCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val emailInteractionSource = remember { MutableInteractionSource() }
+                val isEmailHovered by emailInteractionSource.collectIsHoveredAsState()
+
                 Row(
                     modifier = Modifier.weight(1f, fill = false).padding(end = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    StudioTooltip(text = "账号邮箱: ${account.email}") {
-                        Text(
-                            text = displayEmail,
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = if (isAnyActive) FontWeight.Bold else FontWeight.SemiBold,
-                                fontSize = 13.5.sp,
-                                letterSpacing = (-0.2).sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    StudioTooltip(text = s.accountsEmailTooltip(account.email)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(StudioDesignTokens.CornerRadius.xs))
+                                .background(
+                                    if (isEmailHovered) {
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.10f else 0.06f)
+                                    } else {
+                                        Color.Transparent
+                                    }
+                                )
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .clickable(
+                                    interactionSource = emailInteractionSource,
+                                    indication = null
+                                ) {
+                                    copyToClipboard(account.email)
+                                    onCopyEmail?.invoke()
+                                }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = displayEmail,
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = if (isAnyActive) FontWeight.Bold else FontWeight.SemiBold,
+                                    fontSize = 13.5.sp,
+                                    letterSpacing = (-0.2).sp
+                                ),
+                                color = if (isEmailHovered) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
@@ -259,7 +293,7 @@ fun StudioAccountCard(
                     "--"
                 }
 
-                StudioTooltip(text = "配额最后同步时间: $timeStr") {
+                StudioTooltip(text = s.accountsLastSyncTime(timeStr)) {
                     Text(
                         text = timeStr,
                         style = MaterialTheme.typography.bodySmall.copy(
@@ -276,9 +310,9 @@ fun StudioAccountCard(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs - 1.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 单宿主激活时仍允许将账号同步到另一宿主。
+                    // 单客户端激活时仍允许将账号同步到另一客户端。
                     if (!isDualActive) {
-                        StudioTooltip(text = if (isAnyActive) "同步到另一宿主" else "设为 IDE 与 App/CLI 激活生效账号") {
+                        StudioTooltip(text = if (isAnyActive) s.accountsSyncToOtherHost else s.accountsSetAsActiveTooltip) {
                             IconButton(
                                 onClick = onSetActive,
                                 enabled = !isSwitching,
@@ -286,7 +320,7 @@ fun StudioAccountCard(
                             ) {
                                 Icon(
                                     imageVector = StudioIcons.SwitchAccount,
-                                    contentDescription = "切换账号",
+                                    contentDescription = s.accountsSwitchDialogTitle,
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -294,23 +328,23 @@ fun StudioAccountCard(
                         }
                     }
 
-                    // 2. 复制 Token
-                    StudioTooltip(text = "复制 Refresh Token") {
+                    // 2. 复制 Token (使用钥匙图标增强语义)
+                    StudioTooltip(text = s.accountsCopyToken) {
                         IconButton(
                             onClick = onCopyToken,
                             modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.ContentCopy,
-                                contentDescription = "复制 Token",
-                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize - 2.dp),
+                                imageVector = Icons.Outlined.Key,
+                                contentDescription = s.accountsCopyToken,
+                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize - 1.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
                     // 4. 刷新 (复用 studioRotating 规范动效)
-                    StudioTooltip(text = if (isRefreshing) "正在刷新配额..." else "刷新此账号实时配额") {
+                    StudioTooltip(text = if (isRefreshing) s.accountsRefreshingTooltip else s.accountsRefreshThisTooltip) {
                         IconButton(
                             onClick = { if (!isRefreshing) onRefresh() },
                             enabled = !isRefreshing,
@@ -318,7 +352,7 @@ fun StudioAccountCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Refresh,
-                                contentDescription = "刷新",
+                                contentDescription = s.commonRefresh,
                                 modifier = Modifier
                                     .size(StudioDesignTokens.Sizes.cardActionIconSize)
                                     .studioRotating(isRefreshing),
@@ -328,14 +362,14 @@ fun StudioAccountCard(
                     }
 
                     // 5. 删除账号
-                    StudioTooltip(text = "删除此账号") {
+                    StudioTooltip(text = s.accountsDeleteThisTooltip) {
                         IconButton(
                             onClick = onDelete,
                             modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionSize)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Delete,
-                                contentDescription = "删除",
+                                contentDescription = s.commonDelete,
                                 modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize),
                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                             )
@@ -409,22 +443,24 @@ private fun RingQuotaMatrixBlock(
  */
 @Composable
 private fun QuotaDashboardSkeleton(borderClr: Color, isDark: Boolean, isRefreshing: Boolean = false) {
+    val s = strings()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // 1. Gemini 模型骨架
-        SkeletonFamilyBlock(title = "Gemini 模型", isDark = isDark, isRefreshing = isRefreshing)
+        SkeletonFamilyBlock(title = s.accountsModelFamily("Gemini"), isDark = isDark, isRefreshing = isRefreshing)
 
         HorizontalDivider(color = borderClr.copy(alpha = 0.7f), thickness = 0.5.dp)
 
         // 2. Claude 模型骨架
-        SkeletonFamilyBlock(title = "Claude 模型", isDark = isDark, isRefreshing = isRefreshing)
+        SkeletonFamilyBlock(title = s.accountsModelFamily("Claude"), isDark = isDark, isRefreshing = isRefreshing)
     }
 }
 
 @Composable
 private fun SkeletonFamilyBlock(title: String, isDark: Boolean, isRefreshing: Boolean = false) {
+    val s = strings()
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -448,13 +484,14 @@ private fun SkeletonFamilyBlock(title: String, isDark: Boolean, isRefreshing: Bo
             }
         }
 
-        SkeletonQuotaRow(title = "五小时额度", isDark = isDark, isRefreshing = isRefreshing)
-        SkeletonQuotaRow(title = "周额度", isDark = isDark, isRefreshing = isRefreshing)
+        SkeletonQuotaRow(title = s.accountsQuotaFiveHour, isDark = isDark, isRefreshing = isRefreshing)
+        SkeletonQuotaRow(title = s.accountsQuotaWeekly, isDark = isDark, isRefreshing = isRefreshing)
     }
 }
 
 @Composable
 private fun SkeletonQuotaRow(title: String, isDark: Boolean, isRefreshing: Boolean = false) {
+    val s = strings()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -488,7 +525,7 @@ private fun SkeletonQuotaRow(title: String, isDark: Boolean, isRefreshing: Boole
                             .studioShimmer(shape = RoundedCornerShape(3.dp), isDark = isDark)
                     )
                     Text(
-                        text = "正在获取额度数据...",
+                        text = s.accountsFetchingQuota,
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = StudioDesignTokens.TextSize.resetCountdown
                         ),
@@ -498,7 +535,7 @@ private fun SkeletonQuotaRow(title: String, isDark: Boolean, isRefreshing: Boole
                 }
             } else {
                 Text(
-                    text = "暂无数据",
+                    text = s.accountsNoQuotaData,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = StudioDesignTokens.TextSize.resetCountdown
                     ),
@@ -541,6 +578,7 @@ private fun RingFamilySection(
     group: QuotaGroup,
     isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 ) {
+    val s = strings()
     val fiveHour = group.buckets.firstOrNull { it.window == QuotaWindow.FIVE_HOUR }
         ?: group.buckets.firstOrNull()
     val weekly = group.buckets.firstOrNull { it.window == QuotaWindow.WEEKLY }
@@ -549,7 +587,7 @@ private fun RingFamilySection(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // 模型族标题
         Text(
-            text = "${group.label} 模型",
+            text = s.accountsModelFamily(group.label),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.Bold,
                 fontSize = StudioDesignTokens.TextSize.body
@@ -558,11 +596,11 @@ private fun RingFamilySection(
         )
 
         fiveHour?.let { item ->
-            RingQuotaRow(groupName = group.label, title = "五小时额度", item = item, isDark = isDark)
+            RingQuotaRow(groupName = group.label, title = s.accountsQuotaFiveHour, item = item, isDark = isDark)
         }
 
         weekly?.let { item ->
-            RingQuotaRow(groupName = group.label, title = "周额度", item = item, isDark = isDark)
+            RingQuotaRow(groupName = group.label, title = s.accountsQuotaWeekly, item = item, isDark = isDark)
         }
     }
 }
@@ -590,10 +628,11 @@ private fun RingQuotaRow(
     item: ModelQuotaInfo,
     isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 ) {
+    val s = strings()
     val targetPct = item.percentage.coerceIn(0, 100)
     val barColor = quotaThemeColor(targetPct)
     val isFull = targetPct >= 100
-    val countdown = item.formattedCountdown() ?: "即将重置"
+    val countdown = item.formattedCountdown(s)
     val formattedDate = item.resetTimeEpochSeconds?.let { epochSec ->
         val date = java.util.Date(epochSec * 1000L)
         java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.getDefault()).format(date)
@@ -604,7 +643,7 @@ private fun RingQuotaRow(
 
     // 精简沉稳倒计时与精确时间点 (2天 20小时后重置 · 08/28 14:53)，满额时使用当前主题色
     val fullColor = MaterialTheme.colorScheme.primary
-    val descAnnotated = remember(targetPct, countdown, formattedDate, isFull, isDark, fullColor) {
+    val descAnnotated = remember(targetPct, countdown, formattedDate, isFull, isDark, fullColor, s) {
         buildAnnotatedString {
             if (isFull) {
                 withStyle(
@@ -613,7 +652,7 @@ private fun RingQuotaRow(
                         fontWeight = FontWeight.SemiBold
                     )
                 ) {
-                    append("● 满额可用")
+                    append(s.accountsQuotaFull)
                 }
             } else {
                 withStyle(
@@ -623,8 +662,12 @@ private fun RingQuotaRow(
                         fontFamily = FontFamily.Monospace
                     )
                 ) {
-                    append(countdown)
-                    append("后重置")
+                    if (countdown != null) {
+                        append(countdown)
+                        append(s.accountsQuotaResetInSuffix)
+                    } else {
+                        append(s.accountsQuotaResetSoon)
+                    }
                 }
                 if (formattedDate != null) {
                     withStyle(

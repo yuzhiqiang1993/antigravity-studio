@@ -33,7 +33,8 @@ fun ModelQuotaBar(
 
     val barColor = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(quota.percentage, isDark)
 
-    val countdownText = quota.formattedCountdown()
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
+    val countdownText = quota.formattedCountdown(s)
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -50,7 +51,7 @@ fun ModelQuotaBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = quota.displayName,
+                    text = quota.displayTitle(s),
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontWeight = FontWeight.Medium,
                         fontSize = if (compact) 11.5.sp else 13.sp
@@ -65,7 +66,15 @@ fun ModelQuotaBar(
             ) {
                 if (!countdownText.isNullOrBlank() && quota.percentage < 100) {
                     Text(
-                        text = "$countdownText 后重置",
+                        text = s.accountsResetInCountdown(countdownText),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                } else if (quota.percentage < 100 && quota.resetTimeEpochSeconds != null) {
+                    Text(
+                        text = s.accountsQuotaResetSoon,
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 11.sp
                         ),

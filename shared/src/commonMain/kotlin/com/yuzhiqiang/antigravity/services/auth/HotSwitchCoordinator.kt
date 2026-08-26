@@ -98,7 +98,8 @@ class HotSwitchCoordinator(
         progressCallback: ((phase: String) -> Unit)? = null
     ): Result<SwitchResultReport> {
         if (!switchMutex.tryLock()) {
-            return Result.failure(IllegalStateException("已有账号切换任务正在执行，请稍后再试"))
+            val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
+            return Result.failure(IllegalStateException(s.hotSwitchTaskAlreadyRunning))
         }
 
         _isSwitching.value = true
@@ -162,6 +163,7 @@ class HotSwitchCoordinator(
         restartIde: Boolean = true,
         progressCallback: ((phase: String) -> Unit)? = null
     ): Result<Unit> {
+        val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
         return switchAccountWithRestart(
             targetAccount = targetAccount,
             applyToIde = true,
@@ -174,7 +176,7 @@ class HotSwitchCoordinator(
                 if (report.ide.isApplied) {
                     Result.success(Unit)
                 } else {
-                    Result.failure(IllegalStateException(report.ide.message ?: "IDE 账号尚未生效"))
+                    Result.failure(IllegalStateException(report.ide.message ?: s.hotSwitchIdeNotApplied))
                 }
             },
             onFailure = { error -> Result.failure(error) }
@@ -182,9 +184,10 @@ class HotSwitchCoordinator(
     }
 
     private fun buildReportMessage(report: SwitchResultReport): String {
+        val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
         return listOf(report.ide, report.appCli)
             .mapNotNull { result -> result.message }
-            .ifEmpty { listOf("账号尚未在所有目标宿主生效") }
+            .ifEmpty { listOf(s.hotSwitchNotAllTargetsApplied) }
             .joinToString("；")
     }
 }

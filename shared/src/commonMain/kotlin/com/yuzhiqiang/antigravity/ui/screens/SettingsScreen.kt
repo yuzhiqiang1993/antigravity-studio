@@ -99,6 +99,7 @@ fun SettingsScreen(
                 onUpdateThemeMode = { viewModel.updateThemeMode(it) },
                 onUpdateThemePalette = { viewModel.updateThemePalette(it) },
                 onUpdateAutoCheckUpdate = { viewModel.updateAutoCheckUpdate(it) },
+                onUpdateDefaultSwitchTarget = { viewModel.updateDefaultSwitchTarget(it) },
                 onUpdateDeveloperMode = { viewModel.updateDeveloperMode(it) },
                 onToggleDeveloperMode = { viewModel.toggleDeveloperMode() },
                 updateState = updateState,
@@ -139,6 +140,7 @@ private fun SettingsContent(
     onUpdateThemeMode: (String) -> Unit,
     onUpdateThemePalette: (String) -> Unit,
     onUpdateAutoCheckUpdate: (Boolean) -> Unit,
+    onUpdateDefaultSwitchTarget: (String) -> Unit,
     onUpdateDeveloperMode: (Boolean) -> Unit,
     onToggleDeveloperMode: () -> Unit,
     updateState: com.yuzhiqiang.antigravity.update.model.UpdateState,
@@ -159,6 +161,7 @@ private fun SettingsContent(
                 onUpdateThemeMode = onUpdateThemeMode,
                 onUpdateThemePalette = onUpdateThemePalette,
                 onUpdateAutoCheckUpdate = onUpdateAutoCheckUpdate,
+                onUpdateDefaultSwitchTarget = onUpdateDefaultSwitchTarget,
                 onConfigureHostPath = onConfigureHostPath,
                 s = s
             )
