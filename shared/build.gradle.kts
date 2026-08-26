@@ -25,6 +25,9 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
 
+            // Logging (Kermit)
+            implementation(libs.kermit)
+
             // Koin DI
             implementation(libs.koin.core)
             implementation(libs.koin.compose)

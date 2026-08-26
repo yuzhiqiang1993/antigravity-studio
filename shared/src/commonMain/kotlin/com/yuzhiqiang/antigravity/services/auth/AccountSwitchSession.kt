@@ -17,6 +17,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import java.io.File
 import java.text.SimpleDateFormat
+import com.yuzhiqiang.antigravity.logging.AppLog
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -28,8 +29,8 @@ internal class AccountSwitchSession(
     private val accountStore: AccountStore,
     private val googleAuthService: GoogleAuthService = GoogleAuthService()
 ) {
-    private fun log(tag: String, message: String) {
-        println("[AccountSwitchSession][$tag] $message")
+    private fun log(stage: String, message: String) {
+        AppLog.i("Auth/Switch") { "[$stage] $message" }
     }
 
     data class Request(
