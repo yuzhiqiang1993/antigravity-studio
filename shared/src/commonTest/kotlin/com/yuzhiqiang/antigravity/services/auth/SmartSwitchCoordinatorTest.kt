@@ -120,8 +120,9 @@ class SmartSwitchCoordinatorTest {
         )
 
         val outcome = coordinator.trySmartSwitchOn429("claude-3-7-sonnet")
-        assertTrue(outcome.triggered)
+        assertFalse(outcome.triggered)
+        assertTrue(outcome.requiresUserAction)
         assertEquals("acc_3_high", outcome.targetAccount?.id)
-        assertEquals("high@antigravity.ai", accountStore.currentActiveAccount()?.email)
+        assertEquals("depleted@antigravity.ai", accountStore.currentActiveAccount()?.email)
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +39,7 @@ import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlinx.coroutines.delay
 
 enum class NoticeKind {
-    SUCCESS, ERROR, INFO
+    SUCCESS, ERROR, INFO, WARNING
 }
 
 data class NoticeAction(
@@ -90,6 +91,11 @@ fun AppSnackbarHost(
                         statusColors.error,
                         statusColors.onError,
                         Icons.Outlined.ErrorOutline
+                    )
+                    NoticeKind.WARNING -> Triple(
+                        statusColors.warning,
+                        statusColors.onWarning,
+                        Icons.Outlined.WarningAmber
                     )
                     NoticeKind.INFO -> Triple(
                         MaterialTheme.colorScheme.inverseSurface,

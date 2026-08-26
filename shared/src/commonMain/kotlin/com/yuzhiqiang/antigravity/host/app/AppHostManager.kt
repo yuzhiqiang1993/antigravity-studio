@@ -296,17 +296,17 @@ object AppHostManager {
      * 检测 Antigravity App 是否正在运行（精确匹配 App 进程并排除 IDE 进程）。
      */
     fun isRunning(customInstallation: String? = null): Boolean {
-        val patterns = buildList {
-            addAll(appMatchPatterns)
-            if (!customInstallation.isNullOrBlank()) {
-                val file = File(customInstallation.trim())
-                add(file.name)
-                if (file.name.endsWith(".app", ignoreCase = true)) {
-                    add(file.name + "/")
-                }
-            }
-        }.distinct()
-        return HostProcessManager.isProcessRunning(patterns, appExcludePatterns)
+        return HostProcessManager.isProcessRunning(
+            buildProcessPatterns(customInstallation),
+            appExcludePatterns
+        )
+    }
+
+    fun findPids(customInstallation: String? = null): List<Long> {
+        return HostProcessManager.findProcessPids(
+            buildProcessPatterns(customInstallation),
+            appExcludePatterns
+        )
     }
 
     /**
@@ -431,13 +431,15 @@ object AppHostManager {
      * 跨平台启动 Antigravity App。
      */
     fun launch(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
-        val env = if (proxyPort != null && isActive(proxyPort)) {
+        val env = if (proxyPort != null && isActive(proxyPort, customInstallation)) {
             mapOf("CLOUD_CODE_URL" to ("http://127.0.0.1:" + proxyPort))
         } else {
             null
         }
+        val installationPath = customInstallation?.trim()?.takeIf(String::isNotEmpty)
+            ?: getCandidateInstallations().firstOrNull(::isInstallationComplete)?.absolutePath
         return HostProcessManager.launch(
-            installationPath = customInstallation,
+            installationPath = installationPath,
             defaultMacApp = "Antigravity",
             defaultWinExe = "Antigravity.exe",
             environment = env
@@ -445,19 +447,80 @@ object AppHostManager {
     }
 
     /**
+     * 安全终止 Antigravity App，不在超时后自动强杀。
+     */
+    suspend fun terminate(customInstallation: String? = null): Boolean {
+        return HostProcessManager.terminateApplication(
+            bundleId = "com.google.antigravity",
+            matchPatterns = buildProcessPatterns(customInstallation),
+            excludePatterns = appExcludePatterns,
+            languageServerPatterns = buildLanguageServerPatterns(customInstallation),
+            label = "Antigravity App",
+            force = false
+        )
+    }
+
+    /**
      * 跨平台重启 Antigravity App（仅终止与重启 App 自身，绝不干扰 IDE）。
      */
     suspend fun restart(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
-        val terminated = HostProcessManager.terminateApplication(
-            bundleId = "com.google.antigravity",
-            matchPatterns = appMatchPatterns,
-            excludePatterns = appExcludePatterns,
-            languageServerPatterns = appLanguageServerPatterns,
-            label = "Antigravity App"
-        )
-        if (!terminated) return false
+        if (!terminate(customInstallation)) return false
         delay(300)
-        return launch(customInstallation, proxyPort)
+        if (!launch(customInstallation, proxyPort)) return false
+        return waitUntilRunning(customInstallation)
+    }
+
+    private fun buildProcessPatterns(customInstallation: String?): List<String> {
+        val customPath = customInstallation?.trim()?.takeIf(String::isNotEmpty)
+        return if (customPath == null) {
+            appMatchPatterns
+        } else {
+            listOf(resolveCanonicalPath(File(customPath)))
+        }
+    }
+
+    private fun buildLanguageServerPatterns(customInstallation: String?): List<String> {
+        val customRoot = findApplicationRoot(customInstallation)
+        if (customRoot == null) return appLanguageServerPatterns
+        val relativePath = if (isWindows) {
+            "resources/bin/language_server"
+        } else {
+            "Contents/Resources/bin/language_server"
+        }
+        return listOf(File(customRoot, relativePath).absolutePath)
+    }
+
+    private suspend fun waitUntilRunning(customInstallation: String?): Boolean {
+        repeat(25) {
+            if (isRunning(customInstallation)) return true
+            delay(200)
+        }
+        return false
+    }
+
+    private fun findApplicationRoot(customInstallation: String?): File? {
+        val customFile = customInstallation?.trim()?.takeIf(String::isNotEmpty)?.let(::File)
+            ?: return null
+        if (customFile.isDirectory) return customFile
+        return generateSequence(customFile.parentFile, File::getParentFile)
+            .firstOrNull { it.name.endsWith(".app", ignoreCase = true) }
+            ?: customFile.parentFile
+    }
+
+    private fun resolveCanonicalPath(file: File): String {
+        return try {
+            file.canonicalPath
+        } catch (_: Exception) {
+            file.absolutePath
+        }
+    }
+
+    private fun isInstallationComplete(root: File): Boolean {
+        return if (isWindows) {
+            root.isDirectory && File(root, "Antigravity.exe").isFile
+        } else {
+            root.isDirectory && File(root, "Contents/MacOS/Antigravity").isFile
+        }
     }
 
     private fun discoverMacApplications(bundleId: String): List<File> {
