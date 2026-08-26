@@ -114,6 +114,7 @@ fun main() {
         System.setProperty("skiko.renderApi", "DIRECT3D")
     }
     System.setProperty("skiko.vsync", "true")
+    com.yuzhiqiang.antigravity.network.PlatformNetworkConfig.applySystemProperties()
 
     startKoin {
         modules(appModule)

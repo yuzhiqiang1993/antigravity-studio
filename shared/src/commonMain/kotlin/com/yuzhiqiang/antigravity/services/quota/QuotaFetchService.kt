@@ -5,6 +5,7 @@ import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
 import com.yuzhiqiang.antigravity.domain.model.quota.ModelQuotaInfo
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaGroup
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaWindow
+import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
 import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -38,8 +39,7 @@ class QuotaFetchService(
 
     companion object {
         private val CLOUD_CODE_HOSTS = listOf(
-            "https://cloudcode-pa.googleapis.com",
-            "https://daily-cloudcode-pa.googleapis.com"
+            "https://cloudcode-pa.googleapis.com"
         )
         private const val DEFAULT_PROJECT_ID = "cloudaicompanion-enterprise"
         private const val USER_AGENT = "Antigravity/4.1.29 Chrome/132.0.6834.160 Electron/39.2.3"
@@ -53,18 +53,19 @@ class QuotaFetchService(
     private val httpClient = HttpClient(OkHttp) {
         engine {
             config {
-                connectTimeout(15, TimeUnit.SECONDS)
-                readTimeout(25, TimeUnit.SECONDS)
+                proxySelector(PlatformNetworkConfig.createSmartProxySelector())
+                connectTimeout(6, TimeUnit.SECONDS)
+                readTimeout(10, TimeUnit.SECONDS)
             }
         }
         install(HttpTimeout) {
-            connectTimeoutMillis = 15_000L
-            requestTimeoutMillis = 25_000L
+            connectTimeoutMillis = 6_000L
+            requestTimeoutMillis = 10_000L
         }
     }
 
     /**
-     * 拉取当前本地激活账号的实时配额（统一通过官方 REST API 拉取，确保获取到完整的 5h/周配额与真实 Pro/Free 身份）
+     * 直接通过官方 REST API 拉取账号实时配额与订阅层级数据
      */
     suspend fun fetchActiveAccountQuota(activeAccount: AccountInfo): Result<AccountQuotaSnapshot> = withContext(Dispatchers.IO) {
         fetchRemoteAccountQuota(activeAccount)
@@ -78,12 +79,20 @@ class QuotaFetchService(
         var currentToken = account.tokens.accessToken
         var attemptedRefresh = false
 
-        if (currentToken.isBlank() && account.tokens.refreshToken.isNotBlank() && tokenRefreshCallback != null) {
+        // 预检：如果 token 为空或即将过期（1分钟内），直接预先通过 refreshToken 刷新出最新 accessToken
+        val nowSec = System.currentTimeMillis() / 1000L
+        val isExpired = account.tokens.expiryTimestamp <= (nowSec + 60L)
+
+        if ((currentToken.isBlank() || isExpired) && account.tokens.refreshToken.isNotBlank() && tokenRefreshCallback != null) {
             attemptedRefresh = true
             val refreshResult = tokenRefreshCallback.invoke(account.tokens.refreshToken)
             if (refreshResult.isSuccess) {
                 currentToken = refreshResult.getOrThrow()
             }
+        }
+
+        if (currentToken.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("无法获取有效的 Access Token"))
         }
 
         var lastFetchResult: Result<AccountQuotaSnapshot> = Result.failure(IllegalStateException("未执行配额抓取"))
@@ -117,6 +126,9 @@ class QuotaFetchService(
 
 
     private suspend fun executeQuotaFetch(account: AccountInfo, token: String): Result<AccountQuotaSnapshot> {
+        if (token.isBlank()) {
+            return Result.failure(IllegalStateException("缺少有效的 Access Token"))
+        }
         var lastError: Exception? = null
 
         // 1. 尝试调用 loadCodeAssist 获取项目 ID、订阅层级及 Google One AI 积分
@@ -452,6 +464,8 @@ class QuotaFetchService(
             }
         } catch (_: Exception) {
         }
+        // 严格排序模型族：Gemini 模型族置顶 (0)，Claude 模型族在后 (1)
+        result.sortBy { if (it.family == "gemini") 0 else 1 }
         return result
     }
 
