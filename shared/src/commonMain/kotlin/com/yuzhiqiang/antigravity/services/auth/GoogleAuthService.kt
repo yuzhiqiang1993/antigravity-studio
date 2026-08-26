@@ -90,6 +90,7 @@ class GoogleAuthService {
     private val httpClient = HttpClient(OkHttp) {
         engine {
             config {
+                proxySelector(com.yuzhiqiang.antigravity.network.PlatformNetworkConfig.createSmartProxySelector())
                 connectTimeout(15, TimeUnit.SECONDS)
                 readTimeout(30, TimeUnit.SECONDS)
             }

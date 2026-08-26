@@ -72,50 +72,55 @@ data class AccountQuotaSnapshot(
     }
 
     /**
-     * 规范化展示用的模型族配额分组（完全对齐 Cockpit 插件的 Gemini/Claude 5h/Weekly 结构）
+     * 规范化展示用的模型族配额分组（完全对齐 Cockpit 插件的 Gemini/Claude 5h/Weekly 结构，且保证 Gemini 优先置顶）
      */
     fun normalizedDisplayGroups(): List<QuotaGroup> {
-        if (groups.isNotEmpty()) return groups
+        val list = if (groups.isNotEmpty()) {
+            groups
+        } else {
+            val result = mutableListOf<QuotaGroup>()
+            val geminiModels = models.filter { it.family == "gemini" || it.id.contains("gemini") }
+            val claudeModels = models.filter { it.family == "claude" || it.id.contains("claude") || it.id.contains("gpt") }
 
-        val result = mutableListOf<QuotaGroup>()
-        val geminiModels = models.filter { it.family == "gemini" || it.id.contains("gemini") }
-        val claudeModels = models.filter { it.family == "claude" || it.id.contains("claude") || it.id.contains("gpt") }
-
-        if (geminiModels.isNotEmpty()) {
-            val fiveHour = geminiModels.firstOrNull { it.window == QuotaWindow.FIVE_HOUR } ?: geminiModels.first()
-            val weekly = geminiModels.firstOrNull { it.window == QuotaWindow.WEEKLY }
-                ?: fiveHour.copy(id = "gemini-weekly", displayName = "周额度", window = QuotaWindow.WEEKLY)
-            result.add(
-                QuotaGroup(
-                    family = "gemini",
-                    label = "Gemini",
-                    displayName = "Gemini 模型",
-                    buckets = listOf(
-                        fiveHour.copy(displayName = "五小时额度", window = QuotaWindow.FIVE_HOUR),
-                        weekly.copy(displayName = "周额度", window = QuotaWindow.WEEKLY)
+            if (geminiModels.isNotEmpty()) {
+                val fiveHour = geminiModels.firstOrNull { it.window == QuotaWindow.FIVE_HOUR } ?: geminiModels.first()
+                val weekly = geminiModels.firstOrNull { it.window == QuotaWindow.WEEKLY }
+                    ?: fiveHour.copy(id = "gemini-weekly", displayName = "周额度", window = QuotaWindow.WEEKLY)
+                result.add(
+                    QuotaGroup(
+                        family = "gemini",
+                        label = "Gemini",
+                        displayName = "Gemini 模型",
+                        buckets = listOf(
+                            fiveHour.copy(displayName = "五小时额度", window = QuotaWindow.FIVE_HOUR),
+                            weekly.copy(displayName = "周额度", window = QuotaWindow.WEEKLY)
+                        )
                     )
                 )
-            )
-        }
+            }
 
-        if (claudeModels.isNotEmpty()) {
-            val fiveHour = claudeModels.firstOrNull { it.window == QuotaWindow.FIVE_HOUR } ?: claudeModels.first()
-            val weekly = claudeModels.firstOrNull { it.window == QuotaWindow.WEEKLY }
-                ?: fiveHour.copy(id = "claude-weekly", displayName = "周额度", window = QuotaWindow.WEEKLY)
-            result.add(
-                QuotaGroup(
-                    family = "claude",
-                    label = "Claude",
-                    displayName = "Claude 模型",
-                    buckets = listOf(
-                        fiveHour.copy(displayName = "五小时额度", window = QuotaWindow.FIVE_HOUR),
-                        weekly.copy(displayName = "周额度", window = QuotaWindow.WEEKLY)
+            if (claudeModels.isNotEmpty()) {
+                val fiveHour = claudeModels.firstOrNull { it.window == QuotaWindow.FIVE_HOUR } ?: claudeModels.first()
+                val weekly = claudeModels.firstOrNull { it.window == QuotaWindow.WEEKLY }
+                    ?: fiveHour.copy(id = "claude-weekly", displayName = "周额度", window = QuotaWindow.WEEKLY)
+                result.add(
+                    QuotaGroup(
+                        family = "claude",
+                        label = "Claude",
+                        displayName = "Claude 模型",
+                        buckets = listOf(
+                            fiveHour.copy(displayName = "五小时额度", window = QuotaWindow.FIVE_HOUR),
+                            weekly.copy(displayName = "周额度", window = QuotaWindow.WEEKLY)
+                        )
                     )
                 )
-            )
+            }
+
+            result
         }
 
-        return result
+        // 严格排序：Gemini 在前 (0)，Claude 在后 (1)
+        return list.sortedBy { if (it.family == "gemini") 0 else 1 }
     }
 
     /**

@@ -31,7 +31,7 @@ import java.net.URI
 /**
  * 结构化的 Markdown 块级元素
  */
-internal sealed interface MarkdownBlock {
+sealed interface MarkdownBlock {
     data class Header(val level: Int, val text: String) : MarkdownBlock
     data class ListItem(val orderedNumber: String?, val text: String) : MarkdownBlock
     data class Quote(val lines: List<String>) : MarkdownBlock
@@ -241,7 +241,7 @@ private fun RenderInlineText(
 /**
  * 将 Markdown 原文分割解析为块级元素
  */
-internal fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
+fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
     val lines = markdown.lines()
     val blocks = mutableListOf<MarkdownBlock>()
     var i = 0
