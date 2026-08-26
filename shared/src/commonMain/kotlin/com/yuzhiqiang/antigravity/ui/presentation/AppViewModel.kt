@@ -85,11 +85,12 @@ class AppViewModel(
     val accounts: StateFlow<List<AccountInfo>> = accountStore.accountsState
     val activeAccount: StateFlow<AccountInfo?> = accountStore.activeAccountState
 
-    private val _appActiveEmail = MutableStateFlow<String?>(null)
-    val appActiveEmail: StateFlow<String?> = _appActiveEmail.asStateFlow()
+    private val _appCliActiveEmail = MutableStateFlow<String?>(null)
+    val appCliActiveEmail: StateFlow<String?> = _appCliActiveEmail.asStateFlow()
 
-    private val _cliActiveEmail = MutableStateFlow<String?>(null)
-    val cliActiveEmail: StateFlow<String?> = _cliActiveEmail.asStateFlow()
+    // 兼容历史属性：统一指向 App & CLI 共享激活邮箱
+    val appActiveEmail: StateFlow<String?> get() = appCliActiveEmail
+    val cliActiveEmail: StateFlow<String?> get() = appCliActiveEmail
 
     private val _ideActiveEmail = MutableStateFlow<String?>(null)
     val ideActiveEmail: StateFlow<String?> = _ideActiveEmail.asStateFlow()
@@ -338,19 +339,11 @@ class AppViewModel(
     fun syncHostAccounts(): Job {
         return viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val knownAccounts = accountStore.currentAccounts()
-                val cliProfile = HostAccountDetector.detectCliAppProfile(
-                    knownAccounts = knownAccounts
-                )
-                val appProfile = HostAccountDetector.detectAppActiveProfile(
-                    knownAccounts = knownAccounts
-                )
+                val appCliProfile = HostAccountDetector.detectAppCliActiveProfile()
                 val ideProfile = HostAccountDetector.detectIdeActiveProfile()
-                val appIsRunning = AppHostManager.isRunning(configStore.currentConfig.customHostPaths["app"])
 
-                // App 与 CLI 是两个独立状态源：App 运行中只接受 language_server RPC，CLI 只接受 CLI 凭据/日志。
-                _appActiveEmail.value = if (appIsRunning) appProfile?.email else null
-                _cliActiveEmail.value = cliProfile?.email
+                // 统一收敛为 IDE 宿主通道与 App & CLI 共享宿主通道
+                _appCliActiveEmail.value = appCliProfile?.email
                 _ideActiveEmail.value = ideProfile?.email
 
                 // 1. 自动同步 IDE 宿主账号至 Studio 账号列表
@@ -411,25 +404,8 @@ class AppViewModel(
                     }
                 }
 
-                // 2. 自动同步 App 与 CLI 宿主账号至 Studio 账号列表；两端账号不同也不能互相覆盖。
-                val appCliProfiles = buildList {
-                    appProfile?.let { profile ->
-                        add(
-                            HostAccountDetector.CliAppAccountProfile(
-                                email = profile.email,
-                                name = profile.name
-                            )
-                        )
-                    }
-                    cliProfile?.let { profile ->
-                        if (appProfile?.email?.equals(profile.email, ignoreCase = true) != true) {
-                            add(profile)
-                        }
-                    }
-                }
-                for (appCliProfile in appCliProfiles) {
-                    if (appCliProfile.email.isBlank()) continue
-
+                // 2. 自动同步 App & CLI 宿主账号至 Studio 账号列表
+                if (appCliProfile != null && appCliProfile.email.isNotBlank()) {
                     val currentList = accountStore.currentAccounts()
                     val existing = currentList.firstOrNull {
                         it.email.equals(appCliProfile.email, ignoreCase = true)
@@ -444,14 +420,13 @@ class AppViewModel(
                             profile = AccountProfile(
                                 email = appCliProfile.email,
                                 name = appCliProfile.name,
-                                avatarUrl = null,
+                                avatarUrl = appCliProfile.avatarUrl,
                                 tier = AccountTier.PRO
                             ),
                             tokens = OAuthTokens(
                                 accessToken = "",
                                 refreshToken = rt,
-                                expiryTimestamp = appCliProfile.expiryTimestamp
-                                    ?: (System.currentTimeMillis() / 1000L + 3600L)
+                                expiryTimestamp = System.currentTimeMillis() / 1000L + 3600L
                             ),
                             isActive = true,
                             status = AccountStatus.ACTIVE
@@ -466,7 +441,8 @@ class AppViewModel(
                         if (needsUpdate) {
                             val updated = existing.copy(
                                 profile = existing.profile.copy(
-                                    name = appCliProfile.name ?: existing.profile.name
+                                    name = appCliProfile.name ?: existing.profile.name,
+                                    avatarUrl = appCliProfile.avatarUrl ?: existing.profile.avatarUrl
                                 ),
                                 tokens = if (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) {
                                     existing.tokens.copy(refreshToken = rt)
@@ -494,6 +470,22 @@ class AppViewModel(
                 }
                 // 启动事件无法跨平台可靠订阅，保留 10 秒心跳补齐外部启动发现。
                 kotlinx.coroutines.delay(10000)
+            }
+        }
+    }
+
+    /**
+     * 窗口获得焦点时由 UI 层调用，立即刷新宿主账号与运行状态。
+     *
+     * 用户从其他应用切换回 Studio 时（例如在 App/IDE 中完成了切号操作），
+     * 此方法确保 Studio 能立即感知到最新的运行态账号，而不必等待 10 秒心跳轮询。
+     */
+    fun onWindowFocusGained() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                syncHostAccounts().join()
+                refreshHostStatus()
+            } catch (_: Exception) {
             }
         }
     }
@@ -1419,8 +1411,7 @@ class AppViewModel(
 
                         val statuses = listOfNotNull(
                             formatSwitchTarget("IDE", report.ide),
-                            formatSwitchTarget("App", report.app),
-                            formatSwitchTarget("CLI", report.cli)
+                            formatSwitchTarget("App & CLI", report.appCli)
                         )
                         val summary = statuses.joinToString("，")
                         val noticeKind = when (report.overallStatus) {
@@ -1453,8 +1444,8 @@ class AppViewModel(
         return when (result.status) {
             HotSwitchCoordinator.TargetStatus.NOT_REQUESTED -> null
             HotSwitchCoordinator.TargetStatus.NOT_AVAILABLE -> result.message ?: "$label 当前不可用"
-            HotSwitchCoordinator.TargetStatus.CONFIGURED -> result.message ?: "$label 已配置，待运行态确认"
-            HotSwitchCoordinator.TargetStatus.CONFIRMED -> "$label 已确认"
+            HotSwitchCoordinator.TargetStatus.CONFIGURED -> result.message ?: "$label 已配置"
+            HotSwitchCoordinator.TargetStatus.CONFIRMED -> result.message ?: "$label 已生效"
             HotSwitchCoordinator.TargetStatus.PENDING_RESTART -> "$label 待用户确认重启"
             HotSwitchCoordinator.TargetStatus.FAILED -> result.message ?: "$label 未确认生效"
         }
@@ -1469,8 +1460,8 @@ class AppViewModel(
         }
         switchAccount(
             target,
-            restartIde = isIdeRunning.value,
-            restartApp = isAppRunning.value
+            restartIde = true,
+            restartApp = true
         )
     }
 

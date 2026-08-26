@@ -237,16 +237,16 @@ object IdeHostManager {
     }
 
     /**
-     * 安全终止 Antigravity IDE，不在超时后自动强杀。
+     * 终止 Antigravity IDE 及其 language_server 子进程。
      */
-    suspend fun terminate(customInstallation: String? = null): Boolean {
+    suspend fun terminate(customInstallation: String? = null, force: Boolean = true): Boolean {
         return HostProcessManager.terminateApplication(
             bundleId = "com.google.antigravity-ide",
             matchPatterns = buildProcessPatterns(customInstallation),
             excludePatterns = ideExcludePatterns,
             languageServerPatterns = buildLanguageServerPatterns(customInstallation),
             label = "Antigravity IDE",
-            force = false
+            force = force
         )
     }
 
@@ -254,7 +254,7 @@ object IdeHostManager {
      * 重启 Antigravity IDE 客户端（仅终止与重启 IDE 自身，绝不干扰 App）。
      */
     suspend fun restart(customInstallation: String? = null): Boolean {
-        if (!terminate(customInstallation)) return false
+        if (!terminate(customInstallation, force = true)) return false
         delay(300)
         if (!launch(customInstallation)) return false
         return waitUntilRunning(customInstallation)

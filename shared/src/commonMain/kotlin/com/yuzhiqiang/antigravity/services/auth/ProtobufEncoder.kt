@@ -80,7 +80,8 @@ object ProtobufEncoder {
         refreshToken: String,
         expirySeconds: Long,
         email: String? = null,
-        isGcpTos: Boolean = false
+        isGcpTos: Boolean = false,
+        idToken: String? = null
     ): ByteArray {
         val isPersonalEmail = email?.let {
             val lower = it.lowercase()
@@ -99,6 +100,10 @@ object ProtobufEncoder {
         val timestampInner = encodeTag(1, 0) + encodeVarint(expirySeconds) +
                 encodeTag(2, 0) + encodeVarint(0L)
         bufs.add(encodeLengthDelimited(4, timestampInner))
+
+        if (!idToken.isNullOrBlank()) {
+            bufs.add(encodeStringField(5, idToken))
+        }
 
         if (effectiveGcpTos) {
             bufs.add(encodeTag(6, 0) + encodeVarint(1L))

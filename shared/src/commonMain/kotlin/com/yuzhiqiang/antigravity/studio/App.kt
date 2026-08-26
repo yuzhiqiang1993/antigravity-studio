@@ -56,6 +56,21 @@ fun App(
     val activeRelease by viewModel.activeRelease.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
 
+    // 窗口焦点感知：恢复可见时立即刷新宿主账号与运行状态
+    DisposableEffect(window) {
+        val focusListener = object : java.awt.event.WindowFocusListener {
+            override fun windowGainedFocus(e: java.awt.event.WindowEvent?) {
+                viewModel.onWindowFocusGained()
+            }
+            override fun windowLostFocus(e: java.awt.event.WindowEvent?) {}
+        }
+        window?.addWindowFocusListener(focusListener)
+        onDispose {
+            window?.removeWindowFocusListener(focusListener)
+        }
+    }
+
+
     KoinContext {
     CompositionLocalProvider(LocalStrings provides currentStrings) {
         AntigravityTheme(

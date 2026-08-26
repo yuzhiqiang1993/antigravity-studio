@@ -48,7 +48,8 @@ object StateDbInjector {
             accessToken = account.tokens.accessToken,
             refreshToken = account.tokens.refreshToken,
             expirySeconds = account.tokens.expiryTimestamp,
-            email = account.email
+            email = account.email,
+            idToken = account.tokens.idToken
         )
         val oauthTopic = ProtobufEncoder.createUnifiedStateEntry("oauthTokenInfoSentinelKey", oauthPayload)
 
@@ -60,6 +61,12 @@ object StateDbInjector {
         val updateEntries = listOf(
             "antigravityUnifiedStateSync.oauthToken" to oauthTopic,
             "antigravityUnifiedStateSync.userStatus" to userStatusTopic,
+            "antigravityIdeUnifiedStateSync.oauthToken" to oauthTopic,
+            "antigravityIdeUnifiedStateSync.userStatus" to userStatusTopic,
+            "antigravity.oauthToken" to oauthTopic,
+            "antigravity.userStatus" to userStatusTopic,
+            "antigravityIde.oauthToken" to oauthTopic,
+            "antigravityIde.userStatus" to userStatusTopic,
             "antigravityOnboarding" to "true"
         )
 

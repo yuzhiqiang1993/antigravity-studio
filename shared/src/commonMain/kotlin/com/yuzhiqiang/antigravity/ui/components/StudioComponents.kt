@@ -1,7 +1,13 @@
 package com.yuzhiqiang.antigravity.ui.components
 
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.hoverable
 import androidx.compose.ui.text.withStyle
@@ -62,7 +68,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import org.jetbrains.compose.resources.painterResource
-
 
 
 /**
@@ -328,7 +333,11 @@ fun StudioSearchField(
                     .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.searchFieldHeight)
                     .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
                     .background(bg)
-                    .border(1.dp, borderClr, RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+                    .border(
+                        1.dp,
+                        borderClr,
+                        RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm)
+                    )
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -400,9 +409,9 @@ fun StudioTextField(
 
     val bg = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
     val borderClr = when {
-        isError   -> MaterialTheme.colorScheme.error
+        isError -> MaterialTheme.colorScheme.error
         isFocused -> MaterialTheme.colorScheme.primary
-        else      -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
     }
 
     Column(modifier = modifier) {
@@ -414,7 +423,9 @@ fun StudioTextField(
             minLines = minLines,
             enabled = enabled,
             textStyle = MaterialTheme.typography.bodyMedium.copy(
-                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = 0.5f
+                ),
                 fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body
             ),
             cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
@@ -427,7 +438,11 @@ fun StudioTextField(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
                         .background(bg)
-                        .border(1.dp, borderClr, RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+                        .border(
+                            1.dp,
+                            borderClr,
+                            RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm)
+                        )
                         .padding(horizontal = 10.dp, vertical = if (singleLine) 8.dp else 10.dp),
                     verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -547,7 +562,11 @@ fun SkeletonCard(
             .height(height)
             .clip(RoundedCornerShape(AppTokens.Radius.medium))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(AppTokens.Radius.medium))
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                RoundedCornerShape(AppTokens.Radius.medium)
+            )
     ) {
         Row(
             modifier = Modifier
@@ -639,7 +658,8 @@ fun StudioDropdownMenuItem(
     enabled: Boolean = true
 ) {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val interactionSource =
+        androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
     val itemBg = when {
@@ -649,6 +669,7 @@ fun StudioDropdownMenuItem(
         } else {
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.5f else 0.8f)
         }
+
         else -> Color.Transparent
     }
 
@@ -738,7 +759,8 @@ fun StudioSelectField(
     placeholder: String? = null,
     modifier: Modifier = Modifier
 ) {
-    val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val interactionSource =
+        androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
 
@@ -748,13 +770,13 @@ fun StudioSelectField(
     )
     val borderColor = when {
         isExpanded -> MaterialTheme.colorScheme.primary
-        isHovered  -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.8f else 1.0f)
-        else       -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
+        isHovered -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.8f else 1.0f)
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
     }
     val bgColor = when {
         isExpanded -> if (isDark) MaterialTheme.colorScheme.surface else Color.White
-        isHovered  -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.5f else 0.8f)
-        else       -> if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
+        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.5f else 0.8f)
+        else -> if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
     }
 
     Surface(
@@ -763,7 +785,11 @@ fun StudioSelectField(
             .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.topButtonHeight)
             .hoverable(interactionSource)
             .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
-            .border(if (isExpanded) 1.5.dp else 1.dp, borderColor, RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+            .border(
+                if (isExpanded) 1.5.dp else 1.dp,
+                borderColor,
+                RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm)
+            )
             .clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm),
         color = bgColor
@@ -779,7 +805,9 @@ fun StudioSelectField(
                 text = label.ifBlank { placeholder ?: "" },
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body,
-                    color = if (label.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    color = if (label.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = 0.7f
+                    ),
                     fontWeight = FontWeight.Normal
                 ),
                 maxLines = 1,
@@ -798,3 +826,96 @@ fun StudioSelectField(
     }
 }
 
+/**
+ * Antigravity Studio 全局统一定制复选框（精致现代桌面端尺寸，杜绝原生 M3 48dp 冗余边距与粗糙质感）
+ */
+@Composable
+fun StudioCheckbox(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
+    val targetBg = when {
+        !enabled -> if (isDark) Color(0xFF334155).copy(alpha = 0.35f) else Color(0xFFE2E8F0)
+        checked -> MaterialTheme.colorScheme.primary
+        else -> Color.Transparent
+    }
+    val animatedBg by animateColorAsState(
+        targetValue = targetBg,
+        animationSpec = tween(durationMillis = 150),
+        label = "StudioCheckboxBg"
+    )
+
+    val targetBorder = when {
+        !enabled -> if (isDark) Color(0xFF475569).copy(alpha = 0.4f) else Color(0xFFCBD5E1)
+        checked -> MaterialTheme.colorScheme.primary
+        else -> if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f) else MaterialTheme.colorScheme.outlineVariant.copy(
+            alpha = 0.9f
+        )
+    }
+    val animatedBorder by animateColorAsState(
+        targetValue = targetBorder,
+        animationSpec = tween(durationMillis = 150),
+        label = "StudioCheckboxBorder"
+    )
+
+    val checkmarkScale by animateFloatAsState(
+        targetValue = if (checked) 1f else 0.3f,
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMedium),
+        label = "StudioCheckboxCheckScale"
+    )
+
+    val checkmarkAlpha by animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = tween(durationMillis = 120),
+        label = "StudioCheckboxCheckAlpha"
+    )
+
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val clickModifier = if (onCheckedChange != null) {
+        Modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            enabled = enabled,
+            role = Role.Checkbox,
+            onClick = { onCheckedChange(!checked) }
+        )
+    } else {
+        Modifier
+    }
+
+    Box(
+        modifier = modifier
+            .size(18.dp)
+            .then(clickModifier)
+            .clip(RoundedCornerShape(4.5.dp))
+            .background(animatedBg)
+            .border(
+                width = if (checked) 0.dp else 1.2.dp,
+                color = animatedBorder,
+                shape = RoundedCornerShape(4.5.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checkmarkAlpha > 0f) {
+            Icon(
+                imageVector = Icons.Outlined.Check,
+                contentDescription = null,
+                tint = if (enabled) MaterialTheme.colorScheme.onPrimary else if (isDark) Color(0xFF94A3B8) else Color(
+                    0xFF64748B
+                ),
+                modifier = Modifier
+                    .size(13.dp)
+                    .graphicsLayer {
+                        scaleX = checkmarkScale
+                        scaleY = checkmarkScale
+                        alpha = checkmarkAlpha
+                    }
+            )
+        }
+    }
+}

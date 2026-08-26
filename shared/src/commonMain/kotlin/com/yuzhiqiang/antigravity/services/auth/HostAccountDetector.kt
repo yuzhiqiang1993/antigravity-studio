@@ -1,6 +1,8 @@
 package com.yuzhiqiang.antigravity.services.auth
 
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
+import com.yuzhiqiang.antigravity.host.app.AppHostManager
+import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -16,8 +18,9 @@ import java.util.regex.Pattern
 /**
  * 多端宿主活跃账号探测引擎。
  * 探测 Antigravity 宿主的账号信息。
- * IDE 使用 state.vscdb 中的官方 userStatus；App 在 macOS 优先使用运行中 language_server 的 RPC，
- * 运行态不可用时仅在显式授权后读取 Keychain。文件凭据和日志只能作为非 macOS 的兼容回退，不能冒充 macOS App 的运行态。
+ * IDE 使用 state.vscdb 中的官方 userStatus；App 与 CLI 共用外部 OAuth 凭据文件，
+ * App 在 macOS 仅使用运行中 language_server 的 RPC 做运行态确认。
+ * 共享文件凭据和 App 运行态是同一认证链路的不同观察面，不能互相当成两套账号系统。
  *
  * 注：完全基于 Antigravity 官方物理底层数据源，不依赖任何第三方插件或扩展。
  */
@@ -45,130 +48,87 @@ object HostAccountDetector {
     private val emailPattern = Pattern.compile("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+")
 
     /**
-     * 探测 App / CLI 的账号 Profile。
+     * 探测 App 与 CLI 共用的外部账号 Profile。
      *
-     * 探测与仲裁机制（仅用于 CLI/非 macOS 兼容路径）：
-     * 1. 存在 jetski 独立凭据时，用 Refresh Token 与 Studio 已导入账号做精确匹配；
-     * 2. 独立凭据存在但无法归属时返回未知，禁止使用旧文件或配额缓存猜测账号；
-     * 3. 不存在独立凭据时，才使用官方静态凭据与最近认证日志进行兼容探测。
-     *
-     * 此方法不代表 macOS App 的运行态；macOS App 的权威探测必须走 [detectAppActiveProfile]。
+     * 外部 OAuth 凭据只有一个共享来源；运行日志仅在共享文件不存在时作为兼容发现信息，
+     * 不覆盖共享文件中的账号，也不把 App 的 jetski/运行态状态当成另一套账号凭据。
+     * 此方法不代表 macOS App 的运行态；macOS App 的运行态确认必须走 [detectAppActiveProfile]。
      */
-    fun detectCliAppProfile(
-        customCredentialsFile: File? = null,
-        knownAccounts: List<AccountInfo> = emptyList()
-    ): CliAppAccountProfile? {
-        val staticSnapshot = detectStaticCliAppProfile(customCredentialsFile)
-        val staticProfile = staticSnapshot?.first
-        val staticFileMtime = staticSnapshot?.second ?: 0L
-        if (customCredentialsFile != null) {
+    fun detectSharedExternalProfile(customCredentialsFile: File? = null): CliAppAccountProfile? {
+        val credentialsFile = customCredentialsFile ?: resolveSharedExternalCredentialsFile()
+        val staticProfile = detectStaticCliAppProfile(credentialsFile)?.first
+        if (staticProfile != null || customCredentialsFile != null) {
             return staticProfile
         }
 
-        val activeCredentialFile = resolveActiveCredentialFile()
-        if (activeCredentialFile != null) {
-            return resolveProfileFromActiveCredential(activeCredentialFile, knownAccounts)
-        }
-
-        // 2. 扫描官方运行时日志中的最新认证记录
-        val (runtimeEmail, runtimeMtime) = detectEmailWithTimestampFromRecentLogs()
-
-        // 3. 双向交叉仲裁
-        if (staticProfile != null && runtimeEmail != null) {
-            if (staticProfile.email.equals(runtimeEmail, ignoreCase = true)) {
-                // 两者完全一致，物理凭据与运行态双重确证
-                return staticProfile
+        // 若官方标准路径不存在，尝试从 App 专属凭据文件补充读取
+        val appCredFile = resolvePlatformAppCredentialsFile()
+        if (appCredFile.isFile) {
+            val appProfile = readCliAppProfile(appCredFile)
+            if (appProfile != null) {
+                return appProfile
             }
-            // 两者不一致：若运行日志更新（说明用户最近刚切换过登录态而凭据未回写），以运行时为准
-            if (runtimeMtime >= staticFileMtime) {
-                return CliAppAccountProfile(
-                    email = runtimeEmail.lowercase(),
-                    name = staticProfile.name,
-                    tokenType = staticProfile.tokenType ?: "Bearer"
-                )
-            }
-            // 若凭据文件修改时间更新，以凭据文件为准
-            return staticProfile
         }
 
-        // 仅命中了单方证据时直接返回
-        if (staticProfile != null) {
-            return staticProfile
-        }
-
-        if (runtimeEmail != null) {
-            return CliAppAccountProfile(
-                email = runtimeEmail.lowercase(),
+        val runtimeEmail = detectEmailWithTimestampFromRecentLogs().first
+        return runtimeEmail?.let { email ->
+            CliAppAccountProfile(
+                email = email.lowercase(),
                 tokenType = "Bearer"
             )
         }
-
-        return null
     }
 
-    private fun resolveActiveCredentialFile(): File? {
+    fun resolveSharedExternalCredentialsFile(): File {
         val customDataDir = System.getenv("ANTIGRAVITY_DATA_DIR")
             ?: System.getenv("GEMINI_DATA_DIR")
-        val dataDir = customDataDir
-            ?.takeIf { path -> path.isNotBlank() }
-            ?.let(::File)
-            ?: File(System.getProperty("user.home"), ".gemini")
-        return File(dataDir, "jetski-standalone-oauth-token")
-            .takeIf { file -> file.isFile }
+        if (!customDataDir.isNullOrBlank()) {
+            return File(customDataDir, "oauth_credentials.json")
+        }
+        return File(System.getProperty("user.home"), ".gemini/oauth_creds.json")
     }
 
-    private fun resolveProfileFromActiveCredential(
-        credentialFile: File,
-        knownAccounts: List<AccountInfo>
-    ): CliAppAccountProfile? {
-        return try {
-            val root = json.parseToJsonElement(credentialFile.readText(Charsets.UTF_8)) as? JsonObject
-                ?: return null
-            val tokenObj = root["token"] as? JsonObject ?: root
-            val refreshToken = tokenObj["refresh_token"]?.jsonPrimitive?.contentOrNull
-                ?: tokenObj["refreshToken"]?.jsonPrimitive?.contentOrNull
-            val idToken = tokenObj["id_token"]?.jsonPrimitive?.contentOrNull
-            val matchedAccount = refreshToken
-                ?.takeIf { token -> token.isNotBlank() }
-                ?.let { token ->
-                    knownAccounts.firstOrNull { account ->
-                        account.tokens.refreshToken.isNotBlank() && account.tokens.refreshToken == token
-                    }
-                }
-            if (matchedAccount != null) {
-                return CliAppAccountProfile(
-                    email = matchedAccount.email.lowercase(),
-                    name = matchedAccount.profile.name,
-                    expiryTimestamp = matchedAccount.tokens.expiryTimestamp,
-                    tokenType = tokenObj["token_type"]?.jsonPrimitive?.contentOrNull ?: "Bearer"
-                )
+    /**
+     * 解析当前操作系统下 Antigravity App 的 OAuth 凭据文件路径。
+     */
+    fun resolvePlatformAppCredentialsFile(): File {
+        val userHome = System.getProperty("user.home")
+        val os = System.getProperty("os.name", "").lowercase()
+        return when {
+            os.contains("mac") -> {
+                File(userHome, "Library/Application Support/Antigravity/oauth_credentials.json")
             }
-
-            val email = idToken?.let(::parseEmailFromJwt) ?: return null
-            CliAppAccountProfile(
-                email = email.lowercase(),
-                expiryTimestamp = resolveExpiryTimestamp(tokenObj),
-                tokenType = tokenObj["token_type"]?.jsonPrimitive?.contentOrNull ?: "Bearer"
-            )
-        } catch (_: Exception) {
-            null
+            os.contains("win") -> {
+                val appData = System.getenv("APPDATA") ?: "$userHome/AppData/Roaming"
+                File(appData, "Antigravity/oauth_credentials.json")
+            }
+            else -> {
+                val configHome = System.getenv("XDG_CONFIG_HOME")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "$userHome/.config"
+                File(configHome, "antigravity/oauth_credentials.json")
+            }
         }
     }
 
     /**
-     * 严格探测 App / CLI 当前凭据文件中的账号邮箱。
-     * 运行日志只作为宽松诊断证据，不参与切号成功确认。
+     * 严格探测 App 与 CLI 共用的共享凭据文件中的账号邮箱。
      */
-    fun detectCliAppActiveEmail(customCredentialsFile: File? = null): String? {
-        return detectStaticCliAppProfile(customCredentialsFile)?.first?.email
+    fun detectSharedExternalActiveEmail(customCredentialsFile: File? = null): String? {
+        return detectSharedExternalProfile(customCredentialsFile)?.email
     }
 
     private fun detectStaticCliAppProfile(customCredentialsFile: File?): Pair<CliAppAccountProfile, Long>? {
-        val latestFile = resolveCliCredentialFiles(customCredentialsFile)
-            .filter { file -> file.isFile }
-            .maxByOrNull { file -> file.lastModified() }
-            ?: return null
-        return readCliAppProfile(latestFile)?.let { profile -> profile to latestFile.lastModified() }
+        val candidates = resolveCliCredentialFiles(customCredentialsFile)
+        for (file in candidates) {
+            if (file.isFile) {
+                val profile = readCliAppProfile(file)
+                if (profile != null && profile.email.isNotBlank()) {
+                    return profile to file.lastModified()
+                }
+            }
+        }
+        return null
     }
 
     private fun resolveCliCredentialFiles(customCredentialsFile: File?): List<File> {
@@ -180,17 +140,15 @@ object HostAccountDetector {
         val customDataDir = System.getenv("ANTIGRAVITY_DATA_DIR")
             ?: System.getenv("GEMINI_DATA_DIR")
         if (!customDataDir.isNullOrBlank()) {
-            return listOf(File(customDataDir, "oauth_credentials.json"))
+            return listOf(
+                File(customDataDir, "oauth_credentials.json"),
+                File(customDataDir, "oauth_creds.json")
+            )
         }
         return listOf(
-            File(userHome, "Library/Application Support/Antigravity/oauth_credentials.json"),
             File(userHome, ".gemini/oauth_creds.json"),
-            File(userHome, ".gemini/oauth_credentials.json"),
-            File(System.getenv("APPDATA") ?: "$userHome/AppData/Roaming", "Antigravity/oauth_credentials.json"),
-            File(
-                System.getenv("XDG_CONFIG_HOME") ?: File(userHome, ".config").absolutePath,
-                "antigravity/oauth_credentials.json"
-            )
+            resolvePlatformAppCredentialsFile(),
+            File(userHome, ".gemini/oauth_credentials.json")
         ).distinct()
     }
 
@@ -340,66 +298,72 @@ object HostAccountDetector {
     }
 
     /**
-     * 探测 Antigravity App 当前生效登录的账号 Profile。
+     * 探测 Antigravity App & CLI 共享认证通道生效的 Profile。
      *
-     * App 运行时优先读取本地 language_server 的官方状态接口；仅当调用方显式允许且运行态不可用时，
-     * macOS 才读取 Keychain 中的下次启动凭据。发现 App 进程但 RPC 无法确认账号时，不回退到 CLI 静态凭据。
+     * 优先级：运行态 API → 凭据文件回退（仅 App 在运行但 API 失败时）。
+     * App 未运行时返回 null，UI 不显示账号 tag。
      */
-    suspend fun detectAppActiveProfile(
-        knownAccounts: List<AccountInfo> = emptyList(),
-        allowKeychainAccess: Boolean = false
-    ): IdeAccountProfile? = withContext(Dispatchers.IO) {
-        val macOs = isMacOs()
-        val runtimeResult = RuntimeAppAccountProbe.detectProfile()
-        val runtimeProfile = runtimeResult.getOrNull()
-        if (runtimeProfile != null) {
-            return@withContext runtimeProfile
-        }
+    suspend fun detectAppCliActiveProfile(): IdeAccountProfile? = withContext(Dispatchers.IO) {
+        val appRunning = AppHostManager.isRunning()
 
-        // 进程已发现但运行态接口失败/响应无效时，禁止用 CLI 或旧状态文件猜测 App 账号。
-        if (runtimeResult.isFailure && !macOs) {
-            return@withContext null
-        }
-
-        if (macOs) {
-            if (!allowKeychainAccess) {
-                return@withContext null
+        if (appRunning) {
+            // 运行态：优先使用 RuntimeAppAccountProbe
+            val runtimeProfile = RuntimeAppAccountProbe.detectProfile().getOrNull()
+            if (runtimeProfile != null) {
+                return@withContext runtimeProfile
             }
-            return@withContext MacKeychainInjector.readMatchingAccount(knownAccounts)
-                .getOrNull()
-                ?.let { account ->
-                    IdeAccountProfile(
-                        email = account.email,
-                        name = account.profile.name
-                    )
-                }
+            // 运行态 API 失败 → 回退到凭据文件
+            val sharedProfile = detectSharedExternalProfile()
+            if (sharedProfile != null) {
+                return@withContext IdeAccountProfile(
+                    email = sharedProfile.email,
+                    name = sharedProfile.name
+                )
+            }
         }
 
-        val cliAppProfile = detectCliAppProfile(knownAccounts = knownAccounts)
-        if (cliAppProfile != null) {
-            return@withContext IdeAccountProfile(
-                email = cliAppProfile.email,
-                name = cliAppProfile.name
-            )
-        }
-        detectProfileFromCanonicalStateDb(StateDbInjector.TargetHost.APP)
+        // App 未运行：不显示 tag
+        null
     }
 
     /**
-     * 探测 Antigravity App 当前生效登录的账号邮箱
+     * 探测 Antigravity App & CLI 共享认证通道生效的邮箱。
      */
-    suspend fun detectAppActiveEmail(
-        knownAccounts: List<AccountInfo> = emptyList(),
-        allowKeychainAccess: Boolean = false
-    ): String? {
-        return detectAppActiveProfile(knownAccounts, allowKeychainAccess)?.email
+    suspend fun detectAppCliActiveEmail(): String? {
+        return detectAppCliActiveProfile()?.email
     }
 
     /**
-     * 探测 Antigravity IDE 完整的活跃用户 Profile（包含邮箱、姓名、头像、订阅文本）
+     * 探测 Antigravity App 当前生效登录的账号 Profile（对齐 App & CLI 共享认证实体）。
+     */
+    suspend fun detectAppActiveProfile(): IdeAccountProfile? = detectAppCliActiveProfile()
+
+    /**
+     * 探测 Antigravity App 当前生效登录的账号邮箱（对齐 App & CLI 共享认证实体）。
+     */
+    suspend fun detectAppActiveEmail(): String? = detectAppCliActiveEmail()
+
+    /**
+     * 探测 Antigravity IDE 完整的活跃用户 Profile（包含邮箱、姓名、头像、订阅文本）。
+     *
+     * 优先级：运行态 API → SQLite 回退（仅 IDE 在运行但 API 失败时）。
+     * IDE 未运行时返回 null，UI 不显示账号 tag。
      */
     suspend fun detectIdeActiveProfile(): IdeAccountProfile? = withContext(Dispatchers.IO) {
-        detectProfileFromCanonicalStateDb(StateDbInjector.TargetHost.IDE)
+        val ideRunning = IdeHostManager.isRunning()
+
+        if (ideRunning) {
+            // 运行态：优先使用 RuntimeIdeAccountProbe
+            val runtimeProfile = RuntimeIdeAccountProbe.detectProfile().getOrNull()
+            if (runtimeProfile != null) {
+                return@withContext runtimeProfile
+            }
+            // 运行态 API 失败 → 回退到 SQLite
+            return@withContext detectProfileFromCanonicalStateDb(StateDbInjector.TargetHost.IDE)
+        }
+
+        // IDE 未运行：不显示 tag
+        null
     }
 
     /**
