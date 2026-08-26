@@ -4,6 +4,7 @@ import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.AccountProfile
 import com.yuzhiqiang.antigravity.domain.model.account.AccountStatus
 import com.yuzhiqiang.antigravity.domain.model.account.OAuthTokens
+import com.yuzhiqiang.antigravity.services.auth.HostAccountDetector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -135,7 +136,8 @@ class AccountStore(
     suspend fun upsertAccount(account: AccountInfo): Result<Unit> = mutex.withLock {
         try {
             val current = _accountsState.value.toMutableList()
-            val existingIndex = current.indexOfFirst { it.id == account.id || it.email.equals(account.email, ignoreCase = true) }
+            val existingIndex =
+                current.indexOfFirst { it.id == account.id || it.email.equals(account.email, ignoreCase = true) }
             val isFirstAccount = current.isEmpty()
             val makeActive = account.isActive || isFirstAccount || (_activeAccountState.value == null)
 
@@ -199,7 +201,10 @@ class AccountStore(
             }
 
             val currentActive = _activeAccountState.value
-            val wasActiveRemoved = currentActive == null || currentActive.id == idOrEmail || currentActive.email.equals(idOrEmail, ignoreCase = true)
+            val wasActiveRemoved = currentActive == null || currentActive.id == idOrEmail || currentActive.email.equals(
+                idOrEmail,
+                ignoreCase = true
+            )
             val newActive = if (wasActiveRemoved) current.firstOrNull() else currentActive
 
             val updatedAccounts = current.map { acc ->
@@ -420,7 +425,7 @@ class AccountStore(
     }
 
     /**
-     * 同步当前激活账号至官方 OAuth 凭据文件。
+     * 同步当前激活账号至 App 与 CLI 共用的官方 OAuth 凭据文件。
      */
     fun syncToOfficialCredentials(account: AccountInfo): Boolean {
         return try {
@@ -438,19 +443,37 @@ class AccountStore(
             if ("user_email" in fields) {
                 fields["user_email"] = JsonPrimitive(account.email)
             }
-            if ("antigravity_cockpit_active_email" in fields) {
-                fields["antigravity_cockpit_active_email"] = JsonPrimitive(account.email)
-            }
+            fields["antigravity_cockpit_active_email"] = JsonPrimitive(account.email)
 
             val idToken = account.tokens.idToken?.takeIf { it.isNotBlank() }
             if (idToken != null) {
                 fields["id_token"] = JsonPrimitive(idToken)
-            } else {
-                fields.remove("id_token")
             }
+            // idToken 为空时保留旧文件中已有的 id_token，不做 remove，
+            // 防止刷新未返回 id_token 时误删已有的有效值
 
             val content = json.encodeToString(JsonObject.serializer(), JsonObject(fields))
             writeTextAtomically(file, content)
+
+            // 同步覆盖所有可能被 Go language_server 优先读取的镜像凭据文件，杜绝旧账号残留
+            val userHome = System.getProperty("user.home")
+            val targetFiles = listOf(
+                File(userHome, ".gemini/oauth_creds.json"),
+                File(userHome, ".gemini/oauth_credentials.json"),
+                File(userHome, ".gemini/antigravity/oauth_credentials.json"),
+                HostAccountDetector.resolvePlatformAppCredentialsFile()
+            ).distinct()
+
+            for (targetFile in targetFiles) {
+                if (targetFile.absolutePath != file.absolutePath) {
+                    try {
+                        if (targetFile.exists() || targetFile.parentFile.exists()) {
+                            writeTextAtomically(targetFile, content)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
             true
         } catch (_: Exception) {
             false
@@ -565,6 +588,7 @@ class AccountStore(
                         ?: File(userHome, "AppData/Roaming").absolutePath
                     File(appData, "Antigravity Studio")
                 }
+
                 else -> {
                     val configHome = System.getenv("XDG_CONFIG_HOME")
                         ?.takeIf { it.isNotBlank() }

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.domain.model.TokenLimitSource
+import com.yuzhiqiang.antigravity.ui.components.StudioCheckbox
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
 import com.yuzhiqiang.antigravity.ui.components.StudioMenuDivider
@@ -74,7 +75,9 @@ fun CatalogModelRowCard(
     if (customDialogType != null) {
         val isInput = customDialogType == "input"
         CustomTokenInputDialog(
-            title = if (isInput) s.providerCustomInputTokenTitle(config.name) else s.providerCustomOutputTokenTitle(config.name),
+            title = if (isInput) s.providerCustomInputTokenTitle(config.name) else s.providerCustomOutputTokenTitle(
+                config.name
+            ),
             initialValue = if (isInput) config.inputTokenLimit else config.outputTokenLimit,
             onConfirm = { newLimit ->
                 if (isInput) {
@@ -280,8 +283,10 @@ fun CatalogModelRowCard(
                         }
                     } else if (config.testStatusText != null) {
                         val testSuccess = config.isTestSuccess
-                        val pillBg = if (testSuccess) statusColors.successContainer else MaterialTheme.colorScheme.errorContainer
-                        val pillText = if (testSuccess) statusColors.onSuccessContainer else MaterialTheme.colorScheme.onErrorContainer
+                        val pillBg =
+                            if (testSuccess) statusColors.successContainer else MaterialTheme.colorScheme.errorContainer
+                        val pillText =
+                            if (testSuccess) statusColors.onSuccessContainer else MaterialTheme.colorScheme.onErrorContainer
                         val dotColor = if (testSuccess) statusColors.success else MaterialTheme.colorScheme.error
 
                         Row(
@@ -359,11 +364,16 @@ fun CatalogModelRowCard(
                             ),
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isChecked && !config.isUnavailable) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)
+                                if (isChecked && !config.isUnavailable) MaterialTheme.colorScheme.outlineVariant.copy(
+                                    alpha = 0.8f
+                                )
                                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                             )
                         ) {
-                            Text(s.providerTestBtn, style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp))
+                            Text(
+                                s.providerTestBtn,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp)
+                            )
                         }
                     }
                 }
@@ -386,7 +396,11 @@ fun CatalogModelRowCard(
                                 .height(24.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                    RoundedCornerShape(6.dp)
+                                )
                                 .clickable { expandedInputMenu = true }
                                 .padding(horizontal = 7.dp),
                             contentAlignment = Alignment.Center
@@ -431,7 +445,12 @@ fun CatalogModelRowCard(
                             StudioDropdownMenuItem(
                                 text = s.providerCustomTokenOption,
                                 leadingIcon = {
-                                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        Icons.Outlined.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 },
                                 onClick = {
                                     expandedInputMenu = false
@@ -443,7 +462,12 @@ fun CatalogModelRowCard(
                                     text = s.providerClearTokenOption,
                                     isDestructive = true,
                                     leadingIcon = {
-                                        Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                                        Icon(
+                                            Icons.Outlined.Clear,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
                                     },
                                     onClick = {
                                         expandedInputMenu = false
@@ -467,7 +491,11 @@ fun CatalogModelRowCard(
                                 .height(24.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                    RoundedCornerShape(6.dp)
+                                )
                                 .clickable { expandedOutputMenu = true }
                                 .padding(horizontal = 7.dp),
                             contentAlignment = Alignment.Center
@@ -512,7 +540,12 @@ fun CatalogModelRowCard(
                             StudioDropdownMenuItem(
                                 text = s.providerCustomTokenOption,
                                 leadingIcon = {
-                                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        Icons.Outlined.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 },
                                 onClick = {
                                     expandedOutputMenu = false
@@ -524,7 +557,12 @@ fun CatalogModelRowCard(
                                     text = s.providerClearTokenOption,
                                     isDestructive = true,
                                     leadingIcon = {
-                                        Icon(Icons.Outlined.Clear, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                                        Icon(
+                                            Icons.Outlined.Clear,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
                                     },
                                     onClick = {
                                         expandedOutputMenu = false
@@ -569,7 +607,9 @@ fun CatalogModelRowCard(
                                 fontSize = 11.sp,
                                 fontWeight = if (visionActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (visionActive) AppTokens.Feature.vision.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                            color = if (visionActive) AppTokens.Feature.vision.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = 0.65f
+                            )
                         )
                     }
 
@@ -600,7 +640,9 @@ fun CatalogModelRowCard(
                                 fontSize = 11.sp,
                                 fontWeight = if (toolsActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (toolsActive) AppTokens.Feature.tools.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                            color = if (toolsActive) AppTokens.Feature.tools.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = 0.65f
+                            )
                         )
                     }
 
@@ -656,7 +698,9 @@ fun CatalogModelRowCard(
                                 fontSize = 11.sp,
                                 fontWeight = if (reasoningActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (reasoningActive) AppTokens.Feature.reasoning.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                            color = if (reasoningActive) AppTokens.Feature.reasoning.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = 0.65f
+                            )
                         )
                     }
                 }

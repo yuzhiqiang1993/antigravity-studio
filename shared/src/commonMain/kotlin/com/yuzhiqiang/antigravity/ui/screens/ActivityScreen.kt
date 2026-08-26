@@ -66,7 +66,9 @@ fun ActivityScreen(
     val normalizedQuery = searchQuery.trim().lowercase()
 
     val availableTagsWithCounts = remember(logs, s) {
-        logs.groupingBy { if (it.isOfficialPassthrough) s.activityPassthrough else (it.providerName ?: s.activityUnknownProvider) }
+        logs.groupingBy {
+            if (it.isOfficialPassthrough) s.activityPassthrough else (it.providerName ?: s.activityUnknownProvider)
+        }
             .eachCount()
             .toList()
             .sortedByDescending { it.second }
@@ -74,7 +76,8 @@ fun ActivityScreen(
 
     val displayedLogs = remember(logs, normalizedQuery, filterOnlyFailed, selectedTags) {
         logs.filter { log ->
-            val tag = if (log.isOfficialPassthrough) s.activityPassthrough else (log.providerName ?: s.activityUnknownProvider)
+            val tag = if (log.isOfficialPassthrough) s.activityPassthrough else (log.providerName
+                ?: s.activityUnknownProvider)
             val matchesTag = selectedTags.isEmpty() || tag in selectedTags
             val matchesQuery = normalizedQuery.isBlank() || listOfNotNull(
                 log.modelId,
@@ -226,7 +229,10 @@ fun ActivityScreen(
                             Spacer(Modifier.width(5.dp))
                             Text(
                                 text = s.activityClear,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp
+                                )
                             )
                         }
                     }
@@ -446,7 +452,9 @@ private fun ActivityLogRow(
         ),
         border = BorderStroke(
             1.dp,
-            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(
+                alpha = 0.5f
+            )
         )
     ) {
         Row(
@@ -642,12 +650,19 @@ private fun ActivityLogRow(
                                     )
                                 }
                                 if (log.cacheReadTokens != null && log.cacheReadTokens > 0) {
-                                    val hitRate = calculateCacheHitRate(log.cacheReadTokens, log.inputTokens, log.cacheWriteTokens)
+                                    val hitRate = calculateCacheHitRate(
+                                        log.cacheReadTokens,
+                                        log.inputTokens,
+                                        log.cacheWriteTokens
+                                    )
                                     val hitRateText = if (hitRate != null) " (${formatHitRate(hitRate)})" else ""
                                     Text(
                                         text = "${s.activityTokenCache} ${formatTokens(log.cacheReadTokens)}$hitRateText",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = getCacheHitRateColor(hitRate, defaultColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.9f))
+                                        color = getCacheHitRateColor(
+                                            hitRate,
+                                            defaultColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.9f)
+                                        )
                                     )
                                     Text(
                                         text = "·",
@@ -655,7 +670,8 @@ private fun ActivityLogRow(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
                                     )
                                 }
-                                val total = log.totalTokens ?: ((log.inputTokens ?: 0L) + (log.outputTokens ?: 0L)).takeIf { it > 0 }
+                                val total = log.totalTokens ?: ((log.inputTokens ?: 0L) + (log.outputTokens
+                                    ?: 0L)).takeIf { it > 0 }
                                 if (total != null && total > 0) {
                                     Text(
                                         text = "${s.activityTokenTotal} ${formatTokens(total)}",
@@ -754,7 +770,11 @@ private fun TagFilterDropdown(
                 .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.topButtonHeight)
                 .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
                 .background(containerColor)
-                .border(1.dp, borderColor, RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
+                .border(
+                    1.dp,
+                    borderColor,
+                    RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm)
+                )
                 .pointerHoverIcon(PointerIcon.Hand)
                 .hoverable(interactionSource = interactionSource)
                 .clickable(
@@ -894,14 +914,9 @@ private fun TagFilterDropdown(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Checkbox(
+                                StudioCheckbox(
                                     checked = if (selectedTags.isEmpty()) true else isExplicitChecked,
-                                    onCheckedChange = { onTagToggle(tag) },
-                                    modifier = Modifier.size(20.dp),
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = MaterialTheme.colorScheme.primary,
-                                        checkmarkColor = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    onCheckedChange = { onTagToggle(tag) }
                                 )
                                 Text(
                                     text = tag,

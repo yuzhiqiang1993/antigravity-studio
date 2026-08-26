@@ -22,11 +22,16 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * 执行单次账号切换事务，负责宿主启停、凭据写入、分端确认和失败回滚。
+ * 执行单次账号切换事务，负责宿主启停、共享凭据写入、运行态确认和失败回滚。
  */
 internal class AccountSwitchSession(
-    private val accountStore: AccountStore
+    private val accountStore: AccountStore,
+    private val googleAuthService: GoogleAuthService = GoogleAuthService()
 ) {
+    private fun log(tag: String, message: String) {
+        println("[AccountSwitchSession][$tag] $message")
+    }
+
     data class Request(
         val targetAccount: AccountInfo,
         val applyToIde: Boolean,
@@ -47,7 +52,7 @@ internal class AccountSwitchSession(
         val ideWasRunning = IdeHostManager.isRunning(request.ideInstallationPath)
         val appWasRunning = AppHostManager.isRunning(request.appInstallationPath)
         val originalState = try {
-            captureOriginalState(request, appWasRunning)
+            captureOriginalState(request)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -58,7 +63,7 @@ internal class AccountSwitchSession(
             stopRequestedHosts(request, ideWasRunning, appWasRunning, changes)
             applyCredentials(request, ideWasRunning, appWasRunning, changes)
             launchRequestedHosts(request, changes)
-            request.progressCallback?.invoke("4/4 正在分别确认 IDE、App 与 CLI 账号...")
+            request.progressCallback?.invoke("4/4 正在确认 IDE 与 App & CLI 共享账号...")
             val report = verifyTargets(request, ideWasRunning, appWasRunning, changes)
             if (report.overallStatus == HotSwitchCoordinator.OverallStatus.ERROR) {
                 throw IllegalStateException(buildVerificationError(report))
@@ -121,20 +126,25 @@ internal class AccountSwitchSession(
     ) {
         if (request.applyToIde && request.restartIde && ideWasRunning) {
             request.progressCallback?.invoke("1/4 正在安全停止 Antigravity IDE...")
+            log("停止IDE", "检测到 IDE 正在运行，正在请求安全退出...")
             requireStep(
-                IdeHostManager.terminate(request.ideInstallationPath),
-                "Antigravity IDE 未安全退出，已取消切号"
+                IdeHostManager.terminate(request.ideInstallationPath, force = true),
+                "Antigravity IDE 退出失败，已取消切号"
             )
             changes.ideTerminated = true
+            log("停止IDE完成", "Antigravity IDE 进程已安全退出")
         }
 
-        if (request.applyToAppCli && request.restartApp && appWasRunning) {
+        if (request.applyToAppCli && request.restartApp) {
             request.progressCallback?.invoke("1/4 正在安全停止 Antigravity App...")
-            requireStep(
-                AppHostManager.terminate(request.appInstallationPath),
-                "Antigravity App 未安全退出，已取消切号"
-            )
-            changes.appTerminated = true
+            log("停止App", "正在请求安全退出 Antigravity App 及其语言服务...")
+            val terminated = AppHostManager.terminate(request.appInstallationPath, force = true)
+            if (appWasRunning) {
+                requireStep(terminated, "Antigravity App 退出失败，已取消切号")
+                changes.appTerminated = true
+            }
+            log("停止App完成", "Antigravity App 已停止 (wasRunning=$appWasRunning)")
+            delay(500)
         }
     }
 
@@ -144,17 +154,42 @@ internal class AccountSwitchSession(
         appWasRunning: Boolean,
         changes: AppliedChanges
     ) {
-        request.progressCallback?.invoke("2/4 正在按目标写入账号凭据...")
+        request.progressCallback?.invoke("2/4 正在写入目标账号与 App & CLI 共享凭据...")
+        log("切号开始", "目标账号: ${request.targetAccount.email}, applyToIde=${request.applyToIde}, applyToAppCli=${request.applyToAppCli}")
+
+        // 1. 若包含 App & CLI 目标且有 Refresh Token，先联网向 Google 刷新最新的 ID Token 与 Access Token (对齐 Cockpit 插件机制)
+        val targetAccount = if (request.applyToAppCli && request.targetAccount.tokens.refreshToken.isNotBlank()) {
+            log("联网刷新Token", "正在向 Google 刷新 ${request.targetAccount.email} 的最新 Access/ID Token...")
+            val refreshResult = googleAuthService.refreshAccessToken(request.targetAccount.tokens.refreshToken).getOrNull()
+            if (refreshResult != null) {
+                log("Token刷新成功", "已获取最新 ID Token (len=${refreshResult.idToken?.length ?: 0})")
+                val updated = request.targetAccount.copy(tokens = refreshResult)
+                accountStore.updateTokens(
+                    email = updated.email,
+                    tokens = updated.tokens,
+                    name = updated.profile.name,
+                    avatarUrl = updated.profile.avatarUrl
+                )
+                updated
+            } else {
+                log("Token刷新失败", "使用当前缓存的 Token 继续切号")
+                request.targetAccount
+            }
+        } else {
+            request.targetAccount
+        }
 
         if (request.applyToIde && (!ideWasRunning || request.restartIde)) {
             val ideDbExists = StateDbInjector.resolveCandidateDbFiles(StateDbInjector.TargetHost.IDE)
                 .any { file -> file.isFile }
             if (IdeHostManager.isInstalled(request.ideInstallationPath) && ideDbExists) {
+                log("IDE凭据注入", "正在向 IDE state.vscdb 写入账号数据...")
                 requireStep(
-                    StateDbInjector.inject(request.targetAccount, StateDbInjector.TargetHost.IDE),
+                    StateDbInjector.inject(targetAccount, StateDbInjector.TargetHost.IDE),
                     "IDE 账号数据库写入失败"
                 )
                 changes.ideDbWritten = true
+                log("IDE凭据注入完成", "已更新 IDE state.vscdb")
             } else {
                 changes.ideUnavailable = true
             }
@@ -165,15 +200,27 @@ internal class AccountSwitchSession(
         }
 
         requireStep(
-            accountStore.setActiveAccount(request.targetAccount.id).isSuccess,
+            accountStore.setActiveAccount(targetAccount.id).isSuccess,
             "Studio 活跃账号更新失败"
         )
         changes.studioAccountChanged = true
+
+        // 同步写入官方与镜像 OAuth 凭据文件
+        log("凭据文件同步", "正在写入 ~/.gemini/oauth_creds.json 及镜像文件...")
         requireStep(
-            accountStore.syncToOfficialCredentials(request.targetAccount),
-            "CLI 官方凭据文件写入失败"
+            accountStore.syncToOfficialCredentials(targetAccount),
+            "App & CLI 共享 OAuth 凭据文件写入失败"
         )
-        changes.cliCredentialsWritten = true
+        changes.sharedCredentialsWritten = true
+        changes.appUnavailable = !AppHostManager.isInstalled(request.appInstallationPath)
+
+        // 核心突破：注入系统级安全存储 (macOS Keychain: service=gemini, account=antigravity)
+        log("Keychain注入", "正在向系统钥匙串写入 Antigravity 认证凭据...")
+        val keychainResult = SystemCredentialInjector.inject(targetAccount)
+        requireStep(
+            keychainResult.isSuccess,
+            "系统钥匙串凭据注入失败: ${keychainResult.exceptionOrNull()?.message}"
+        )
 
         if (appWasRunning && !request.restartApp) {
             return
@@ -181,60 +228,68 @@ internal class AccountSwitchSession(
 
         val appDbExists = StateDbInjector.resolveCandidateDbFiles(StateDbInjector.TargetHost.APP)
             .any { file -> file.isFile }
-        val appInstalled = AppHostManager.isInstalled(request.appInstallationPath)
-        if (isMacOs() && appInstalled) {
-            requireStep(
-                MacKeychainInjector.inject(request.targetAccount, request.appInstallationPath),
-                "App Keychain 凭据写入失败"
-            )
-            changes.appKeychainWritten = true
-        }
         changes.jetskiTokenWriteAttempted = true
+        // 这些文件是 App 对共享 OAuth 的兼容投影，不是独立于 CLI 的另一套认证凭据。
         requireStep(
-            writeJetskiStandaloneToken(request.targetAccount),
-            "App jetski 凭据文件写入失败"
+            writeJetskiStandaloneToken(targetAccount),
+            "App 共享凭据兼容投影写入失败"
         )
         changes.jetskiTokenWritten = true
         changes.appOauthFileWriteAttempted = true
         requireStep(
-            writeAppOauthCredentials(request.targetAccount),
-            "App OAuth 凭据文件写入失败"
+            writeAppOauthCredentials(targetAccount),
+            "App 共享 OAuth 兼容投影写入失败"
         )
         changes.appOauthFileWritten = true
         if (appDbExists) {
             requireStep(
-                StateDbInjector.inject(request.targetAccount, StateDbInjector.TargetHost.APP),
-                "App 账号数据库写入失败"
+                StateDbInjector.inject(targetAccount, StateDbInjector.TargetHost.APP),
+                "App 共享凭据运行态投影写入失败"
             )
             changes.appDbWritten = true
         }
-        changes.appUnavailable = !appInstalled
+        log("App凭据写入完成", "所有文件与系统钥匙串已就绪")
     }
 
     private suspend fun launchRequestedHosts(request: Request, changes: AppliedChanges) {
-        if (changes.ideTerminated) {
-            request.progressCallback?.invoke("3/4 正在启动 Antigravity IDE...")
-            changes.ideLaunchAttempted = true
-            requireStep(IdeHostManager.launch(request.ideInstallationPath), "Antigravity IDE 启动请求失败")
-            requireStep(
-                waitUntilRunning { IdeHostManager.isRunning(request.ideInstallationPath) },
-                "Antigravity IDE 启动后未进入运行状态"
-            )
+        if (request.applyToIde && request.restartIde && IdeHostManager.isInstalled(request.ideInstallationPath)) {
+            val shouldLaunch = changes.ideTerminated || !IdeHostManager.isRunning(request.ideInstallationPath)
+            if (shouldLaunch) {
+                request.progressCallback?.invoke(
+                    if (changes.ideTerminated) "3/4 正在重启 Antigravity IDE..." else "3/4 正在启动 Antigravity IDE..."
+                )
+                log("启动IDE", "正在拉起 Antigravity IDE...")
+                changes.ideLaunchAttempted = true
+                requireStep(IdeHostManager.launch(request.ideInstallationPath), "Antigravity IDE 启动请求失败")
+                requireStep(
+                    waitUntilRunning { IdeHostManager.isRunning(request.ideInstallationPath) },
+                    "Antigravity IDE 启动后未进入运行状态"
+                )
+                log("启动IDE完成", "Antigravity IDE 已进入运行状态")
+            }
         }
 
-        if (changes.appTerminated) {
-            request.progressCallback?.invoke("3/4 正在启动 Antigravity App...")
-            changes.appLaunchAttempted = true
-            requireStep(
-                AppHostManager.launch(request.appInstallationPath, request.proxyPort),
-                "Antigravity App 启动请求失败"
-            )
-            requireStep(
-                waitUntilRunning { AppHostManager.isRunning(request.appInstallationPath) },
-                "Antigravity App 启动后未进入运行状态"
-            )
+        if (request.applyToAppCli && request.restartApp && AppHostManager.isInstalled(request.appInstallationPath)) {
+            val shouldLaunch = changes.appTerminated || !AppHostManager.isRunning(request.appInstallationPath)
+            if (shouldLaunch) {
+                request.progressCallback?.invoke(
+                    if (changes.appTerminated) "3/4 正在重启 Antigravity App..." else "3/4 正在启动 Antigravity App..."
+                )
+                log("启动App", "正在拉起 Antigravity App (open -n)...")
+                changes.appLaunchAttempted = true
+                requireStep(
+                    AppHostManager.launch(request.appInstallationPath, request.proxyPort),
+                    "Antigravity App 启动请求失败"
+                )
+                requireStep(
+                    waitUntilRunning { AppHostManager.isRunning(request.appInstallationPath) },
+                    "Antigravity App 启动后未进入运行状态"
+                )
+                log("启动App完成", "Antigravity App 已进入运行状态")
+            }
         }
     }
+
 
     private suspend fun verifyTargets(
         request: Request,
@@ -242,11 +297,12 @@ internal class AccountSwitchSession(
         appWasRunning: Boolean,
         changes: AppliedChanges
     ): HotSwitchCoordinator.SwitchResultReport {
+        log("开始验证", "正在探测 IDE 与 App 的运行态生效账号...")
         val idePending = request.applyToIde && ideWasRunning && !request.restartIde
         val appPending = request.applyToAppCli && appWasRunning && !request.restartApp
         var detectedIdeEmail: String? = null
         var detectedAppEmail: String? = null
-        var detectedCliEmail: String? = null
+        var detectedSharedEmail: String? = null
         val deadline = System.currentTimeMillis() + VERIFY_TIMEOUT_MS
 
         while (System.currentTimeMillis() < deadline) {
@@ -254,22 +310,26 @@ internal class AccountSwitchSession(
                 detectedIdeEmail = HostAccountDetector.detectIdeActiveEmail()
             }
             if (request.applyToAppCli) {
-                detectedAppEmail = HostAccountDetector.detectAppActiveEmail(
-                    accountStore.currentAccounts()
-                )
-                detectedCliEmail = HostAccountDetector.detectCliAppActiveEmail(
-                    accountStore.officialCredentialsFile()
-                )
+                val appCliEmail = HostAccountDetector.detectAppCliActiveEmail()
+                detectedAppEmail = appCliEmail
+                detectedSharedEmail = appCliEmail
             }
 
-            val ideRunning = !ideWasRunning || idePending || IdeHostManager.isRunning(request.ideInstallationPath)
-            val appRunning = !appWasRunning || appPending || AppHostManager.isRunning(request.appInstallationPath)
+            val ideRunning =
+                !request.applyToIde || !request.restartIde || IdeHostManager.isRunning(request.ideInstallationPath)
+            val appInstalled = request.applyToAppCli && AppHostManager.isInstalled(request.appInstallationPath)
+            val appRunning =
+                !request.applyToAppCli || !request.restartApp || !appInstalled || AppHostManager.isRunning(
+                    request.appInstallationPath
+                )
             val ideDone = idePending || !request.applyToIde ||
                     (ideRunning && matchesTarget(detectedIdeEmail, request.targetAccount.email))
-            val appDone = appPending || !request.applyToAppCli || !appWasRunning ||
+            val appRuntimeDone = appPending || !request.applyToAppCli || !request.restartApp || !appInstalled ||
                     (appRunning && matchesTarget(detectedAppEmail, request.targetAccount.email))
-            val cliDone = !request.applyToAppCli || matchesTarget(detectedCliEmail, request.targetAccount.email)
-            if (ideDone && appDone && cliDone) {
+            val sharedCredentialsDone = !request.applyToAppCli ||
+                    matchesTarget(detectedSharedEmail, request.targetAccount.email)
+            if (ideDone && appRuntimeDone && sharedCredentialsDone) {
+                log("验证通过", "IDE: $detectedIdeEmail, App: $detectedAppEmail (目标: ${request.targetAccount.email})")
                 break
             }
             delay(VERIFY_INTERVAL_MS)
@@ -283,7 +343,7 @@ internal class AccountSwitchSession(
             appPending,
             detectedIdeEmail,
             detectedAppEmail,
-            detectedCliEmail,
+            detectedSharedEmail,
             changes
         )
     }
@@ -296,7 +356,7 @@ internal class AccountSwitchSession(
         appPending: Boolean,
         detectedIdeEmail: String?,
         detectedAppEmail: String?,
-        detectedCliEmail: String?,
+        detectedSharedEmail: String?,
         changes: AppliedChanges
     ): HotSwitchCoordinator.SwitchResultReport {
         val ideIsRunning = IdeHostManager.isRunning(request.ideInstallationPath)
@@ -311,16 +371,15 @@ internal class AccountSwitchSession(
                 detectedIdeEmail,
                 changes.ideUnavailable
             ),
-            app = buildAppResult(
+            appCli = buildAppCliResult(
                 request,
-                appWasRunning,
                 appIsRunning,
                 appPending,
                 detectedAppEmail,
-                changes.appKeychainWritten || changes.appDbWritten || changes.jetskiTokenWritten,
+                detectedSharedEmail,
+                changes.sharedCredentialsWritten,
                 changes.appUnavailable
             ),
-            cli = buildCliResult(request, detectedCliEmail),
             ideWasRunning = ideWasRunning,
             appWasRunning = appWasRunning
         )
@@ -351,95 +410,80 @@ internal class AccountSwitchSession(
                 "IDE 未安装或尚未初始化账号数据库"
             )
         }
-        if (wasRunning && !isRunning) {
-            return targetResult(HotSwitchCoordinator.TargetStatus.FAILED, actualEmail, "IDE 重启后未保持运行")
+        if (request.restartIde && !isRunning) {
+            return targetResult(HotSwitchCoordinator.TargetStatus.FAILED, actualEmail, "IDE 未进入或未保持运行状态")
         }
         if (matchesTarget(actualEmail, request.targetAccount.email)) {
             return targetResult(
-                HotSwitchCoordinator.TargetStatus.CONFIGURED,
+                HotSwitchCoordinator.TargetStatus.CONFIRMED,
                 actualEmail,
-                if (wasRunning) "IDE 已重启并写入目标账号，运行态仍待真实请求确认" else null
+                "IDE 已生效"
             )
         }
         return targetResult(HotSwitchCoordinator.TargetStatus.FAILED, actualEmail, "IDE 未确认目标账号")
     }
 
-    private fun buildAppResult(
+    private fun buildAppCliResult(
         request: Request,
-        wasRunning: Boolean,
         isRunning: Boolean,
         isPending: Boolean,
-        actualEmail: String?,
-        isCredentialsConfigured: Boolean,
+        appRuntimeEmail: String?,
+        sharedEmail: String?,
+        sharedCredentialsWritten: Boolean,
         isUnavailable: Boolean
     ): HotSwitchCoordinator.TargetResult {
         if (!request.applyToAppCli) {
             return targetResult(HotSwitchCoordinator.TargetStatus.NOT_REQUESTED)
         }
+
+        val actualEmail = appRuntimeEmail ?: sharedEmail
+        val credentialMatchesTarget = sharedCredentialsWritten &&
+                matchesTarget(sharedEmail, request.targetAccount.email) &&
+                accountStore.officialCredentialsFile()
+                    .takeIf { file -> file.isFile }
+                    ?.let { file -> credentialRefreshTokenMatches(file, request.targetAccount) } == true
+        if (!credentialMatchesTarget) {
+            return targetResult(
+                HotSwitchCoordinator.TargetStatus.FAILED,
+                actualEmail,
+                "App & CLI 共享凭据文件未确认目标账号"
+            )
+        }
         if (isPending) {
             return targetResult(
                 HotSwitchCoordinator.TargetStatus.PENDING_RESTART,
                 actualEmail,
-                "App 运行中，需用户确认重启后切换"
+                "App 仍在运行；App & CLI 共享凭据已写入，需重启 App 后加载"
             )
         }
         if (isUnavailable) {
             return targetResult(
                 HotSwitchCoordinator.TargetStatus.NOT_AVAILABLE,
                 actualEmail,
-                "App 未安装或尚未初始化账号存储，仅 CLI 已切换"
+                "App & CLI 共享凭据已写入；未安装 App，无法进行运行态确认"
             )
         }
-        if (wasRunning && !isRunning) {
-            return targetResult(HotSwitchCoordinator.TargetStatus.FAILED, actualEmail, "App 重启后未保持运行")
-        }
-        if (matchesTarget(actualEmail, request.targetAccount.email)) {
+        if (matchesTarget(appRuntimeEmail, request.targetAccount.email)) {
             return targetResult(
                 HotSwitchCoordinator.TargetStatus.CONFIRMED,
                 actualEmail,
-                "App 运行态已确认目标账号"
+                "App & CLI 共享凭据已写入，App 运行态已确认"
             )
         }
-        if (!wasRunning && isCredentialsConfigured && actualEmail == null) {
-            return targetResult(
-                HotSwitchCoordinator.TargetStatus.CONFIGURED,
-                message = "App 凭据已配置，启动后确认运行态"
-            )
-        }
-        if (!wasRunning && !AppHostManager.isInstalled(request.appInstallationPath)) {
-            return targetResult(
-                HotSwitchCoordinator.TargetStatus.NOT_AVAILABLE,
-                actualEmail,
-                "未检测到 Antigravity App，仅 CLI 已切换"
-            )
-        }
-        return targetResult(HotSwitchCoordinator.TargetStatus.FAILED, actualEmail, "App 未确认目标账号")
-    }
 
-    private fun buildCliResult(request: Request, actualEmail: String?): HotSwitchCoordinator.TargetResult {
-        if (!request.applyToAppCli) {
-            return targetResult(HotSwitchCoordinator.TargetStatus.NOT_REQUESTED)
-        }
-        val credentialMatchesTarget = (
-                accountStore.officialCredentialsFile()
-                    .takeIf { file -> file.isFile }
-                    ?.let { file -> credentialRefreshTokenMatches(file, request.targetAccount) }
-                ) == true
-        if (matchesTarget(actualEmail, request.targetAccount.email) && credentialMatchesTarget) {
-            return targetResult(
-                HotSwitchCoordinator.TargetStatus.CONFIGURED,
-                actualEmail,
-                "CLI 凭据文件已配置"
-            )
+        val message = when {
+            !request.restartApp -> "App & CLI 共享凭据已写入，App 将在下次启动时加载"
+            !isRunning -> "App & CLI 共享凭据已写入，但 App 未能保持运行"
+            else -> "App & CLI 共享凭据已写入，App 运行态尚未确认"
         }
         return targetResult(
-            HotSwitchCoordinator.TargetStatus.FAILED,
+            HotSwitchCoordinator.TargetStatus.CONFIGURED,
             actualEmail,
-            "CLI 凭据文件配置未确认目标账号"
+            message
         )
     }
 
-    private fun captureOriginalState(request: Request, appWasRunning: Boolean): OriginalState {
+    private fun captureOriginalState(request: Request): OriginalState {
         val ideSnapshot = if (request.applyToIde && hasStateDb(StateDbInjector.TargetHost.IDE)) {
             StateDbInjector.capture(StateDbInjector.TargetHost.IDE).getOrThrow()
         } else {
@@ -450,17 +494,8 @@ internal class AccountSwitchSession(
         } else {
             null
         }
-        val keychainSnapshot = if (
-            request.applyToAppCli &&
-            isMacOs() &&
-            AppHostManager.isInstalled(request.appInstallationPath) &&
-            (!appWasRunning || request.restartApp)
-        ) {
-            MacKeychainInjector.capture().getOrThrow()
-        } else {
-            null
-        }
-        val cliSnapshot = if (request.applyToAppCli) {
+
+        val sharedCredentialsSnapshot = if (request.applyToAppCli) {
             accountStore.captureOfficialCredentialsSnapshot().getOrThrow()
         } else {
             null
@@ -479,8 +514,7 @@ internal class AccountSwitchSession(
             studioAccount = accountStore.currentActiveAccount(),
             ideSnapshot = ideSnapshot,
             appDbSnapshot = appDbSnapshot,
-            keychainSnapshot = keychainSnapshot,
-            cliSnapshot = cliSnapshot,
+            sharedCredentialsSnapshot = sharedCredentialsSnapshot,
             jetskiTokenSnapshot = jetskiTokenSnapshot,
             appOauthFileSnapshot = appOauthFileSnapshot
         )
@@ -501,9 +535,9 @@ internal class AccountSwitchSession(
             restoreIde(originalState, changes, errors)
         }
         if (canRestoreApp) {
-            restoreApp(request, originalState, changes, errors)
+            restoreApp(originalState, changes, errors)
         }
-        restoreCliAndStudio(originalState, changes, errors)
+        restoreSharedCredentialsAndStudio(originalState, changes, errors)
 
         ensureOriginalHostsRunning(request, ideWasRunning, appWasRunning, errors)
         return errors
@@ -554,7 +588,6 @@ internal class AccountSwitchSession(
     }
 
     private fun restoreApp(
-        request: Request,
         originalState: OriginalState,
         changes: AppliedChanges,
         errors: MutableList<String>
@@ -565,12 +598,7 @@ internal class AccountSwitchSession(
                 errors.add("App 原账号数据库恢复失败")
             }
         }
-        if (changes.appKeychainWritten) {
-            val snapshot = originalState.keychainSnapshot
-            if (snapshot == null || !MacKeychainInjector.restore(snapshot, request.appInstallationPath)) {
-                errors.add("App 原 Keychain 凭据恢复失败")
-            }
-        }
+
         if (changes.jetskiTokenWriteAttempted) {
             val snapshot = originalState.jetskiTokenSnapshot
             if (snapshot == null || !restoreFileSnapshot(snapshot)) {
@@ -585,15 +613,15 @@ internal class AccountSwitchSession(
         }
     }
 
-    private suspend fun restoreCliAndStudio(
+    private suspend fun restoreSharedCredentialsAndStudio(
         originalState: OriginalState,
         changes: AppliedChanges,
         errors: MutableList<String>
     ) {
-        if (changes.cliCredentialsWritten) {
-            val snapshot = originalState.cliSnapshot
+        if (changes.sharedCredentialsWritten) {
+            val snapshot = originalState.sharedCredentialsSnapshot
             if (snapshot == null || !accountStore.restoreOfficialCredentialsSnapshot(snapshot)) {
-                errors.add("CLI 原凭据恢复失败")
+                errors.add("App & CLI 共享凭据恢复失败")
             }
         }
         if (changes.studioAccountChanged && originalState.studioAccount != null &&
@@ -653,7 +681,7 @@ internal class AccountSwitchSession(
     }
 
     private fun buildVerificationError(report: HotSwitchCoordinator.SwitchResultReport): String {
-        return listOf(report.ide, report.app, report.cli)
+        return listOf(report.ide, report.appCli)
             .filter { result -> result.status == HotSwitchCoordinator.TargetStatus.FAILED }
             .mapNotNull { result -> result.message }
             .ifEmpty { listOf("目标宿主未确认账号切换结果") }
@@ -718,6 +746,7 @@ internal class AccountSwitchSession(
                 return true
             }
             val expiryTimestamp = account.tokens.expiryTimestamp
+            val idToken = account.tokens.idToken?.takeIf { it.isNotBlank() }
             val payload = buildJsonObject {
                 put("access_token", account.tokens.accessToken)
                 put("refresh_token", account.tokens.refreshToken)
@@ -727,6 +756,9 @@ internal class AccountSwitchSession(
                 put("expiry_date", expiryTimestamp * 1000L)
                 put("token_type", "Bearer")
                 put("antigravity_cockpit_active_email", account.email)
+                if (idToken != null) {
+                    put("id_token", idToken)
+                }
             }.toString()
             writeSensitiveTextAtomically(appCredsFile, payload)
             true
@@ -746,10 +778,7 @@ internal class AccountSwitchSession(
     }
 
     private fun resolveAppOauthCredentialsFile(): File {
-        return File(
-            System.getProperty("user.home"),
-            "Library/Application Support/Antigravity/oauth_credentials.json"
-        )
+        return HostAccountDetector.resolvePlatformAppCredentialsFile()
     }
 
     private fun captureFileSnapshot(file: File): FileSnapshot {
@@ -810,16 +839,12 @@ internal class AccountSwitchSession(
         return StateDbInjector.resolveCandidateDbFiles(targetHost).any { file -> file.isFile }
     }
 
-    private fun isMacOs(): Boolean {
-        return System.getProperty("os.name", "").lowercase().contains("mac")
-    }
 
     private data class OriginalState(
         val studioAccount: AccountInfo?,
         val ideSnapshot: StateDbInjector.Snapshot?,
         val appDbSnapshot: StateDbInjector.Snapshot?,
-        val keychainSnapshot: MacKeychainInjector.Snapshot?,
-        val cliSnapshot: AccountStore.OfficialCredentialsSnapshot?,
+        val sharedCredentialsSnapshot: AccountStore.OfficialCredentialsSnapshot?,
         val jetskiTokenSnapshot: FileSnapshot?,
         val appOauthFileSnapshot: FileSnapshot?
     )
@@ -834,12 +859,11 @@ internal class AccountSwitchSession(
         var studioAccountChanged: Boolean = false,
         var ideDbWritten: Boolean = false,
         var appDbWritten: Boolean = false,
-        var appKeychainWritten: Boolean = false,
         var jetskiTokenWriteAttempted: Boolean = false,
         var jetskiTokenWritten: Boolean = false,
         var appOauthFileWriteAttempted: Boolean = false,
         var appOauthFileWritten: Boolean = false,
-        var cliCredentialsWritten: Boolean = false,
+        var sharedCredentialsWritten: Boolean = false,
         var ideTerminated: Boolean = false,
         var appTerminated: Boolean = false,
         var ideLaunchAttempted: Boolean = false,
