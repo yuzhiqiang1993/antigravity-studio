@@ -38,11 +38,13 @@ class AppHostManagerTest {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
         val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
         val origBinary = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+        val shimFile = if (isWindows) File(binDir, "language_server.cmd") else lsBinary
 
         // 1. 模拟初始原生二进制
         lsBinary.writeText("RAW_BINARY_CONTENT")
         assertTrue(lsBinary.exists())
         assertFalse(origBinary.exists())
+        assertFalse(shimFile.exists() && isWindows)
         assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
 
         // 2. 安装 Shim
@@ -50,8 +52,11 @@ class AppHostManagerTest {
         assertTrue(installOk)
         assertTrue(origBinary.exists(), "Original binary should be backed up")
         assertEquals("RAW_BINARY_CONTENT", origBinary.readText())
-        assertTrue(lsBinary.exists(), "Shim script should be created")
-        val shimContent = lsBinary.readText()
+        assertTrue(shimFile.exists(), "Shim script should be created")
+        if (isWindows) {
+            assertFalse(lsBinary.exists(), "Original binary should be renamed and replaced on Windows")
+        }
+        val shimContent = shimFile.readText()
         assertTrue(shimContent.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM"))
         assertTrue(shimContent.contains("8330"))
         assertTrue(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
@@ -60,7 +65,7 @@ class AppHostManagerTest {
         val secondInstallOk = AppHostManager.installLanguageServerShim(8335, tempAppDir.absolutePath)
         assertTrue(secondInstallOk)
         assertEquals("RAW_BINARY_CONTENT", origBinary.readText(), "Original binary should remain intact")
-        assertTrue(lsBinary.readText().contains("8335"))
+        assertTrue(shimFile.readText().contains("8335"))
 
         // 4. 还原原始二进制
         val restoreOk = AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
@@ -68,6 +73,9 @@ class AppHostManagerTest {
         assertTrue(lsBinary.exists(), "Original binary should be restored")
         assertEquals("RAW_BINARY_CONTENT", lsBinary.readText())
         assertFalse(origBinary.exists(), "Backup binary should be removed after restore")
+        if (isWindows) {
+            assertFalse(shimFile.exists(), "Shim script should be removed after restore on Windows")
+        }
         assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
     }
 }
