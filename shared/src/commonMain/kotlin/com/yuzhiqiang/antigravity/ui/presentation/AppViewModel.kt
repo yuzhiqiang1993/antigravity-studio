@@ -34,7 +34,6 @@ import com.yuzhiqiang.antigravity.services.quota.QuotaPoller
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
-import com.yuzhiqiang.antigravity.domain.model.account.SmartSwitchConfig
 import com.yuzhiqiang.antigravity.services.auth.HostAccountDetector
 import com.yuzhiqiang.antigravity.services.auth.HotSwitchCoordinator
 import com.yuzhiqiang.antigravity.services.auth.SmartSwitchCoordinator
@@ -1479,11 +1478,6 @@ class AppViewModel(
             restartIde = true,
             restartApp = true
         )
-    }
-
-    fun updateSmartSwitchConfig(smartSwitchConfig: SmartSwitchConfig) {
-        configStore.updateConfig { it.copy(smartSwitchConfig = smartSwitchConfig) }
-        showNotice(if (smartSwitchConfig.enabled) s.noticeSmartSwitchEnabled else s.noticeSmartSwitchDisabled, NoticeKind.INFO)
     }
 
     fun updateQuotaRefreshConfig(enabled: Boolean, activeIntervalSec: Int, backgroundIntervalSec: Int) {

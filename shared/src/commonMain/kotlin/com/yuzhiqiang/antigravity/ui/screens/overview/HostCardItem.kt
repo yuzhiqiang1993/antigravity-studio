@@ -27,6 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.ui.components.BadgeTone
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
+import com.yuzhiqiang.antigravity.ui.components.StudioButton
+import com.yuzhiqiang.antigravity.ui.components.StudioTonalButton
+import com.yuzhiqiang.antigravity.ui.components.StudioOutlinedButton
 import com.yuzhiqiang.antigravity.ui.screens.models.ActionSquareIcon
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -290,128 +293,48 @@ fun HostCardItem(
                 ) {
                     when {
                         data.needsUpdate -> {
-                            Button(
+                            StudioButton(
+                                text = s.hostUpdateAction,
                                 onClick = data.onToggle,
                                 enabled = !data.isLoading,
-                                modifier = Modifier.height(32.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = warningColor,
-                                    contentColor = Color.White
-                                ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                            ) {
-                                if (data.isLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(13.dp),
-                                        strokeWidth = 2.dp,
-                                        color = Color.White
-                                    )
-                                    Spacer(Modifier.width(5.dp))
-                                }
-                                Text(
-                                    text = s.hostUpdateAction,
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.sp
-                                    )
-                                )
-                            }
+                                isLoading = data.isLoading,
+                                containerColor = warningColor,
+                                contentColor = Color.White
+                            )
                         }
                         data.isProxyActive -> {
-                            OutlinedButton(
+                            StudioOutlinedButton(
+                                text = s.hostDisable,
                                 onClick = data.onToggle,
                                 enabled = !data.isLoading,
-                                modifier = Modifier.height(32.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, successColor.copy(alpha = if (data.isLoading) 0.2f else 0.5f)),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = successColor.copy(alpha = 0.08f),
-                                    contentColor = successColor
-                                ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                            ) {
-                                if (data.isLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(13.dp),
-                                        strokeWidth = 2.dp,
-                                        color = successColor
-                                    )
-                                    Spacer(Modifier.width(5.dp))
-                                }
-                                Text(
-                                    text = s.hostDisable,
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 12.sp
-                                    )
-                                )
-                            }
+                                isLoading = data.isLoading,
+                                customColor = successColor
+                            )
                         }
                         else -> {
-                            Button(
+                            StudioButton(
+                                text = s.hostEnable,
                                 onClick = data.onToggle,
                                 enabled = !data.isLoading,
-                                modifier = Modifier.height(32.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                            ) {
-                                if (data.isLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(13.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                    Spacer(Modifier.width(5.dp))
-                                }
-                                Text(
-                                    text = s.hostEnable,
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.sp
-                                    )
-                                )
-                            }
+                                isLoading = data.isLoading
+                            )
                         }
                     }
 
                     if (data.onAction != null && data.actionLabel != null) {
-                        FilledTonalButton(
+                        StudioTonalButton(
+                            text = data.actionLabel,
                             onClick = data.onAction,
                             enabled = !data.isLoading,
-                            modifier = Modifier.height(32.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        ) {
-                            Text(
-                                text = data.actionLabel,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 12.sp
-                                )
-                            )
-                        }
+                            isLoading = false
+                        )
                     } else if (data.onConfigurePath != null && data.statusLabel == s.hostStatusNotInstalled) {
-                        OutlinedButton(
+                        StudioOutlinedButton(
+                            text = s.hostConfigurePath,
                             onClick = data.onConfigurePath,
                             enabled = !data.isLoading,
-                            modifier = Modifier.height(32.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                        ) {
-                            Text(
-                                text = s.hostConfigurePath,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 12.sp
-                                )
-                            )
-                        }
+                            isLoading = false
+                        )
                     }
                 }
 
