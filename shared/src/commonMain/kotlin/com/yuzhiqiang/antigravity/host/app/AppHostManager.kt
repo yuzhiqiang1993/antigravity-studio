@@ -23,32 +23,16 @@ object AppHostManager {
                 if (file.isDirectory && (File(file, "Contents/MacOS/Antigravity").isFile || File(file, "Antigravity.exe").isFile)) return true
             }
         }
-        val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
-            ?.let { if (it.isFile) it.parentFile else it }
+        val candidates = getCandidateInstallations(customInstallation)
         return if (isWindows) {
-            val localAppData = System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
-            val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
-            val paths = buildList {
-                customRoot?.let(::add)
-                add(File(localAppData, "Programs/Antigravity"))
-                add(File(programFiles, "Antigravity"))
-                System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity")) }
-                addAll(discoverWindowsInstallations("Antigravity.exe"))
-            }
-            paths.any { root ->
+            candidates.any { root ->
                 root.isDirectory &&
                         File(root, "Antigravity.exe").isFile &&
                         (File(root, "resources/bin/language_server.exe").isFile ||
                          File(root, "resources/bin/language_server.original.exe").isFile)
             }
         } else {
-            val appPaths = buildList {
-                customRoot?.let(::add)
-                add(File("/Applications/Antigravity.app"))
-                add(File("${System.getProperty("user.home")}/Applications/Antigravity.app"))
-                addAll(discoverMacApplications("com.google.antigravity"))
-            }
-            appPaths.any { root ->
+            candidates.any { root ->
                 root.isDirectory &&
                         File(root, "Contents/MacOS/Antigravity").isFile &&
                         (File(root, "Contents/Resources/bin/language_server").isFile ||
@@ -93,25 +77,41 @@ object AppHostManager {
     fun getCandidateInstallations(customInstallation: String? = null): List<File> {
         val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
             ?.let { if (it.isFile) it.parentFile else it }
-        if (customRoot != null) {
-            return listOf(customRoot)
-        }
-        return if (isWindows) {
-            val localAppData = System.getenv("LOCALAPPDATA") ?: "${System.getProperty("user.home")}/AppData/Local"
+        val userHome = System.getProperty("user.home", "")
+        val os = System.getProperty("os.name", "").lowercase()
+        val candidates = if (isWindows) {
+            val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome/AppData/Local"
             val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
             buildList {
+                customRoot?.let(::add)
                 add(File(localAppData, "Programs/Antigravity"))
                 add(File(programFiles, "Antigravity"))
                 System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity")) }
                 addAll(discoverWindowsInstallations("Antigravity.exe"))
             }
-        } else {
+        } else if (os.contains("mac")) {
             buildList {
+                customRoot?.let(::add)
                 add(File("/Applications/Antigravity.app"))
-                add(File("${System.getProperty("user.home")}/Applications/Antigravity.app"))
+                add(File("$userHome/Applications/Antigravity.app"))
+                add(File("/Applications/Antigravity App.app"))
+                add(File("$userHome/Applications/Antigravity App.app"))
                 addAll(discoverMacApplications("com.google.antigravity"))
             }
+        } else {
+            buildList {
+                customRoot?.let(::add)
+                add(File("/opt/antigravity"))
+                add(File("/usr/share/antigravity"))
+                add(File(userHome, ".local/share/antigravity"))
+            }
         }
+        return candidates.filterNot { file ->
+            val path = file.absolutePath.replace('\\', '/')
+            path.contains("/Antigravity IDE", ignoreCase = true) ||
+                    path.contains("/Antigravity-IDE", ignoreCase = true) ||
+                    path.contains("/Antigravity Studio", ignoreCase = true)
+        }.distinct()
     }
 
     /**
