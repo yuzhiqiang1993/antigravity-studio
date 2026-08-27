@@ -334,7 +334,7 @@ object OfficialCatalogProbe {
         val os = System.getProperty("os.name", "").lowercase()
         return when {
             os.contains("mac") || os.contains("linux") -> discoverUnixCandidates()
-            os.contains("windows") -> discoverWindowsCandidates()
+            os.contains("win") -> discoverWindowsCandidates()
             else -> emptyList()
         }
     }
