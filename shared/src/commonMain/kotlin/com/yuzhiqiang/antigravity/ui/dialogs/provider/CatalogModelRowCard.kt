@@ -37,6 +37,7 @@ import com.yuzhiqiang.antigravity.ui.components.StudioCheckbox
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
 import com.yuzhiqiang.antigravity.ui.components.StudioMenuDivider
+import com.yuzhiqiang.antigravity.ui.theme.AppFeatureColors
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
@@ -54,6 +55,7 @@ fun CatalogModelRowCard(
 ) {
     val s = com.yuzhiqiang.antigravity.i18n.strings()
     val statusColors = AppStatusColors
+    val featureColors = AppFeatureColors
     var expandedInputMenu by remember { mutableStateOf(false) }
     var expandedOutputMenu by remember { mutableStateOf(false) }
     var customDialogType by remember { mutableStateOf<String?>(null) }
@@ -586,12 +588,12 @@ fun CatalogModelRowCard(
                             .height(24.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(
-                                if (visionActive) AppTokens.Feature.vision.container
+                                if (visionActive) featureColors.vision.container
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             )
                             .border(
                                 1.dp,
-                                if (visionActive) AppTokens.Feature.vision.border
+                                if (visionActive) featureColors.vision.border
                                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                                 RoundedCornerShape(6.dp)
                             )
@@ -607,7 +609,7 @@ fun CatalogModelRowCard(
                                 fontSize = 11.sp,
                                 fontWeight = if (visionActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (visionActive) AppTokens.Feature.vision.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            color = if (visionActive) featureColors.vision.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
                                 alpha = 0.65f
                             )
                         )
@@ -619,12 +621,12 @@ fun CatalogModelRowCard(
                             .height(24.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(
-                                if (toolsActive) AppTokens.Feature.tools.container
+                                if (toolsActive) featureColors.tools.container
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             )
                             .border(
                                 1.dp,
-                                if (toolsActive) AppTokens.Feature.tools.border
+                                if (toolsActive) featureColors.tools.border
                                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                                 RoundedCornerShape(6.dp)
                             )
@@ -640,7 +642,7 @@ fun CatalogModelRowCard(
                                 fontSize = 11.sp,
                                 fontWeight = if (toolsActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (toolsActive) AppTokens.Feature.tools.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            color = if (toolsActive) featureColors.tools.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
                                 alpha = 0.65f
                             )
                         )
@@ -679,12 +681,12 @@ fun CatalogModelRowCard(
                             .height(24.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(
-                                if (reasoningActive) AppTokens.Feature.reasoning.container
+                                if (reasoningActive) featureColors.reasoning.container
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             )
                             .border(
                                 1.dp,
-                                if (reasoningActive) AppTokens.Feature.reasoning.border
+                                if (reasoningActive) featureColors.reasoning.border
                                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                                 RoundedCornerShape(6.dp)
                             )
@@ -698,7 +700,7 @@ fun CatalogModelRowCard(
                                 fontSize = 11.sp,
                                 fontWeight = if (reasoningActive) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (reasoningActive) AppTokens.Feature.reasoning.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            color = if (reasoningActive) featureColors.reasoning.foreground else MaterialTheme.colorScheme.onSurfaceVariant.copy(
                                 alpha = 0.65f
                             )
                         )

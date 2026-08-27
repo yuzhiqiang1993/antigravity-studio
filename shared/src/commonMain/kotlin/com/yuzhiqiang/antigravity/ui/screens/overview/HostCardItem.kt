@@ -74,8 +74,8 @@ fun HostCardItem(
 
     val borderColor by animateColorAsState(
         targetValue = when {
-            data.needsUpdate && isHovered -> warningColor.copy(alpha = 0.75f)
-            data.needsUpdate -> warningColor.copy(alpha = 0.45f)
+            data.needsUpdate && isHovered -> warningColor.copy(alpha = 0.40f)
+            data.needsUpdate -> warningColor.copy(alpha = 0.22f)
             isHovered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
             else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
         },
@@ -208,13 +208,13 @@ fun HostCardItem(
 
             // 核心代理模式指示卡片
             val containerBg = when {
-                data.needsUpdate -> warningColor.copy(alpha = 0.08f)
+                data.needsUpdate -> warningColor.copy(alpha = 0.06f)
                 data.isProxyActive -> successColor.copy(alpha = 0.06f)
                 else -> MaterialTheme.colorScheme.surfaceContainerLow
             }
             val containerBorder = when {
-                data.needsUpdate -> warningColor.copy(alpha = 0.4f)
-                data.isProxyActive -> successColor.copy(alpha = 0.3f)
+                data.needsUpdate -> warningColor.copy(alpha = 0.22f)
+                data.isProxyActive -> successColor.copy(alpha = 0.25f)
                 else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
             }
 
@@ -243,7 +243,7 @@ fun HostCardItem(
                                 else Icons.Outlined.Sensors,
                                 contentDescription = null,
                                 modifier = Modifier.size(15.dp),
-                                tint = if (data.needsUpdate) warningColor
+                                tint = if (data.needsUpdate) warningColor.copy(alpha = 0.9f)
                                 else if (data.isProxyActive) successColor
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -274,7 +274,7 @@ fun HostCardItem(
                     Text(
                         text = data.integrationDetail,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                        color = if (data.needsUpdate) warningColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (data.needsUpdate) AppStatusColors.onWarningContainer.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -298,8 +298,7 @@ fun HostCardItem(
                                 onClick = data.onToggle,
                                 enabled = !data.isLoading,
                                 isLoading = data.isLoading,
-                                containerColor = warningColor,
-                                contentColor = Color.White
+                                icon = Icons.Outlined.Sync
                             )
                         }
                         data.isProxyActive -> {

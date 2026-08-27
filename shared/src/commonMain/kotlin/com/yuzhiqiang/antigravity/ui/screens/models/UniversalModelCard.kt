@@ -24,6 +24,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
+import com.yuzhiqiang.antigravity.ui.theme.AppFeatureColors
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
@@ -41,6 +44,7 @@ fun UniversalModelCard(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val featureColors = AppFeatureColors
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
@@ -253,9 +257,9 @@ fun UniversalModelCard(
                     CapabilityPill(
                         icon = Icons.Outlined.AutoAwesome,
                         label = s.modelsVision,
-                        containerColor = AppTokens.Feature.vision.container,
-                        contentColor = AppTokens.Feature.vision.foreground,
-                        borderColor = AppTokens.Feature.vision.border,
+                        containerColor = featureColors.vision.container,
+                        contentColor = featureColors.vision.foreground,
+                        borderColor = featureColors.vision.border,
                         onClick = state.onOpenVisionDetail
                     )
                 }
@@ -265,9 +269,9 @@ fun UniversalModelCard(
                     CapabilityPill(
                         icon = Icons.Outlined.Build,
                         label = s.modelsTools,
-                        containerColor = AppTokens.Feature.tools.container,
-                        contentColor = AppTokens.Feature.tools.foreground,
-                        borderColor = AppTokens.Feature.tools.border,
+                        containerColor = featureColors.tools.container,
+                        contentColor = featureColors.tools.foreground,
+                        borderColor = featureColors.tools.border,
                         onClick = null
                     )
                 }
@@ -277,9 +281,9 @@ fun UniversalModelCard(
                     CapabilityPill(
                         icon = Icons.Outlined.Psychology,
                         label = s.modelsReasoningLevelLabel,
-                        containerColor = AppTokens.Feature.reasoning.container,
-                        contentColor = AppTokens.Feature.reasoning.foreground,
-                        borderColor = AppTokens.Feature.reasoning.border,
+                        containerColor = featureColors.reasoning.container,
+                        contentColor = featureColors.reasoning.foreground,
+                        borderColor = featureColors.reasoning.border,
                         onClick = state.onOpenReasoningDetail
                     )
                 }
@@ -296,9 +300,9 @@ fun UniversalModelCard(
                     CapabilityPill(
                         icon = Icons.Outlined.DataObject,
                         label = contextLabel,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                         onClick = state.onOpenInfoDetail
                     )
                 }
@@ -428,19 +432,50 @@ private fun CapabilityPill(
     onClick: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(7.dp)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    val animatedContainer by animateColorAsState(
+        targetValue = if (isHovered && onClick != null) {
+            containerColor.copy(alpha = (containerColor.alpha * 1.5f).coerceAtMost(0.85f))
+        } else {
+            containerColor
+        },
+        animationSpec = tween(150)
+    )
+
+    val animatedBorder by animateColorAsState(
+        targetValue = if (isHovered && onClick != null) {
+            borderColor.copy(alpha = (borderColor.alpha * 1.5f).coerceAtMost(0.95f))
+        } else {
+            borderColor
+        },
+        animationSpec = tween(150)
+    )
+
     Surface(
         shape = shape,
-        color = containerColor,
-        border = BorderStroke(1.dp, borderColor),
+        color = animatedContainer,
+        border = BorderStroke(1.dp, animatedBorder),
         modifier = Modifier
             .clip(shape)
             .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick)
-                else Modifier
+                if (onClick != null) {
+                    Modifier
+                        .hoverable(interactionSource)
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = onClick
+                        )
+                } else {
+                    Modifier
+                }
             )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
@@ -448,13 +483,13 @@ private fun CapabilityPill(
                 imageVector = icon,
                 contentDescription = null,
                 tint = contentColor,
-                modifier = Modifier.size(13.5.dp)
+                modifier = Modifier.size(13.dp)
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Medium
                 ),
                 color = contentColor,
                 maxLines = 1

@@ -146,19 +146,19 @@ object AppTokens {
     val darkStatusColors = StatusColors(
         success = Color(0xFF4ADE80),
         onSuccess = Color(0xFF052E16),
-        successContainer = Color(0xFF14532D),
-        onSuccessContainer = Color(0xFFBBF7D0),
+        successContainer = Color(0x3322C55E),
+        onSuccessContainer = Color(0xFF86EFAC),
         warning = Color(0xFFFBBF24),
         onWarning = Color(0xFF451A03),
-        warningContainer = Color(0xFF78350F),
+        warningContainer = Color(0x33F59E0B),
         onWarningContainer = Color(0xFFFDE68A),
         info = Color(0xFF60A5FA),
         onInfo = Color(0xFF172554),
-        infoContainer = Color(0xFF1E3A8A),
+        infoContainer = Color(0x333B82F6),
         onInfoContainer = Color(0xFFBFDBFE),
         error = Color(0xFFF87171),
         onError = Color(0xFF450A0A),
-        errorContainer = Color(0xFF7F1D1D),
+        errorContainer = Color(0x33EF4444),
         onErrorContainer = Color(0xFFFECACA)
     )
 
@@ -169,27 +169,65 @@ object AppTokens {
         val border: Color
     )
 
-    object Feature {
-        val vision = FeatureStyle(
+    @Immutable
+    data class FeatureColors(
+        val vision: FeatureStyle,
+        val tools: FeatureStyle,
+        val reasoning: FeatureStyle,
+        val info: FeatureStyle
+    )
+
+    val lightFeatureColors = FeatureColors(
+        vision = FeatureStyle(
             foreground = Color(0xFF2563EB),
             container = Color(0xFFEFF6FF),
             border = Color(0xFFBFDBFE)
-        )
-        val tools = FeatureStyle(
+        ),
+        tools = FeatureStyle(
             foreground = Color(0xFF0D9488),
             container = Color(0xFFF0FDFA),
             border = Color(0xFF99F6E4)
-        )
-        val reasoning = FeatureStyle(
+        ),
+        reasoning = FeatureStyle(
             foreground = Color(0xFF7C3AED),
             container = Color(0xFFFAF5FF),
             border = Color(0xFFE9D5FF)
-        )
-        val info = FeatureStyle(
+        ),
+        info = FeatureStyle(
             foreground = Color(0xFF16A34A),
             container = Color(0xFFF0FDF4),
             border = Color(0xFFBBF7D0)
         )
+    )
+
+    val darkFeatureColors = FeatureColors(
+        vision = FeatureStyle(
+            foreground = Color(0xFF93C5FD),
+            container = Color(0x333B82F6),
+            border = Color(0x5960A5FA)
+        ),
+        tools = FeatureStyle(
+            foreground = Color(0xFF5EEAD4),
+            container = Color(0x3314B8A6),
+            border = Color(0x592DD4BF)
+        ),
+        reasoning = FeatureStyle(
+            foreground = Color(0xFFD8B4FE),
+            container = Color(0x33A855F7),
+            border = Color(0x59C084FC)
+        ),
+        info = FeatureStyle(
+            foreground = Color(0xFF86EFAC),
+            container = Color(0x3322C55E),
+            border = Color(0x594ADE80)
+        )
+    )
+
+    object Feature {
+        val vision = lightFeatureColors.vision
+        val tools = lightFeatureColors.tools
+        val reasoning = lightFeatureColors.reasoning
+        val info = lightFeatureColors.info
     }
 
     object Brand {
@@ -214,3 +252,9 @@ val LocalAppStatusColors = compositionLocalOf { AppTokens.lightStatusColors }
 val AppStatusColors: AppTokens.StatusColors
     @androidx.compose.runtime.Composable
     get() = LocalAppStatusColors.current
+
+val LocalAppFeatureColors = compositionLocalOf { AppTokens.lightFeatureColors }
+
+val AppFeatureColors: AppTokens.FeatureColors
+    @androidx.compose.runtime.Composable
+    get() = LocalAppFeatureColors.current
