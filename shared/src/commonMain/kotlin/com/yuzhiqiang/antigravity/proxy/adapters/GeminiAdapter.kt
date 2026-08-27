@@ -119,7 +119,15 @@ class GeminiAdapter : ProviderAdapter {
                                 if (streamEnded) return@forEach
                             }
                         }
-                        if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed())
+                        if (!sawCompletion && !streamEnded) {
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    "Gemini stream ended before completion",
+                                    502,
+                                    responseStarted = true
+                                )
+                            )
+                        }
                     } else {
                         val responseBody = ProviderAdapter.readResponseBodyText(response)
                         if (responseBody.isFailure) {

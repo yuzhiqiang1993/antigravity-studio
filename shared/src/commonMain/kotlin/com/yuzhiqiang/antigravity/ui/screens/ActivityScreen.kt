@@ -311,7 +311,8 @@ fun ActivityScreen(
         com.yuzhiqiang.antigravity.ui.dialogs.ActivityDetailDialog(
             log = log,
             onDismiss = { selectedLog = null },
-            onCopyNotice = { viewModel.showNotice(it) }
+            onCopyNotice = { viewModel.showNotice(it) },
+            onOpenNetworkSettings = viewModel::openNetworkSettings
         )
     }
 }

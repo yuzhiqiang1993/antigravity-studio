@@ -338,9 +338,6 @@ object ResponseEncoder {
                         modelVersion?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
                     }
                     frames.add(sse(wrapIfNeeded(errorPayload)))
-                    if (cloudCodeEnvelope) {
-                        frames.add(sse(errorPayload))
-                    }
                     val candidateIndexes = linkedSetOf<Int>().apply {
                         addAll(finishReasons.keys)
                         if (isEmpty()) add(0)
@@ -435,9 +432,6 @@ object ResponseEncoder {
                             modelVersion?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
                         }
                         errFrames.add(sse(wrapIfNeeded(errorPayload)))
-                        if (cloudCodeEnvelope) {
-                            errFrames.add(sse(errorPayload))
-                        }
                         val finishPayload = buildJsonObject {
                             put("candidates", buildJsonArray {
                                 add(buildJsonObject {

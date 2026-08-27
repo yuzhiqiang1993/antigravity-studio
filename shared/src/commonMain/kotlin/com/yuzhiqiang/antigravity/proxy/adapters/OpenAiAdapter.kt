@@ -168,7 +168,15 @@ class OpenAiAdapter : ProviderAdapter {
                         if (streamEnded) break
                     }
                 }
-                if (!sawCompletion && !streamEnded) emit(NeutralStreamChunk.Completed())
+                if (!sawCompletion && !streamEnded) {
+                    emit(
+                        NeutralStreamChunk.Error(
+                            "OpenAI stream ended before completion",
+                            502,
+                            responseStarted = true
+                        )
+                    )
+                }
                 }
             }
         } catch (error: Exception) {

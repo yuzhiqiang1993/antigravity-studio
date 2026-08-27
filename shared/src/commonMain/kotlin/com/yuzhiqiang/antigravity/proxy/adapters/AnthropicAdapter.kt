@@ -158,7 +158,13 @@ class AnthropicAdapter : ProviderAdapter {
                         }
                     }
                     if (!sawCompletion && !streamEnded) {
-                        emit(NeutralStreamChunk.Completed(usage = latestUsage))
+                        emit(
+                            NeutralStreamChunk.Error(
+                                "Anthropic stream ended before completion",
+                                502,
+                                responseStarted = true
+                            )
+                        )
                     }
                 }
             }

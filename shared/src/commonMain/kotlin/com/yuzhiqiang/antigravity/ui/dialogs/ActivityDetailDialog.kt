@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DataObject
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -45,7 +46,8 @@ import java.awt.datatransfer.StringSelection
 fun ActivityDetailDialog(
     log: ActivityLog,
     onDismiss: () -> Unit,
-    onCopyNotice: (String) -> Unit
+    onCopyNotice: (String) -> Unit,
+    onOpenNetworkSettings: (() -> Unit)? = null
 ) {
     val s = strings()
     val isSuccess = log.statusCode in 200..399
@@ -240,6 +242,20 @@ fun ActivityDetailDialog(
                             title = s.activityDetailErrorSection,
                             headerColor = MaterialTheme.colorScheme.error
                         ) {
+                            log.errorSource?.let { source ->
+                                val sourceLabel = when (source) {
+                                    "UPSTREAM_RESPONSE" -> s.activityErrorSourceUpstreamResponse
+                                    "UPSTREAM_TRANSPORT" -> s.activityErrorSourceUpstreamTransport
+                                    "STUDIO_ADAPTER" -> s.activityErrorSourceStudioAdapter
+                                    "STUDIO_PROXY" -> s.activityErrorSourceStudioProxy
+                                    else -> source
+                                }
+                                DetailItemRow(
+                                    s.activityDetailErrorSource,
+                                    sourceLabel,
+                                    highlightColor = MaterialTheme.colorScheme.error
+                                )
+                            }
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -302,6 +318,7 @@ fun ActivityDetailDialog(
                                     put("reasoningTokens", log.reasoningTokens)
                                     put("totalTokens", log.totalTokens)
                                     put("errorMessage", log.errorMessage)
+                                    put("errorSource", log.errorSource)
                                 }.toString()
                                 Toolkit.getDefaultToolkit().systemClipboard.setContents(
                                     StringSelection(jsonString),
@@ -351,6 +368,29 @@ fun ActivityDetailDialog(
                                         color = MaterialTheme.colorScheme.error,
                                         fontWeight = FontWeight.Medium
                                     )
+                                )
+                            }
+                        }
+
+                        if (log.errorSource == "UPSTREAM_TRANSPORT" && onOpenNetworkSettings != null) {
+                            OutlinedButton(
+                                onClick = {
+                                    onDismiss()
+                                    onOpenNetworkSettings()
+                                },
+                                modifier = Modifier.height(32.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Router,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(Modifier.width(5.dp))
+                                Text(
+                                    text = s.settingsOpenNetworkSettings,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium)
                                 )
                             }
                         }
