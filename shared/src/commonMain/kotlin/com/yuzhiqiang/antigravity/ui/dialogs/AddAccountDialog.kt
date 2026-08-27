@@ -68,9 +68,9 @@ private fun readFromClipboard(): String? {
     }
 }
 
-private fun pickJsonFile(): String? {
+private fun pickJsonFile(s: com.yuzhiqiang.antigravity.i18n.Strings = com.yuzhiqiang.antigravity.i18n.currentStrings()): String? {
     return try {
-        val fileDialog = FileDialog(null as Frame?, "选择账号备份 JSON 文件", FileDialog.LOAD)
+        val fileDialog = FileDialog(null as Frame?, s.accountsAddSelectJsonFileTitle, FileDialog.LOAD)
         fileDialog.setFilenameFilter { _, name -> name.endsWith(".json", ignoreCase = true) }
         fileDialog.isVisible = true
         val file = fileDialog.file
@@ -150,7 +150,7 @@ fun AddAccountDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "Close",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -166,13 +166,13 @@ fun AddAccountDialog(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     TabButton(
-                        text = "Google 浏览器登录 (OAuth)",
+                        text = s.accountsAddTabOAuth,
                         selected = selectedMode == AddAccountMode.BROWSER_OAUTH,
                         onClick = { selectedMode = AddAccountMode.BROWSER_OAUTH },
                         modifier = Modifier.weight(1f)
                     )
                     TabButton(
-                        text = "Token / JSON 导入",
+                        text = s.accountsAddTabTokenImport,
                         selected = selectedMode == AddAccountMode.MANUAL_TOKEN,
                         onClick = { selectedMode = AddAccountMode.MANUAL_TOKEN },
                         modifier = Modifier.weight(1f)
@@ -193,7 +193,7 @@ fun AddAccountDialog(
                             onSubmitManualCallback = { callbackUrl ->
                                 val success = viewModel.submitManualOAuthCallback(callbackUrl)
                                 if (!success) {
-                                    viewModel.showNotice("未识别出有效授权码，请确认完整 URL", NoticeKind.ERROR)
+                                    viewModel.showNotice(s.accountsAddInvalidAuthCode, NoticeKind.ERROR)
                                 }
                             },
                             onCancel = {
@@ -267,7 +267,7 @@ private fun BrowserOAuthContent(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = if (isAuthorizing) "重新在浏览器打开" else "在浏览器中打开授权",
+                    text = if (isAuthorizing) s.accountsAddReopenBrowser else s.accountsAddOpenBrowser,
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                     fontSize = 13.sp
                 )
@@ -291,7 +291,7 @@ private fun BrowserOAuthContent(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "复制授权链接",
+                    text = s.accountsAddCopyAuthUrl,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -342,7 +342,7 @@ private fun BrowserOAuthContent(
                         modifier = Modifier.height(28.dp)
                     ) {
                         Text(
-                            text = "取消授权",
+                            text = s.accountsAddCancelAuth,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -366,7 +366,7 @@ private fun BrowserOAuthContent(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "若自动回调受阻，可将浏览器地址栏中的完整网址复制粘贴至下方：",
+                text = s.accountsAddFallbackManualHint,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -379,7 +379,7 @@ private fun BrowserOAuthContent(
                 StudioTextField(
                     value = manualCallbackInput,
                     onValueChange = { manualCallbackInput = it },
-                    placeholder = "http://127.0.0.1:41321/... 或授权码",
+                    placeholder = s.accountsAddFallbackManualPlaceholder,
                     singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
@@ -395,7 +395,7 @@ private fun BrowserOAuthContent(
                     modifier = Modifier.height(34.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp)
                 ) {
-                    Text("提交", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(s.accountsAddSubmit, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -409,6 +409,7 @@ private fun ManualTokenContent(
     isSubmitting: Boolean,
     onSubmit: () -> Unit
 ) {
+    val s = strings()
     val parsedEntries = remember(token) {
         RefreshTokenParser.parse(token)
     }
@@ -419,7 +420,7 @@ private fun ManualTokenContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "支持粘贴单个/多行 Refresh Token（每行一个）、Cockpit 导出的 JSON 数组，或直接选择备份文件。",
+            text = s.accountsAddTokenBatchDesc,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             lineHeight = 18.sp
@@ -433,7 +434,7 @@ private fun ManualTokenContent(
         ) {
             OutlinedButton(
                 onClick = {
-                    val fileContent = pickJsonFile()
+                    val fileContent = pickJsonFile(s)
                     if (!fileContent.isNullOrBlank()) {
                         onTokenChange(fileContent)
                     }
@@ -448,7 +449,7 @@ private fun ManualTokenContent(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("导入 JSON 文件", fontSize = 12.sp)
+                Text(s.accountsAddImportJsonFile, fontSize = 12.sp)
             }
 
             OutlinedButton(
@@ -468,7 +469,7 @@ private fun ManualTokenContent(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("从剪贴板粘贴", fontSize = 12.sp)
+                Text(s.accountsAddPasteClipboard, fontSize = 12.sp)
             }
 
             Spacer(Modifier.weight(1f))
@@ -487,7 +488,7 @@ private fun ManualTokenContent(
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text = "清空",
+                        text = s.commonClear,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -500,7 +501,7 @@ private fun ManualTokenContent(
             value = token,
             onValueChange = onTokenChange,
             modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 180.dp),
-            placeholder = "粘贴 1//0g... 字符串（支持多行批量粘贴或 JSON 数组/对象）",
+            placeholder = s.accountsAddTokenPlaceholder,
             singleLine = false,
             maxLines = 8,
             minLines = 4
@@ -515,7 +516,7 @@ private fun ManualTokenContent(
             if (count > 0) {
                 val emails = parsedEntries.mapNotNull { it.email }.filter { it.isNotBlank() }
                 val previewText = when {
-                    emails.isNotEmpty() -> "（${emails.take(2).joinToString(", ")}${if (count > 2) " 等" else ""}）"
+                    emails.isNotEmpty() -> " (${emails.take(2).joinToString(", ")}${if (count > 2) " ${s.commonAndMore}" else ""})"
                     else -> ""
                 }
                 Row(
@@ -530,7 +531,7 @@ private fun ManualTokenContent(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "已识别 $count 个有效账号凭据 $previewText",
+                        text = s.accountsAddRecognizedCount(count, previewText),
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
@@ -551,7 +552,7 @@ private fun ManualTokenContent(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "未能识别出有效的 Refresh Token 或 JSON 数据",
+                        text = s.accountsAddUnrecognizedTokens,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.error
@@ -578,7 +579,7 @@ private fun ManualTokenContent(
                     color = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(Modifier.width(8.dp))
-                Text("正在验证并导入账号...", style = MaterialTheme.typography.labelLarge)
+                Text(s.accountsAddImporting, style = MaterialTheme.typography.labelLarge)
             } else {
                 Icon(
                     imageVector = Icons.Outlined.Key,
@@ -586,12 +587,10 @@ private fun ManualTokenContent(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
-                val buttonText = when {
-                    count > 1 -> "批量导入账号 ($count 个)"
-                    count == 1 -> "确认导入账号 (1 个)"
-                    else -> "确认导入账号"
-                }
-                Text(buttonText, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    text = s.accountsAddConfirmImport(count),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                )
             }
         }
     }

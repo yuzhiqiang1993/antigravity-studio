@@ -3,6 +3,9 @@ package com.yuzhiqiang.antigravity.domain.model.account
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+import com.yuzhiqiang.antigravity.i18n.Strings
+import com.yuzhiqiang.antigravity.i18n.currentStrings
+
 @Serializable
 enum class SmartSwitchStrategy {
     @SerialName("HIGHEST_QUOTA_FIRST")
@@ -11,11 +14,13 @@ enum class SmartSwitchStrategy {
     @SerialName("ROUND_ROBIN")
     ROUND_ROBIN;
 
+    fun displayName(s: Strings = currentStrings()): String = when (this) {
+        HIGHEST_QUOTA_FIRST -> s.smartSwitchStrategyHighestQuota
+        ROUND_ROBIN -> s.smartSwitchStrategyRoundRobin
+    }
+
     val displayName: String
-        get() = when (this) {
-            HIGHEST_QUOTA_FIRST -> "高额度优先 (推荐)"
-            ROUND_ROBIN -> "循环轮询"
-        }
+        get() = displayName(currentStrings())
 }
 
 /**

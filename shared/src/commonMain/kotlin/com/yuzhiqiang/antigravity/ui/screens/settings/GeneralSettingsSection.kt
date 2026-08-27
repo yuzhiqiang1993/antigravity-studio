@@ -6,15 +6,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material3.Switch
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,7 +24,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
+import com.yuzhiqiang.antigravity.domain.model.DefaultSwitchTarget
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.i18n.Strings
@@ -38,165 +40,170 @@ fun GeneralSettingsSection(
     onUpdateThemeMode: (String) -> Unit,
     onUpdateThemePalette: (String) -> Unit = {},
     onUpdateAutoCheckUpdate: (Boolean) -> Unit,
+    onUpdateDefaultSwitchTarget: (String) -> Unit = {},
     onConfigureHostPath: ((String, String) -> Unit)? = null,
     s: Strings
 ) {
-    StudioCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
-        ) {
-            SettingsCardTitle(Icons.Outlined.Settings, s.settingsGeneral)
-            Spacer(Modifier.height(2.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
-
-            SettingRow(
-                icon = Icons.Outlined.Language,
-                title = s.settingsLanguage,
-                description = s.settingsLanguageDescription,
-                modifier = Modifier.padding(vertical = 4.dp)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // 卡片 1：通用偏好
+        StudioCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
             ) {
-                Row(
-                    modifier = Modifier
-                        .height(28.dp)
-                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                            shape = RoundedCornerShape(AppTokens.Radius.pill)
-                        )
-                        .padding(2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                SettingsCardTitle(Icons.Outlined.Settings, s.settingsGeneral)
+                Spacer(Modifier.height(2.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+
+                // 界面语言
+                SettingRow(
+                    icon = Icons.Outlined.Language,
+                    title = s.settingsLanguage,
+                    description = s.settingsLanguageDescription,
+                    modifier = Modifier.padding(vertical = 4.dp)
                 ) {
-                    AppLanguage.values().forEach { lang ->
-                        val selected = I18nManager.currentLanguage == lang
-                        val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-                        val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                .background(bg)
-                                .clickable { onUpdateLanguage(lang) }
-                                .padding(horizontal = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (lang == AppLanguage.ZH_CN) "简体中文" else "English",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = text
+                    Row(
+                        modifier = Modifier
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                shape = RoundedCornerShape(AppTokens.Radius.pill)
                             )
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppLanguage.values().forEach { lang ->
+                            val selected = I18nManager.currentLanguage == lang
+                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                            val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                    .background(bg)
+                                    .clickable { onUpdateLanguage(lang) }
+                                    .padding(horizontal = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = lang.displayName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = text
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
-            SettingRow(
-                icon = Icons.Outlined.Palette,
-                title = s.settingsTheme,
-                description = s.settingsThemeDescription,
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .height(28.dp)
-                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                            shape = RoundedCornerShape(AppTokens.Radius.pill)
-                        )
-                        .padding(2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // 主题模式
+                SettingRow(
+                    icon = Icons.Outlined.Palette,
+                    title = s.settingsTheme,
+                    description = s.settingsThemeDescription,
+                    modifier = Modifier.padding(vertical = 4.dp)
                 ) {
-                    listOf(
-                        Triple("system", s.settingsThemeSystem, Icons.Outlined.Computer),
-                        Triple("light", s.settingsThemeLight, Icons.Outlined.Palette),
-                        Triple("dark", s.settingsThemeDark, Icons.Outlined.Settings)
-                    ).forEach { (mode, label, _) ->
-                        val selected = config.themeMode == mode
-                        val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-                        val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                .background(bg)
-                                .clickable { onUpdateThemeMode(mode) }
-                                .padding(horizontal = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = text
+                    Row(
+                        modifier = Modifier
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                shape = RoundedCornerShape(AppTokens.Radius.pill)
                             )
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf(
+                            "system" to s.settingsThemeSystem,
+                            "light" to s.settingsThemeLight,
+                            "dark" to s.settingsThemeDark
+                        ).forEach { (mode, label) ->
+                            val selected = config.themeMode == mode
+                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                            val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                    .background(bg)
+                                    .clickable { onUpdateThemeMode(mode) }
+                                    .padding(horizontal = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = text
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
-            // 配色方案模板选择器 (Color Palette)
-            SettingRow(
-                icon = Icons.Outlined.Palette,
-                title = s.settingsThemePalette,
-                description = "选择 Material Design 3 主题主色调与色调衍生体系",
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .height(30.dp)
-                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                            shape = RoundedCornerShape(AppTokens.Radius.pill)
-                        )
-                        .padding(2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // 主题调色板
+                SettingRow(
+                    icon = Icons.Outlined.Palette,
+                    title = s.settingsThemePalette,
+                    description = s.settingsThemePaletteDescription,
+                    modifier = Modifier.padding(vertical = 4.dp)
                 ) {
-                    com.yuzhiqiang.antigravity.ui.theme.ThemePalette.entries.forEach { palette ->
-                        val selected = config.themePalette == palette.id
-                        val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-                        val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                        val paletteLabel = when (palette) {
-                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.INDIGO -> s.paletteIndigo
-                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.OCEAN -> s.paletteOcean
-                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.EMERALD -> s.paletteEmerald
-                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.VIOLET -> s.paletteViolet
-                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.ROSE -> s.paletteRose
-                            com.yuzhiqiang.antigravity.ui.theme.ThemePalette.AMBER -> s.paletteAmber
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                .background(bg)
-                                .clickable { onUpdateThemePalette(palette.id) }
-                                .padding(horizontal = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                    val currentPalette = config.themePalette.ifBlank { "indigo" }
+                    Row(
+                        modifier = Modifier
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                shape = RoundedCornerShape(AppTokens.Radius.pill)
+                            )
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf(
+                            Triple("indigo", s.paletteIndigo, Color(0xFF4F46E5)),
+                            Triple("ocean", s.paletteOcean, Color(0xFF0284C7)),
+                            Triple("emerald", s.paletteEmerald, Color(0xFF059669)),
+                            Triple("violet", s.paletteViolet, Color(0xFF7C3AED)),
+                            Triple("rose", s.paletteRose, Color(0xFFE11D48)),
+                            Triple("amber", s.paletteAmber, Color(0xFFD97706))
+                        ).forEach { (paletteId, paletteLabel, colorDot) ->
+                            val selected = currentPalette == paletteId
+                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                            val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                    .background(bg)
+                                    .clickable { onUpdateThemePalette(paletteId) }
+                                    .padding(horizontal = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(9.dp)
+                                        .size(7.dp)
                                         .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                        .background(palette.previewColor)
+                                        .background(colorDot)
                                         .border(
                                             width = 0.5.dp,
                                             color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.2f),
@@ -213,66 +220,131 @@ fun GeneralSettingsSection(
                         }
                     }
                 }
-            }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
-
-            SettingRow(
-                icon = Icons.Outlined.Sync,
-                title = s.settingsAutoCheckUpdate,
-                description = s.settingsAutoCheckUpdateDesc,
-                modifier = Modifier.padding(vertical = 2.dp)
-            ) {
-                Switch(
-                    checked = config.autoCheckUpdate,
-                    onCheckedChange = onUpdateAutoCheckUpdate,
-                    modifier = Modifier.scale(0.8f)
-                )
-            }
-
-            if (onConfigureHostPath != null) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
+                // 自动检查更新
                 SettingRow(
-                    icon = Icons.Outlined.Computer,
-                    title = s.settingsHostPathsTitle,
-                    description = s.settingsHostPathsDesc,
+                    icon = Icons.Outlined.Sync,
+                    title = s.settingsAutoCheckUpdate,
+                    description = s.settingsAutoCheckUpdateDesc,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                ) {
+                    Switch(
+                        checked = config.autoCheckUpdate,
+                        onCheckedChange = onUpdateAutoCheckUpdate,
+                        modifier = Modifier.scale(0.8f)
+                    )
+                }
+            }
+        }
+
+        // 卡片 2：账号与应用设置
+        StudioCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
+            ) {
+                SettingsCardTitle(Icons.Outlined.People, s.settingsAccountAndAppCardTitle)
+                Spacer(Modifier.height(2.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+
+                // 切号默认目标应用
+                SettingRow(
+                    icon = Icons.Outlined.People,
+                    title = s.settingsDefaultSwitchTargetTitle,
+                    description = s.settingsDefaultSwitchTargetDesc,
                     modifier = Modifier.padding(vertical = 4.dp)
                 ) {
+                    val currentTarget = config.defaultSwitchTarget.ifBlank { "all" }
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm),
+                        modifier = Modifier
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                shape = RoundedCornerShape(AppTokens.Radius.pill)
+                            )
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         listOf(
-                            Triple("ide", "IDE", config.customHostPaths["ide"]),
-                            Triple("app", "App", config.customHostPaths["app"]),
-                            Triple("cli", "CLI", config.customHostPaths["cli"])
-                        ).forEach { (key, title, customPath) ->
-                            val hasCustom = !customPath.isNullOrBlank()
-                            val bg = if (hasCustom) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                            val borderColor = if (hasCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
-                            val textColor = if (hasCustom) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                            
+                            DefaultSwitchTarget.ALL.value to s.settingsDefaultSwitchTargetAll,
+                            DefaultSwitchTarget.IDE_ONLY.value to s.settingsDefaultSwitchTargetIdeOnly,
+                            DefaultSwitchTarget.APP_CLI_ONLY.value to s.settingsDefaultSwitchTargetAppCliOnly,
+                            DefaultSwitchTarget.REMEMBER_LAST.value to s.settingsDefaultSwitchTargetRemember
+                        ).forEach { (targetValue, label) ->
+                            val selected = currentTarget == targetValue
+                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                            val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             Box(
                                 modifier = Modifier
-                                    .height(26.dp)
+                                    .fillMaxHeight()
                                     .clip(RoundedCornerShape(AppTokens.Radius.pill))
                                     .background(bg)
-                                    .border(
-                                        width = 1.dp,
-                                        color = borderColor,
-                                        shape = RoundedCornerShape(AppTokens.Radius.pill)
-                                    )
-                                    .clickable { onConfigureHostPath(key, "Antigravity $title") }
-                                    .padding(horizontal = 10.dp),
+                                    .clickable { onUpdateDefaultSwitchTarget(targetValue) }
+                                    .padding(horizontal = 9.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = if (hasCustom) s.settingsHostPathCustom(title) else s.settingsHostPathAuto(title),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (hasCustom) FontWeight.SemiBold else FontWeight.Medium,
-                                    color = textColor
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = text
                                 )
+                            }
+                        }
+                    }
+                }
+
+                if (onConfigureHostPath != null) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+
+                    // 宿主路径配置
+                    SettingRow(
+                        icon = Icons.Outlined.Computer,
+                        title = s.settingsHostPathsTitle,
+                        description = s.settingsHostPathsDesc,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(
+                                Triple("ide", "IDE", config.customHostPaths["ide"]),
+                                Triple("app", "App", config.customHostPaths["app"]),
+                                Triple("cli", "CLI", config.customHostPaths["cli"])
+                            ).forEach { (key, title, customPath) ->
+                                val hasCustom = !customPath.isNullOrBlank()
+                                val bg = if (hasCustom) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                                val borderColor = if (hasCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+                                val textColor = if (hasCustom) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+
+                                Box(
+                                    modifier = Modifier
+                                        .height(26.dp)
+                                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                        .background(bg)
+                                        .border(
+                                            width = 1.dp,
+                                            color = borderColor,
+                                            shape = RoundedCornerShape(AppTokens.Radius.pill)
+                                        )
+                                        .clickable { onConfigureHostPath(key, "Antigravity $title") }
+                                        .padding(horizontal = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (hasCustom) s.settingsHostPathCustom(title) else s.settingsHostPathAuto(title),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (hasCustom) FontWeight.SemiBold else FontWeight.Medium,
+                                        color = textColor
+                                    )
+                                }
                             }
                         }
                     }

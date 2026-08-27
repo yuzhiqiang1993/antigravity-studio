@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,15 +26,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.i18n.Strings
+import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 
-private enum class IntervalUnit(val label: String, val multiplierSeconds: Int) {
-    SECONDS("秒", 1),
-    MINUTES("分钟", 60),
-    HOURS("小时", 3600)
+private enum class IntervalUnit(val multiplierSeconds: Int) {
+    SECONDS(1),
+    MINUTES(60),
+    HOURS(3600);
+
+    fun label(s: Strings): String = when (this) {
+        SECONDS -> s.quotaRefreshUnitSecond
+        MINUTES -> s.quotaRefreshUnitMinute
+        HOURS -> s.quotaRefreshUnitHour
+    }
 }
 
 /**
@@ -56,6 +64,67 @@ private fun formatNumberTrimZero(value: Double): String {
     }
 }
 
+/**
+ * 精美分段选择器（用于快速切换秒/分/小时单位）
+ */
+@Composable
+private fun SegmentedUnitPicker(
+    units: List<IntervalUnit>,
+    selectedUnit: IntervalUnit,
+    onSelectUnit: (IntervalUnit) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val s = strings()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val containerBg = if (isDark) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    }
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(containerBg)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        units.forEach { unit ->
+            val isSelected = unit == selectedUnit
+            val bg = if (isSelected) {
+                MaterialTheme.colorScheme.surface
+            } else {
+                Color.Transparent
+            }
+            val textColor = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(bg)
+                    .clickable { onSelectUnit(unit) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = unit.label(s),
+                    fontSize = 12.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = textColor
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 预设 Chip 选项卡
+ */
 @Composable
 private fun IntervalPresetChip(
     selected: Boolean,
@@ -65,88 +134,54 @@ private fun IntervalPresetChip(
 ) {
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val bg = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
+        MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.22f else 0.12f)
     } else {
-        if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surface
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.35f else 0.5f)
     }
     val borderClr = if (selected) {
-        MaterialTheme.colorScheme.primary
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
     } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.7f)
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.3f else 0.6f)
     }
     val textColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
+        MaterialTheme.colorScheme.primary
     } else {
-        MaterialTheme.colorScheme.onSurface
+        MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Box(
+    Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(StudioDesignTokens.CornerRadius.sm))
-            .background(bg)
-            .border(1.dp, borderClr, RoundedCornerShape(StudioDesignTokens.CornerRadius.sm))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = bg,
+        border = BorderStroke(1.dp, borderClr)
     ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = textColor
-        )
-    }
-}
-
-@Composable
-private fun SegmentedUnitPicker(
-    units: List<IntervalUnit>,
-    selectedUnit: IntervalUnit,
-    onSelectUnit: (IntervalUnit) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val borderClr = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
-    val bg = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
-
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(StudioDesignTokens.CornerRadius.sm))
-            .background(bg)
-            .border(1.dp, borderClr, RoundedCornerShape(StudioDesignTokens.CornerRadius.sm))
-            .padding(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        units.forEach { unit ->
-            val isSelected = selectedUnit == unit
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(StudioDesignTokens.CornerRadius.xs))
-                    .background(
-                        if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-                    )
-                    .clickable { onSelectUnit(unit) }
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = unit.label,
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        Box(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.5.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = textColor
+            )
         }
     }
 }
 
+/**
+ * 额度自动刷新频率配置弹窗 (1:1 复刻 Cockpit 原生交互 + Studio 沉稳精致设计)
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun QuotaRefreshConfigDialog(
     viewModel: AppViewModel,
     onDismiss: () -> Unit
 ) {
+    val s = strings()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val config by viewModel.config.collectAsState()
 
     // 默认常量 (1:1 对齐 Cockpit 插件规范)
@@ -161,7 +196,7 @@ fun QuotaRefreshConfigDialog(
     val activePresets = listOf(
         10 to "10s",
         30 to "30s",
-        60 to "60s (推荐)",
+        60 to s.quotaRefreshPresetRecommended("60s"),
         120 to "2m",
         300 to "5m",
         600 to "10m"
@@ -171,7 +206,7 @@ fun QuotaRefreshConfigDialog(
         60 to "1m",
         180 to "3m",
         300 to "5m",
-        600 to "10m (推荐)",
+        600 to s.quotaRefreshPresetRecommended("10m"),
         1800 to "30m",
         3600 to "1h"
     )
@@ -205,18 +240,18 @@ fun QuotaRefreshConfigDialog(
     }
 
     // 校验活跃账号输入
-    val activeValidation = remember(activeSelectedPreset, activeCustomValue, activeCustomUnit) {
+    val activeValidation = remember(activeSelectedPreset, activeCustomValue, activeCustomUnit, s) {
         if (activeSelectedPreset != -1) {
             Triple(activeSelectedPreset, true, null)
         } else {
             val num = activeCustomValue.toDoubleOrNull()
             if (num == null || num <= 0.0) {
-                Triple(0, false, "请输入有效的刷新时间")
+                Triple(0, false, s.quotaRefreshInputInvalid)
             } else {
                 val totalSec = (num * activeCustomUnit.multiplierSeconds).toInt()
                 when {
-                    totalSec < minActiveSeconds -> Triple(0, false, "最短刷新时间为 10 秒")
-                    totalSec > maxSeconds -> Triple(0, false, "最长刷新时间为 1 小时")
+                    totalSec < minActiveSeconds -> Triple(0, false, s.quotaRefreshMinActiveSeconds(minActiveSeconds))
+                    totalSec > maxSeconds -> Triple(0, false, s.quotaRefreshMaxHours(maxSeconds / 3600))
                     else -> Triple(totalSec, true, null)
                 }
             }
@@ -224,18 +259,18 @@ fun QuotaRefreshConfigDialog(
     }
 
     // 校验后台账号输入
-    val bgValidation = remember(bgSelectedPreset, bgCustomValue, bgCustomUnit) {
+    val bgValidation = remember(bgSelectedPreset, bgCustomValue, bgCustomUnit, s) {
         if (bgSelectedPreset != -1) {
             Triple(bgSelectedPreset, true, null)
         } else {
             val num = bgCustomValue.toDoubleOrNull()
             if (num == null || num <= 0.0) {
-                Triple(0, false, "请输入有效的刷新时间")
+                Triple(0, false, s.quotaRefreshInputInvalid)
             } else {
                 val totalSec = (num * bgCustomUnit.multiplierSeconds).toInt()
                 when {
-                    totalSec < minBackgroundSeconds -> Triple(0, false, "最短刷新时间为 1 分钟")
-                    totalSec > maxSeconds -> Triple(0, false, "最长刷新时间为 1 小时")
+                    totalSec < minBackgroundSeconds -> Triple(0, false, s.quotaRefreshMinBackgroundMinutes(minBackgroundSeconds / 60))
+                    totalSec > maxSeconds -> Triple(0, false, s.quotaRefreshMaxHours(maxSeconds / 3600))
                     else -> Triple(totalSec, true, null)
                 }
             }
@@ -248,17 +283,23 @@ fun QuotaRefreshConfigDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        StudioCard(
+        Surface(
             modifier = Modifier
-                .widthIn(min = 520.dp, max = 580.dp)
+                .widthIn(min = 480.dp, max = 540.dp)
                 .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 8.dp,
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.55f)
+            )
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
+                    .padding(horizontal = 22.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // 1. 顶部 Header
                 Row(
@@ -278,7 +319,7 @@ fun QuotaRefreshConfigDialog(
                                 modifier = Modifier.size(22.dp)
                             )
                             Text(
-                                text = "设置额度自动刷新频率",
+                                text = s.quotaRefreshTitle,
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
@@ -286,7 +327,7 @@ fun QuotaRefreshConfigDialog(
                             )
                         }
                         Text(
-                            text = "配置多账号配额后台自动同步频率（每个卡片左下角展示最后更新时间）",
+                            text = s.quotaRefreshSubtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -295,7 +336,7 @@ fun QuotaRefreshConfigDialog(
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "Close",
+                            contentDescription = s.commonClose,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -303,10 +344,10 @@ fun QuotaRefreshConfigDialog(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                // 2. 当前账号轮询周期
+                // 2. 当前活跃账号刷新间隔
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "当前账号轮询周期",
+                        text = s.quotaRefreshActiveIntervalTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     )
 
@@ -332,7 +373,7 @@ fun QuotaRefreshConfigDialog(
                         // 自定义…
                         IntervalPresetChip(
                             selected = activeSelectedPreset == -1,
-                            label = "自定义…",
+                            label = s.quotaRefreshCustomOption,
                             onClick = { activeSelectedPreset = -1 }
                         )
                     }
@@ -357,7 +398,7 @@ fun QuotaRefreshConfigDialog(
                                 StudioTextField(
                                     value = activeCustomValue,
                                     onValueChange = { activeCustomValue = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                                    placeholder = "例如 45",
+                                    placeholder = s.quotaRefreshPlaceholderActive,
                                     singleLine = true,
                                     modifier = Modifier.width(110.dp),
                                     isError = !activeValidation.second
@@ -381,16 +422,16 @@ fun QuotaRefreshConfigDialog(
                     }
 
                     Text(
-                        text = "提示：当前账号的刷新间隔会同时影响配额数据更新和自动切号触发时机，建议不要设置过长。",
+                        text = s.quotaRefreshActiveHint,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
                     )
                 }
 
-                // 3. 其他账号轮询周期
+                // 3. 其他后台账号刷新间隔
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "其他账号轮询周期",
+                        text = s.quotaRefreshBackgroundIntervalTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     )
 
@@ -408,7 +449,7 @@ fun QuotaRefreshConfigDialog(
                                     bgSelectedPreset = sec
                                     val split = splitIntervalSeconds(sec)
                                     bgCustomValue = formatNumberTrimZero(split.first)
-                                    bgCustomUnit = if (split.second == IntervalUnit.SECONDS) IntervalUnit.MINUTES else split.second
+                                    bgCustomUnit = split.second
                                 }
                             )
                         }
@@ -416,7 +457,7 @@ fun QuotaRefreshConfigDialog(
                         // 自定义…
                         IntervalPresetChip(
                             selected = bgSelectedPreset == -1,
-                            label = "自定义…",
+                            label = s.quotaRefreshCustomOption,
                             onClick = { bgSelectedPreset = -1 }
                         )
                     }
@@ -441,7 +482,7 @@ fun QuotaRefreshConfigDialog(
                                 StudioTextField(
                                     value = bgCustomValue,
                                     onValueChange = { bgCustomValue = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                                    placeholder = "例如 15",
+                                    placeholder = s.quotaRefreshPlaceholderBackground,
                                     singleLine = true,
                                     modifier = Modifier.width(110.dp),
                                     isError = !bgValidation.second
@@ -467,7 +508,7 @@ fun QuotaRefreshConfigDialog(
 
                 // 默认提示说明
                 Text(
-                    text = "默认：当前账号 1 分钟，其他账号 10 分钟",
+                    text = s.quotaRefreshDefaultSummary,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
@@ -492,7 +533,7 @@ fun QuotaRefreshConfigDialog(
                         }
                     ) {
                         Text(
-                            text = "恢复默认",
+                            text = s.quotaRefreshResetDefault,
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -503,7 +544,7 @@ fun QuotaRefreshConfigDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = onDismiss) {
-                            Text("取消", fontSize = 13.sp)
+                            Text(s.commonCancel, fontSize = 13.sp)
                         }
 
                         Button(
@@ -520,7 +561,7 @@ fun QuotaRefreshConfigDialog(
                             enabled = canSave,
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("保存设置", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(s.commonSave, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

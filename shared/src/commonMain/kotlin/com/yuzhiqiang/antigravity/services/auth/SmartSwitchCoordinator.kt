@@ -31,19 +31,21 @@ class SmartSwitchCoordinator(
      * 当代理层捕获到 429 Resource Exhausted 状态码时，触发自动切号
      */
     suspend fun trySmartSwitchOn429(failedModelId: String?): SmartSwitchOutcome = mutex.withLock {
+        val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
         val config = configStore.currentConfig.smartSwitchConfig
         if (!config.enabled) {
-            return SmartSwitchOutcome(triggered = false, reason = "智能切号未启用")
+            return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonDisabled)
         }
 
         val now = System.currentTimeMillis()
         val cooldownMs = config.cooldownSeconds * 1000L
         if ((now - lastAutoSwitchTime) < cooldownMs) {
-            return SmartSwitchOutcome(triggered = false, reason = "处于切号冷却期 (${(cooldownMs - (now - lastAutoSwitchTime)) / 1000}s 剩余)")
+            val remainingSec = (cooldownMs - (now - lastAutoSwitchTime)) / 1000
+            return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonCooldown(remainingSec))
         }
 
         if (config.protectActiveGeneration && WorkflowLeaseManager.isLocked()) {
-            return SmartSwitchOutcome(triggered = false, reason = "当前工作流处于锁定保护状态")
+            return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonWorkflowLocked)
         }
 
         val currentActive = accountStore.currentActiveAccount()
@@ -52,23 +54,24 @@ class SmartSwitchCoordinator(
         }
 
         if (accounts.isEmpty()) {
-            return SmartSwitchOutcome(triggered = false, reason = "无可用备用账号")
+            return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonNoBackupAccounts)
         }
 
         val candidate = selectBestCandidate(accounts, config.strategy, failedModelId)
-            ?: return SmartSwitchOutcome(triggered = false, reason = "未找到满足配额要求的备用账号")
+            ?: return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonNoEligibleCandidate)
 
         lastAutoSwitchTime = now
-        return buildConfirmationOutcome(candidate, "遭遇 429")
+        return buildConfirmationOutcome(candidate, s.smartSwitchTriggerReason429)
     }
 
     /**
      * 周期性检查当前激活账号额度是否低于下限阈值，并在必要时切号
      */
     suspend fun evaluateAndSwitchIfDepleted(): SmartSwitchOutcome = mutex.withLock {
+        val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
         val config = configStore.currentConfig.smartSwitchConfig
         if (!config.enabled) {
-            return SmartSwitchOutcome(triggered = false, reason = "智能切号未启用")
+            return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonDisabled)
         }
 
         val currentActive = accountStore.currentActiveAccount() ?: return SmartSwitchOutcome(triggered = false)
@@ -84,31 +87,33 @@ class SmartSwitchCoordinator(
         val now = System.currentTimeMillis()
         val cooldownMs = config.cooldownSeconds * 1000L
         if ((now - lastAutoSwitchTime) < cooldownMs) {
-            return SmartSwitchOutcome(triggered = false, reason = "处于切号冷却期")
+            val remainingSec = (cooldownMs - (now - lastAutoSwitchTime)) / 1000
+            return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonCooldown(remainingSec))
         }
 
         val candidates = accountStore.currentAccounts().filter {
             it.id != currentActive.id && !it.tokens.isExpired()
         }
         if (candidates.isEmpty()) {
-            return SmartSwitchOutcome(triggered = false, reason = "无可用备用账号")
+            return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonNoBackupAccounts)
         }
 
         val candidate = selectBestCandidate(candidates, config.strategy, null)
-            ?: return SmartSwitchOutcome(triggered = false, reason = "未找到额度充足的备用账号")
+            ?: return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonNoEligibleCandidate)
 
         lastAutoSwitchTime = now
-        return buildConfirmationOutcome(candidate, "配额低于阈值")
+        return buildConfirmationOutcome(candidate, s.smartSwitchTriggerReasonLowQuota)
     }
 
     private fun buildConfirmationOutcome(
         candidate: AccountInfo,
         triggerReason: String
     ): SmartSwitchOutcome {
+        val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
         val reason = if (hotSwitchCoordinator.isSwitching.value) {
-            "$triggerReason，但当前已有切号任务正在执行"
+            s.smartSwitchReasonTaskRunning(triggerReason)
         } else {
-            "$triggerReason，建议切换至 ${candidate.email}；请在账号页确认宿主重启"
+            s.smartSwitchReasonSuggestSwitch(triggerReason, candidate.email)
         }
         return SmartSwitchOutcome(
             triggered = false,

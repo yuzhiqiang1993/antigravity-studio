@@ -38,6 +38,8 @@ interface Strings {
     val accountsWaitingBrowserAuth: String
     val accountsAuthSuccess: String
     val accountsAuthFailed: String
+    val accountsCopiedEmail: String
+    fun accountsEmailTooltip(email: String): String
 
 
     // Overview & Proxy Card
@@ -541,6 +543,12 @@ interface Strings {
     fun settingsPortUpdateFailed(error: String): String
     val settingsHostPathsTitle: String
     val settingsHostPathsDesc: String
+    val settingsDefaultSwitchTargetTitle: String
+    val settingsDefaultSwitchTargetDesc: String
+    val settingsDefaultSwitchTargetAll: String
+    val settingsDefaultSwitchTargetIdeOnly: String
+    val settingsDefaultSwitchTargetAppCliOnly: String
+    val settingsDefaultSwitchTargetRemember: String
     fun settingsHostPathCustom(title: String): String
     fun settingsHostPathAuto(title: String): String
     val settingsStoragePath: String
@@ -714,10 +722,211 @@ interface Strings {
     val commonUnselectAll: String
     val commonNotSet: String
     val commonUnknown: String
+    val commonAndMore: String
     val commonOptional: String
     val commonUnsaved: String
     val trayShowMainWindow: String
     val trayQuitApplication: String
+
+    // Account Switch Dialog & Process
+    val accountsSwitchDialogTitle: String
+    val accountsSwitchSelectTargetTitle: String
+    val accountsSwitchStatusIdeNotInstalled: String
+    val accountsSwitchStatusIdeRunning: String
+    val accountsSwitchStatusIdeStopped: String
+    val accountsSwitchSharedTitleCli: String
+    val accountsSwitchSharedTitleSystem: String
+    val accountsSwitchStatusAppRunning: String
+    val accountsSwitchStatusAppStopped: String
+    val accountsSwitchStatusCliOnly: String
+    val accountsSwitchStatusNone: String
+    val accountsSwitchRememberChoice: String
+    val accountsSwitching: String
+    val accountsSwitchConfirmRestart: String
+    val accountsSwitchConfirmLaunch: String
+    val accountsSwitchConfirm: String
+    val accountsSwitchTargetIde: String
+    val accountsSwitchTargetAppCli: String
+
+    // Smart Switch Dialog & Strategy
+    val smartSwitchTitle: String
+    val smartSwitchSubtitle: String
+    val smartSwitchEnableTitle: String
+    val smartSwitchEnableDesc: String
+    val smartSwitchThresholdLabel: String
+    val smartSwitchStrategyLabel: String
+    val smartSwitchStrategyHighestQuota: String
+    val smartSwitchStrategyRoundRobin: String
+    val smartSwitchCooldownLabel: String
+    fun smartSwitchSeconds(seconds: Int): String
+    val smartSwitchProtectGenerationTitle: String
+    val smartSwitchProtectGenerationDesc: String
+    val smartSwitchInterruptTip: String
+    val smartSwitchReasonDisabled: String
+    fun smartSwitchReasonCooldown(remainingSec: Long): String
+    val smartSwitchReasonWorkflowLocked: String
+    val smartSwitchReasonNoBackupAccounts: String
+    val smartSwitchReasonNoEligibleCandidate: String
+    val smartSwitchTriggerReason429: String
+    val smartSwitchTriggerReasonLowQuota: String
+    fun smartSwitchReasonTaskRunning(trigger: String): String
+    fun smartSwitchReasonSuggestSwitch(trigger: String, email: String): String
+    val hotSwitchTaskAlreadyRunning: String
+    val hotSwitchIdeNotApplied: String
+    val hotSwitchNotAllTargetsApplied: String
+
+    // Quota Auto-Refresh Dialog
+    val quotaRefreshTitle: String
+    val quotaRefreshSubtitle: String
+    val quotaRefreshActiveIntervalTitle: String
+    val quotaRefreshBackgroundIntervalTitle: String
+    val quotaRefreshCustomOption: String
+    val quotaRefreshPlaceholderActive: String
+    val quotaRefreshPlaceholderBackground: String
+    val quotaRefreshActiveHint: String
+    val quotaRefreshDefaultSummary: String
+    val quotaRefreshResetDefault: String
+    val quotaRefreshUnitSecond: String
+    val quotaRefreshUnitMinute: String
+    val quotaRefreshUnitHour: String
+    fun quotaRefreshPresetRecommended(label: String): String
+    val quotaRefreshInputInvalid: String
+    fun quotaRefreshMinActiveSeconds(sec: Int): String
+    fun quotaRefreshMinBackgroundMinutes(min: Int): String
+    fun quotaRefreshMaxHours(hr: Int): String
+
+    // Account Cards & Screen
+    fun accountsLastSyncTime(time: String): String
+    val accountsSyncToOtherHost: String
+    val accountsSetAsActiveTooltip: String
+    val accountsRefreshThisTooltip: String
+    val accountsRefreshingTooltip: String
+    val accountsDeleteThisTooltip: String
+    fun accountsModelFamily(label: String): String
+    val accountsQuotaFiveHour: String
+    val accountsQuotaWeekly: String
+    val accountsFetchingQuota: String
+    val accountsNoQuotaData: String
+    val accountsQuotaResetSoon: String
+    val accountsQuotaFull: String
+    val accountsQuotaResetInSuffix: String
+
+    // Time & Countdown formatting
+    fun formatCountdownDaysHours(days: Long, hours: Long): String
+    fun formatCountdownDays(days: Long): String
+    fun formatCountdownHoursMinutes(hours: Long, minutes: Long): String
+    fun formatCountdownHours(hours: Long): String
+    fun formatCountdownMinutes(minutes: Long): String
+    val formatCountdownLessThanMinute: String
+
+    // Quota natural language descriptions
+    val quotaDescFiveHourFull: String
+    val quotaDescWeeklyFull: String
+    val quotaDescGeneralFull: String
+    fun quotaDescFiveHourResetting(timeStr: String): String
+    fun quotaDescWeeklyResetting(timeStr: String): String
+    fun quotaDescGeneralResetting(timeStr: String): String
+
+    // Quota Window
+    val quotaWindowFiveHour: String
+    val quotaWindowWeekly: String
+    val quotaWindowDaily: String
+    val quotaWindowGeneral: String
+    val accountsSearchPlaceholder: String
+    val accountsSortByQuotaDesc: String
+    val accountsSortByQuotaDescActive: String
+    val accountsSortChipLabel: String
+    val accountsAddAccountTooltip: String
+    val accountsRefreshAllTooltip: String
+    fun accountsAutoRefreshTooltip(activeSec: Int, bgMin: Int): String
+    val accountsPrivacyHideTooltip: String
+    val accountsPrivacyShowTooltip: String
+    val accountsExportTooltip: String
+    val accountsExportCopyToClipboard: String
+    val accountsExportSaveJson: String
+    fun accountsExportCopiedNotice(count: Int): String
+    fun accountsExportSuccessNotice(count: Int, filename: String): String
+    fun accountsExportFailedNotice(error: String): String
+    val accountsExportDialogTitle: String
+    val accountsSmartSwitchTooltip: String
+    fun accountsSearchNoMatch(query: String): String
+    val accountsDeleteConfirmTitle: String
+    fun accountsDeleteConfirmMsg(email: String): String
+    val accountsDeleteConfirmBtn: String
+
+    // Overview Screen & Hero Card
+    val overviewTodayRequests: String
+    fun overviewRequestsUnit(count: Long): String
+    val overviewServiceUptime: String
+    val overviewAvgLatency: String
+    val overviewRouteUpstreamStatus: String
+    val overviewOfficialDirect: String
+    fun overviewCustomUpstreamSummary(providerCount: Int, modelCount: Int): String
+    fun overviewSourceInUse(sources: String): String
+    val overviewActiveAccountBadge: String
+    val overviewSyncingQuotas: String
+
+    // Notices & ViewModel Messages
+    val noticeAuthLinkCopied: String
+    val noticeAuthLinkCopiedBrowser: String
+    val noticeSwitchAlreadyRunning: String
+    fun noticeSwitchResult(summary: String): String
+    fun noticeSwitchFailed(error: String): String
+    fun noticeAccountNotFound(idOrEmail: String): String
+    val noticeSmartSwitchEnabled: String
+    val noticeSmartSwitchDisabled: String
+    val noticeQuotaAutoRefreshEnabled: String
+    val noticeQuotaAutoRefreshDisabled: String
+    val noticeAccountRemoved: String
+    val noticeTokenRefreshed: String
+    fun noticeTokenRefreshFailed(error: String): String
+    val noticeRemarkUpdated: String
+    fun noticeCleanAccountsSuccess(count: Int): String
+    fun noticeCleanAccountsFailed(error: String): String
+    fun noticeBatchImportSuccess(count: Int): String
+    fun noticeBatchImportPartial(successCount: Int, failedCount: Int): String
+    fun noticeBatchImportFailedAll(failedCount: Int): String
+    val noticeQuotasUpdatedAll: String
+    fun noticeQuotasUpdateFailedAll(error: String): String
+    val noticeQuotaRefreshedSingle: String
+    fun noticeQuotaRefreshFailedSingle(error: String): String
+    fun switchStatusNotAvailable(target: String): String
+    fun switchStatusConfigured(target: String): String
+    fun switchStatusConfirmed(target: String): String
+    fun switchStatusPendingRestart(target: String): String
+    fun switchStatusFailed(target: String): String
+    // Add Account Dialog & Import
+    val accountsAddTabOAuth: String
+    val accountsAddTabTokenImport: String
+    val accountsAddSelectJsonFileTitle: String
+    val accountsAddInvalidAuthCode: String
+    val accountsAddReopenBrowser: String
+    val accountsAddOpenBrowser: String
+    val accountsAddCopyAuthUrl: String
+    val accountsAddCancelAuth: String
+    val accountsAddFallbackManualHint: String
+    val accountsAddFallbackManualPlaceholder: String
+    val accountsAddSubmit: String
+    val accountsAddTokenBatchDesc: String
+    val accountsAddImportJsonFile: String
+    val accountsAddPasteClipboard: String
+    val accountsAddTokenPlaceholder: String
+    fun accountsAddRecognizedCount(count: Int, preview: String): String
+    val accountsAddUnrecognizedTokens: String
+    val accountsAddImporting: String
+    fun accountsAddConfirmImport(count: Int): String
+
+    // Other UI Components & Relative Times
+    val settingsAccountAndAppCardTitle: String
+    fun accountsCountSummary(count: Int): String
+    val accountsFiveHourLabel: String
+    val accountsWeeklyLabel: String
+    fun accountsResetInCountdown(countdown: String): String
+    val timeNeverRefreshed: String
+    val timeJustNow: String
+    fun timeMinutesAgo(min: Long): String
+    fun timeHoursAgo(hours: Long): String
+    fun timeDaysAgo(days: Long): String
 
     // Local Proxy Server Notices
     fun proxyStarted(port: Int): String
@@ -731,33 +940,33 @@ interface Strings {
 
 object StringsZh : Strings {
     override val appName = "Antigravity Studio"
-    override val appSubtitle = "Antigravity 全能桌面中枢与 BYOK 模型接入套件"
+    override val appSubtitle = "Antigravity 桌面智能代理与模型管理中枢"
 
     override val navOverview = "运行概览"
     override val navAccounts = "账号配额"
     override val navModels = "模型管理"
     override val navActivity = "调用日志"
     override val navSettings = "应用设置"
-    override val navDoctor = "全链路体检"
+    override val navDoctor = "健康诊断"
     override val sidebarCollapse = "折叠侧边栏"
     override val sidebarExpand = "展开侧边栏"
 
     override val accountsTitle = "账号与配额管理"
-    override val accountsSubtitle = "集中管理多账号、监控 AI 配额并支持无感秒级热切"
+    override val accountsSubtitle = "集中管理多个 Google 账号，实时监控配额余量并支持无缝一键切换"
     override val accountsAddAccount = "添加账号"
     override val accountsAddViaBrowser = "Google 浏览器登录"
     override val accountsAddViaToken = "手动输入 Token"
-    override val accountsActiveInIde = "当前 IDE 激活账号"
-    override val accountsSetActive = "设为活跃"
+    override val accountsActiveInIde = "当前 IDE 生效账号"
+    override val accountsSetActive = "设为当前账号"
     override val accountsDelete = "删除账号"
-    override val accountsRefreshToken = "刷新凭证"
-    override val accountsCopyToken = "复制凭证"
+    override val accountsRefreshToken = "刷新凭据"
+    override val accountsCopyToken = "复制凭据"
     override val accountsEmptyState = "暂无托管账号"
     override val accountsEmptyDesc = "点击右上角「添加账号」以登录 Google 账号或导入 Refresh Token"
-    override val accountsTokenExpiringSoon = "凭证即将到期"
-    override val accountsTokenExpired = "凭证已过期"
-    override val accountsTokenHealthy = "正常"
-    override val accountsExpiresIn = "后到期"
+    override val accountsTokenExpiringSoon = "凭据即将到期"
+    override val accountsTokenExpired = "凭据已过期"
+    override val accountsTokenHealthy = "有效"
+    override val accountsExpiresIn = "后过期"
     override val accountsAddDialogTitle = "添加 Google 账号"
     override val accountsAddDialogBrowserDesc = "将在系统默认浏览器中打开 Google 授权页面，授权后自动返回并录入。"
     override val accountsAddDialogTokenDesc = "直接粘贴 Google OAuth Refresh Token 字符串，系统将自动换取并拉取用户资料。"
@@ -765,6 +974,8 @@ object StringsZh : Strings {
     override val accountsWaitingBrowserAuth = "正在等待浏览器授权回调..."
     override val accountsAuthSuccess = "账号授权成功！"
     override val accountsAuthFailed = "账号授权失败"
+    override val accountsCopiedEmail = "已复制账号邮箱"
+    override fun accountsEmailTooltip(email: String) = "账号邮箱: $email (点击复制)"
 
 
     override val overviewProxyCardTitle = "本地代理服务"
@@ -774,23 +985,23 @@ object StringsZh : Strings {
     override val overviewStartProxy = "启动代理"
     override val overviewStopProxy = "停止代理"
     override val overviewRestartProxy = "重启服务"
-    override val overviewSubtitle = "统一管理本地代理、宿主接入与模型路由"
+    override val overviewSubtitle = "统一管理本地代理、应用客户端接入与模型路由"
     override val overviewCopyAddress = "复制地址"
-    override val overviewDiagnostics = "一键体检"
+    override val overviewDiagnostics = "健康诊断"
     override val overviewProviderMetric = "自定义服务商"
     override val overviewModelMetric = "可用模型"
     override val overviewDisabledMetric = "隐藏官方模型"
-    override val overviewHostSection = "宿主环境接入"
-    override val overviewNotice = "切换宿主接入后，请重启对应应用使配置生效。"
+    override val overviewHostSection = "应用客户端接入"
+    override val overviewNotice = "切换接入模式后，请重启对应应用使配置生效。"
     override val overviewCopiedProxyAddress = "已复制代理地址"
-    override val hostUpdateFailed = "宿主接入配置失败，请检查设置文件权限"
+    override val hostUpdateFailed = "应用接入配置失败，请检查配置文件权限"
 
     override val hostIdeTitle = "Antigravity IDE"
-    override val hostIdeDesc = "接管 IDE 请求，通过 settings.json 注入本地代理并管理模型"
+    override val hostIdeDesc = "接管 IDE 模型请求，通过 settings.json 注入本地代理并扩展模型能力"
     override val hostAppTitle = "Antigravity App"
-    override val hostAppDesc = "接管桌面独立 App 请求，通过会话环境变量无损注入"
+    override val hostAppDesc = "接管桌面独立 App 模型请求，通过环境变量注入本地代理"
     override val hostCliTitle = "Antigravity CLI"
-    override val hostCliDesc = "接管终端 CLI 命令，管理用户级 CLOUD_CODE_URL 环境变量"
+    override val hostCliDesc = "接管终端 CLI 命令，管理 CLOUD_CODE_URL 环境变量"
 
     override val hostStatusActive = "已接入"
     override val hostStatusInactive = "官方直连"
@@ -798,12 +1009,12 @@ object StringsZh : Strings {
     override val hostStatusReady = "已就绪"
     override val hostStatusInstalled = "已安装"
     override val hostStatusRunning = "运行中"
-    override val hostStatusNeedsUpdate = "待更新"
+    override val hostStatusNeedsUpdate = "配置待更新"
     override val hostStatusMismatch = "代理端口不匹配"
 
     override val hostEnable = "接入代理"
     override val hostDisable = "恢复官方直连"
-    override val hostRestartNotice = "切换后请重启对应宿主应用以完全生效"
+    override val hostRestartNotice = "切换后请重启对应应用以使配置完全生效"
     override val hostLaunch = "打开"
     override val hostRestart = "重启"
     override val hostUpdateAction = "更新配置"
@@ -818,16 +1029,16 @@ object StringsZh : Strings {
     override val hostIdeReady = "Antigravity IDE 已安装"
     override val hostIdeNotDetected = "未检测到 Antigravity IDE 安装目录"
     override fun hostIdePendingUpdate(port: Int) = "代理配置待更新为 http://127.0.0.1:$port"
-    override val hostIdeActiveDesc = "settings.json 代理接入生效中"
-    override val hostOfficialDirectDesc = "当前使用官方直连模式"
+    override val hostIdeActiveDesc = "已通过 settings.json 接入代理"
+    override val hostOfficialDirectDesc = "当前处于官方直连模式"
 
     override fun hostAppPortMismatch(endpoint: String) = "检测到环境变量与当前端口不一致（$endpoint）"
     override val hostAppRunning = "Antigravity App 正在运行"
     override val hostAppRunningAndConfigured = "Antigravity App 正在运行并已配置"
     override val hostAppReady = "Antigravity App 已安装"
-    override val hostAppNotDetected = "未检测到 Antigravity App 应用安装"
+    override val hostAppNotDetected = "未检测到 Antigravity App 安装"
     override fun hostAppPendingUpdate(port: Int) = "环境变量待更新为 http://127.0.0.1:$port"
-    override val hostAppActiveDesc = "环境变量 CLOUD_CODE_URL 代理生效中"
+    override val hostAppActiveDesc = "已通过环境变量配置代理"
 
     override fun hostCliPortMismatch(endpoint: String) = "检测到 CLI 代理配置与当前端口不一致（$endpoint）"
     override val hostCliInstalledDesc = "Antigravity CLI (agy) 已安装"
@@ -840,7 +1051,7 @@ object StringsZh : Strings {
     override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) = "检测到 IDE 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 IDE 使配置生效。是否继续？"
     override fun hostIdeUpdateConfirmMessageStopped(endpoint: String, port: Int) = "检测到 IDE 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
     override val hostIdeEnableConfirmTitle = "确认启用代理模式"
-    override val hostIdeEnableConfirmMessageRunning = "启用代理模式后，Antigravity IDE 会注入配置的模型并自动重启使配置生效。是否继续？"
+    override val hostIdeEnableConfirmMessageRunning = "启用代理模式后，Antigravity IDE 会接入配置的模型并自动重启使配置生效。是否继续？"
     override val hostIdeEnableConfirmMessageStopped = "启用代理模式将使 Antigravity IDE 在启动时连接本地代理。是否继续？"
     override val hostIdeDisableConfirmTitle = "确认停用代理接入"
     override val hostIdeDisableConfirmMessageRunning = "将停用 Antigravity IDE 的代理接入并重启恢复官方直连模式。是否继续？"
@@ -858,7 +1069,7 @@ object StringsZh : Strings {
     override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) = "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 App 使配置生效。是否继续？"
     override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) = "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
     override val hostAppEnableConfirmTitle = "确认启用代理模式"
-    override val hostAppEnableConfirmMessageRunning = "启用代理模式后，Antigravity App 会注入配置的模型并自动重启使配置生效。是否继续？"
+    override val hostAppEnableConfirmMessageRunning = "启用代理模式后，Antigravity App 会接入配置的模型并自动重启使配置生效。是否继续？"
     override val hostAppEnableConfirmMessageStopped = "启用代理模式将使 Antigravity App 在启动时连接本地代理。是否继续？"
     override val hostAppDisableConfirmTitle = "确认停用代理接入"
     override val hostAppDisableConfirmMessageRunning = "将停用 Antigravity App 的代理接入并重启恢复官方直连模式。是否继续？"
@@ -886,80 +1097,80 @@ object StringsZh : Strings {
     override val hostCliNotInstalled = "未检测到 agy CLI 安装"
 
     override fun hostStartProxyFirstNotice(hostName: String) = "请先启动本地代理服务，再接入 $hostName"
-    override fun hostForceResetConfirmTitle(hostName: String) = "强制重置 $hostName 为官方模式"
-    override fun hostForceResetConfirmMessage(hostName: String) = "此操作将强制清除 $hostName 的所有代理配置、环境变量与托管记录，恢复为最干净的官方直连模式。若应用正在运行将自动重启生效。是否确认重置？"
+    override fun hostForceResetConfirmTitle(hostName: String) = "强制重置 $hostName 为官方直连"
+    override fun hostForceResetConfirmMessage(hostName: String) = "此操作将清除 $hostName 的所有代理配置与环境变量，恢复为干净的官方直连模式。若应用正在运行将自动重启生效。是否确认重置？"
     override fun hostForceResetSuccess(hostName: String) = "$hostName 已强制重置为官方直连模式"
     override fun hostRestartConfirmTitle(hostName: String) = "确认重启 $hostName"
-    override fun hostRestartConfirmMessage(hostName: String) = "确定要重启 $hostName 吗？重启会关闭当前运行中的实例并重新启动。是否继续？"
+    override fun hostRestartConfirmMessage(hostName: String) = "确定要重启 $hostName 吗？重启将关闭当前运行中的实例并重新打开。是否继续？"
     override fun hostRestartSuccess(hostName: String) = "已重启 $hostName"
     override fun hostRestartFailed(hostName: String) = "重启 $hostName 失败"
     override fun hostLaunchSuccess(hostName: String) = "已打开 $hostName"
     override fun hostLaunchFailed(hostName: String) = "打开 $hostName 失败"
-    override fun hostLaunchProxyNotRunning(hostName: String) = "当前 $hostName 已接入代理，请先启动本地代理"
+    override fun hostLaunchProxyNotRunning(hostName: String) = "当前 $hostName 已接入代理，请先启动本地代理服务"
 
     override fun hostPathDialogTitle(hostTitle: String) = "配置 $hostTitle 路径"
-    override val hostPathDialogDesc = "当未检测到默认安装时，可在此输入自定义安装目录（如 .app 目录、安装文件夹）或主可执行文件绝对路径。"
+    override val hostPathDialogDesc = "未检测到默认安装时，可在此指定安装目录（如 .app 目录、安装文件夹）或主可执行文件的绝对路径。"
     override val hostPathInputLabel = "安装目录或可执行文件路径"
     override val hostPathStatusValid = "路径已检测到并存在于文件系统中"
     override val hostPathStatusNotFound = "该路径在当前文件系统中不存在，请确认路径无误"
-    override val hostPathStatusEmpty = "留空并保存将清除自定义配置，恢复为系统默认自动探测。"
+    override val hostPathStatusEmpty = "留空保存将清除自定义配置，恢复为自动检测。"
     override val hostPathResetDefault = "重置为默认"
-    override val hostPathSavedCustom = "已设置自定义路径并重新检测"
-    override val hostPathResetNotice = "已重置为默认自动探测路径"
+    override val hostPathSavedCustom = "已保存自定义路径并重新检测"
+    override val hostPathResetNotice = "已重置为默认自动检测路径"
     override val hostPathBrowse = "选择路径 / 浏览..."
     override val hostPathSuggestedTitle = "推荐 / 发现的候选路径"
     override val hostPathSelectFile = "浏览"
 
     override val modelsTitle = "模型管理"
-    override val modelsSubtitle = "统一调度 Google 官方原生模型与三方自建模型，灵活配置上下文压缩与思考预算"
-    override val modelsOfficialTab = "官方原生"
-    override val modelsCustomTab = "自定义服务"
+    override val modelsSubtitle = "统一管理 Google 官方模型与第三方模型服务，灵活配置上下文压缩与深度思考"
+    override val modelsOfficialTab = "官方模型"
+    override val modelsCustomTab = "自定义服务商"
     override val modelsOfficialTitle = "官方原生模型"
-    override val modelsOfficialSubtitle = "管理 Antigravity 内置模型，可针对不需要的模型进行隐藏或禁用"
-    override val modelsCustomTitle = "自定义 Provider 服务商"
-    override val modelsAddProvider = "添加上游服务"
+    override val modelsOfficialSubtitle = "管理 Antigravity 官方内置模型，支持按需隐藏或禁用"
+    override val modelsCustomTitle = "自定义模型服务商"
+    override val modelsAddProvider = "添加服务商"
     override val modelsEditProvider = "编辑服务商"
     override val modelsDeleteProvider = "删除服务商"
     override val modelsTestConnection = "测试连接"
-    override val modelsFetchModels = "拉取模型列表"
-    override val modelsFetchingModels = "拉取中…"
-    override val modelsNoProviders = "暂无配置的 Provider，点击右上角添加"
-    override val modelsCompressionPolicy = "上下文压缩策略"
-    override val modelsReasoningConfig = "思考推理档位"
+    override val modelsFetchModels = "获取模型列表"
+    override val modelsFetchingModels = "获取中…"
+    override val modelsNoProviders = "暂无配置的模型服务商，点击右上角添加"
+    override val modelsCompressionPolicy = "上下文策略"
+    override val modelsReasoningConfig = "思考与推理"
     override val modelsCollapse = "收起"
     override val modelsExpand = "展开"
     override val modelsContext = "上下文"
     override val modelsVision = "多模态"
-    override val modelsTools = "工具"
-    override val modelsReasoning = "推理"
+    override val modelsTools = "工具调用"
+    override val modelsReasoning = "深度思考"
     override val modelsNoModels = "暂无模型"
     override val modelsTesting = "测试中…"
     override val modelsConnectionOk = "连通正常"
     override val modelsConnectionFailed = "连接失败"
     override val modelsRefreshOfficial = "刷新官方模型"
-    override val modelsFetchingOfficial = "正在扫描探测语言服务并拉取官方模型…"
+    override val modelsFetchingOfficial = "正在扫描探测语言服务并获取官方模型…"
     override fun modelsOfficialSyncFailed(error: String) = "官方模型同步失败：$error"
     override val modelsOfficialSyncing = "正在同步官方模型数据..."
     override val modelsOfficialSynced = "官方模型数据已同步"
     override val modelsOfficialWaitingSync = "等待同步官方模型数据"
     override val modelsRawJson = "原始 JSON"
     override val modelsModifiedJson = "修改后 JSON"
-    override val modelsNoOfficialDetected = "当前未探测到官方原生模型"
+    override val modelsNoOfficialDetected = "当前未检测到官方模型"
     override val modelsNoOfficialHint = "请确认已在「运行概览」中打开 Antigravity IDE 或 App，随后点击「刷新」"
     override val modelsCopiedProviderUrl = "已复制服务地址"
     override val modelsCopiedJson = "已复制 JSON 数据"
     override fun modelsPassedCount(passed: Int, total: Int) = "$passed/$total 项通过"
-    override fun modelsPassedWithFailed(passed: Int, total: Int, failed: Int) = "$passed/$total 项通过 ($failed 失败)"
+    override fun modelsPassedWithFailed(passed: Int, total: Int, failed: Int) = "$passed/$total 项通过 ($failed 项失败)"
     override fun modelsRetryFailed(count: Int) = "重试失败项 ($count)"
     override val modelsBatchTest = "批量测试"
     override val modelsEditConfig = "编辑配置"
     override val modelsNoModelsHint = "该服务商尚未添加模型，点击「编辑配置」添加或拉取"
     override val modelsDeleteProviderConfirmTitle = "删除服务商"
-    override fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int) = "确定要删除服务商「$providerName」吗？关联的 $modelCount 个模型配置将一并移除。"
+    override fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int) = "确定要删除服务商「$providerName」吗？该服务商下的 $modelCount 个模型配置将被一并删除。"
     override val modelsDeleteModelConfirmTitle = "删除模型"
     override fun modelsDeleteModelConfirmMessage(modelName: String) = "确定要删除模型「$modelName」吗？"
     override val modelsRawJsonTitle = "官方模型原始 JSON 数据"
-    override val modelsModifiedJsonTitle = "官方模型修改后（下发给 IDE）JSON 数据"
+    override val modelsModifiedJsonTitle = "官方模型下发给 IDE 的 JSON 数据"
     override val modelsJsonData = "JSON 数据"
     override fun modelsPolicyCapacityWithPrep(limit: String, prep: String) = "$limit 容量 ($prep 预备)"
     override val modelsOfficialDefault = "官方默认"
@@ -972,8 +1183,8 @@ object StringsZh : Strings {
     override val modelsDisabledDesc = "已禁用（点击启用）"
     override val modelsEditModel = "编辑模型配置"
     override val modelsDeleteModel = "删除此模型"
-    override val modelsReasoningLevelLabel = "推理等级"
-    override val modelsCompressionPolicyLabel = "压缩策略"
+    override val modelsReasoningLevelLabel = "思考/推理等级"
+    override val modelsCompressionPolicyLabel = "上下文策略"
     override val modelsEditPolicy = "编辑策略"
     override val modelsCopyJson = "复制 JSON"
     override val modelsNotSet = "未设置"
@@ -986,23 +1197,23 @@ object StringsZh : Strings {
     override fun modelsModelDeleteFailed(error: String) = "删除模型失败：$error"
     override fun modelsModelUpdated(name: String) = "已更新模型「$name」配置"
     override fun modelsModelUpdateFailed(error: String) = "更新模型失败：$error"
-    override val modelsFallbackCleared = "已清除 fallback"
-    override val modelsFallbackSaved = "fallback 配置已保存"
-    override fun modelsFallbackSaveFailed(error: String) = "fallback 保存失败：$error"
+    override val modelsFallbackCleared = "已清除备用模型 (Fallback)"
+    override val modelsFallbackSaved = "备用模型 (Fallback) 配置已保存"
+    override fun modelsFallbackSaveFailed(error: String) = "备用模型保存失败：$error"
     override fun modelsModelTestSuccess(modelName: String, latencyMs: Long) = "$modelName 测试成功 (${latencyMs}ms)"
     override fun modelsModelTestFailed(modelName: String, error: String) = "$modelName 测试失败: $error"
     override fun modelsBatchTestSuccess(passed: Int, total: Int) = "服务商测试完成：$passed/$total 项测试通过"
     override fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int) = "服务商测试完成：$passed/$total 项通过，${failed} 项失败"
-    override fun modelsDeleteBlockers(blockerList: String) = "以下模型仍将待删除模型作为备用入口：$blockerList"
-    override val modelsProviderNotFound = "模型关联的 Provider 不存在"
-    override fun modelsVirtualModelNotFound(id: String) = "VirtualModel 不存在：$id"
-    override val modelsFallbackSelfError = "VirtualModel 不能将自身设置为 fallback"
-    override val modelsNoFallback = "不使用 Fallback"
+    override fun modelsDeleteBlockers(blockerList: String) = "以下模型已将待删除模型设为备用模型：$blockerList"
+    override val modelsProviderNotFound = "模型关联的服务商不存在"
+    override fun modelsVirtualModelNotFound(id: String) = "模型不存在：$id"
+    override val modelsFallbackSelfError = "模型不能将自身设置为备用模型 (Fallback)"
+    override val modelsNoFallback = "不使用备用模型"
     override val providerPresetCustomName = "自定义"
-    override val providerPresetCustomDesc = "手动配置任意 OpenAI 兼容、Anthropic 或 Gemini 服务"
+    override val providerPresetCustomDesc = "手动配置兼容 OpenAI、Anthropic 或 Google Gemini 协议的 API 服务"
 
     override val modelReasoningTitle = "深度思考与推理能力"
-    override val modelReasoningDesc = "该模型支持深度思考/推理模式。在与 IDE 协同对话时，模型可开启思考链，分析复杂逻辑与架构代码："
+    override val modelReasoningDesc = "该模型支持深度思考/推理模式。在与 IDE 对话协同开发时，模型可开启思考链，深入分析复杂逻辑与架构："
     override fun modelReasoningLevel(level: String) = "档位: $level"
     override val modelReasoningHighDesc = "高预算思考 (适合极度复杂的算法与重构方案)"
     override val modelReasoningMediumDesc = "标准思考 (平衡推理深度与响应延迟)"
@@ -1027,41 +1238,41 @@ object StringsZh : Strings {
     override val policyPresetDefault = "官方默认"
     override val policyPresetCustom = "自定义"
     override val policyRecommended = "推荐"
-    override val policyDefaultDesc = "不设置自定义覆盖，遵循官方目录返回的原生 Checkpointer 策略。"
-    override val policyCustomDesc = "可点击百分比快速设定，也可以手动输入具体 Token 值进行精准调整。"
-    override val policyPresetDesc = "先选择会话上下文容量档位：固定值可以直接使用，也可以切换为自定义策略。"
+    override val policyDefaultDesc = "保持官方默认设置，遵循模型原生上下文与压缩策略。"
+    override val policyCustomDesc = "可点击百分比快速设定，也可手动输入具体 Token 数值进行微调。"
+    override val policyPresetDesc = "选择会话上下文容量：可直接使用预设值，或切换为自定义策略进行调整。"
     override val policyCompressorModel = "负责压缩的执行模型"
     override val policyFollowCurrent = "跟随当前模型"
     override val policyOfficialDefault = "官方默认"
-    override val policyCheckpoint = "自动存档点"
+    override val policyCheckpoint = "自动压缩点"
     override val policyContextLimit = "会话上下文容量"
     override val policyOutputReserve = "输出预留"
     override val policyByPercentage = "按百分比"
     override val policyExactTokens = "精准 Token"
     override val policyQuickPreset = "快捷预设"
     override val policyDistribution = "上下文容量分布"
-    override val policyLegendNormal = "正常对话区"
-    override val policyLegendArchive = "自动存档区 (不删内容)"
-    override val policyLegendUnused = "模型未用容量"
+    override val policyLegendNormal = "正常对话历史"
+    override val policyLegendArchive = "自动压缩触发区"
+    override val policyLegendUnused = "剩余未用容量"
     override fun policyModelContext(context: String) = "模型上下文 · $context"
     override val policyLimitMustPositive = "会话上下文容量必须大于 0"
-    override val policyThresholdMustPositive = "自动存档点必须大于 0"
+    override val policyThresholdMustPositive = "自动压缩点必须大于 0"
     override val policyReserveMustPositive = "输出预留必须大于 0"
     override fun policyLimitExceedsContext(limit: String, context: String) = "会话上下文容量 ($limit) 不能超过模型上下文 ($context)"
     override fun policyLimitExceedsSafeLimit(limit: String, safeLimit: String, context: String, reserve: String) =
         "会话容量 ($limit) 超过了最大安全上限 ($safeLimit) [计算公式: 模型上下文 $context - 输出预留 $reserve]"
-    override fun policyThresholdExceedsLimit(threshold: String, limit: String) = "自动存档点 ($threshold) 必须小于会话上下文容量 ($limit)"
-    override fun policySumExceedsLimit(sum: String, limit: String) = "自动存档点与输出预留之和 ($sum) 超过了会话上下文容量 ($limit)"
+    override fun policyThresholdExceedsLimit(threshold: String, limit: String) = "自动压缩点 ($threshold) 必须小于会话上下文容量 ($limit)"
+    override fun policySumExceedsLimit(sum: String, limit: String) = "自动压缩点与输出预留之和 ($sum) 超过了会话上下文容量 ($limit)"
     override val policyFormulaHint = "约束公式：触发压缩上限 (MaxTokenLimit) ≤ 模型上下文 (ContextWindow) - 最大输出预留 (OutputLimit)"
-    override val policyFormulaHintDesc = "客户端硬性要求输入历史上限必须为模型生成预留足够空间，超过会导致对话直接报错。"
+    override val policyFormulaHintDesc = "客户端要求输入上下文必须为模型生成预留足够空间，超出上限会导致对话异常中断。"
 
     override val reasoningDialogTitle = "配置深度思考"
-    override val reasoningEnableTitle = "启用深度思考 (Reasoning)"
-    override val reasoningEnableSubtitle = "为当前模型开启并配置推理档位及思维预算"
+    override val reasoningEnableTitle = "开启深度思考与推理 (Reasoning)"
+    override val reasoningEnableSubtitle = "为当前模型配置推理档位与思考预算"
     override val reasoningAvailableLevels = "可用推理档位"
-    override val reasoningCustomValue = "Custom reasoning 覆盖值"
+    override val reasoningCustomValue = "自定义推理参数 (Custom Reasoning)"
     override val reasoningOptional = "选填"
-    override val reasoningCustomValueDesc = "如需使用上游特定的 reasoning 档位字符串，可在此覆盖输入"
+    override val reasoningCustomValueDesc = "如需使用服务商特有的推理档位参数，可在此手动输入覆盖"
     override val reasoningDefaultBudget = "默认思考预算 (选填)"
     override val reasoningDynamicBudgetPlaceholder = "-1 表示动态预算"
     override val reasoningMinBudgetTitle = "最小思考预算 (选填)"
@@ -1072,24 +1283,24 @@ object StringsZh : Strings {
     override val reasoningGeminiBudgetValidation = "Gemini 思考预算只能为 -1、0 或正整数"
     override val reasoningMinBudgetMustPositive = "最小思考预算必须大于 0"
     override val reasoningMinBudgetExceedsBudget = "最小思考预算不能大于思考预算"
-    override val reasoningOnlyGeminiSupportsBudget = "只有 Gemini 协议支持模型级思考预算"
-    override val reasoningCustomValueInvalid = "Custom reasoning 值不符合当前协议或输出上限约束"
+    override val reasoningOnlyGeminiSupportsBudget = "仅 Gemini 协议支持模型级思考预算"
+    override val reasoningCustomValueInvalid = "自定义推理参数不符合当前协议或输出上限约束"
     override fun reasoningLevelInvalid(level: String) = "推理档位 $level 不符合当前协议或输出上限约束"
     override val reasoningSelectAtLeastOne = "请至少选择一个推理档位，或填写思考预算"
 
     override val providerPresetCategoryAll = "全部"
-    override val providerPresetCategoryAggregator = "聚合网关"
+    override val providerPresetCategoryAggregator = "聚合平台"
     override val providerPresetCategoryRecommended = "常用推荐"
     override val providerPresetCategoryOfficial = "官方厂商"
     override val providerPresetCategoryLocalCustom = "本地/自定义"
     override val providerSearchPlaceholder = "搜索服务..."
     override val providerTagOfficial = "官方"
-    override val providerTagAggregator = "网关"
+    override val providerTagAggregator = "聚合平台"
     override val providerTagLocal = "本地"
-    override val providerTagCustom = "自由配置"
-    override val providerNameLabel = "上游服务名称"
+    override val providerTagCustom = "自定义"
+    override val providerNameLabel = "服务商名称"
     override val providerNamePlaceholder = "例如 CLIProxyAPI、公司代理、DeepSeek"
-    override val providerNameDesc = "自定义显示名称，用于在路由和模型列表区分服务来源"
+    override val providerNameDesc = "自定义显示名称，用于在模型列表中识别服务商"
     override val providerProtocolLabel = "API 协议"
     override val providerProtocolOpenAIChatDesc = "适用于 /v1/chat/completions；CLIProxyAPI、Sub2API 及标准兼容网关"
     override val providerProtocolAnthropicDesc = "适用于 Anthropic 官方 /v1/messages 协议"
@@ -1097,19 +1308,19 @@ object StringsZh : Strings {
     override val providerProtocolOpenAIResponsesDesc = "适用于 OpenAI Responses API 原生结构协议"
     override val providerBaseUrlLabel = "API 地址 (Base URL)"
     override val providerBaseUrlPlaceholder = "例如 https://api.openai.com/v1"
-    override val providerBaseUrlDesc = "输入根地址后系统将自动推断补全模型列表与生成响应接口"
+    override val providerBaseUrlDesc = "输入根地址后系统将自动推断补全模型列表与生成对话接口"
     override val providerApiKeyLabel = "API Key"
-    override val providerApiKeyPlaceholder = "输入 API Key（无鉴权则留空）"
+    override val providerApiKeyPlaceholder = "输入 API Key（无需鉴权可留空）"
     override val providerApiKeyDesc = "如服务无需鉴权可留空"
-    override val providerAdvancedSettings = "高级设置（自定义端点 URL）"
-    override val providerAdvancedAutoGenerated = "默认由 Base URL 自动生成"
+    override val providerAdvancedSettings = "高级设置（自定义 API 端点）"
+    override val providerAdvancedAutoGenerated = "默认由 Base URL 自动推断生成"
     override val providerAdvancedCollapse = "收起"
-    override val providerCustomModelsEndpoint = "模型列表接口 (自定义)"
-    override val providerCustomCompletionsEndpoint = "生成补全接口 (自定义)"
+    override val providerCustomModelsEndpoint = "模型列表接口 URL (自定义)"
+    override val providerCustomCompletionsEndpoint = "生成对话接口 URL (自定义)"
     override val providerEndpointAutoInferPlaceholder = "留空自动推断"
     override val providerStepPreset = "选择预设"
-    override val providerStepConnection = "连接配置"
-    override val providerStepModels = "模型选择"
+    override val providerStepConnection = "网络与鉴权"
+    override val providerStepModels = "选择可用模型"
     override val providerNextStep = "下一步"
     override val providerPrevStep = "上一步"
     override val providerSearchModelsPlaceholder = "搜索模型名称或 ID..."
@@ -1134,21 +1345,21 @@ object StringsZh : Strings {
     override val providerTokenLimitNotSet = "未设置"
     override fun providerCustomInputTokenTitle(model: String) = "自定义模型上下文上限 · $model"
     override fun providerCustomOutputTokenTitle(model: String) = "自定义最大输出 · $model"
-    override val providerUnprobedCatalog = "目录未探活"
+    override val providerUnprobedCatalog = "未获取模型列表"
     override val providerTesting = "测试中"
     override val providerTestBtn = "测试"
     override fun providerInputTokenPrefix(label: String) = "模型上下文：$label"
     override fun providerOutputTokenPrefix(label: String) = "最大输出：$label"
-    override val providerCustomTokenOption = "自定义值..."
+    override val providerCustomTokenOption = "自定义数值..."
     override val providerClearTokenOption = "清除 (设为未设置)"
     override val providerCustomTokenDialogTitle = "自定义 Token 上限"
     override val providerCustomTokenPlaceholder = "例如：128K, 1M, 200000"
     override val providerCustomTokenHint = "支持 128K / 1M / 纯数字 等格式"
     override fun providerCustomTokenParsed(tokens: String) = "解析为: $tokens tokens"
-    override val providerFetchFailedCheckUrlKey = "未能拉取到模型列表，请检查 Base URL 与 API Key 是否正确"
-    override fun providerFetchFailedWithError(error: String) = "拉取模型列表失败: $error"
+    override val providerFetchFailedCheckUrlKey = "未能获取模型列表，请检查 API 地址与 API Key 是否正确"
+    override fun providerFetchFailedWithError(error: String) = "获取模型列表失败: $error"
     override val providerDiscardConfirmTitle = "放弃未保存的更改？"
-    override val providerDiscardConfirmMessage = "当前正在编辑的提供商配置尚未保存，退出后更改将丢失。"
+    override val providerDiscardConfirmMessage = "当前正在编辑的服务商配置尚未保存，退出后更改将丢失。"
     override val providerSkipFetchManualAdd = "跳过探测，手动配置模型"
     override val providerAddNewModel = "添加模型"
     override val providerManualAddModelTitle = "手动添加自定义模型"
@@ -1169,17 +1380,17 @@ object StringsZh : Strings {
     override val activityEmptyDesc = "当 Antigravity 发起模型代理调用时，此处将实时展示调用明细"
     override val activityNoMatchingLogs = "未找到匹配日志"
     override val activityNoMatchingDesc = "尝试输入其他关键词或清除筛选条件"
-    override val activityPassthrough = "官方透传"
-    override val activityRouted = "自定义路由"
-    override val activityFallback = "备用路由"
-    override val activityFallbackFailed = "备用路由失败"
-    override val activitySearchPlaceholder = "搜索模型或 Provider"
+    override val activityPassthrough = "官方直连"
+    override val activityRouted = "三方路由"
+    override val activityFallback = "备用模型"
+    override val activityFallbackFailed = "备用模型调用失败"
+    override val activitySearchPlaceholder = "搜索模型或服务商名称..."
     override val activityRecent = "最近日志"
     override val activityTotal = "总请求量"
     override val activityFailedTotal = "异常请求"
     override val activityAverage = "平均耗时"
     override val activityCacheHitRate = "缓存命中率"
-    override val activityFirstTokenLabel = "首字"
+    override val activityFirstTokenLabel = "首字耗时"
     override val activityPending = "请求中"
     override val activityProcessing = "处理中..."
     override val activityAllTags = "日志筛选"
@@ -1200,20 +1411,20 @@ object StringsZh : Strings {
     override val activityDetailTitle = "请求调用详情"
     override val activityDetailRouteSection = "路由与调用信息"
     override val activityDetailMethod = "请求方法"
-    override val activityDetailPath = "请求完整路径"
-    override val activityDetailDuration = "响应总耗时"
+    override val activityDetailPath = "完整请求路径"
+    override val activityDetailDuration = "总响应耗时"
     override val activityDetailFirstToken = "首字响应耗时 (TTFT)"
     override val activityDetailTimestamp = "请求发起时间"
     override val activityDetailRouteMode = "路由模式"
-    override val activityDetailPassthroughMode = "官方直连透传 (Cloud Code Passthrough)"
-    override val activityDetailForwardMode = "三方自定义路由 (BYOK Forward)"
+    override val activityDetailPassthroughMode = "官方直连透传"
+    override val activityDetailForwardMode = "三方服务商转发 (BYOK)"
     override val activityDetailTargetModel = "目标匹配模型"
     override val activityDetailRequestedModel = "原始请求模型"
     override val activityDetailProvider = "接入服务商"
-    override val activityDetailFallback = "备用路由 Fallback"
-    override val activityDetailFallbackSuccess = "已成功自动回退"
-    override val activityDetailFallbackFailed = "备用路由回退失败"
-    override val activityDetailTokenSection = "Token 消耗计量 (未脱敏)"
+    override val activityDetailFallback = "备用模型 (Fallback)"
+    override val activityDetailFallbackSuccess = "已成功自动切换备用模型"
+    override val activityDetailFallbackFailed = "备用模型切换失败"
+    override val activityDetailTokenSection = "Token 消耗明细"
     override val activityDetailPromptTokens = "输入 (Prompt)"
     override val activityDetailCompletionTokens = "输出 (Completion)"
     override val activityDetailTotalTokens = "总计 (Total)"
@@ -1252,8 +1463,14 @@ object StringsZh : Strings {
     override fun settingsPortUpdated(port: Int) = "代理端口已更新为 $port"
     override fun settingsPortRestartFailed(error: String) = "代理端口更新后启动失败：$error"
     override fun settingsPortUpdateFailed(error: String) = "更新代理端口失败：$error"
-    override val settingsHostPathsTitle = "宿主安装路径"
-    override val settingsHostPathsDesc = "自定义 Antigravity IDE、App 及 CLI 的安装或可执行文件路径"
+    override val settingsHostPathsTitle = "应用安装路径"
+    override val settingsHostPathsDesc = "自定义 Antigravity IDE、App 与 CLI 的安装目录或可执行文件路径"
+    override val settingsDefaultSwitchTargetTitle = "切号默认目标应用"
+    override val settingsDefaultSwitchTargetDesc = "配置在账号列表切换账号时，默认勾选生效的目标应用"
+    override val settingsDefaultSwitchTargetAll = "全部应用 (推荐)"
+    override val settingsDefaultSwitchTargetIdeOnly = "仅 IDE"
+    override val settingsDefaultSwitchTargetAppCliOnly = "仅 App & CLI"
+    override val settingsDefaultSwitchTargetRemember = "记住上次选择"
     override fun settingsHostPathCustom(title: String) = "$title: 自定义"
     override fun settingsHostPathAuto(title: String) = "$title: 自动"
     override val settingsStoragePath = "配置文件目录"
@@ -1263,7 +1480,7 @@ object StringsZh : Strings {
     override val settingsUnsupportedPlatform = "当前平台不支持直接打开文件夹"
     override fun settingsOpenDirFailed(error: String) = "打开配置目录失败：$error"
     override val settingsAbout = "关于 Antigravity Studio"
-    override val settingsAboutDescription = "Kotlin Multiplatform 与 Compose Desktop 驱动的本地模型接入工具。"
+    override val settingsAboutDescription = "基于 Kotlin Multiplatform 与 Compose Desktop 构建的 Antigravity 智能代理与模型接入中枢。"
     override val settingsVersion = "Antigravity Studio v${com.yuzhiqiang.antigravity.update.model.AppVersion.CURRENT} · Kotlin Multiplatform & Compose Desktop"
     override val settingsRepo = "开源仓库"
     override val settingsConfigDir = "配置目录"
@@ -1316,37 +1533,37 @@ object StringsZh : Strings {
     override val developerModeKeepEnabled = "保持开启"
     override val developerModeCancel = "取消"
 
-    override val doctorTitle = "Doctor 全链路健康体检"
-    override val doctorSubtitle = "一键诊断网络连通性、本地配置、宿主接管与代理服务健康度"
-    override val doctorRunAll = "重新体检"
+    override val doctorTitle = "系统健康诊断"
+    override val doctorSubtitle = "一键诊断网络连通性、本地配置、应用接入与代理服务健康状态"
+    override val doctorRunAll = "重新诊断"
     override val doctorScanning = "诊断中..."
     override val doctorPassed = "正常"
     override val doctorFailed = "异常"
     override val doctorWarning = "警告"
     override val doctorDirect = "直连"
     override val doctorFixSuggestions = "修复建议"
-    override val doctorDialogTitle = "系统体检与全链路诊断"
-    override val doctorDialogSubtitle = "检测本地代理服务、上游模型连通性与 Antigravity 宿主接入状态"
-    override val doctorBannerGood = "全链路状态良好，各项配置已就绪"
-    override val doctorBannerWarning = "部分配置待完善"
+    override val doctorDialogTitle = "系统健康诊断"
+    override val doctorDialogSubtitle = "检测本地代理服务、模型服务商连通性与 Antigravity 应用接入状态"
+    override val doctorBannerGood = "系统状态良好，各项配置已就绪"
+    override val doctorBannerWarning = "部分配置需要处理"
     override val doctorBannerError = "检测到系统运行异常"
     override fun doctorBannerIssueCount(count: Int) = " • $count 项待处理"
     override fun doctorBannerStats(total: Int, passed: Int, issues: Int) = "共 $total 项检测 • $passed 项正常" + if (issues > 0) " • $issues 项待处理" else ""
-    override fun doctorCheckedAt(time: String) = "体检于 $time"
+    override fun doctorCheckedAt(time: String) = "诊断于 $time"
     override val doctorCategoryProxy = "本地代理服务"
-    override val doctorCategoryNetwork = "官方服务连通性"
-    override val doctorCategoryConfig = "配置完整性"
-    override val doctorCategoryProvider = "模型服务商"
-    override val doctorCategoryHost = "Antigravity 宿主环境"
-    override val doctorScanningStatus = "正在扫描系统环境..."
-    override val doctorRealtimeStatus = "体检结果实时生成"
-    override val doctorScanningTitle = "正在执行全链路健康诊断..."
-    override val doctorScanningDesc = "逐项排查代理端口、模型服务商网络握手与宿主接管配置"
+    override val doctorCategoryNetwork = "Google 官方服务连通性"
+    override val doctorCategoryConfig = "本地配置文件"
+    override val doctorCategoryProvider = "模型服务商连通性"
+    override val doctorCategoryHost = "Antigravity 应用客户端"
+    override val doctorScanningStatus = "正在诊断系统环境..."
+    override val doctorRealtimeStatus = "诊断结果已就绪"
+    override val doctorScanningTitle = "正在执行系统健康诊断..."
+    override val doctorScanningDesc = "逐项排查代理端口、模型服务商网络连通性与应用代理配置"
     override val doctorFixStartProxy = "启动代理"
     override val doctorFixGoConfigure = "去配置"
     override val doctorFixOneClickEnable = "一键接入"
     override val doctorFixUpdateConfig = "更新配置"
-    override val doctorFixResetOfficial = "重置官方"
+    override val doctorFixResetOfficial = "重置为官方直连"
     override val doctorFixRestartIde = "重启 IDE"
     override val doctorFixRestartApp = "重启 App"
     override val doctorFixPruneModels = "清理模型"
@@ -1364,16 +1581,16 @@ object StringsZh : Strings {
     override fun doctorCheckProxyUnreachableMsg(port: Int) = "无法连接 127.0.0.1:$port，请检查端口占用或权限。"
     override val doctorCheckProxyUnreachableSugg = "尝试重启代理服务。"
     override val doctorCheckNetworkOkTitle = "连接官方服务"
-    override fun doctorCheckNetworkOkMsg(latencyMs: Long) = "官方 Cloud Code 服务可建立网络通信（${latencyMs}ms）。"
+    override fun doctorCheckNetworkOkMsg(latencyMs: Long) = "官方 Cloud Code 服务通信正常（${latencyMs}ms）。"
     override val doctorCheckNetworkFailedTitle = "连接官方服务失败"
     override fun doctorCheckNetworkFailedMsg(error: String) = "无法连通 Google 官方服务：$error。"
     override val doctorCheckNetworkFailedSugg = "请检查网络与代理配置；如直连正常但 Studio 仍失败，请重启 Studio 后重新检测。"
-    override val doctorCheckNoProvidersTitle = "未配置或未启用任何提供商"
-    override val doctorCheckNoProvidersMsg = "当前没有已启用的 Provider，所有模型请求将被拦截或直接失败。"
-    override val doctorCheckNoProvidersSugg = "前往「模型管理」添加 Provider。"
-    override fun doctorCheckProviderNoModelsTitle(provider: String) = "提供商「$provider」未配置模型"
-    override val doctorCheckProviderNoModelsMsg = "该提供商已启用，但尚未关联任何上游模型。"
-    override val doctorCheckProviderNoModelsSugg = "请在模型管理中配置上游模型。"
+    override val doctorCheckNoProvidersTitle = "未配置或未启用任何服务商"
+    override val doctorCheckNoProvidersMsg = "当前没有已启用的模型服务商，自定义模型请求将无法转发。"
+    override val doctorCheckNoProvidersSugg = "前往「模型管理」添加服务商。"
+    override fun doctorCheckProviderNoModelsTitle(provider: String) = "服务商「$provider」未配置模型"
+    override val doctorCheckProviderNoModelsMsg = "该服务商已启用，但尚未添加任何可用模型。"
+    override val doctorCheckProviderNoModelsSugg = "请在模型管理中配置可用模型。"
     override val doctorCheckIdeMismatchTitle = "Antigravity IDE 代理配置不匹配（待更新）"
     override fun doctorCheckIdeMismatchMsg(current: String, targetPort: Int) = "检测到 settings.json 中代理配置为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致，可能导致请求失败。"
     override val doctorCheckIdeMismatchSugg = "点击一键修复将更新为当前端口并自动重启生效，或重置为官方直连模式。"
@@ -1381,7 +1598,7 @@ object StringsZh : Strings {
     override val doctorCheckIdeOkTitle = "Antigravity IDE 代理接入正常"
     override fun doctorCheckIdeOkMsg(port: Int, runningSuffix: String) = "settings.json 已正确配置为 http://127.0.0.1:$port $runningSuffix。"
     override val doctorCheckIdeOfficialTitle = "Antigravity IDE 使用官方模式（未接入代理）"
-    override val doctorCheckIdeOfficialMsg = "当前直连 Google 官方服务，可直接正常使用。如需在 IDE 中使用自定义模型，可启用代理接入。"
+    override val doctorCheckIdeOfficialMsg = "当前直连 Google 官方服务，可正常使用。如需在 IDE 中使用自定义模型，可启用代理接入。"
     override val doctorCheckAppMismatchTitle = "Antigravity App 代理环境变量不匹配（待更新）"
     override fun doctorCheckAppMismatchMsg(current: String, targetPort: Int) = "检测到环境变量 CLOUD_CODE_URL 当前为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致。"
     override val doctorCheckAppMismatchSugg = "点击一键修复将更新环境变量并重启 App 生效，或重置为官方模式。"
@@ -1397,14 +1614,14 @@ object StringsZh : Strings {
     override fun doctorCheckCliOkMsg(port: Int) = "已在 CLI 配置文件中配置 cloud_code_url 为 http://127.0.0.1:$port。"
     override val doctorCheckCliOfficialTitle = "Antigravity CLI 使用官方模式（未接入代理）"
     override val doctorCheckCliOfficialMsg = "CLI 当前处于官方直连模式。"
-    override fun doctorCheckProviderInvalidModelsTitle(provider: String) = "提供商「$provider」存在失效模型"
-    override fun doctorCheckProviderInvalidModelsMsg(models: String) = "上游当前未提供以下模型：$models。"
-    override val doctorCheckProviderInvalidModelsSugg = "建议清理失效模型，避免请求直接返回模型不存在错误。"
-    override fun doctorCheckProviderOkTitle(provider: String) = "提供商「$provider」连通正常"
-    override fun doctorCheckProviderOkMsg(count: Int) = "鉴权成功，已配置的 $count 个模型均存在于上游目录中。"
-    override fun doctorCheckProviderUnverifiedTitle(provider: String) = "提供商「$provider」可连接但无法验证模型目录"
-    override val doctorCheckProviderUnverifiedMsg = "已建立上游连接，但该协议或端点没有返回可解析的模型目录。"
-    override val doctorCheckProviderUnverifiedSugg = "请确认 models endpoint 已配置，并手动核对模型 ID。"
+    override fun doctorCheckProviderInvalidModelsTitle(provider: String) = "服务商「$provider」存在失效模型"
+    override fun doctorCheckProviderInvalidModelsMsg(models: String) = "服务商当前未提供以下模型：$models。"
+    override val doctorCheckProviderInvalidModelsSugg = "建议清理失效模型，避免请求因模型不存在而失败。"
+    override fun doctorCheckProviderOkTitle(provider: String) = "服务商「$provider」连通正常"
+    override fun doctorCheckProviderOkMsg(count: Int) = "鉴权成功，已配置的 $count 个模型均可用。"
+    override fun doctorCheckProviderUnverifiedTitle(provider: String) = "服务商「$provider」已连通但无法获取模型列表"
+    override val doctorCheckProviderUnverifiedMsg = "已成功连接服务商，但该端点未返回可解析的模型列表。"
+    override val doctorCheckProviderUnverifiedSugg = "请确认模型列表接口已正确配置，或手动核对模型 ID。"
 
     override val commonSave = "保存配置"
     override val commonCancel = "取消"
@@ -1424,10 +1641,216 @@ object StringsZh : Strings {
     override val commonUnselectAll = "取消全选"
     override val commonNotSet = "未设置"
     override val commonUnknown = "未知"
+    override val commonAndMore = "等"
     override val commonOptional = "选填"
     override val commonUnsaved = "未保存"
     override val trayShowMainWindow = "显示主窗口"
     override val trayQuitApplication = "退出应用"
+
+    // Account Switch Dialog & Process
+    override val accountsSwitchDialogTitle = "切换账号"
+    override val accountsSwitchSelectTargetTitle = "选择目标应用"
+    override val accountsSwitchStatusIdeNotInstalled = "未安装 · 本机未检测到 IDE"
+    override val accountsSwitchStatusIdeRunning = "运行中 · 选中后将安全退出并重启"
+    override val accountsSwitchStatusIdeStopped = "未运行 · 选中后将写入凭据并直接启动"
+    override val accountsSwitchSharedTitleCli = "Antigravity CLI (共享凭据)"
+    override val accountsSwitchSharedTitleSystem = "系统共享凭据 (CLI / 本地)"
+    override val accountsSwitchStatusAppRunning = "App 运行中 · 选中后将安全退出并重启"
+    override val accountsSwitchStatusAppStopped = "App 未运行 · 选中后将写入凭据并直接启动"
+    override val accountsSwitchStatusCliOnly = "未安装 App · 将同步 ~/.gemini/ 凭据供 CLI 使用"
+    override val accountsSwitchStatusNone = "未检测到客户端 · 仅更新 Studio 活跃账号与共享凭据"
+    override val accountsSwitchRememberChoice = "记住本次选择"
+    override val accountsSwitching = "正在切换..."
+    override val accountsSwitchConfirmRestart = "确定并重启"
+    override val accountsSwitchConfirmLaunch = "确定并启动"
+    override val accountsSwitchConfirm = "确定切换"
+    override val accountsSwitchTargetIde = "Antigravity IDE"
+    override val accountsSwitchTargetAppCli = "Antigravity App & CLI"
+
+    // Smart Switch Dialog & Strategy
+    override val smartSwitchTitle = "自动智能切号"
+    override val smartSwitchSubtitle = "当配额耗尽或遇到 429 限流时，自动无缝切换至最佳备用账号"
+    override val smartSwitchEnableTitle = "启用自动智能切号"
+    override val smartSwitchEnableDesc = "遇到 429 限流或配额不足时自动切换账号"
+    override val smartSwitchThresholdLabel = "触发切号的配额阈值"
+    override val smartSwitchStrategyLabel = "备用账号选择策略"
+    override val smartSwitchStrategyHighestQuota = "剩余配额最多优先 (推荐)"
+    override val smartSwitchStrategyRoundRobin = "循环轮询"
+    override val smartSwitchCooldownLabel = "两次切号最小间隔"
+    override fun smartSwitchSeconds(seconds: Int) = "$seconds 秒"
+    override val smartSwitchProtectGenerationTitle = "生成中防打断保护"
+    override val smartSwitchProtectGenerationDesc = "在模型流式回复或智能体执行期间，暂缓自动切号"
+    override val smartSwitchInterruptTip = "保护说明：模型流式生成或智能体正在执行时，暂缓切号以避免请求中断"
+    override val smartSwitchReasonDisabled = "智能切号未启用"
+    override fun smartSwitchReasonCooldown(remainingSec: Long) = "处于切号冷却期 (${remainingSec}s 剩余)"
+    override val smartSwitchReasonWorkflowLocked = "当前工作流处于锁定保护状态"
+    override val smartSwitchReasonNoBackupAccounts = "无可用备用账号"
+    override val smartSwitchReasonNoEligibleCandidate = "未找到满足配额要求的备用账号"
+    override val smartSwitchTriggerReason429 = "遭遇 429 配额耗尽"
+    override val smartSwitchTriggerReasonLowQuota = "配额低于阈值"
+    override fun smartSwitchReasonTaskRunning(trigger: String) = "$trigger，但当前已有切号任务正在执行"
+    override fun smartSwitchReasonSuggestSwitch(trigger: String, email: String) = "$trigger，建议切换至 $email；请在账号管理中确认应用重启"
+    override val hotSwitchTaskAlreadyRunning = "已有账号切换任务正在执行，请稍后再试"
+    override val hotSwitchIdeNotApplied = "IDE 账号尚未生效"
+    override val hotSwitchNotAllTargetsApplied = "账号尚未在所有目标应用生效"
+
+    // Quota Auto-Refresh Dialog
+    override val quotaRefreshTitle = "设置配额自动刷新频率"
+    override val quotaRefreshSubtitle = "配置多账号配额后台自动同步频率（每个卡片左下角展示最后更新时间）"
+    override val quotaRefreshActiveIntervalTitle = "当前活跃账号刷新间隔"
+    override val quotaRefreshBackgroundIntervalTitle = "其他后台账号刷新间隔"
+    override val quotaRefreshCustomOption = "自定义…"
+    override val quotaRefreshPlaceholderActive = "例如 45"
+    override val quotaRefreshPlaceholderBackground = "例如 15"
+    override val quotaRefreshActiveHint = "提示：当前活跃账号的刷新间隔会直接影响配额更新及时性与自动切号时机。"
+    override val quotaRefreshDefaultSummary = "默认：当前账号 1 分钟，其他账号 10 分钟"
+    override val quotaRefreshResetDefault = "恢复默认"
+    override val quotaRefreshUnitSecond = "秒"
+    override val quotaRefreshUnitMinute = "分钟"
+    override val quotaRefreshUnitHour = "小时"
+    override fun quotaRefreshPresetRecommended(label: String) = "$label (推荐)"
+    override val quotaRefreshInputInvalid = "请输入有效的刷新时间"
+    override fun quotaRefreshMinActiveSeconds(sec: Int) = "最短刷新时间为 $sec 秒"
+    override fun quotaRefreshMinBackgroundMinutes(min: Int) = "最短刷新时间为 $min 分钟"
+    override fun quotaRefreshMaxHours(hr: Int) = "最长刷新时间为 $hr 小时"
+
+    // Account Cards & Screen
+    override fun accountsLastSyncTime(time: String) = "配额最后同步时间: $time"
+    override val accountsSyncToOtherHost = "同步生效到其他客户端"
+    override val accountsSetAsActiveTooltip = "设为当前生效账号"
+    override val accountsRefreshThisTooltip = "刷新此账号实时配额"
+    override val accountsRefreshingTooltip = "正在刷新配额..."
+    override val accountsDeleteThisTooltip = "删除此账号"
+    override fun accountsModelFamily(label: String) = "$label 模型"
+    override val accountsQuotaFiveHour = "5 小时配额"
+    override val accountsQuotaWeekly = "周配额"
+    override val accountsFetchingQuota = "正在获取配额数据..."
+    override val accountsNoQuotaData = "暂无数据"
+    override val accountsQuotaResetSoon = "即将重置"
+    override val accountsQuotaFull = "● 满额可用"
+    override val accountsQuotaResetInSuffix = " 后重置"
+
+    // Time & Countdown formatting
+    override fun formatCountdownDaysHours(days: Long, hours: Long) = "${days}天 ${hours}小时"
+    override fun formatCountdownDays(days: Long) = "${days}天"
+    override fun formatCountdownHoursMinutes(hours: Long, minutes: Long) = "${hours}小时 ${minutes}分钟"
+    override fun formatCountdownHours(hours: Long) = "${hours}小时"
+    override fun formatCountdownMinutes(minutes: Long) = "${minutes}分钟"
+    override val formatCountdownLessThanMinute = "< 1分钟"
+
+    // Quota natural language descriptions
+    override val quotaDescFiveHourFull = "您的五小时额度目前处于完全可用状态。"
+    override val quotaDescWeeklyFull = "您的周额度目前处于完全可用状态。"
+    override val quotaDescGeneralFull = "您的额度目前处于完全可用状态。"
+    override fun quotaDescFiveHourResetting(timeStr: String) = "您已消耗部分五小时额度，将在 $timeStr 后完全重置。"
+    override fun quotaDescWeeklyResetting(timeStr: String) = "您已消耗部分周额度，将在 $timeStr 后完全重置。"
+    override fun quotaDescGeneralResetting(timeStr: String) = "额度将在 $timeStr 后完全重置。"
+
+    // Quota Window
+    override val quotaWindowFiveHour = "5 小时额度"
+    override val quotaWindowWeekly = "周度额度"
+    override val quotaWindowDaily = "每日额度"
+    override val quotaWindowGeneral = "周期额度"
+    override val accountsSearchPlaceholder = "按邮箱快速检索..."
+    override val accountsSortByQuotaDesc = "按账号剩余配额从高到低排序"
+    override val accountsSortByQuotaDescActive = "当前按剩余配额从高到低排序 (点击切换为默认排序)"
+    override val accountsSortChipLabel = "按配额排序"
+    override val accountsAddAccountTooltip = "添加单个 Refresh Token 或批量导入多个凭据"
+    override val accountsRefreshAllTooltip = "立即并发刷新所有账号的最新配额数据"
+    override fun accountsAutoRefreshTooltip(activeSec: Int, bgMin: Int) = "配置配额自动刷新频率 (当前: 活跃账号 $activeSec 秒 / 后台账号 $bgMin 分钟)"
+    override val accountsPrivacyHideTooltip = "开启隐私脱敏，隐藏邮箱敏感字符"
+    override val accountsPrivacyShowTooltip = "关闭脱敏，显示完整邮箱地址"
+    override val accountsExportTooltip = "导出账号凭据 (支持复制到剪贴板或保存为 JSON 文件)"
+    override val accountsExportCopyToClipboard = "复制到剪贴板"
+    override val accountsExportSaveJson = "保存为 JSON 文件..."
+    override fun accountsExportCopiedNotice(count: Int) = "已将 $count 个账号凭据复制到剪贴板"
+    override fun accountsExportSuccessNotice(count: Int, filename: String) = "已成功导出 $count 个账号凭据至 $filename"
+    override fun accountsExportFailedNotice(error: String) = "导出文件失败: $error"
+    override val accountsExportDialogTitle = "保存账号凭据"
+    override val accountsSmartSwitchTooltip = "配置配额不足或遇到 429 限流时的自动切号策略"
+    override fun accountsSearchNoMatch(query: String) = "未找到与「$query」匹配的账号"
+    override val accountsDeleteConfirmTitle = "删除账号"
+    override fun accountsDeleteConfirmMsg(email: String) = "确定要从 Studio 移除账号「$email」吗？移除后将停止自动刷新与配额监控。"
+    override val accountsDeleteConfirmBtn = "确定删除"
+
+    // Overview Screen & Hero Card
+    override val overviewTodayRequests = "今日请求总量"
+    override fun overviewRequestsUnit(count: Long) = "$count 次"
+    override val overviewServiceUptime = "服务正常率"
+    override val overviewAvgLatency = "平均响应延迟"
+    override val overviewRouteUpstreamStatus = "路由上游状态"
+    override val overviewOfficialDirect = "官方默认直连"
+    override fun overviewCustomUpstreamSummary(providerCount: Int, modelCount: Int) = "$providerCount 个服务商 · $modelCount 个模型"
+    override fun overviewSourceInUse(sources: String) = "$sources 正在使用"
+    override val overviewActiveAccountBadge = "当前生效账号"
+    override val overviewSyncingQuotas = "正在同步配额数据..."
+
+    // Notices & ViewModel Messages
+    override val noticeAuthLinkCopied = "授权链接已复制到剪贴板"
+    override val noticeAuthLinkCopiedBrowser = "授权链接已复制到剪贴板，请在浏览器中打开"
+    override val noticeSwitchAlreadyRunning = "已有账号切换任务正在执行，请稍后再试"
+    override fun noticeSwitchResult(summary: String) = "账号切换结果：$summary"
+    override fun noticeSwitchFailed(error: String) = "切换账号失败: $error"
+    override fun noticeAccountNotFound(idOrEmail: String) = "未找到账号: $idOrEmail"
+    override val noticeSmartSwitchEnabled = "已启用自动智能切号"
+    override val noticeSmartSwitchDisabled = "已停用自动智能切号"
+    override val noticeQuotaAutoRefreshEnabled = "已更新配额自动刷新配置"
+    override val noticeQuotaAutoRefreshDisabled = "已停用配额自动刷新"
+    override val noticeAccountRemoved = "已移除账号"
+    override val noticeTokenRefreshed = "账号凭据已成功刷新"
+    override fun noticeTokenRefreshFailed(error: String) = "凭据刷新失败: $error"
+    override val noticeRemarkUpdated = "已更新账号备注"
+    override fun noticeCleanAccountsSuccess(count: Int) = "已清理 $count 个异常/过期账号"
+    override fun noticeCleanAccountsFailed(error: String) = "清理失败: $error"
+    override fun noticeBatchImportSuccess(count: Int) = "成功批量导入 $count 个账号"
+    override fun noticeBatchImportPartial(successCount: Int, failedCount: Int) = "批量导入完成：成功 $successCount 个，已跳过 $failedCount 个无效 Token"
+    override fun noticeBatchImportFailedAll(failedCount: Int) = "批量导入失败：所有输入的 $failedCount 个 Token 均已失效或被撤销"
+    override val noticeQuotasUpdatedAll = "已更新所有账号配额数据"
+    override fun noticeQuotasUpdateFailedAll(error: String) = "配额刷新异常: $error"
+    override val noticeQuotaRefreshedSingle = "已刷新账号配额"
+    override fun noticeQuotaRefreshFailedSingle(error: String) = "配额拉取失败: $error"
+    override fun switchStatusNotAvailable(target: String) = "$target 当前不可用"
+    override fun switchStatusConfigured(target: String) = "$target 已配置"
+    override fun switchStatusConfirmed(target: String) = "$target 已生效"
+    override fun switchStatusPendingRestart(target: String) = "$target 待确认重启"
+    override fun switchStatusFailed(target: String) = "$target 未确认生效"
+
+    // Add Account Dialog & Import
+    override val accountsAddTabOAuth = "Google 浏览器登录 (OAuth)"
+    override val accountsAddTabTokenImport = "Token / JSON 导入"
+    override val accountsAddSelectJsonFileTitle = "选择账号备份 JSON 文件"
+    override val accountsAddInvalidAuthCode = "未识别出有效授权码，请确认完整 URL"
+    override val accountsAddReopenBrowser = "重新在浏览器打开"
+    override val accountsAddOpenBrowser = "在浏览器中打开授权"
+    override val accountsAddCopyAuthUrl = "复制授权链接"
+    override val accountsAddCancelAuth = "取消授权"
+    override val accountsAddFallbackManualHint = "若自动回调受阻，可将浏览器地址栏中的完整网址复制粘贴至下方："
+    override val accountsAddFallbackManualPlaceholder = "http://127.0.0.1:41321/... 或授权码"
+    override val accountsAddSubmit = "提交"
+    override val accountsAddTokenBatchDesc = "支持粘贴单个/多行 Refresh Token（每行一个）、Cockpit 导出的 JSON 数组，或直接选择备份文件。"
+    override val accountsAddImportJsonFile = "导入 JSON 文件"
+    override val accountsAddPasteClipboard = "从剪贴板粘贴"
+    override val accountsAddTokenPlaceholder = "粘贴 1//0g... 字符串（支持多行批量粘贴或 JSON 数组/对象）"
+    override fun accountsAddRecognizedCount(count: Int, preview: String) = "已识别 $count 个有效账号凭据 $preview"
+    override val accountsAddUnrecognizedTokens = "未能识别出有效的 Refresh Token 或 JSON 数据"
+    override val accountsAddImporting = "正在验证并导入账号..."
+    override fun accountsAddConfirmImport(count: Int) = when {
+        count > 1 -> "批量导入账号 ($count 个)"
+        count == 1 -> "确认导入账号 (1 个)"
+        else -> "确认导入账号"
+    }
+
+    // Other UI Components & Relative Times
+    override val settingsAccountAndAppCardTitle = "账号与应用设置"
+    override fun accountsCountSummary(count: Int) = "$count 个账号"
+    override val accountsFiveHourLabel = "5小时"
+    override val accountsWeeklyLabel = "周"
+    override fun accountsResetInCountdown(countdown: String) = "$countdown 后重置"
+    override val timeNeverRefreshed = "从未刷新"
+    override val timeJustNow = "刚刚更新"
+    override fun timeMinutesAgo(min: Long) = "上次刷新 $min 分钟前"
+    override fun timeHoursAgo(hours: Long) = "上次刷新 $hours 小时前"
+    override fun timeDaysAgo(days: Long) = "上次刷新 $days 天前"
 
     override fun proxyStarted(port: Int) = "本地代理已启动 ($port)"
     override fun proxyStartFailed(error: String) = "本地代理启动失败：$error"
@@ -1474,6 +1897,8 @@ object StringsEn : Strings {
     override val accountsWaitingBrowserAuth = "Waiting for browser authorization..."
     override val accountsAuthSuccess = "Account authorized successfully!"
     override val accountsAuthFailed = "Authorization failed"
+    override val accountsCopiedEmail = "Account email copied to clipboard"
+    override fun accountsEmailTooltip(email: String) = "Account email: $email (Click to copy)"
 
 
     override val overviewProxyCardTitle = "Local Proxy Server"
@@ -1963,6 +2388,12 @@ object StringsEn : Strings {
     override fun settingsPortUpdateFailed(error: String) = "Failed to update proxy port: $error"
     override val settingsHostPathsTitle = "Host Installation Paths"
     override val settingsHostPathsDesc = "Custom installation or executable paths for Antigravity IDE, App and CLI"
+    override val settingsDefaultSwitchTargetTitle = "Default Switch Target"
+    override val settingsDefaultSwitchTargetDesc = "Default target applications selected when switching accounts"
+    override val settingsDefaultSwitchTargetAll = "All Apps (Recommended)"
+    override val settingsDefaultSwitchTargetIdeOnly = "IDE Only"
+    override val settingsDefaultSwitchTargetAppCliOnly = "App & CLI Only"
+    override val settingsDefaultSwitchTargetRemember = "Remember Last Choice"
     override fun settingsHostPathCustom(title: String) = "$title: Custom"
     override fun settingsHostPathAuto(title: String) = "$title: Auto"
     override val settingsStoragePath = "Config File Location"
@@ -2133,10 +2564,216 @@ object StringsEn : Strings {
     override val commonUnselectAll = "Deselect All"
     override val commonNotSet = "Not Set"
     override val commonUnknown = "Unknown"
+    override val commonAndMore = "etc."
     override val commonOptional = "Optional"
     override val commonUnsaved = "Unsaved"
     override val trayShowMainWindow = "Show Main Window"
     override val trayQuitApplication = "Quit"
+
+    // Account Switch Dialog & Process
+    override val accountsSwitchDialogTitle = "Switch Account"
+    override val accountsSwitchSelectTargetTitle = "Select Target Applications"
+    override val accountsSwitchStatusIdeNotInstalled = "Not installed · Antigravity IDE not detected"
+    override val accountsSwitchStatusIdeRunning = "Running · Will safely exit and restart"
+    override val accountsSwitchStatusIdeStopped = "Stopped · Will inject credentials and launch"
+    override val accountsSwitchSharedTitleCli = "Antigravity CLI (Shared Credentials)"
+    override val accountsSwitchSharedTitleSystem = "System Shared Credentials (CLI / Local)"
+    override val accountsSwitchStatusAppRunning = "App is running · Will safely exit and restart"
+    override val accountsSwitchStatusAppStopped = "App is stopped · Will inject credentials and launch"
+    override val accountsSwitchStatusCliOnly = "App not installed · Syncs ~/.gemini/ credentials for CLI"
+    override val accountsSwitchStatusNone = "No client detected · Only updates Studio active account and shared credentials"
+    override val accountsSwitchRememberChoice = "Remember selection"
+    override val accountsSwitching = "Switching..."
+    override val accountsSwitchConfirmRestart = "Confirm & Restart"
+    override val accountsSwitchConfirmLaunch = "Confirm & Launch"
+    override val accountsSwitchConfirm = "Confirm Switch"
+    override val accountsSwitchTargetIde = "Antigravity IDE"
+    override val accountsSwitchTargetAppCli = "Antigravity App & CLI"
+
+    // Smart Switch Dialog & Strategy
+    override val smartSwitchTitle = "Smart Account Switch"
+    override val smartSwitchSubtitle = "Automatically switch to the best fallback account on quota exhaustion or 429 errors"
+    override val smartSwitchEnableTitle = "Enable Smart Account Switch"
+    override val smartSwitchEnableDesc = "Automatically switch account upon 429 rate limit or insufficient quota"
+    override val smartSwitchThresholdLabel = "Switch Trigger Quota Threshold"
+    override val smartSwitchStrategyLabel = "Fallback Account Strategy"
+    override val smartSwitchStrategyHighestQuota = "Highest Quota First (Recommended)"
+    override val smartSwitchStrategyRoundRobin = "Round Robin"
+    override val smartSwitchCooldownLabel = "Minimum Switch Cooldown"
+    override fun smartSwitchSeconds(seconds: Int) = "$seconds s"
+    override val smartSwitchProtectGenerationTitle = "Active Generation Protection"
+    override val smartSwitchProtectGenerationDesc = "Pause auto-switch during streaming responses or agent runs"
+    override val smartSwitchInterruptTip = "Protection note: Auto-switch is deferred during generation to avoid stream interruptions."
+    override val smartSwitchReasonDisabled = "Smart switch is disabled"
+    override fun smartSwitchReasonCooldown(remainingSec: Long) = "In cooldown period (${remainingSec}s remaining)"
+    override val smartSwitchReasonWorkflowLocked = "Active workflow is protected"
+    override val smartSwitchReasonNoBackupAccounts = "No backup accounts available"
+    override val smartSwitchReasonNoEligibleCandidate = "No candidate account with sufficient quota found"
+    override val smartSwitchTriggerReason429 = "Hit 429 Quota Exceeded"
+    override val smartSwitchTriggerReasonLowQuota = "Quota fell below threshold"
+    override fun smartSwitchReasonTaskRunning(trigger: String) = "$trigger, but another switch task is in progress"
+    override fun smartSwitchReasonSuggestSwitch(trigger: String, email: String) = "$trigger. Suggested switch to $email; please restart app to apply."
+    override val hotSwitchTaskAlreadyRunning = "Another account switch task is already running, please try again later"
+    override val hotSwitchIdeNotApplied = "IDE account is not yet active"
+    override val hotSwitchNotAllTargetsApplied = "Account not yet active in all target applications"
+
+    // Quota Auto-Refresh Dialog
+    override val quotaRefreshTitle = "Quota Auto-Refresh Frequency"
+    override val quotaRefreshSubtitle = "Configure background sync frequency for multiple accounts"
+    override val quotaRefreshActiveIntervalTitle = "Active Account Refresh Interval"
+    override val quotaRefreshBackgroundIntervalTitle = "Background Accounts Refresh Interval"
+    override val quotaRefreshCustomOption = "Custom…"
+    override val quotaRefreshPlaceholderActive = "e.g. 45"
+    override val quotaRefreshPlaceholderBackground = "e.g. 15"
+    override val quotaRefreshActiveHint = "Tip: Active account refresh interval directly impacts quota freshness and auto-switch timing."
+    override val quotaRefreshDefaultSummary = "Default: Active account 1 min, background accounts 10 min"
+    override val quotaRefreshResetDefault = "Reset to Default"
+    override val quotaRefreshUnitSecond = "sec"
+    override val quotaRefreshUnitMinute = "min"
+    override val quotaRefreshUnitHour = "hr"
+    override fun quotaRefreshPresetRecommended(label: String) = "$label (Recommended)"
+    override val quotaRefreshInputInvalid = "Please enter a valid refresh interval"
+    override fun quotaRefreshMinActiveSeconds(sec: Int) = "Minimum interval is $sec seconds"
+    override fun quotaRefreshMinBackgroundMinutes(min: Int) = "Minimum interval is $min minutes"
+    override fun quotaRefreshMaxHours(hr: Int) = "Maximum interval is $hr hour(s)"
+
+    // Account Cards & Screen
+    override fun accountsLastSyncTime(time: String) = "Quota last synced: $time"
+    override val accountsSyncToOtherHost = "Sync to other clients"
+    override val accountsSetAsActiveTooltip = "Set as current active account"
+    override val accountsRefreshThisTooltip = "Refresh quota for this account"
+    override val accountsRefreshingTooltip = "Refreshing quota..."
+    override val accountsDeleteThisTooltip = "Delete this account"
+    override fun accountsModelFamily(label: String) = "$label Models"
+    override val accountsQuotaFiveHour = "5-Hour Quota"
+    override val accountsQuotaWeekly = "Weekly Quota"
+    override val accountsFetchingQuota = "Fetching quota data..."
+    override val accountsNoQuotaData = "No Data"
+    override val accountsQuotaResetSoon = "Resetting soon"
+    override val accountsQuotaFull = "● 100% Available"
+    override val accountsQuotaResetInSuffix = " left"
+
+    // Time & Countdown formatting
+    override fun formatCountdownDaysHours(days: Long, hours: Long) = "${days}d ${hours}h"
+    override fun formatCountdownDays(days: Long) = "${days}d"
+    override fun formatCountdownHoursMinutes(hours: Long, minutes: Long) = "${hours}h ${minutes}m"
+    override fun formatCountdownHours(hours: Long) = "${hours}h"
+    override fun formatCountdownMinutes(minutes: Long) = "${minutes}m"
+    override val formatCountdownLessThanMinute = "< 1m"
+
+    // Quota natural language descriptions
+    override val quotaDescFiveHourFull = "Your 5-hour quota is currently fully available."
+    override val quotaDescWeeklyFull = "Your weekly quota is currently fully available."
+    override val quotaDescGeneralFull = "Your quota is currently fully available."
+    override fun quotaDescFiveHourResetting(timeStr: String) = "Partially consumed 5-hour quota, resets in $timeStr."
+    override fun quotaDescWeeklyResetting(timeStr: String) = "Partially consumed weekly quota, resets in $timeStr."
+    override fun quotaDescGeneralResetting(timeStr: String) = "Quota will fully reset in $timeStr."
+
+    // Quota Window
+    override val quotaWindowFiveHour = "5-Hour Quota"
+    override val quotaWindowWeekly = "Weekly Quota"
+    override val quotaWindowDaily = "Daily Quota"
+    override val quotaWindowGeneral = "Period Quota"
+    override val accountsSearchPlaceholder = "Search by email..."
+    override val accountsSortByQuotaDesc = "Sort by remaining quota (High to Low)"
+    override val accountsSortByQuotaDescActive = "Currently sorted by quota (Click to switch to default)"
+    override val accountsSortChipLabel = "Sort by Quota"
+    override val accountsAddAccountTooltip = "Add single Refresh Token or import in bulk"
+    override val accountsRefreshAllTooltip = "Concurrently refresh quotas for all accounts"
+    override fun accountsAutoRefreshTooltip(activeSec: Int, bgMin: Int) = "Configure auto-refresh (Current: active ${activeSec}s / background ${bgMin}m)"
+    override val accountsPrivacyHideTooltip = "Enable privacy mode to mask email"
+    override val accountsPrivacyShowTooltip = "Disable privacy mode to show full email"
+    override val accountsExportTooltip = "Export credentials (clipboard or JSON file)"
+    override val accountsExportCopyToClipboard = "Copy to Clipboard"
+    override val accountsExportSaveJson = "Save as JSON File..."
+    override fun accountsExportCopiedNotice(count: Int) = "Copied $count account credentials to clipboard"
+    override fun accountsExportSuccessNotice(count: Int, filename: String) = "Exported $count credentials to $filename"
+    override fun accountsExportFailedNotice(error: String) = "Failed to export file: $error"
+    override val accountsExportDialogTitle = "Save Account Credentials"
+    override val accountsSmartSwitchTooltip = "Configure smart auto-switch for low quota or 429 errors"
+    override fun accountsSearchNoMatch(query: String) = "No accounts found matching '$query'"
+    override val accountsDeleteConfirmTitle = "Delete Account"
+    override fun accountsDeleteConfirmMsg(email: String) = "Are you sure you want to remove '$email'? Auto-refresh and monitoring will stop."
+    override val accountsDeleteConfirmBtn = "Delete"
+
+    // Overview Screen & Hero Card
+    override val overviewTodayRequests = "Today's Requests"
+    override fun overviewRequestsUnit(count: Long) = "$count requests"
+    override val overviewServiceUptime = "Service Uptime"
+    override val overviewAvgLatency = "Avg Latency"
+    override val overviewRouteUpstreamStatus = "Route Upstream"
+    override val overviewOfficialDirect = "Official Direct"
+    override fun overviewCustomUpstreamSummary(providerCount: Int, modelCount: Int) = "$providerCount providers · $modelCount models"
+    override fun overviewSourceInUse(sources: String) = "$sources in use"
+    override val overviewActiveAccountBadge = "Active Account"
+    override val overviewSyncingQuotas = "Syncing quota data..."
+
+    // Notices & ViewModel Messages
+    override val noticeAuthLinkCopied = "Authorization link copied to clipboard"
+    override val noticeAuthLinkCopiedBrowser = "Auth link copied, please open in browser"
+    override val noticeSwitchAlreadyRunning = "Another account switch task is already running, please try again later"
+    override fun noticeSwitchResult(summary: String) = "Switch result: $summary"
+    override fun noticeSwitchFailed(error: String) = "Account switch failed: $error"
+    override fun noticeAccountNotFound(idOrEmail: String) = "Account not found: $idOrEmail"
+    override val noticeSmartSwitchEnabled = "Smart auto-switch enabled"
+    override val noticeSmartSwitchDisabled = "Smart auto-switch disabled"
+    override val noticeQuotaAutoRefreshEnabled = "Quota auto-refresh config updated"
+    override val noticeQuotaAutoRefreshDisabled = "Quota auto-refresh disabled"
+    override val noticeAccountRemoved = "Account removed"
+    override val noticeTokenRefreshed = "Account credentials refreshed successfully"
+    override fun noticeTokenRefreshFailed(error: String) = "Failed to refresh credentials: $error"
+    override val noticeRemarkUpdated = "Account note updated"
+    override fun noticeCleanAccountsSuccess(count: Int) = "Cleaned up $count invalid/expired accounts"
+    override fun noticeCleanAccountsFailed(error: String) = "Failed to clean accounts: $error"
+    override fun noticeBatchImportSuccess(count: Int) = "Successfully imported $count accounts"
+    override fun noticeBatchImportPartial(successCount: Int, failedCount: Int) = "Batch import completed: $successCount succeeded, $failedCount skipped"
+    override fun noticeBatchImportFailedAll(failedCount: Int) = "Batch import failed: all $failedCount tokens are invalid"
+    override val noticeQuotasUpdatedAll = "All account quotas updated"
+    override fun noticeQuotasUpdateFailedAll(error: String) = "Quota refresh error: $error"
+    override val noticeQuotaRefreshedSingle = "Account quota refreshed"
+    override fun noticeQuotaRefreshFailedSingle(error: String) = "Failed to fetch quota: $error"
+    override fun switchStatusNotAvailable(target: String) = "$target currently unavailable"
+    override fun switchStatusConfigured(target: String) = "$target configured"
+    override fun switchStatusConfirmed(target: String) = "$target active"
+    override fun switchStatusPendingRestart(target: String) = "$target pending restart"
+    override fun switchStatusFailed(target: String) = "$target verification failed"
+
+    // Add Account Dialog & Import
+    override val accountsAddTabOAuth = "Google Sign In (OAuth)"
+    override val accountsAddTabTokenImport = "Token / JSON Import"
+    override val accountsAddSelectJsonFileTitle = "Select Accounts JSON Backup File"
+    override val accountsAddInvalidAuthCode = "Invalid auth code, please verify full URL"
+    override val accountsAddReopenBrowser = "Reopen in Browser"
+    override val accountsAddOpenBrowser = "Open in Browser"
+    override val accountsAddCopyAuthUrl = "Copy Auth Link"
+    override val accountsAddCancelAuth = "Cancel Auth"
+    override val accountsAddFallbackManualHint = "If auto-callback is blocked, paste the full URL from browser below:"
+    override val accountsAddFallbackManualPlaceholder = "http://127.0.0.1:41321/... or Auth Code"
+    override val accountsAddSubmit = "Submit"
+    override val accountsAddTokenBatchDesc = "Supports pasting single/multi-line Refresh Tokens, Cockpit exported JSON arrays, or backup files."
+    override val accountsAddImportJsonFile = "Import JSON File"
+    override val accountsAddPasteClipboard = "Paste from Clipboard"
+    override val accountsAddTokenPlaceholder = "Paste 1//0g... tokens (Supports multi-line batch or JSON)"
+    override fun accountsAddRecognizedCount(count: Int, preview: String) = "Recognized $count valid account credentials $preview"
+    override val accountsAddUnrecognizedTokens = "Unable to recognize valid Refresh Token or JSON data"
+    override val accountsAddImporting = "Validating and importing accounts..."
+    override fun accountsAddConfirmImport(count: Int) = when {
+        count > 1 -> "Import $count Accounts"
+        count == 1 -> "Import 1 Account"
+        else -> "Confirm Import"
+    }
+
+    // Other UI Components & Relative Times
+    override val settingsAccountAndAppCardTitle = "Accounts & Applications"
+    override fun accountsCountSummary(count: Int) = "$count accounts"
+    override val accountsFiveHourLabel = "5h"
+    override val accountsWeeklyLabel = "Weekly"
+    override fun accountsResetInCountdown(countdown: String) = "$countdown left"
+    override val timeNeverRefreshed = "Never synced"
+    override val timeJustNow = "Just now"
+    override fun timeMinutesAgo(min: Long) = "Synced $min min ago"
+    override fun timeHoursAgo(hours: Long) = "Synced $hours hr ago"
+    override fun timeDaysAgo(days: Long) = "Synced $days d ago"
 
     override fun proxyStarted(port: Int) = "Local proxy started ($port)"
     override fun proxyStartFailed(error: String) = "Failed to start local proxy: $error"

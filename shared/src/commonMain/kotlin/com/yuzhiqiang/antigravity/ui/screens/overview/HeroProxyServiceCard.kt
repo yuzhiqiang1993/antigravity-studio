@@ -34,13 +34,14 @@ fun HeroProxyServiceCard(
     totalRequests: Int = 0,
     successRateText: String = "100%",
     avgLatencyText: String = "--",
-    upstreamSummary: String = "官方直连通道",
+    upstreamSummary: String? = null,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onCopyAddress: () -> Unit,
     onDiagnostics: (() -> Unit)? = null
 ) {
     val s = com.yuzhiqiang.antigravity.i18n.strings()
+    val displayUpstreamSummary = upstreamSummary ?: s.overviewOfficialDirect
     var isRecentlyCopied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val interactionSource = remember { MutableInteractionSource() }
@@ -174,7 +175,7 @@ fun HeroProxyServiceCard(
                     }
                 }
 
-                // 右侧: 操作按钮组 (一键体检 + 启停控制)
+                // 右侧: 操作按钮组 (健康诊断 + 启停控制)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -272,27 +273,27 @@ fun HeroProxyServiceCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 HeroStatItem(
-                    title = "今日请求总量",
-                    value = "$totalRequests 次",
+                    title = s.overviewTodayRequests,
+                    value = s.overviewRequestsUnit(totalRequests.toLong()),
                     icon = Icons.Outlined.Speed,
                     modifier = Modifier.weight(1f)
                 )
                 HeroStatItem(
-                    title = "服务正常率",
+                    title = s.overviewServiceUptime,
                     value = successRateText,
                     icon = Icons.Outlined.CheckCircleOutline,
                     valueColor = if (isRunning) AppStatusColors.success else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 HeroStatItem(
-                    title = "平均响应延迟",
+                    title = s.overviewAvgLatency,
                     value = avgLatencyText,
                     icon = Icons.Outlined.Timer,
                     modifier = Modifier.weight(1f)
                 )
                 HeroStatItem(
-                    title = "路由上游状态",
-                    value = upstreamSummary,
+                    title = s.overviewRouteUpstreamStatus,
+                    value = displayUpstreamSummary,
                     icon = Icons.Outlined.Hub,
                     modifier = Modifier.weight(1.3f)
                 )

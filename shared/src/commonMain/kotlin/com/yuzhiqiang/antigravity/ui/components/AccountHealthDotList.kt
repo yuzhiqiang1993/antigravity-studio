@@ -57,8 +57,9 @@ fun AccountHealthDotList(
             }
         }
 
+        val s = com.yuzhiqiang.antigravity.i18n.strings()
         Text(
-            text = "${accounts.size} 个账号",
+            text = s.accountsCountSummary(accounts.size),
             style = MaterialTheme.typography.bodySmall.copy(
                 fontWeight = FontWeight.Medium,
                 fontSize = 12.sp

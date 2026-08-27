@@ -127,10 +127,12 @@ private fun CompactGroupRow(
 
         Spacer(Modifier.width(8.dp))
 
+        val s = com.yuzhiqiang.antigravity.i18n.strings()
+
         // 5小时限额
         if (fiveHour != null) {
             MiniBarCell(
-                label = "5小时",
+                label = s.accountsFiveHourLabel,
                 percentage = fiveHour.percentage,
                 modifier = Modifier.weight(1f)
             )
@@ -141,7 +143,7 @@ private fun CompactGroupRow(
         // 周额度
         if (weekly != null) {
             MiniBarCell(
-                label = "周",
+                label = s.accountsWeeklyLabel,
                 percentage = weekly.percentage,
                 modifier = Modifier.weight(1f)
             )

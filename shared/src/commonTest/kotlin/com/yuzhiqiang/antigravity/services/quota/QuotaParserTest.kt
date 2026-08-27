@@ -39,8 +39,10 @@ class QuotaParserTest {
         )
         assertTrue(exhaustedQuota.isExhausted)
         assertEquals(0, exhaustedQuota.percentage)
-        assertEquals("2分钟", exhaustedQuota.formattedCountdown())
-        assertEquals("您已消耗部分五小时额度，将在 2分钟 后完全重置。", exhaustedQuota.naturalLanguageDescription())
+        assertEquals("2分钟", exhaustedQuota.formattedCountdown(com.yuzhiqiang.antigravity.i18n.StringsZh))
+        assertEquals("2m", exhaustedQuota.formattedCountdown(com.yuzhiqiang.antigravity.i18n.StringsEn))
+        assertEquals("您已消耗部分五小时额度，将在 2分钟 后完全重置。", exhaustedQuota.naturalLanguageDescription(com.yuzhiqiang.antigravity.i18n.StringsZh))
+        assertEquals("Partially consumed 5-hour quota, resets in 2m.", exhaustedQuota.naturalLanguageDescription(com.yuzhiqiang.antigravity.i18n.StringsEn))
     }
 
 

@@ -74,6 +74,7 @@ fun AccountsScreen(
     val isAppRunning by viewModel.isAppRunning.collectAsState()
     val isIdeInstalled by viewModel.isIdeInstalled.collectAsState()
     val isAppInstalled by viewModel.isAppInstalled.collectAsState()
+    val isCliInstalled by viewModel.isCliInstalled.collectAsState()
     val isAccountSwitching by viewModel.isAccountSwitching.collectAsState()
 
 
@@ -230,14 +231,14 @@ fun AccountsScreen(
                     StudioSearchField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = "按邮箱快速检索...",
+                        placeholder = s.accountsSearchPlaceholder,
                         modifier = Modifier
                             .width(StudioDesignTokens.Sizes.searchFieldWidth)
                             .height(StudioDesignTokens.Sizes.searchFieldHeight)
                     )
 
                     // 智能排序 Chip
-                    StudioTooltip(text = if (sortMode == AccountsSortMode.QUOTA_DESC) "当前按剩余配额从高到低排序 (点击切换为默认排序)" else "按账号剩余配额从高到低排序") {
+                    StudioTooltip(text = if (sortMode == AccountsSortMode.QUOTA_DESC) s.accountsSortByQuotaDescActive else s.accountsSortByQuotaDesc) {
                         FilterChip(
                             selected = sortMode == AccountsSortMode.QUOTA_DESC,
                             onClick = {
@@ -249,7 +250,7 @@ fun AccountsScreen(
                             },
                             label = {
                                 Text(
-                                    text = "按配额排序",
+                                    text = s.accountsSortChipLabel,
                                     fontSize = StudioDesignTokens.TextSize.label,
                                     fontWeight = if (sortMode == AccountsSortMode.QUOTA_DESC) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -287,7 +288,7 @@ fun AccountsScreen(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm - 2.dp)
                 ) {
                     // MD3 主按钮: 添加账号 (Studio 统一 Primary 品牌色)
-                    StudioTooltip(text = "添加单个 Refresh Token 或批量导入多个凭据") {
+                    StudioTooltip(text = s.accountsAddAccountTooltip) {
                         Button(
                             onClick = { showAddDialog = true },
                             modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight),
@@ -301,7 +302,7 @@ fun AccountsScreen(
                             )
                             Spacer(modifier = Modifier.width(AppTokens.Spacing.xs))
                             Text(
-                                text = "添加账号",
+                                text = s.accountsAddAccount,
                                 fontSize = StudioDesignTokens.TextSize.body,
                                 fontWeight = FontWeight.Bold
                             )
@@ -324,7 +325,7 @@ fun AccountsScreen(
                             modifier = Modifier.padding(horizontal = 4.dp)
                         ) {
                             // 刷新全量配额
-                            StudioTooltip(text = "立即并发刷新所有账号的最新配额数据") {
+                            StudioTooltip(text = s.accountsRefreshAllTooltip) {
                                 IconButton(
                                     onClick = { viewModel.refreshAllQuotas() },
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
@@ -338,7 +339,7 @@ fun AccountsScreen(
                                     } else {
                                         Icon(
                                             imageVector = Icons.Outlined.Refresh,
-                                            contentDescription = "刷新全部配额",
+                                            contentDescription = s.accountsRefreshAllTooltip,
                                             modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -346,15 +347,15 @@ fun AccountsScreen(
                                 }
                             }
 
-                            // 额度自动刷新设置
-                            StudioTooltip(text = "配置配额自动刷新周期 (当前: 活跃 ${config.quotaActiveIntervalSeconds}s / 其他 ${config.quotaBackgroundIntervalSeconds / 60}min)") {
+                            // 配额自动刷新设置
+                            StudioTooltip(text = s.accountsAutoRefreshTooltip(config.quotaActiveIntervalSeconds, config.quotaBackgroundIntervalSeconds / 60)) {
                                 IconButton(
                                     onClick = { showQuotaRefreshConfigDialog = true },
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Outlined.Timer,
-                                        contentDescription = "额度自动刷新设置",
+                                        contentDescription = s.quotaRefreshTitle,
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
                                         tint = if (config.quotaAutoRefreshEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -362,32 +363,32 @@ fun AccountsScreen(
                             }
 
                             // 隐私脱敏开关
-                            StudioTooltip(text = if (isPrivacyMode) "关闭脱敏，显示完整邮箱地址" else "开启隐私脱敏，隐藏邮箱敏感字符") {
+                            StudioTooltip(text = if (isPrivacyMode) s.accountsPrivacyShowTooltip else s.accountsPrivacyHideTooltip) {
                                 IconButton(
                                     onClick = { viewModel.togglePrivacyMode() },
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
                                 ) {
                                     Icon(
                                         imageVector = if (isPrivacyMode) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                                        contentDescription = "隐私模式",
+                                        contentDescription = if (isPrivacyMode) s.accountsPrivacyShowTooltip else s.accountsPrivacyHideTooltip,
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
                                         tint = if (isPrivacyMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
 
-                            // 导出备份 (复制到剪贴板 / 保存为 JSON 文件)
+                            // 导出账号
                             var showExportMenu by remember { mutableStateOf(false) }
 
                             Box {
-                                StudioTooltip(text = "导出账号凭据 (支持复制到剪贴板或保存为 JSON 文件)") {
+                                StudioTooltip(text = s.accountsExportTooltip) {
                                     IconButton(
                                         onClick = { showExportMenu = true },
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Outlined.FileUpload,
-                                            contentDescription = "导出账号",
+                                            imageVector = Icons.Outlined.FileDownload,
+                                            contentDescription = s.accountsExportTooltip,
                                             modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -396,16 +397,15 @@ fun AccountsScreen(
 
                                 DropdownMenu(
                                     expanded = showExportMenu,
-                                    onDismissRequest = { showExportMenu = false },
-                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                                    onDismissRequest = { showExportMenu = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("复制到剪贴板", style = MaterialTheme.typography.bodyMedium) },
+                                        text = { Text(s.accountsExportCopyToClipboard, style = MaterialTheme.typography.bodyMedium) },
                                         leadingIcon = {
                                             Icon(
-                                                Icons.Outlined.ContentCopy,
+                                                imageVector = Icons.Outlined.ContentCopy,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
                                             )
                                         },
                                         onClick = {
@@ -418,7 +418,7 @@ fun AccountsScreen(
                                                 null
                                             )
                                             viewModel.showNotice(
-                                                "已将 $count 个账号凭据复制到剪贴板",
+                                                s.accountsExportCopiedNotice(count),
                                                 NoticeKind.SUCCESS
                                             )
                                         }
@@ -426,34 +426,34 @@ fun AccountsScreen(
                                     DropdownMenuItem(
                                         text = {
                                             Text(
-                                                "保存为 JSON 文件...",
+                                                s.accountsExportSaveJson,
                                                 style = MaterialTheme.typography.bodyMedium
                                             )
                                         },
                                         leadingIcon = {
                                             Icon(
-                                                Icons.Outlined.FileDownload,
+                                                imageVector = Icons.Outlined.FolderOpen,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(StudioDesignTokens.Sizes.cardActionIconSize)
                                             )
                                         },
                                         onClick = {
                                             showExportMenu = false
-                                            exportAccountsToFile(viewModel)
+                                            exportAccountsToFile(viewModel, s)
                                         }
                                     )
                                 }
                             }
 
                             // 智能切号策略
-                            StudioTooltip(text = "配置低配额/限流(429)时的自动故障转移切号策略") {
+                            StudioTooltip(text = s.accountsSmartSwitchTooltip) {
                                 IconButton(
                                     onClick = { showSmartSwitchDialog = true },
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Outlined.Bolt,
-                                        contentDescription = "智能切号策略",
+                                        contentDescription = s.smartSwitchTitle,
                                         modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
                                         tint = if (config.smartSwitchConfig.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -486,7 +486,7 @@ fun AccountsScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "未找到与「$searchQuery」匹配的账号",
+                        text = s.accountsSearchNoMatch(searchQuery),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -570,12 +570,15 @@ fun AccountsScreen(
                                                     viewModel.refreshSingleAccountQuota(acc.id)
                                                     viewModel.refreshAccountTokens(acc.email)
                                                 },
+                                                onCopyEmail = {
+                                                    viewModel.showNotice(s.accountsCopiedEmail, NoticeKind.SUCCESS)
+                                                },
                                                 onCopyToken = {
                                                     Toolkit.getDefaultToolkit().systemClipboard.setContents(
                                                         StringSelection(acc.tokens.refreshToken),
                                                         null
                                                     )
-                                                    viewModel.showNotice("已复制 Refresh Token", NoticeKind.SUCCESS)
+                                                    viewModel.showNotice(s.accountsCopyToken, NoticeKind.SUCCESS)
                                                 },
                                                 onDelete = { accountToDelete = acc }
                                             )
@@ -620,15 +623,20 @@ fun AccountsScreen(
 
         AccountSwitchDialog(
             targetAccount = targetAcc,
+            config = config,
             isIdeInstalled = isIdeInstalled,
             isAppInstalled = isAppInstalled,
+            isCliInstalled = isCliInstalled,
             isIdeRunning = isIdeRunning,
             isAppRunning = isAppRunning,
             isIdeActive = isTargetIdeActive,
             isPrivacyMode = isPrivacyMode,
             isSwitching = isAccountSwitching,
-            onConfirm = { applyToIde, applyToAppCli, restartIde, restartApp ->
+            onConfirm = { applyToIde, applyToAppCli, restartIde, restartApp, rememberChoice ->
                 if (!isAccountSwitching) {
+                    if (rememberChoice) {
+                        viewModel.saveLastSwitchChoice(applyToIde, applyToAppCli)
+                    }
                     viewModel.switchAccount(targetAcc, applyToIde, applyToAppCli, restartIde, restartApp)
                     accountToSwitch = null
                 }
@@ -644,9 +652,9 @@ fun AccountsScreen(
     accountToDelete?.let { acc ->
         viewModel.showConfirmDialog(
             AppViewModel.ConfirmDialogState(
-                title = "删除账号",
-                message = "确定要从 Studio 移除账号「${acc.email}」吗？移除后将不再自动续期与监控额度。",
-                confirmLabel = "确定删除",
+                title = s.accountsDeleteConfirmTitle,
+                message = s.accountsDeleteConfirmMsg(acc.email),
+                confirmLabel = s.accountsDeleteConfirmBtn,
                 isDestructive = true,
                 onConfirm = {
                     viewModel.removeAccount(acc.id)
@@ -705,9 +713,9 @@ private fun EmptyAccountsCard(onAddClick: () -> Unit) {
     }
 }
 
-private fun exportAccountsToFile(viewModel: AppViewModel) {
+private fun exportAccountsToFile(viewModel: AppViewModel, s: com.yuzhiqiang.antigravity.i18n.Strings = com.yuzhiqiang.antigravity.i18n.currentStrings()) {
     try {
-        val fileDialog = FileDialog(null as Frame?, "保存账号凭据", FileDialog.SAVE)
+        val fileDialog = FileDialog(null as Frame?, s.accountsExportDialogTitle, FileDialog.SAVE)
         fileDialog.file = "antigravity_accounts.json"
         fileDialog.setFilenameFilter { _, name -> name.endsWith(".json", ignoreCase = true) }
         fileDialog.isVisible = true
@@ -723,9 +731,9 @@ private fun exportAccountsToFile(viewModel: AppViewModel) {
             val count = viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
             val exportedJson = viewModel.exportAccountsJson()
             targetFile.writeText(exportedJson, Charsets.UTF_8)
-            viewModel.showNotice("已成功导出 $count 个账号凭据至 ${targetFile.name}", NoticeKind.SUCCESS)
+            viewModel.showNotice(s.accountsExportSuccessNotice(count, targetFile.name), NoticeKind.SUCCESS)
         }
     } catch (e: Exception) {
-        viewModel.showNotice("导出文件失败: ${e.message ?: "未知错误"}", NoticeKind.ERROR)
+        viewModel.showNotice(s.accountsExportFailedNotice(e.message ?: s.commonUnknown), NoticeKind.ERROR)
     }
 }
