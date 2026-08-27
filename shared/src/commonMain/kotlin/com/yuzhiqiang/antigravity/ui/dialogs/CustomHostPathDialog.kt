@@ -18,6 +18,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.yuzhiqiang.antigravity.host.app.AppHostManager
+import com.yuzhiqiang.antigravity.host.cli.CliHostManager
+import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import java.awt.FileDialog
@@ -466,66 +469,26 @@ private data class CandidatePath(
 )
 
 private fun discoverCandidatePaths(hostKey: String): List<CandidatePath> {
-    val osName = System.getProperty("os.name", "").lowercase()
-    val isMac = osName.contains("mac")
-    val isWin = osName.contains("win")
-    val userHome = System.getProperty("user.home", "")
-
-    val rawCandidates = mutableListOf<String>()
-
-    when (hostKey) {
-        "ide" -> {
-            if (isMac) {
-                rawCandidates.add("/Applications/Antigravity IDE.app")
-                rawCandidates.add("$userHome/Applications/Antigravity IDE.app")
-                rawCandidates.add("/Applications/Antigravity.app")
-            } else if (isWin) {
-                val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome\\AppData\\Local"
-                val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
-                rawCandidates.add("$localAppData\\Programs\\Antigravity IDE")
-                rawCandidates.add("$programFiles\\Antigravity IDE")
-            } else {
-                rawCandidates.add("/opt/antigravity-ide")
-                rawCandidates.add("/usr/share/antigravity-ide")
-            }
-        }
-        "app" -> {
-            if (isMac) {
-                rawCandidates.add("/Applications/Antigravity.app")
-                rawCandidates.add("$userHome/Applications/Antigravity.app")
-                rawCandidates.add("/Applications/Antigravity App.app")
-            } else if (isWin) {
-                val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome\\AppData\\Local"
-                val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
-                rawCandidates.add("$localAppData\\Programs\\Antigravity")
-                rawCandidates.add("$programFiles\\Antigravity")
-            } else {
-                rawCandidates.add("/opt/antigravity")
-                rawCandidates.add("/usr/share/antigravity")
-            }
-        }
-        "cli" -> {
-            if (isMac || !isWin) {
-                rawCandidates.add("/usr/local/bin/agy")
-                rawCandidates.add("/opt/homebrew/bin/agy")
-                rawCandidates.add("$userHome/.local/bin/agy")
-                rawCandidates.add("$userHome/.cargo/bin/agy")
-                rawCandidates.add("$userHome/bin/agy")
-                rawCandidates.add("/usr/bin/agy")
-            } else {
-                val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome\\AppData\\Local"
-                rawCandidates.add("$localAppData\\Programs\\Antigravity\\agy.exe")
-                rawCandidates.add("$userHome\\.cargo\\bin\\agy.exe")
-            }
-        }
+    val candidateFiles: List<File> = when (hostKey) {
+        "ide" -> IdeHostManager.getCandidateInstallations()
+        "app" -> AppHostManager.getCandidateInstallations()
+        "cli" -> CliHostManager.getCandidateInstallations()
+        else -> emptyList()
     }
 
-    return rawCandidates.distinct().map { path ->
-        CandidatePath(
-            path = path,
-            exists = File(path).exists()
+    return candidateFiles
+        .map { it.absolutePath }
+        .distinct()
+        .map { path ->
+            CandidatePath(
+                path = path,
+                exists = File(path).exists()
+            )
+        }
+        .sortedWith(
+            compareByDescending<CandidatePath> { it.exists }
+                .thenBy { it.path }
         )
-    }.sortedByDescending { it.exists }
 }
 
 private fun openSystemHostPicker(
