@@ -33,6 +33,10 @@ data class Provider(
     val requestTimeoutMs: Long = 600_000L,
     @SerialName("stream_idle_timeout_ms")
     val streamIdleTimeoutMs: Long = 600_000L,
+    @SerialName("max_retries")
+    val maxRetries: Int = 2,
+    @SerialName("retry_delay_ms")
+    val retryDelayMs: Long = 500L,
     @SerialName("enabled")
     val enabled: Boolean = true
 ) {

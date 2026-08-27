@@ -350,9 +350,10 @@ object OpenAiResponsesCodec {
     private fun responseError(root: JsonObject): NeutralStreamChunk.Error? {
         val error = root.objectValue("error") ?: root.objectValue("response")?.objectValue("error")
         return error?.let {
+            val statusCode = it.intValue("code", "status", "status_code", "statusCode") ?: 502
             NeutralStreamChunk.Error(
                 message = it.stringValue("message") ?: "OpenAI Responses upstream error",
-                statusCode = it.intValue("code", "status") ?: 502
+                statusCode = statusCode
             )
         }
     }

@@ -245,6 +245,12 @@ class ConfigStore(
             require(provider.connectTimeoutMs <= provider.requestTimeoutMs) {
                 "Provider ${provider.id} 的连接超时不能超过请求超时"
             }
+            require(provider.maxRetries >= 0) {
+                "Provider ${provider.id} 的重试次数不能为负数"
+            }
+            require(provider.retryDelayMs >= 0L) {
+                "Provider ${provider.id} 的重试间隔不能为负数"
+            }
             validateEndpoint(provider.baseUrl.takeIf { it.isNotBlank() }, "Provider ${provider.id} Base URL")
             validateEndpoint(provider.modelsEndpoint, "Provider ${provider.id} models endpoint")
             validateEndpoint(provider.generateEndpoint, "Provider ${provider.id} generate endpoint")
@@ -326,11 +332,6 @@ class ConfigStore(
             }
         }
         config.virtualModels.forEach { model ->
-            model.fallbackVirtualModelId?.let { fallback ->
-                require(fallback in virtualIds && fallback != model.id) {
-                    "虚拟模型 ${model.id} 的 fallback 引用无效"
-                }
-            }
             validateParameters(model.parameterOverrides, "虚拟模型 ${model.id} parameter overrides")
             val level = model.defaultReasoningLevel ?: return@forEach
             if (level != com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.OFF &&

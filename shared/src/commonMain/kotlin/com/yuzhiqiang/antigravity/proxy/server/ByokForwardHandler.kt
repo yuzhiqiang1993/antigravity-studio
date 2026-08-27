@@ -3,12 +3,11 @@ package com.yuzhiqiang.antigravity.proxy.server
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
 import com.yuzhiqiang.antigravity.proxy.adapters.AdapterFactory
+import com.yuzhiqiang.antigravity.proxy.adapters.ProviderAdapter
 import com.yuzhiqiang.antigravity.proxy.encoder.ResponseEncoder
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
 import com.yuzhiqiang.antigravity.proxy.routing.ResolvedRoute
-import com.yuzhiqiang.antigravity.proxy.routing.RouteResolutionException
-import com.yuzhiqiang.antigravity.proxy.routing.RouteResolver
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -33,10 +32,6 @@ class ByokForwardHandler(
     ) {
         val cloudCode = path.contains("/v1internal")
         val stream = route.request.stream
-        val config = configStore.currentConfig
-        var activeRoute = route
-        var fallbackAttempted = false
-        var fallbackSucceeded = false
 
         val logId = ActivityRecorder.startActivity(
             method = "POST",
@@ -49,21 +44,26 @@ class ByokForwardHandler(
         )
 
         if (!stream) {
-            var collected = collectProviderChunks(route)
-            val primaryError = collected.filterIsInstance<NeutralStreamChunk.Error>().firstOrNull()
-            if (primaryError != null && isRetryableFallbackError(primaryError)) {
-                fallbackAttempted = true
-                val fallbackResult = RouteResolver.resolveFallback(config, route)
-                val fallbackRoute = fallbackResult.getOrNull()
-                if (fallbackRoute != null) {
-                    activeRoute = fallbackRoute
-                    collected = collectProviderChunks(fallbackRoute)
-                    fallbackSucceeded = collected.none { it is NeutralStreamChunk.Error }
+            val maxRetries = maxOf(0, route.provider.maxRetries)
+            val baseDelayMs = maxOf(100L, route.provider.retryDelayMs)
+            var attempt = 0
+            var collected: List<NeutralStreamChunk> = emptyList()
+            var errorChunk: NeutralStreamChunk.Error? = null
+            while (attempt <= maxRetries) {
+                attempt++
+                if (attempt > 1) {
+                    ActivityRecorder.updateRetryCount(logId, attempt - 1)
                 }
+                collected = collectProviderChunks(route)
+                errorChunk = collected.filterIsInstance<NeutralStreamChunk.Error>().firstOrNull()
+                if (errorChunk == null || !isRetryableError(errorChunk) || attempt > maxRetries) {
+                    break
+                }
+                val backoffMs = calculateBackoff(attempt, baseDelayMs)
+                kotlinx.coroutines.delay(backoffMs)
             }
-
-            val request = activeRoute.request
-            val errorChunk = collected.filterIsInstance<NeutralStreamChunk.Error>().firstOrNull()
+            val retryCount = attempt - 1
+            val request = route.request
             val encoded = ResponseEncoder.encodeChunksToGeminiJsonResult(
                 collected,
                 request.targetUpstreamModelId,
@@ -87,13 +87,12 @@ class ByokForwardHandler(
                 id = logId,
                 statusCode = status,
                 durationMs = durationMs,
-                modelId = activeRoute.virtualModel?.id ?: activeRoute.upstreamModel.id,
-                providerName = activeRoute.provider.name,
+                modelId = route.virtualModel?.id ?: route.upstreamModel.id,
+                providerName = route.provider.name,
                 errorMessage = errorChunk?.message ?: encoderError?.message,
-                fallbackAttempted = fallbackAttempted,
-                fallbackSucceeded = fallbackSucceeded,
                 usage = usage,
-                firstTokenMs = nonStreamingFirstTokenMs
+                firstTokenMs = nonStreamingFirstTokenMs,
+                retryCount = retryCount
             )
             call.respondText(body, ContentType.Application.Json, HttpStatusCode.fromValue(status))
             return
@@ -105,90 +104,66 @@ class ByokForwardHandler(
         var latestUsage: NeutralUsage? = null
         var firstTokenMs: Long? = null
 
-        var primaryChannel = openProviderStream(route)
+        val maxRetries = maxOf(0, route.provider.maxRetries)
+        val baseDelayMs = maxOf(100L, route.provider.retryDelayMs)
         val primaryTimeoutMs = maxOf(route.provider.requestTimeoutMs, 600_000L)
-        var primaryFirst = withTimeoutOrNull(primaryTimeoutMs) {
-            primaryChannel.receiveCatching().getOrNull()
-        } ?: NeutralStreamChunk.Error("等待服务商响应首包超时（${primaryTimeoutMs / 1000}s 无响应）", 504)
 
-        if (primaryFirst is NeutralStreamChunk.Error && !primaryFirst.responseStarted) {
-            val primaryError = primaryFirst as NeutralStreamChunk.Error
-            if (isRetryableFallbackError(primaryError)) {
-                fallbackAttempted = true
-                val fallbackResult = RouteResolver.resolveFallback(config, route)
-                val fallbackRoute = fallbackResult.getOrNull()
-                if (fallbackRoute != null) {
-                    primaryChannel.cancel()
-                    activeRoute = fallbackRoute
-                    primaryChannel = openProviderStream(fallbackRoute)
-                    val fallbackTimeoutMs = maxOf(fallbackRoute.provider.requestTimeoutMs, 600_000L)
-                    primaryFirst = withTimeoutOrNull(fallbackTimeoutMs) {
-                        primaryChannel.receiveCatching().getOrNull()
-                    } ?: NeutralStreamChunk.Error("备用服务商响应首包超时（${fallbackTimeoutMs / 1000}s 无响应）", 504)
-                    fallbackSucceeded = primaryFirst !is NeutralStreamChunk.Error
-                    if (primaryFirst is NeutralStreamChunk.Error && !primaryFirst.responseStarted) {
-                        val fallbackError = primaryFirst as NeutralStreamChunk.Error
-                        primaryChannel.cancel()
-                        status = fallbackError.statusCode
-                        errorMessage = fallbackError.message
-                        ActivityRecorder.finishActivity(
-                            id = logId,
-                            statusCode = status,
-                            durationMs = System.currentTimeMillis() - startTime,
-                            modelId = fallbackRoute.virtualModel?.id ?: fallbackRoute.upstreamModel.id,
-                            providerName = fallbackRoute.provider.name,
-                            errorMessage = errorMessage,
-                            fallbackAttempted = true,
-                            fallbackSucceeded = false
-                        )
-                        call.respondText(
-                            ResponseEncoder.encodeErrorToGeminiJson(errorMessage, status, cloudCode),
-                            ContentType.Application.Json,
-                            HttpStatusCode.fromValue(status)
-                        )
-                        return
-                    }
-                } else {
-                    primaryChannel.cancel()
-                    status = (fallbackResult.exceptionOrNull() as? RouteResolutionException)?.statusCode
-                        ?: primaryError.statusCode
-                    errorMessage = fallbackResult.exceptionOrNull()?.message ?: primaryError.message
-                    ActivityRecorder.finishActivity(
-                        id = logId,
-                        statusCode = status,
-                        durationMs = System.currentTimeMillis() - startTime,
-                        modelId = route.virtualModel?.id ?: route.upstreamModel.id,
-                        providerName = route.provider.name,
-                        errorMessage = errorMessage,
-                        fallbackAttempted = false,
-                        fallbackSucceeded = false
-                    )
-                    call.respondText(
-                        ResponseEncoder.encodeErrorToGeminiJson(errorMessage ?: primaryError.message, status, cloudCode),
-                        ContentType.Application.Json,
-                        HttpStatusCode.fromValue(status)
-                    )
-                    return
-                }
-            } else {
-                primaryChannel.cancel()
-                status = primaryError.statusCode
-                errorMessage = primaryError.message
-                ActivityRecorder.finishActivity(
-                    id = logId,
-                    statusCode = status,
-                    durationMs = System.currentTimeMillis() - startTime,
-                    modelId = route.virtualModel?.id ?: route.upstreamModel.id,
-                    providerName = route.provider.name,
-                    errorMessage = errorMessage
-                )
-                call.respondText(
-                    ResponseEncoder.encodeErrorToGeminiJson(primaryError.message, status, cloudCode),
-                    ContentType.Application.Json,
-                    HttpStatusCode.fromValue(status)
-                )
-                return
+        var primaryChannel: ReceiveChannel<NeutralStreamChunk>? = null
+        var primaryFirst: NeutralStreamChunk? = null
+        var attempt = 0
+
+        while (attempt <= maxRetries) {
+            attempt++
+            if (attempt > 1) {
+                ActivityRecorder.updateRetryCount(logId, attempt - 1)
             }
+            val channel = openProviderStream(route)
+            val firstChunk = withTimeoutOrNull(primaryTimeoutMs) {
+                channel.receiveCatching().getOrNull()
+            } ?: NeutralStreamChunk.Error("等待服务商响应首包超时（${primaryTimeoutMs / 1000}s 无响应）", 504)
+
+            val isErrorBeforeResponse = firstChunk is NeutralStreamChunk.Error && !firstChunk.responseStarted
+            if (isErrorBeforeResponse && isRetryableError(firstChunk as NeutralStreamChunk.Error) && attempt <= maxRetries) {
+                channel.cancel()
+                val backoffMs = calculateBackoff(attempt, baseDelayMs)
+                kotlinx.coroutines.delay(backoffMs)
+                continue
+            }
+
+            primaryChannel = channel
+            primaryFirst = firstChunk
+            break
+        }
+
+        val retryCount = attempt - 1
+        val channel = primaryChannel ?: openProviderStream(route)
+        val firstChunk = primaryFirst ?: NeutralStreamChunk.Error("服务商未能提供有效响应", 502)
+
+        if (firstChunk is NeutralStreamChunk.Error && !firstChunk.responseStarted) {
+            val primaryError = firstChunk as NeutralStreamChunk.Error
+            channel.cancel()
+            status = primaryError.statusCode
+            errorMessage = primaryError.message
+            ActivityRecorder.finishActivity(
+                id = logId,
+                statusCode = status,
+                durationMs = System.currentTimeMillis() - startTime,
+                modelId = route.virtualModel?.id ?: route.upstreamModel.id,
+                providerName = route.provider.name,
+                errorMessage = errorMessage,
+                retryCount = retryCount
+            )
+            val encoder = ResponseEncoder.newStreamEncoder(cloudCode, route.request.targetUpstreamModelId)
+            val errFrames = encoder.encode(primaryError)
+            call.response.headers.append("Cache-Control", "no-cache")
+            call.response.headers.append("X-Accel-Buffering", "no")
+            call.respondTextWriter(ContentType.Text.EventStream) {
+                errFrames.forEach { frame ->
+                    write(frame)
+                    flush()
+                }
+            }
+            return
         }
 
         try {
@@ -206,168 +181,96 @@ class ByokForwardHandler(
                 }
 
                 suspend fun receiveNextWithHeartbeat(
-                    channel: ReceiveChannel<NeutralStreamChunk>,
+                    ch: ReceiveChannel<NeutralStreamChunk>,
                     idleTimeoutMs: Long
                 ): NeutralStreamChunk? {
                     val deadline = System.currentTimeMillis() + idleTimeoutMs
                     while (System.currentTimeMillis() < deadline) {
-                        val chunk = withTimeoutOrNull(15_000L) {
-                            channel.receiveCatching().getOrNull()
+                        val result = withTimeoutOrNull(15_000L) {
+                            ch.receiveCatching()
                         }
-                        if (chunk != null) return chunk
-                        if (channel.isClosedForReceive) return null
+                        if (result != null) {
+                            val chunk = result.getOrNull()
+                            if (chunk != null) {
+                                return chunk
+                            }
+                            val cause = result.exceptionOrNull()
+                            if (cause != null) {
+                                val status = ProviderAdapter.upstreamFailureStatus(cause)
+                                return NeutralStreamChunk.Error(
+                                    cause.message ?: "上游流式连接异常中断",
+                                    status,
+                                    responseStarted = true
+                                )
+                            }
+                            if (ch.isClosedForReceive) return null
+                        }
+                        if (ch.isClosedForReceive) return null
                         writeFrames(listOf(": ping\n\n"))
                     }
-                    return NeutralStreamChunk.Error("流式传输空闲超时（${idleTimeoutMs / 1000}s 未收到数据）", 504)
+                    return NeutralStreamChunk.Error(
+                        "流式传输空闲超时（${idleTimeoutMs / 1000}s 未收到数据）",
+                        504,
+                        responseStarted = true
+                    )
                 }
 
-                suspend fun consumeChannel(
-                    channel: ReceiveChannel<NeutralStreamChunk>,
-                    first: NeutralStreamChunk?,
-                    encoder: ResponseEncoder.GeminiStreamEncoder
-                ): Boolean {
-                    var failed = false
-                    var next: NeutralStreamChunk? = first
-                    val idleTimeoutMs = maxOf(activeRoute.provider.streamIdleTimeoutMs, 600_000L)
-                    try {
-                        if (next == null) next = receiveNextWithHeartbeat(channel, idleTimeoutMs)
-                        while (next != null) {
-                            val chunk = next
-                            when (chunk) {
-                                is NeutralStreamChunk.Error -> {
-                                    failed = true
-                                    status = chunk.statusCode
-                                    errorMessage = chunk.message
-                                }
-                                is NeutralStreamChunk.Completed -> Unit
-                                else -> Unit
-                            }
-                            if (firstTokenMs == null && isContentChunk(chunk)) {
-                                val ttft = System.currentTimeMillis() - startTime
-                                firstTokenMs = ttft
-                                ActivityRecorder.updateFirstToken(logId, ttft)
-                            }
-                            if (chunk is NeutralStreamChunk.Completed && chunk.usage != null) {
-                                latestUsage = chunk.usage
-                            }
-                            writeFrames(encoder.encode(chunk))
-                            encoder.failureStatusCode?.let { failureStatus ->
-                                failed = true
-                                status = failureStatus
-                                errorMessage = encoder.failureMessage
-                            }
-                            if (failed) break
-                            next = receiveNextWithHeartbeat(channel, idleTimeoutMs)
-                        }
-                    } catch (error: Exception) {
-                        failed = true
-                        status = 502
-                        errorMessage = error.message ?: "Provider stream failed"
-                        writeFrames(
-                            encoder.encode(
-                                NeutralStreamChunk.Error(
-                                    errorMessage ?: "Provider stream failed",
-                                    status
-                                )
-                            )
-                        )
-                    } finally {
-                        channel.cancel()
-                    }
-                    if (!failed && encoder.failureStatusCode == null) {
-                        writeFrames(encoder.finish())
-                        encoder.failureStatusCode?.let { failureStatus ->
-                            failed = true
-                            status = failureStatus
-                            errorMessage = encoder.failureMessage
-                        }
-                    }
-                    return failed
-                }
-
-                val primaryEncoder = ResponseEncoder.newStreamEncoder(cloudCode, activeRoute.request.targetUpstreamModelId)
-                var primaryStopped = false
-                val firstChunk = primaryFirst
-                val primaryIdleTimeoutMs = maxOf(activeRoute.provider.streamIdleTimeoutMs, 600_000L)
+                val encoder = ResponseEncoder.newStreamEncoder(cloudCode, route.request.targetUpstreamModelId)
+                var streamStopped = false
+                val idleTimeoutMs = maxOf(route.provider.streamIdleTimeoutMs, 600_000L)
                 try {
                     var next: NeutralStreamChunk? = firstChunk
-                    while (next != null && !primaryStopped) {
+                    while (next != null && !streamStopped) {
                         val chunk = next
-                        if (chunk is NeutralStreamChunk.Error &&
-                            !emittedBusinessFrame &&
-                            !fallbackAttempted &&
-                            isRetryableFallbackError(chunk)
-                        ) {
-                            fallbackAttempted = true
-                            val fallbackResult = RouteResolver.resolveFallback(config, route)
-                            val fallbackRoute = fallbackResult.getOrNull()
-                            if (fallbackRoute != null) {
-                                activeRoute = fallbackRoute
-                                val fallbackEncoder = ResponseEncoder.newStreamEncoder(
-                                    cloudCode,
-                                    fallbackRoute.request.targetUpstreamModelId
-                                )
-                                fallbackSucceeded = !consumeChannel(
-                                    openProviderStream(fallbackRoute),
-                                    null,
-                                    fallbackEncoder
-                                )
-                            } else {
+                        when (chunk) {
+                            is NeutralStreamChunk.Error -> {
                                 status = chunk.statusCode
-                                errorMessage = fallbackResult.exceptionOrNull()?.message ?: chunk.message
-                                writeFrames(
-                                    primaryEncoder.encode(
-                                        NeutralStreamChunk.Error(errorMessage ?: chunk.message, status)
-                                    )
-                                )
+                                errorMessage = chunk.message
+                                streamStopped = true
                             }
-                            primaryStopped = true
-                        } else {
-                            when (chunk) {
-                                is NeutralStreamChunk.Error -> {
-                                    status = chunk.statusCode
-                                    errorMessage = chunk.message
-                                    primaryStopped = true
-                                }
-                                is NeutralStreamChunk.Completed -> Unit
-                                else -> Unit
-                            }
-                            if (firstTokenMs == null && isContentChunk(chunk)) {
-                                val ttft = System.currentTimeMillis() - startTime
-                                firstTokenMs = ttft
-                                ActivityRecorder.updateFirstToken(logId, ttft)
-                            }
-                            if (chunk is NeutralStreamChunk.Completed && chunk.usage != null) {
-                                latestUsage = chunk.usage
-                            }
-                            writeFrames(primaryEncoder.encode(chunk))
-                            primaryEncoder.failureStatusCode?.let { failureStatus ->
-                                status = failureStatus
-                                errorMessage = primaryEncoder.failureMessage
-                                primaryStopped = true
-                            }
+
+                            is NeutralStreamChunk.Completed -> Unit
+                            else -> Unit
                         }
-                        if (!primaryStopped) {
-                            next = receiveNextWithHeartbeat(primaryChannel, primaryIdleTimeoutMs)
+                        if (firstTokenMs == null && isContentChunk(chunk)) {
+                            val ttft = System.currentTimeMillis() - startTime
+                            firstTokenMs = ttft
+                            ActivityRecorder.updateFirstToken(logId, ttft)
+                        }
+                        if (chunk is NeutralStreamChunk.Completed && chunk.usage != null) {
+                            latestUsage = chunk.usage
+                        }
+                        writeFrames(encoder.encode(chunk))
+                        encoder.failureStatusCode?.let { failureStatus ->
+                            status = failureStatus
+                            errorMessage = encoder.failureMessage
+                            streamStopped = true
+                        }
+                        if (!streamStopped) {
+                            next = receiveNextWithHeartbeat(channel, idleTimeoutMs)
                         }
                     }
                 } catch (error: Exception) {
                     status = 502
                     errorMessage = error.message ?: "Provider stream failed"
-                    primaryStopped = true
+                    streamStopped = true
                     writeFrames(
-                        primaryEncoder.encode(
-                            NeutralStreamChunk.Error(errorMessage ?: "Provider stream failed", status)
+                        encoder.encode(
+                            NeutralStreamChunk.Error(
+                                errorMessage ?: "Provider stream failed",
+                                status,
+                                responseStarted = true
+                            )
                         )
                     )
                 } finally {
-                    primaryChannel.cancel()
+                    channel.cancel()
                 }
-                if (!primaryStopped && primaryEncoder.failureStatusCode == null) {
-                    writeFrames(primaryEncoder.finish())
-                    primaryEncoder.failureStatusCode?.let { failureStatus ->
+                if (!streamStopped && encoder.failureStatusCode == null) {
+                    writeFrames(encoder.finish())
+                    encoder.failureStatusCode?.let { failureStatus ->
                         status = failureStatus
-                        errorMessage = primaryEncoder.failureMessage
+                        errorMessage = encoder.failureMessage
                     }
                 }
             }
@@ -385,20 +288,16 @@ class ByokForwardHandler(
                 errorMessage = error.message ?: "Provider stream failed"
             }
         }
-        if (fallbackAttempted && status >= 400) {
-            fallbackSucceeded = false
-        }
         ActivityRecorder.finishActivity(
             id = logId,
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,
-            modelId = activeRoute.virtualModel?.id ?: activeRoute.upstreamModel.id,
-            providerName = activeRoute.provider.name,
+            modelId = route.virtualModel?.id ?: route.upstreamModel.id,
+            providerName = route.provider.name,
             errorMessage = errorMessage,
-            fallbackAttempted = fallbackAttempted,
-            fallbackSucceeded = fallbackSucceeded,
             usage = latestUsage,
-            firstTokenMs = firstTokenMs
+            firstTokenMs = firstTokenMs,
+            retryCount = retryCount
         )
     }
 
@@ -425,17 +324,37 @@ class ByokForwardHandler(
         return streamFlow.produceIn(CoroutineScope(currentCoroutineContext()))
     }
 
-    private fun isRetryableFallbackError(error: NeutralStreamChunk.Error): Boolean {
-        return error.statusCode in setOf(404, 408, 429, 500, 502, 503, 504, 524) ||
-                error.message.contains("rate limit", ignoreCase = true) ||
-                error.message.contains("timed out", ignoreCase = true) ||
-                error.message.contains("timeout", ignoreCase = true) ||
-                error.message.contains("connection", ignoreCase = true) ||
-                error.message.contains("disconnected", ignoreCase = true) ||
-                error.message.contains("stream error", ignoreCase = true) ||
-                error.message.contains("closed before", ignoreCase = true) ||
-                error.message.contains("broken pipe", ignoreCase = true) ||
-                error.message.contains("reset", ignoreCase = true) ||
-                error.message.contains("overloaded", ignoreCase = true)
+    companion object {
+        fun isRetryableError(statusCode: Int): Boolean {
+            return (statusCode in 500..599 && statusCode != 501) ||
+                    statusCode == 429 ||
+                    statusCode == 408 ||
+                    statusCode == 499
+        }
+
+        fun isRetryableError(error: NeutralStreamChunk.Error): Boolean {
+            if (isRetryableError(error.statusCode)) return true
+            val msg = error.message.lowercase()
+            return msg.contains("tls handshake") ||
+                    msg.contains("handshake") ||
+                    msg.contains("eof") ||
+                    msg.contains("connection reset") ||
+                    msg.contains("connection refused") ||
+                    msg.contains("broken pipe") ||
+                    msg.contains("socket") ||
+                    msg.contains("timed out") ||
+                    msg.contains("timeout") ||
+                    msg.contains("stream disconnected") ||
+                    msg.contains("closed before") ||
+                    msg.contains("overloaded") ||
+                    msg.contains("rate limit")
+        }
+
+        fun calculateBackoff(attempt: Int, baseDelayMs: Long, maxDelayMs: Long = 5_000L): Long {
+            val factor = 1L shl minOf(attempt - 1, 5)
+            val rawDelay = minOf(baseDelayMs * factor, maxDelayMs)
+            val jitter = (rawDelay * 0.2 * kotlin.random.Random.nextDouble(-1.0, 1.0)).toLong()
+            return maxOf(50L, rawDelay + jitter)
+        }
     }
 }

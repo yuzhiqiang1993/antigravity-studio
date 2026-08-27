@@ -270,18 +270,12 @@ interface Strings {
     fun modelsModelDeleteFailed(error: String): String
     fun modelsModelUpdated(name: String): String
     fun modelsModelUpdateFailed(error: String): String
-    val modelsFallbackCleared: String
-    val modelsFallbackSaved: String
-    fun modelsFallbackSaveFailed(error: String): String
     fun modelsModelTestSuccess(modelName: String, latencyMs: Long): String
     fun modelsModelTestFailed(modelName: String, error: String): String
     fun modelsBatchTestSuccess(passed: Int, total: Int): String
     fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int): String
-    fun modelsDeleteBlockers(blockerList: String): String
     val modelsProviderNotFound: String
     fun modelsVirtualModelNotFound(id: String): String
-    val modelsFallbackSelfError: String
-    val modelsNoFallback: String
     val providerPresetCustomName: String
     val providerPresetCustomDesc: String
 
@@ -459,8 +453,6 @@ interface Strings {
     val activityNoMatchingDesc: String
     val activityPassthrough: String
     val activityRouted: String
-    val activityFallback: String
-    val activityFallbackFailed: String
     val activitySearchPlaceholder: String
     val activityRecent: String
     val activityTotal: String
@@ -498,9 +490,6 @@ interface Strings {
     val activityDetailTargetModel: String
     val activityDetailRequestedModel: String
     val activityDetailProvider: String
-    val activityDetailFallback: String
-    val activityDetailFallbackSuccess: String
-    val activityDetailFallbackFailed: String
     val activityDetailTokenSection: String
     val activityDetailPromptTokens: String
     val activityDetailCompletionTokens: String
@@ -512,6 +501,8 @@ interface Strings {
     val activityDetailCopyJson: String
     val activityDetailCopyError: String
     val activityDetailCopiedError: String
+    val activityRetryCount: String
+    fun activityRetryBadge(count: Int): String
 
     // Settings Screen & Sections
     val settingsTitle: String
@@ -895,6 +886,7 @@ interface Strings {
     fun switchStatusConfirmed(target: String): String
     fun switchStatusPendingRestart(target: String): String
     fun switchStatusFailed(target: String): String
+
     // Add Account Dialog & Import
     val accountsAddTabOAuth: String
     val accountsAddTabTokenImport: String
@@ -1048,13 +1040,19 @@ object StringsZh : Strings {
     override val hostCliOfficialDirectDesc = "CLI 当前处于官方直连模式"
 
     override val hostIdeUpdateConfirmTitle = "更新 Antigravity IDE 代理配置"
-    override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) = "检测到 IDE 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 IDE 使配置生效。是否继续？"
-    override fun hostIdeUpdateConfirmMessageStopped(endpoint: String, port: Int) = "检测到 IDE 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
+    override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) =
+        "检测到 IDE 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 IDE 使配置生效。是否继续？"
+
+    override fun hostIdeUpdateConfirmMessageStopped(endpoint: String, port: Int) =
+        "检测到 IDE 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
+
     override val hostIdeEnableConfirmTitle = "确认启用代理模式"
-    override val hostIdeEnableConfirmMessageRunning = "启用代理模式后，Antigravity IDE 会接入配置的模型并自动重启使配置生效。是否继续？"
+    override val hostIdeEnableConfirmMessageRunning =
+        "启用代理模式后，Antigravity IDE 会接入配置的模型并自动重启使配置生效。是否继续？"
     override val hostIdeEnableConfirmMessageStopped = "启用代理模式将使 Antigravity IDE 在启动时连接本地代理。是否继续？"
     override val hostIdeDisableConfirmTitle = "确认停用代理接入"
-    override val hostIdeDisableConfirmMessageRunning = "将停用 Antigravity IDE 的代理接入并重启恢复官方直连模式。是否继续？"
+    override val hostIdeDisableConfirmMessageRunning =
+        "将停用 Antigravity IDE 的代理接入并重启恢复官方直连模式。是否继续？"
     override val hostIdeDisableConfirmMessageStopped = "将停用 Antigravity IDE 的代理接入，恢复官方直连模式。是否继续？"
     override val hostIdeUpdatedAndRestarted = "Antigravity IDE 代理配置已更新并完成重启"
     override val hostIdeEnabledAndRestarted = "Antigravity IDE 已启用代理模式并完成重启"
@@ -1066,13 +1064,19 @@ object StringsZh : Strings {
     override val hostIdeDisableFailed = "Antigravity IDE 停用代理接入失败"
 
     override val hostAppUpdateConfirmTitle = "更新 Antigravity App 代理配置"
-    override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) = "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 App 使配置生效。是否继续？"
-    override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) = "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
+    override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) =
+        "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 App 使配置生效。是否继续？"
+
+    override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) =
+        "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
+
     override val hostAppEnableConfirmTitle = "确认启用代理模式"
-    override val hostAppEnableConfirmMessageRunning = "启用代理模式后，Antigravity App 会接入配置的模型并自动重启使配置生效。是否继续？"
+    override val hostAppEnableConfirmMessageRunning =
+        "启用代理模式后，Antigravity App 会接入配置的模型并自动重启使配置生效。是否继续？"
     override val hostAppEnableConfirmMessageStopped = "启用代理模式将使 Antigravity App 在启动时连接本地代理。是否继续？"
     override val hostAppDisableConfirmTitle = "确认停用代理接入"
-    override val hostAppDisableConfirmMessageRunning = "将停用 Antigravity App 的代理接入并重启恢复官方直连模式。是否继续？"
+    override val hostAppDisableConfirmMessageRunning =
+        "将停用 Antigravity App 的代理接入并重启恢复官方直连模式。是否继续？"
     override val hostAppDisableConfirmMessageStopped = "将停用 Antigravity App 的代理接入，恢复官方直连模式。是否继续？"
     override val hostAppUpdatedAndRestarted = "Antigravity App 代理配置已更新并完成重启"
     override val hostAppEnabledAndRestarted = "Antigravity App 已启用代理模式并完成重启"
@@ -1085,11 +1089,15 @@ object StringsZh : Strings {
     override val hostAppNotInstalled = "未检测到 Antigravity App 安装"
 
     override val hostCliUpdateConfirmTitle = "更新 Antigravity CLI 代理配置"
-    override fun hostCliUpdateConfirmMessage(endpoint: String, port: Int) = "检测到 CLI 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。更新后请完全退出并重新打开终端应用生效。是否继续？"
+    override fun hostCliUpdateConfirmMessage(endpoint: String, port: Int) =
+        "检测到 CLI 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。更新后请完全退出并重新打开终端应用生效。是否继续？"
+
     override val hostCliEnableConfirmTitle = "确认启用代理模式"
-    override val hostCliEnableConfirmMessage = "启用代理模式后会在用户环境中配置 CLOUD_CODE_URL；完全退出并重新打开终端应用后生效。是否继续？"
+    override val hostCliEnableConfirmMessage =
+        "启用代理模式后会在用户环境中配置 CLOUD_CODE_URL；完全退出并重新打开终端应用后生效。是否继续？"
     override val hostCliDisableConfirmTitle = "确认停用代理接入"
-    override val hostCliDisableConfirmMessage = "将停用 CLI 的代理接入并恢复官方直连模式；完全退出并重新打开终端应用后生效。是否继续？"
+    override val hostCliDisableConfirmMessage =
+        "将停用 CLI 的代理接入并恢复官方直连模式；完全退出并重新打开终端应用后生效。是否继续？"
     override val hostCliEnabledNotice = "CLI 已启用代理模式；请完全退出并重新打开终端应用"
     override val hostCliDisabledNotice = "CLI 代理接入已停用；请完全退出并重新打开终端应用"
     override val hostCliEnableFailed = "CLI 代理接入配置失败"
@@ -1098,10 +1106,14 @@ object StringsZh : Strings {
 
     override fun hostStartProxyFirstNotice(hostName: String) = "请先启动本地代理服务，再接入 $hostName"
     override fun hostForceResetConfirmTitle(hostName: String) = "强制重置 $hostName 为官方直连"
-    override fun hostForceResetConfirmMessage(hostName: String) = "此操作将清除 $hostName 的所有代理配置与环境变量，恢复为干净的官方直连模式。若应用正在运行将自动重启生效。是否确认重置？"
+    override fun hostForceResetConfirmMessage(hostName: String) =
+        "此操作将清除 $hostName 的所有代理配置与环境变量，恢复为干净的官方直连模式。若应用正在运行将自动重启生效。是否确认重置？"
+
     override fun hostForceResetSuccess(hostName: String) = "$hostName 已强制重置为官方直连模式"
     override fun hostRestartConfirmTitle(hostName: String) = "确认重启 $hostName"
-    override fun hostRestartConfirmMessage(hostName: String) = "确定要重启 $hostName 吗？重启将关闭当前运行中的实例并重新打开。是否继续？"
+    override fun hostRestartConfirmMessage(hostName: String) =
+        "确定要重启 $hostName 吗？重启将关闭当前运行中的实例并重新打开。是否继续？"
+
     override fun hostRestartSuccess(hostName: String) = "已重启 $hostName"
     override fun hostRestartFailed(hostName: String) = "重启 $hostName 失败"
     override fun hostLaunchSuccess(hostName: String) = "已打开 $hostName"
@@ -1109,7 +1121,8 @@ object StringsZh : Strings {
     override fun hostLaunchProxyNotRunning(hostName: String) = "当前 $hostName 已接入代理，请先启动本地代理服务"
 
     override fun hostPathDialogTitle(hostTitle: String) = "配置 $hostTitle 路径"
-    override val hostPathDialogDesc = "未检测到默认安装时，可在此指定安装目录（如 .app 目录、安装文件夹）或主可执行文件的绝对路径。"
+    override val hostPathDialogDesc =
+        "未检测到默认安装时，可在此指定安装目录（如 .app 目录、安装文件夹）或主可执行文件的绝对路径。"
     override val hostPathInputLabel = "安装目录或可执行文件路径"
     override val hostPathStatusValid = "路径已检测到并存在于文件系统中"
     override val hostPathStatusNotFound = "该路径在当前文件系统中不存在，请确认路径无误"
@@ -1166,7 +1179,9 @@ object StringsZh : Strings {
     override val modelsEditConfig = "编辑配置"
     override val modelsNoModelsHint = "该服务商尚未添加模型，点击「编辑配置」添加或拉取"
     override val modelsDeleteProviderConfirmTitle = "删除服务商"
-    override fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int) = "确定要删除服务商「$providerName」吗？该服务商下的 $modelCount 个模型配置将被一并删除。"
+    override fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int) =
+        "确定要删除服务商「$providerName」吗？该服务商下的 $modelCount 个模型配置将被一并删除。"
+
     override val modelsDeleteModelConfirmTitle = "删除模型"
     override fun modelsDeleteModelConfirmMessage(modelName: String) = "确定要删除模型「$modelName」吗？"
     override val modelsRawJsonTitle = "官方模型原始 JSON 数据"
@@ -1197,23 +1212,21 @@ object StringsZh : Strings {
     override fun modelsModelDeleteFailed(error: String) = "删除模型失败：$error"
     override fun modelsModelUpdated(name: String) = "已更新模型「$name」配置"
     override fun modelsModelUpdateFailed(error: String) = "更新模型失败：$error"
-    override val modelsFallbackCleared = "已清除备用模型 (Fallback)"
-    override val modelsFallbackSaved = "备用模型 (Fallback) 配置已保存"
-    override fun modelsFallbackSaveFailed(error: String) = "备用模型保存失败：$error"
     override fun modelsModelTestSuccess(modelName: String, latencyMs: Long) = "$modelName 测试成功 (${latencyMs}ms)"
     override fun modelsModelTestFailed(modelName: String, error: String) = "$modelName 测试失败: $error"
     override fun modelsBatchTestSuccess(passed: Int, total: Int) = "服务商测试完成：$passed/$total 项测试通过"
-    override fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int) = "服务商测试完成：$passed/$total 项通过，${failed} 项失败"
-    override fun modelsDeleteBlockers(blockerList: String) = "以下模型已将待删除模型设为备用模型：$blockerList"
+    override fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int) =
+        "服务商测试完成：$passed/$total 项通过，${failed} 项失败"
+
     override val modelsProviderNotFound = "模型关联的服务商不存在"
     override fun modelsVirtualModelNotFound(id: String) = "模型不存在：$id"
-    override val modelsFallbackSelfError = "模型不能将自身设置为备用模型 (Fallback)"
-    override val modelsNoFallback = "不使用备用模型"
     override val providerPresetCustomName = "自定义"
     override val providerPresetCustomDesc = "手动配置兼容 OpenAI、Anthropic 或 Google Gemini 协议的 API 服务"
 
     override val modelReasoningTitle = "深度思考与推理能力"
-    override val modelReasoningDesc = "该模型支持深度思考/推理模式。在与 IDE 对话协同开发时，模型可开启思考链，深入分析复杂逻辑与架构："
+    override val modelReasoningDesc =
+        "该模型支持深度思考/推理模式。在与 IDE 对话协同开发时，模型可开启思考链，深入分析复杂逻辑与架构："
+
     override fun modelReasoningLevel(level: String) = "档位: $level"
     override val modelReasoningHighDesc = "高预算思考 (适合极度复杂的算法与重构方案)"
     override val modelReasoningMediumDesc = "标准思考 (平衡推理深度与响应延迟)"
@@ -1258,12 +1271,20 @@ object StringsZh : Strings {
     override val policyLimitMustPositive = "会话上下文容量必须大于 0"
     override val policyThresholdMustPositive = "自动压缩点必须大于 0"
     override val policyReserveMustPositive = "输出预留必须大于 0"
-    override fun policyLimitExceedsContext(limit: String, context: String) = "会话上下文容量 ($limit) 不能超过模型上下文 ($context)"
+    override fun policyLimitExceedsContext(limit: String, context: String) =
+        "会话上下文容量 ($limit) 不能超过模型上下文 ($context)"
+
     override fun policyLimitExceedsSafeLimit(limit: String, safeLimit: String, context: String, reserve: String) =
         "会话容量 ($limit) 超过了最大安全上限 ($safeLimit) [计算公式: 模型上下文 $context - 输出预留 $reserve]"
-    override fun policyThresholdExceedsLimit(threshold: String, limit: String) = "自动压缩点 ($threshold) 必须小于会话上下文容量 ($limit)"
-    override fun policySumExceedsLimit(sum: String, limit: String) = "自动压缩点与输出预留之和 ($sum) 超过了会话上下文容量 ($limit)"
-    override val policyFormulaHint = "约束公式：触发压缩上限 (MaxTokenLimit) ≤ 模型上下文 (ContextWindow) - 最大输出预留 (OutputLimit)"
+
+    override fun policyThresholdExceedsLimit(threshold: String, limit: String) =
+        "自动压缩点 ($threshold) 必须小于会话上下文容量 ($limit)"
+
+    override fun policySumExceedsLimit(sum: String, limit: String) =
+        "自动压缩点与输出预留之和 ($sum) 超过了会话上下文容量 ($limit)"
+
+    override val policyFormulaHint =
+        "约束公式：触发压缩上限 (MaxTokenLimit) ≤ 模型上下文 (ContextWindow) - 最大输出预留 (OutputLimit)"
     override val policyFormulaHintDesc = "客户端要求输入上下文必须为模型生成预留足够空间，超出上限会导致对话异常中断。"
 
     override val reasoningDialogTitle = "配置深度思考"
@@ -1382,8 +1403,6 @@ object StringsZh : Strings {
     override val activityNoMatchingDesc = "尝试输入其他关键词或清除筛选条件"
     override val activityPassthrough = "官方直连"
     override val activityRouted = "三方路由"
-    override val activityFallback = "备用模型"
-    override val activityFallbackFailed = "备用模型调用失败"
     override val activitySearchPlaceholder = "搜索模型或服务商名称..."
     override val activityRecent = "最近日志"
     override val activityTotal = "总请求量"
@@ -1421,9 +1440,6 @@ object StringsZh : Strings {
     override val activityDetailTargetModel = "目标匹配模型"
     override val activityDetailRequestedModel = "原始请求模型"
     override val activityDetailProvider = "接入服务商"
-    override val activityDetailFallback = "备用模型 (Fallback)"
-    override val activityDetailFallbackSuccess = "已成功自动切换备用模型"
-    override val activityDetailFallbackFailed = "备用模型切换失败"
     override val activityDetailTokenSection = "Token 消耗明细"
     override val activityDetailPromptTokens = "输入 (Prompt)"
     override val activityDetailCompletionTokens = "输出 (Completion)"
@@ -1435,6 +1451,8 @@ object StringsZh : Strings {
     override val activityDetailCopyJson = "复制完整 JSON"
     override val activityDetailCopyError = "复制错误信息"
     override val activityDetailCopiedError = "已复制错误信息"
+    override val activityRetryCount = "重试次数"
+    override fun activityRetryBadge(count: Int) = "重试 $count 次"
 
     override val settingsTitle = "应用偏好与配置"
     override val settingsSubtitle = "管理语言、外观、代理端口与数据存储"
@@ -1480,8 +1498,10 @@ object StringsZh : Strings {
     override val settingsUnsupportedPlatform = "当前平台不支持直接打开文件夹"
     override fun settingsOpenDirFailed(error: String) = "打开配置目录失败：$error"
     override val settingsAbout = "关于 Antigravity Studio"
-    override val settingsAboutDescription = "基于 Kotlin Multiplatform 与 Compose Desktop 构建的 Antigravity 智能代理与模型接入中枢。"
-    override val settingsVersion = "Antigravity Studio v${com.yuzhiqiang.antigravity.update.model.AppVersion.CURRENT} · Kotlin Multiplatform & Compose Desktop"
+    override val settingsAboutDescription =
+        "基于 Kotlin Multiplatform 与 Compose Desktop 构建的 Antigravity 智能代理与模型接入中枢。"
+    override val settingsVersion =
+        "Antigravity Studio v${com.yuzhiqiang.antigravity.update.model.AppVersion.CURRENT} · Kotlin Multiplatform & Compose Desktop"
     override val settingsRepo = "开源仓库"
     override val settingsConfigDir = "配置目录"
     override val settingsOpenConfigDir = "打开数据与模型配置文件"
@@ -1494,7 +1514,9 @@ object StringsZh : Strings {
     override val updateChecking = "正在检查更新..."
     override val updateUpToDate = "当前已是最新版本"
     override val updateAvailableTitle = "发现新版本"
-    override fun updateAvailableSubtitle(version: String) = "Antigravity Studio $version 已发布，建议立即更新以获得更佳体验。"
+    override fun updateAvailableSubtitle(version: String) =
+        "Antigravity Studio $version 已发布，建议立即更新以获得更佳体验。"
+
     override val updateChangelogTitle = "更新日志"
     override val updateCurrentVersionLabel = "当前版本"
     override val updateLatestVersionLabel = "最新版本"
@@ -1504,7 +1526,9 @@ object StringsZh : Strings {
     override val updateIgnoredNotice = "已忽略此版本的后续启动提醒"
     override fun updateCheckFailed(error: String) = "检查更新失败：$error"
     override val updateNoChangelog = "暂无详细发布说明。"
-    override fun updateDownloadProgress(downloaded: String, total: String, percent: Int) = "$downloaded / $total ($percent%)"
+    override fun updateDownloadProgress(downloaded: String, total: String, percent: Int) =
+        "$downloaded / $total ($percent%)"
+
     override fun updateDownloadSpeed(speed: String) = "$speed/s"
     override val updateDownloading = "正在下载更新…"
     override val updateDownloadCompleted = "下载完成，正在打开安装器…"
@@ -1548,7 +1572,9 @@ object StringsZh : Strings {
     override val doctorBannerWarning = "部分配置需要处理"
     override val doctorBannerError = "检测到系统运行异常"
     override fun doctorBannerIssueCount(count: Int) = " • $count 项待处理"
-    override fun doctorBannerStats(total: Int, passed: Int, issues: Int) = "共 $total 项检测 • $passed 项正常" + if (issues > 0) " • $issues 项待处理" else ""
+    override fun doctorBannerStats(total: Int, passed: Int, issues: Int) =
+        "共 $total 项检测 • $passed 项正常" + if (issues > 0) " • $issues 项待处理" else ""
+
     override fun doctorCheckedAt(time: String) = "诊断于 $time"
     override val doctorCategoryProxy = "本地代理服务"
     override val doctorCategoryNetwork = "Google 官方服务连通性"
@@ -1584,7 +1610,8 @@ object StringsZh : Strings {
     override fun doctorCheckNetworkOkMsg(latencyMs: Long) = "官方 Cloud Code 服务通信正常（${latencyMs}ms）。"
     override val doctorCheckNetworkFailedTitle = "连接官方服务失败"
     override fun doctorCheckNetworkFailedMsg(error: String) = "无法连通 Google 官方服务：$error。"
-    override val doctorCheckNetworkFailedSugg = "请检查网络与代理配置；如直连正常但 Studio 仍失败，请重启 Studio 后重新检测。"
+    override val doctorCheckNetworkFailedSugg =
+        "请检查网络与代理配置；如直连正常但 Studio 仍失败，请重启 Studio 后重新检测。"
     override val doctorCheckNoProvidersTitle = "未配置或未启用任何服务商"
     override val doctorCheckNoProvidersMsg = "当前没有已启用的模型服务商，自定义模型请求将无法转发。"
     override val doctorCheckNoProvidersSugg = "前往「模型管理」添加服务商。"
@@ -1592,23 +1619,34 @@ object StringsZh : Strings {
     override val doctorCheckProviderNoModelsMsg = "该服务商已启用，但尚未添加任何可用模型。"
     override val doctorCheckProviderNoModelsSugg = "请在模型管理中配置可用模型。"
     override val doctorCheckIdeMismatchTitle = "Antigravity IDE 代理配置不匹配（待更新）"
-    override fun doctorCheckIdeMismatchMsg(current: String, targetPort: Int) = "检测到 settings.json 中代理配置为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致，可能导致请求失败。"
+    override fun doctorCheckIdeMismatchMsg(current: String, targetPort: Int) =
+        "检测到 settings.json 中代理配置为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致，可能导致请求失败。"
+
     override val doctorCheckIdeMismatchSugg = "点击一键修复将更新为当前端口并自动重启生效，或重置为官方直连模式。"
     override val doctorCheckIdeRunningSuffix = "（IDE 正在运行）"
     override val doctorCheckIdeOkTitle = "Antigravity IDE 代理接入正常"
-    override fun doctorCheckIdeOkMsg(port: Int, runningSuffix: String) = "settings.json 已正确配置为 http://127.0.0.1:$port $runningSuffix。"
+    override fun doctorCheckIdeOkMsg(port: Int, runningSuffix: String) =
+        "settings.json 已正确配置为 http://127.0.0.1:$port $runningSuffix。"
+
     override val doctorCheckIdeOfficialTitle = "Antigravity IDE 使用官方模式（未接入代理）"
-    override val doctorCheckIdeOfficialMsg = "当前直连 Google 官方服务，可正常使用。如需在 IDE 中使用自定义模型，可启用代理接入。"
+    override val doctorCheckIdeOfficialMsg =
+        "当前直连 Google 官方服务，可正常使用。如需在 IDE 中使用自定义模型，可启用代理接入。"
     override val doctorCheckAppMismatchTitle = "Antigravity App 代理环境变量不匹配（待更新）"
-    override fun doctorCheckAppMismatchMsg(current: String, targetPort: Int) = "检测到环境变量 CLOUD_CODE_URL 当前为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致。"
+    override fun doctorCheckAppMismatchMsg(current: String, targetPort: Int) =
+        "检测到环境变量 CLOUD_CODE_URL 当前为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致。"
+
     override val doctorCheckAppMismatchSugg = "点击一键修复将更新环境变量并重启 App 生效，或重置为官方模式。"
     override val doctorCheckAppRunningSuffix = "（App 正在运行）"
     override val doctorCheckAppOkTitle = "Antigravity App 代理接入正常"
-    override fun doctorCheckAppOkMsg(port: Int, runningSuffix: String) = "环境变量 CLOUD_CODE_URL 已正确配置为 http://127.0.0.1:$port $runningSuffix。"
+    override fun doctorCheckAppOkMsg(port: Int, runningSuffix: String) =
+        "环境变量 CLOUD_CODE_URL 已正确配置为 http://127.0.0.1:$port $runningSuffix。"
+
     override val doctorCheckAppOfficialTitle = "Antigravity App 使用官方模式（未接入代理）"
     override val doctorCheckAppOfficialMsg = "当前直连 Google 官方服务。如需在 App 中使用自定义模型，可启用代理接入。"
     override val doctorCheckCliMismatchTitle = "Antigravity CLI 代理配置不匹配（待更新）"
-    override fun doctorCheckCliMismatchMsg(current: String, targetPort: Int) = "检测到 CLI 代理配置为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致。"
+    override fun doctorCheckCliMismatchMsg(current: String, targetPort: Int) =
+        "检测到 CLI 代理配置为「$current」，与当前代理服务端口「http://127.0.0.1:$targetPort」不一致。"
+
     override val doctorCheckCliMismatchSugg = "点击一键修复更新为当前端口，或重置为官方模式。"
     override val doctorCheckCliOkTitle = "Antigravity CLI 代理接入正常"
     override fun doctorCheckCliOkMsg(port: Int) = "已在 CLI 配置文件中配置 cloud_code_url 为 http://127.0.0.1:$port。"
@@ -1689,7 +1727,9 @@ object StringsZh : Strings {
     override val smartSwitchTriggerReason429 = "遭遇 429 配额耗尽"
     override val smartSwitchTriggerReasonLowQuota = "配额低于阈值"
     override fun smartSwitchReasonTaskRunning(trigger: String) = "$trigger，但当前已有切号任务正在执行"
-    override fun smartSwitchReasonSuggestSwitch(trigger: String, email: String) = "$trigger，建议切换至 $email；请在账号管理中确认应用重启"
+    override fun smartSwitchReasonSuggestSwitch(trigger: String, email: String) =
+        "$trigger，建议切换至 $email；请在账号管理中确认应用重启"
+
     override val hotSwitchTaskAlreadyRunning = "已有账号切换任务正在执行，请稍后再试"
     override val hotSwitchIdeNotApplied = "IDE 账号尚未生效"
     override val hotSwitchNotAllTargetsApplied = "账号尚未在所有目标应用生效"
@@ -1757,7 +1797,9 @@ object StringsZh : Strings {
     override val accountsSortChipLabel = "按配额排序"
     override val accountsAddAccountTooltip = "添加单个 Refresh Token 或批量导入多个凭据"
     override val accountsRefreshAllTooltip = "立即并发刷新所有账号的最新配额数据"
-    override fun accountsAutoRefreshTooltip(activeSec: Int, bgMin: Int) = "配置配额自动刷新频率 (当前: 活跃账号 $activeSec 秒 / 后台账号 $bgMin 分钟)"
+    override fun accountsAutoRefreshTooltip(activeSec: Int, bgMin: Int) =
+        "配置配额自动刷新频率 (当前: 活跃账号 $activeSec 秒 / 后台账号 $bgMin 分钟)"
+
     override val accountsPrivacyHideTooltip = "开启隐私脱敏，隐藏邮箱敏感字符"
     override val accountsPrivacyShowTooltip = "关闭脱敏，显示完整邮箱地址"
     override val accountsExportTooltip = "导出账号凭据 (支持复制到剪贴板或保存为 JSON 文件)"
@@ -1770,7 +1812,9 @@ object StringsZh : Strings {
     override val accountsSmartSwitchTooltip = "配置配额不足或遇到 429 限流时的自动切号策略"
     override fun accountsSearchNoMatch(query: String) = "未找到与「$query」匹配的账号"
     override val accountsDeleteConfirmTitle = "删除账号"
-    override fun accountsDeleteConfirmMsg(email: String) = "确定要从 Studio 移除账号「$email」吗？移除后将停止自动刷新与配额监控。"
+    override fun accountsDeleteConfirmMsg(email: String) =
+        "确定要从 Studio 移除账号「$email」吗？移除后将停止自动刷新与配额监控。"
+
     override val accountsDeleteConfirmBtn = "确定删除"
 
     // Overview Screen & Hero Card
@@ -1780,7 +1824,9 @@ object StringsZh : Strings {
     override val overviewAvgLatency = "平均响应延迟"
     override val overviewRouteUpstreamStatus = "路由上游状态"
     override val overviewOfficialDirect = "官方默认直连"
-    override fun overviewCustomUpstreamSummary(providerCount: Int, modelCount: Int) = "$providerCount 个服务商 · $modelCount 个模型"
+    override fun overviewCustomUpstreamSummary(providerCount: Int, modelCount: Int) =
+        "$providerCount 个服务商 · $modelCount 个模型"
+
     override fun overviewSourceInUse(sources: String) = "$sources 正在使用"
     override val overviewActiveAccountBadge = "当前生效账号"
     override val overviewSyncingQuotas = "正在同步配额数据..."
@@ -1803,8 +1849,12 @@ object StringsZh : Strings {
     override fun noticeCleanAccountsSuccess(count: Int) = "已清理 $count 个异常/过期账号"
     override fun noticeCleanAccountsFailed(error: String) = "清理失败: $error"
     override fun noticeBatchImportSuccess(count: Int) = "成功批量导入 $count 个账号"
-    override fun noticeBatchImportPartial(successCount: Int, failedCount: Int) = "批量导入完成：成功 $successCount 个，已跳过 $failedCount 个无效 Token"
-    override fun noticeBatchImportFailedAll(failedCount: Int) = "批量导入失败：所有输入的 $failedCount 个 Token 均已失效或被撤销"
+    override fun noticeBatchImportPartial(successCount: Int, failedCount: Int) =
+        "批量导入完成：成功 $successCount 个，已跳过 $failedCount 个无效 Token"
+
+    override fun noticeBatchImportFailedAll(failedCount: Int) =
+        "批量导入失败：所有输入的 $failedCount 个 Token 均已失效或被撤销"
+
     override val noticeQuotasUpdatedAll = "已更新所有账号配额数据"
     override fun noticeQuotasUpdateFailedAll(error: String) = "配额刷新异常: $error"
     override val noticeQuotaRefreshedSingle = "已刷新账号配额"
@@ -1827,7 +1877,8 @@ object StringsZh : Strings {
     override val accountsAddFallbackManualHint = "若自动回调受阻，可将浏览器地址栏中的完整网址复制粘贴至下方："
     override val accountsAddFallbackManualPlaceholder = "http://127.0.0.1:41321/... 或授权码"
     override val accountsAddSubmit = "提交"
-    override val accountsAddTokenBatchDesc = "支持粘贴单个/多行 Refresh Token（每行一个）、Cockpit 导出的 JSON 数组，或直接选择备份文件。"
+    override val accountsAddTokenBatchDesc =
+        "支持粘贴单个/多行 Refresh Token（每行一个）、Cockpit 导出的 JSON 数组，或直接选择备份文件。"
     override val accountsAddImportJsonFile = "导入 JSON 文件"
     override val accountsAddPasteClipboard = "从剪贴板粘贴"
     override val accountsAddTokenPlaceholder = "粘贴 1//0g... 字符串（支持多行批量粘贴或 JSON 数组/对象）"
@@ -1891,8 +1942,10 @@ object StringsEn : Strings {
     override val accountsTokenHealthy = "Active"
     override val accountsExpiresIn = "expires in"
     override val accountsAddDialogTitle = "Add Google Account"
-    override val accountsAddDialogBrowserDesc = "Opens Google authorization in your default browser and automatically captures the token."
-    override val accountsAddDialogTokenDesc = "Paste a Google OAuth Refresh Token. Studio will fetch user profile and tokens automatically."
+    override val accountsAddDialogBrowserDesc =
+        "Opens Google authorization in your default browser and automatically captures the token."
+    override val accountsAddDialogTokenDesc =
+        "Paste a Google OAuth Refresh Token. Studio will fetch user profile and tokens automatically."
     override val accountsAddDialogTokenPlaceholder = "Paste Refresh Token (e.g. 1//0g...)"
     override val accountsWaitingBrowserAuth = "Waiting for browser authorization..."
     override val accountsAuthSuccess = "Account authorized successfully!"
@@ -1971,14 +2024,22 @@ object StringsEn : Strings {
     override val hostCliOfficialDirectDesc = "CLI currently in official direct mode"
 
     override val hostIdeUpdateConfirmTitle = "Update Antigravity IDE Proxy Config"
-    override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) = "Detected IDE proxy endpoint ($endpoint) differs from local proxy port ($port). Updating will restart IDE to apply changes. Continue?"
-    override fun hostIdeUpdateConfirmMessageStopped(endpoint: String, port: Int) = "Detected IDE proxy endpoint ($endpoint) differs from local proxy port ($port). Update to current proxy port?"
+    override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) =
+        "Detected IDE proxy endpoint ($endpoint) differs from local proxy port ($port). Updating will restart IDE to apply changes. Continue?"
+
+    override fun hostIdeUpdateConfirmMessageStopped(endpoint: String, port: Int) =
+        "Detected IDE proxy endpoint ($endpoint) differs from local proxy port ($port). Update to current proxy port?"
+
     override val hostIdeEnableConfirmTitle = "Enable Proxy Mode for IDE"
-    override val hostIdeEnableConfirmMessageRunning = "Enabling proxy mode will inject configured models and restart Antigravity IDE to apply changes. Continue?"
-    override val hostIdeEnableConfirmMessageStopped = "Enabling proxy mode will configure Antigravity IDE to connect to the local proxy when started. Continue?"
+    override val hostIdeEnableConfirmMessageRunning =
+        "Enabling proxy mode will inject configured models and restart Antigravity IDE to apply changes. Continue?"
+    override val hostIdeEnableConfirmMessageStopped =
+        "Enabling proxy mode will configure Antigravity IDE to connect to the local proxy when started. Continue?"
     override val hostIdeDisableConfirmTitle = "Disable Proxy Mode for IDE"
-    override val hostIdeDisableConfirmMessageRunning = "Disabling proxy mode will restore official direct connection and restart Antigravity IDE. Continue?"
-    override val hostIdeDisableConfirmMessageStopped = "Disabling proxy mode will restore official direct connection for Antigravity IDE. Continue?"
+    override val hostIdeDisableConfirmMessageRunning =
+        "Disabling proxy mode will restore official direct connection and restart Antigravity IDE. Continue?"
+    override val hostIdeDisableConfirmMessageStopped =
+        "Disabling proxy mode will restore official direct connection for Antigravity IDE. Continue?"
     override val hostIdeUpdatedAndRestarted = "Antigravity IDE proxy config updated and restarted"
     override val hostIdeEnabledAndRestarted = "Antigravity IDE proxy mode enabled and restarted"
     override val hostIdeEnabledPendingStart = "Antigravity IDE proxy mode enabled; will apply on launch"
@@ -1989,14 +2050,22 @@ object StringsEn : Strings {
     override val hostIdeDisableFailed = "Failed to disable proxy integration for Antigravity IDE"
 
     override val hostAppUpdateConfirmTitle = "Update Antigravity App Proxy Config"
-    override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) = "Detected App proxy environment ($endpoint) differs from local proxy port ($port). Updating will restart App to apply changes. Continue?"
-    override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) = "Detected App proxy environment ($endpoint) differs from local proxy port ($port). Update to current proxy port?"
+    override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) =
+        "Detected App proxy environment ($endpoint) differs from local proxy port ($port). Updating will restart App to apply changes. Continue?"
+
+    override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) =
+        "Detected App proxy environment ($endpoint) differs from local proxy port ($port). Update to current proxy port?"
+
     override val hostAppEnableConfirmTitle = "Enable Proxy Mode for App"
-    override val hostAppEnableConfirmMessageRunning = "Enabling proxy mode will inject configured models and restart Antigravity App to apply changes. Continue?"
-    override val hostAppEnableConfirmMessageStopped = "Enabling proxy mode will configure Antigravity App to connect to the local proxy when started. Continue?"
+    override val hostAppEnableConfirmMessageRunning =
+        "Enabling proxy mode will inject configured models and restart Antigravity App to apply changes. Continue?"
+    override val hostAppEnableConfirmMessageStopped =
+        "Enabling proxy mode will configure Antigravity App to connect to the local proxy when started. Continue?"
     override val hostAppDisableConfirmTitle = "Disable Proxy Mode for App"
-    override val hostAppDisableConfirmMessageRunning = "Disabling proxy mode will restore official direct connection and restart Antigravity App. Continue?"
-    override val hostAppDisableConfirmMessageStopped = "Disabling proxy mode will restore official direct connection for Antigravity App. Continue?"
+    override val hostAppDisableConfirmMessageRunning =
+        "Disabling proxy mode will restore official direct connection and restart Antigravity App. Continue?"
+    override val hostAppDisableConfirmMessageStopped =
+        "Disabling proxy mode will restore official direct connection for Antigravity App. Continue?"
     override val hostAppUpdatedAndRestarted = "Antigravity App proxy config updated and restarted"
     override val hostAppEnabledAndRestarted = "Antigravity App proxy mode enabled and restarted"
     override val hostAppEnabledPendingStart = "Antigravity App proxy mode enabled; will apply on launch"
@@ -2008,35 +2077,48 @@ object StringsEn : Strings {
     override val hostAppNotInstalled = "Antigravity App not detected"
 
     override val hostCliUpdateConfirmTitle = "Update Antigravity CLI Proxy Config"
-    override fun hostCliUpdateConfirmMessage(endpoint: String, port: Int) = "Detected CLI proxy config ($endpoint) differs from local proxy port ($port). Please restart your terminal application after updating. Continue?"
+    override fun hostCliUpdateConfirmMessage(endpoint: String, port: Int) =
+        "Detected CLI proxy config ($endpoint) differs from local proxy port ($port). Please restart your terminal application after updating. Continue?"
+
     override val hostCliEnableConfirmTitle = "Enable Proxy Mode for CLI"
-    override val hostCliEnableConfirmMessage = "Enabling proxy mode will configure CLOUD_CODE_URL in your user environment; restart your terminal to apply. Continue?"
+    override val hostCliEnableConfirmMessage =
+        "Enabling proxy mode will configure CLOUD_CODE_URL in your user environment; restart your terminal to apply. Continue?"
     override val hostCliDisableConfirmTitle = "Disable Proxy Mode for CLI"
-    override val hostCliDisableConfirmMessage = "Disabling proxy mode will restore official direct connection; restart your terminal to apply. Continue?"
+    override val hostCliDisableConfirmMessage =
+        "Disabling proxy mode will restore official direct connection; restart your terminal to apply. Continue?"
     override val hostCliEnabledNotice = "CLI proxy mode enabled; please restart your terminal application"
     override val hostCliDisabledNotice = "CLI proxy mode disabled; please restart your terminal application"
     override val hostCliEnableFailed = "Failed to configure CLI proxy integration"
     override val hostCliDisableFailed = "Failed to disable CLI proxy integration"
     override val hostCliNotInstalled = "agy CLI not detected"
 
-    override fun hostStartProxyFirstNotice(hostName: String) = "Please start the local proxy server before integrating with $hostName"
+    override fun hostStartProxyFirstNotice(hostName: String) =
+        "Please start the local proxy server before integrating with $hostName"
+
     override fun hostForceResetConfirmTitle(hostName: String) = "Force Reset $hostName to Official Mode"
-    override fun hostForceResetConfirmMessage(hostName: String) = "This will forcefully clear all proxy settings, environment variables and receipts for $hostName to restore clean official direct mode. The application will be restarted if running. Continue?"
+    override fun hostForceResetConfirmMessage(hostName: String) =
+        "This will forcefully clear all proxy settings, environment variables and receipts for $hostName to restore clean official direct mode. The application will be restarted if running. Continue?"
+
     override fun hostForceResetSuccess(hostName: String) = "$hostName has been reset to official direct mode"
     override fun hostRestartConfirmTitle(hostName: String) = "Confirm Restart $hostName"
-    override fun hostRestartConfirmMessage(hostName: String) = "Are you sure you want to restart $hostName? This will close running instances and launch a new process. Continue?"
+    override fun hostRestartConfirmMessage(hostName: String) =
+        "Are you sure you want to restart $hostName? This will close running instances and launch a new process. Continue?"
+
     override fun hostRestartSuccess(hostName: String) = "Restarted $hostName"
     override fun hostRestartFailed(hostName: String) = "Failed to restart $hostName"
     override fun hostLaunchSuccess(hostName: String) = "Launched $hostName"
     override fun hostLaunchFailed(hostName: String) = "Failed to launch $hostName"
-    override fun hostLaunchProxyNotRunning(hostName: String) = "$hostName is configured for proxy mode; please start the local proxy first"
+    override fun hostLaunchProxyNotRunning(hostName: String) =
+        "$hostName is configured for proxy mode; please start the local proxy first"
 
     override fun hostPathDialogTitle(hostTitle: String) = "Configure $hostTitle Path"
-    override val hostPathDialogDesc = "When auto-detection fails, enter the custom installation directory (e.g. .app bundle or install folder) or main executable path."
+    override val hostPathDialogDesc =
+        "When auto-detection fails, enter the custom installation directory (e.g. .app bundle or install folder) or main executable path."
     override val hostPathInputLabel = "Installation Directory or Executable Path"
     override val hostPathStatusValid = "Path detected and exists on filesystem"
     override val hostPathStatusNotFound = "Path does not exist on filesystem; please check the path"
-    override val hostPathStatusEmpty = "Leaving empty and saving will clear custom configuration and restore system auto-detection."
+    override val hostPathStatusEmpty =
+        "Leaving empty and saving will clear custom configuration and restore system auto-detection."
     override val hostPathResetDefault = "Reset to Default"
     override val hostPathSavedCustom = "Custom path configured; re-scanning host"
     override val hostPathResetNotice = "Reset to default auto-detection path"
@@ -2045,7 +2127,8 @@ object StringsEn : Strings {
     override val hostPathSelectFile = "Browse"
 
     override val modelsTitle = "Models"
-    override val modelsSubtitle = "Orchestrate Google official models & custom BYOK upstream providers with context compression and reasoning budgets"
+    override val modelsSubtitle =
+        "Orchestrate Google official models & custom BYOK upstream providers with context compression and reasoning budgets"
     override val modelsOfficialTab = "Official"
     override val modelsCustomTab = "Custom Services"
     override val modelsOfficialTitle = "Official Native Models"
@@ -2089,9 +2172,13 @@ object StringsEn : Strings {
     override val modelsEditConfig = "Edit Config"
     override val modelsNoModelsHint = "No models configured for this provider. Click Edit Config to add or fetch."
     override val modelsDeleteProviderConfirmTitle = "Delete Provider"
-    override fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int) = "Are you sure you want to delete provider \"$providerName\"? All $modelCount associated models will be removed."
+    override fun modelsDeleteProviderConfirmMessage(providerName: String, modelCount: Int) =
+        "Are you sure you want to delete provider \"$providerName\"? All $modelCount associated models will be removed."
+
     override val modelsDeleteModelConfirmTitle = "Delete Model"
-    override fun modelsDeleteModelConfirmMessage(modelName: String) = "Are you sure you want to delete model \"$modelName\"?"
+    override fun modelsDeleteModelConfirmMessage(modelName: String) =
+        "Are you sure you want to delete model \"$modelName\"?"
+
     override val modelsRawJsonTitle = "Official Models Raw JSON Data"
     override val modelsModifiedJsonTitle = "Modified Official Models (Injected to IDE) JSON Data"
     override val modelsJsonData = "JSON Data"
@@ -2120,30 +2207,31 @@ object StringsEn : Strings {
     override fun modelsModelDeleteFailed(error: String) = "Failed to delete model: $error"
     override fun modelsModelUpdated(name: String) = "Updated model \"$name\" configuration"
     override fun modelsModelUpdateFailed(error: String) = "Failed to update model: $error"
-    override val modelsFallbackCleared = "Fallback cleared"
-    override val modelsFallbackSaved = "Fallback configuration saved"
-    override fun modelsFallbackSaveFailed(error: String) = "Failed to save fallback: $error"
-    override fun modelsModelTestSuccess(modelName: String, latencyMs: Long) = "$modelName test succeeded (${latencyMs}ms)"
+    override fun modelsModelTestSuccess(modelName: String, latencyMs: Long) =
+        "$modelName test succeeded (${latencyMs}ms)"
+
     override fun modelsModelTestFailed(modelName: String, error: String) = "$modelName test failed: $error"
     override fun modelsBatchTestSuccess(passed: Int, total: Int) = "Provider test complete: $passed/$total tests passed"
-    override fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int) = "Provider test complete: $passed/$total passed, $failed failed"
-    override fun modelsDeleteBlockers(blockerList: String) = "The following models still reference this model as a fallback route: $blockerList"
+    override fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int) =
+        "Provider test complete: $passed/$total passed, $failed failed"
+
     override val modelsProviderNotFound = "Associated provider not found for this model"
     override fun modelsVirtualModelNotFound(id: String) = "VirtualModel not found: $id"
-    override val modelsFallbackSelfError = "A model cannot set itself as a fallback route"
-    override val modelsNoFallback = "No fallback"
     override val providerPresetCustomName = "Custom"
     override val providerPresetCustomDesc = "Manually configure any OpenAI-compatible, Anthropic or Gemini service"
 
     override val modelReasoningTitle = "Deep Thinking & Reasoning"
-    override val modelReasoningDesc = "This model supports deep thinking / reasoning chains. During collaborative sessions with the IDE, the model can reason through complex architecture and logic:"
+    override val modelReasoningDesc =
+        "This model supports deep thinking / reasoning chains. During collaborative sessions with the IDE, the model can reason through complex architecture and logic:"
+
     override fun modelReasoningLevel(level: String) = "Level: $level"
     override val modelReasoningHighDesc = "High budget thinking (Best for complex algorithms & large refactoring)"
     override val modelReasoningMediumDesc = "Standard thinking (Balanced reasoning depth and latency)"
     override val modelReasoningLowDesc = "Lightweight thinking (Fast response with concise reasoning)"
     override val modelReasoningAdaptiveDesc = "Native adaptive deep thinking"
     override val modelVisionTitle = "Multimodal Input Support"
-    override val modelVisionDesc = "Multimodal capability enables direct analysis of visual screenshots, design assets, diagrams and code references:"
+    override val modelVisionDesc =
+        "Multimodal capability enables direct analysis of visual screenshots, design assets, diagrams and code references:"
     override val modelVisionImageTitle = "Image Analysis (Vision)"
     override val modelVisionImageDesc = "Upload PNG / JPEG / WEBP designs and UI error screenshots for direct analysis"
     override val modelVisionDocTitle = "Document Understanding"
@@ -2162,8 +2250,10 @@ object StringsEn : Strings {
     override val policyPresetCustom = "Custom"
     override val policyRecommended = "Recommended"
     override val policyDefaultDesc = "No custom override; follows native Checkpointer policy from official catalog."
-    override val policyCustomDesc = "Click percentages for quick setup or enter exact token numbers for fine-tuned control."
-    override val policyPresetDesc = "Choose a context limit tier: fixed presets are ready to use, or switch to custom policy."
+    override val policyCustomDesc =
+        "Click percentages for quick setup or enter exact token numbers for fine-tuned control."
+    override val policyPresetDesc =
+        "Choose a context limit tier: fixed presets are ready to use, or switch to custom policy."
     override val policyCompressorModel = "Compression Execution Model"
     override val policyFollowCurrent = "Follow Current Model"
     override val policyOfficialDefault = "Official Default"
@@ -2181,13 +2271,22 @@ object StringsEn : Strings {
     override val policyLimitMustPositive = "Context capacity must be greater than 0"
     override val policyThresholdMustPositive = "Auto checkpoint must be greater than 0"
     override val policyReserveMustPositive = "Output reserve must be greater than 0"
-    override fun policyLimitExceedsContext(limit: String, context: String) = "Context capacity ($limit) cannot exceed model context ($context)"
+    override fun policyLimitExceedsContext(limit: String, context: String) =
+        "Context capacity ($limit) cannot exceed model context ($context)"
+
     override fun policyLimitExceedsSafeLimit(limit: String, safeLimit: String, context: String, reserve: String) =
         "Context capacity ($limit) exceeds safe limit ($safeLimit) [Formula: Model Context $context - Output Reserve $reserve]"
-    override fun policyThresholdExceedsLimit(threshold: String, limit: String) = "Auto checkpoint ($threshold) must be less than context capacity ($limit)"
-    override fun policySumExceedsLimit(sum: String, limit: String) = "Sum of checkpoint and reserve ($sum) exceeds context capacity ($limit)"
-    override val policyFormulaHint = "Constraint: Trigger Limit (MaxTokenLimit) ≤ Model Context (ContextWindow) - Max Output (OutputLimit)"
-    override val policyFormulaHintDesc = "The client strictly requires reserving output headroom for model responses, otherwise conversations fail immediately."
+
+    override fun policyThresholdExceedsLimit(threshold: String, limit: String) =
+        "Auto checkpoint ($threshold) must be less than context capacity ($limit)"
+
+    override fun policySumExceedsLimit(sum: String, limit: String) =
+        "Sum of checkpoint and reserve ($sum) exceeds context capacity ($limit)"
+
+    override val policyFormulaHint =
+        "Constraint: Trigger Limit (MaxTokenLimit) ≤ Model Context (ContextWindow) - Max Output (OutputLimit)"
+    override val policyFormulaHintDesc =
+        "The client strictly requires reserving output headroom for model responses, otherwise conversations fail immediately."
 
     override val reasoningDialogTitle = "Configure Deep Thinking"
     override val reasoningEnableTitle = "Enable Deep Thinking (Reasoning)"
@@ -2207,8 +2306,12 @@ object StringsEn : Strings {
     override val reasoningMinBudgetMustPositive = "Minimum thinking budget must be greater than 0"
     override val reasoningMinBudgetExceedsBudget = "Minimum thinking budget cannot exceed thinking budget"
     override val reasoningOnlyGeminiSupportsBudget = "Only Gemini protocol supports model-level thinking budget"
-    override val reasoningCustomValueInvalid = "Custom reasoning value does not conform to protocol or output constraints"
-    override fun reasoningLevelInvalid(level: String) = "Reasoning level $level does not conform to protocol or output constraints"
+    override val reasoningCustomValueInvalid =
+        "Custom reasoning value does not conform to protocol or output constraints"
+
+    override fun reasoningLevelInvalid(level: String) =
+        "Reasoning level $level does not conform to protocol or output constraints"
+
     override val reasoningSelectAtLeastOne = "Please select at least one reasoning level or specify a thinking budget"
 
     override val providerPresetCategoryAll = "All"
@@ -2282,7 +2385,8 @@ object StringsEn : Strings {
     override val providerFetchFailedCheckUrlKey = "Failed to fetch model catalog. Please check Base URL and API Key"
     override fun providerFetchFailedWithError(error: String) = "Failed to fetch models: $error"
     override val providerDiscardConfirmTitle = "Discard unsaved changes?"
-    override val providerDiscardConfirmMessage = "The provider configuration has not been saved. Changes will be lost upon exit."
+    override val providerDiscardConfirmMessage =
+        "The provider configuration has not been saved. Changes will be lost upon exit."
     override val providerSkipFetchManualAdd = "Skip fetch, add models manually"
     override val providerAddNewModel = "Add Model"
     override val providerManualAddModelTitle = "Manually Add Custom Model"
@@ -2300,13 +2404,12 @@ object StringsEn : Strings {
     override val activityFilterFailed = "Failed Only"
     override val activityClear = "Clear Logs"
     override val activityEmpty = "No activity recorded"
-    override val activityEmptyDesc = "When Antigravity routes requests through the proxy, detailed logs will appear here in real-time"
+    override val activityEmptyDesc =
+        "When Antigravity routes requests through the proxy, detailed logs will appear here in real-time"
     override val activityNoMatchingLogs = "No matching logs found"
     override val activityNoMatchingDesc = "Try searching with different keywords or clearing active filters"
     override val activityPassthrough = "Official Passthrough"
     override val activityRouted = "Custom Route"
-    override val activityFallback = "Fallback Route"
-    override val activityFallbackFailed = "Fallback Failed"
     override val activitySearchPlaceholder = "Search model or provider"
     override val activityRecent = "Recent logs"
     override val activityTotal = "Total requests"
@@ -2344,9 +2447,6 @@ object StringsEn : Strings {
     override val activityDetailTargetModel = "Target Model"
     override val activityDetailRequestedModel = "Requested Model"
     override val activityDetailProvider = "Upstream Provider"
-    override val activityDetailFallback = "Fallback Routing"
-    override val activityDetailFallbackSuccess = "Successfully routed via fallback"
-    override val activityDetailFallbackFailed = "Fallback routing failed"
     override val activityDetailTokenSection = "Token Usage Metrics (Unmasked)"
     override val activityDetailPromptTokens = "Prompt Tokens"
     override val activityDetailCompletionTokens = "Completion Tokens"
@@ -2358,6 +2458,8 @@ object StringsEn : Strings {
     override val activityDetailCopyJson = "Copy Full JSON"
     override val activityDetailCopyError = "Copy Error Message"
     override val activityDetailCopiedError = "Error message copied to clipboard"
+    override val activityRetryCount = "Retry Count"
+    override fun activityRetryBadge(count: Int) = "Retry ×$count"
 
     override val settingsTitle = "Preferences & Settings"
     override val settingsSubtitle = "Manage language, appearance, proxy port and storage"
@@ -2403,8 +2505,10 @@ object StringsEn : Strings {
     override val settingsUnsupportedPlatform = "Opening folder is not supported on this platform"
     override fun settingsOpenDirFailed(error: String) = "Failed to open config directory: $error"
     override val settingsAbout = "About Antigravity Studio"
-    override val settingsAboutDescription = "A local model access tool built with Kotlin Multiplatform and Compose Desktop."
-    override val settingsVersion = "Antigravity Studio v${com.yuzhiqiang.antigravity.update.model.AppVersion.CURRENT} · Kotlin Multiplatform & Compose Desktop"
+    override val settingsAboutDescription =
+        "A local model access tool built with Kotlin Multiplatform and Compose Desktop."
+    override val settingsVersion =
+        "Antigravity Studio v${com.yuzhiqiang.antigravity.update.model.AppVersion.CURRENT} · Kotlin Multiplatform & Compose Desktop"
     override val settingsRepo = "GitHub Repository"
     override val settingsConfigDir = "Config Directory"
     override val settingsOpenConfigDir = "Open data and model configuration files"
@@ -2417,7 +2521,9 @@ object StringsEn : Strings {
     override val updateChecking = "Checking for updates..."
     override val updateUpToDate = "You are up to date"
     override val updateAvailableTitle = "Update Available"
-    override fun updateAvailableSubtitle(version: String) = "Antigravity Studio $version is now available. We recommend updating for the best experience."
+    override fun updateAvailableSubtitle(version: String) =
+        "Antigravity Studio $version is now available. We recommend updating for the best experience."
+
     override val updateChangelogTitle = "Release Notes"
     override val updateCurrentVersionLabel = "Current Version"
     override val updateLatestVersionLabel = "Latest Version"
@@ -2427,7 +2533,9 @@ object StringsEn : Strings {
     override val updateIgnoredNotice = "This version will be skipped in future startup checks"
     override fun updateCheckFailed(error: String) = "Failed to check for updates: $error"
     override val updateNoChangelog = "No release notes provided."
-    override fun updateDownloadProgress(downloaded: String, total: String, percent: Int) = "$downloaded / $total ($percent%)"
+    override fun updateDownloadProgress(downloaded: String, total: String, percent: Int) =
+        "$downloaded / $total ($percent%)"
+
     override fun updateDownloadSpeed(speed: String) = "$speed/s"
     override val updateDownloading = "Downloading update…"
     override val updateDownloadCompleted = "Download complete. Opening installer…"
@@ -2438,7 +2546,8 @@ object StringsEn : Strings {
     override val updateOpenInBrowser = "Download in Browser"
     override val updateCancelDownload = "Cancel"
     override val settingsAutoCheckUpdate = "Check for updates on startup"
-    override val settingsAutoCheckUpdateDesc = "Silently check for new versions on startup and notify when updates are available"
+    override val settingsAutoCheckUpdateDesc =
+        "Silently check for new versions on startup and notify when updates are available"
     override val settingsCheckUpdateBtn = "Check Updates"
     override val settingsCheckingUpdate = "Checking..."
     override val settingsLatestVersionBadge = "Latest"
@@ -2471,7 +2580,9 @@ object StringsEn : Strings {
     override val doctorBannerWarning = "Some configurations need attention"
     override val doctorBannerError = "System issues detected"
     override fun doctorBannerIssueCount(count: Int) = " • $count issue(s) pending"
-    override fun doctorBannerStats(total: Int, passed: Int, issues: Int) = "Total $total checks • $passed healthy" + if (issues > 0) " • $issues pending" else ""
+    override fun doctorBannerStats(total: Int, passed: Int, issues: Int) =
+        "Total $total checks • $passed healthy" + if (issues > 0) " • $issues pending" else ""
+
     override fun doctorCheckedAt(time: String) = "Checked at $time"
     override val doctorCategoryProxy = "Local Proxy Server"
     override val doctorCategoryNetwork = "Official Service Connectivity"
@@ -2496,18 +2607,23 @@ object StringsEn : Strings {
     override val doctorAutoFixFailed = "Auto-fix failed; please check manually"
 
     override val doctorCheckProxyStoppedTitle = "Local proxy server is not running"
-    override fun doctorCheckProxyStoppedMsg(port: Int) = "The proxy server is stopped and cannot intercept requests (configured port: $port)."
+    override fun doctorCheckProxyStoppedMsg(port: Int) =
+        "The proxy server is stopped and cannot intercept requests (configured port: $port)."
+
     override val doctorCheckProxyStoppedSugg = "Please start the local proxy server."
     override val doctorCheckProxyOkTitle = "Local proxy server is running"
     override fun doctorCheckProxyOkMsg(port: Int) = "Proxy is ready and listening on http://127.0.0.1:$port."
     override val doctorCheckProxyUnreachableTitle = "Local proxy endpoint unreachable"
-    override fun doctorCheckProxyUnreachableMsg(port: Int) = "Cannot connect to 127.0.0.1:$port; check port conflicts or permissions."
+    override fun doctorCheckProxyUnreachableMsg(port: Int) =
+        "Cannot connect to 127.0.0.1:$port; check port conflicts or permissions."
+
     override val doctorCheckProxyUnreachableSugg = "Try restarting the proxy server."
     override val doctorCheckNetworkOkTitle = "Official service connectivity"
     override fun doctorCheckNetworkOkMsg(latencyMs: Long) = "Google Cloud Code service is reachable (${latencyMs}ms)."
     override val doctorCheckNetworkFailedTitle = "Failed to connect to official service"
     override fun doctorCheckNetworkFailedMsg(error: String) = "Cannot reach Google official services: $error."
-    override val doctorCheckNetworkFailedSugg = "Check network and proxy settings; restart Studio if direct connection works."
+    override val doctorCheckNetworkFailedSugg =
+        "Check network and proxy settings; restart Studio if direct connection works."
     override val doctorCheckNoProvidersTitle = "No model providers configured or enabled"
     override val doctorCheckNoProvidersMsg = "No active providers; all custom model requests will be blocked."
     override val doctorCheckNoProvidersSugg = "Go to Models screen to add a provider."
@@ -2515,36 +2631,60 @@ object StringsEn : Strings {
     override val doctorCheckProviderNoModelsMsg = "This provider is enabled but has no upstream models associated."
     override val doctorCheckProviderNoModelsSugg = "Configure upstream models in Models screen."
     override val doctorCheckIdeMismatchTitle = "Antigravity IDE proxy config mismatch (Needs update)"
-    override fun doctorCheckIdeMismatchMsg(current: String, targetPort: Int) = "Detected settings.json proxy is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
-    override val doctorCheckIdeMismatchSugg = "Click auto-fix to update to current port and restart IDE, or reset to official mode."
+    override fun doctorCheckIdeMismatchMsg(current: String, targetPort: Int) =
+        "Detected settings.json proxy is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
+
+    override val doctorCheckIdeMismatchSugg =
+        "Click auto-fix to update to current port and restart IDE, or reset to official mode."
     override val doctorCheckIdeRunningSuffix = "(IDE is running)"
     override val doctorCheckIdeOkTitle = "Antigravity IDE proxy integration is active"
-    override fun doctorCheckIdeOkMsg(port: Int, runningSuffix: String) = "settings.json is properly configured to http://127.0.0.1:$port $runningSuffix."
+    override fun doctorCheckIdeOkMsg(port: Int, runningSuffix: String) =
+        "settings.json is properly configured to http://127.0.0.1:$port $runningSuffix."
+
     override val doctorCheckIdeOfficialTitle = "Antigravity IDE is in official mode (No proxy)"
-    override val doctorCheckIdeOfficialMsg = "Directly connected to Google official service. Enable proxy integration to use custom models in IDE."
+    override val doctorCheckIdeOfficialMsg =
+        "Directly connected to Google official service. Enable proxy integration to use custom models in IDE."
     override val doctorCheckAppMismatchTitle = "Antigravity App proxy environment mismatch (Needs update)"
-    override fun doctorCheckAppMismatchMsg(current: String, targetPort: Int) = "Detected CLOUD_CODE_URL is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
-    override val doctorCheckAppMismatchSugg = "Click auto-fix to update environment variable and restart App, or reset to official mode."
+    override fun doctorCheckAppMismatchMsg(current: String, targetPort: Int) =
+        "Detected CLOUD_CODE_URL is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
+
+    override val doctorCheckAppMismatchSugg =
+        "Click auto-fix to update environment variable and restart App, or reset to official mode."
     override val doctorCheckAppRunningSuffix = "(App is running)"
     override val doctorCheckAppOkTitle = "Antigravity App proxy integration is active"
-    override fun doctorCheckAppOkMsg(port: Int, runningSuffix: String) = "CLOUD_CODE_URL is properly configured to http://127.0.0.1:$port $runningSuffix."
+    override fun doctorCheckAppOkMsg(port: Int, runningSuffix: String) =
+        "CLOUD_CODE_URL is properly configured to http://127.0.0.1:$port $runningSuffix."
+
     override val doctorCheckAppOfficialTitle = "Antigravity App is in official mode (No proxy)"
-    override val doctorCheckAppOfficialMsg = "Directly connected to Google official service. Enable proxy integration to use custom models in App."
+    override val doctorCheckAppOfficialMsg =
+        "Directly connected to Google official service. Enable proxy integration to use custom models in App."
     override val doctorCheckCliMismatchTitle = "Antigravity CLI proxy config mismatch (Needs update)"
-    override fun doctorCheckCliMismatchMsg(current: String, targetPort: Int) = "Detected CLI proxy is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
+    override fun doctorCheckCliMismatchMsg(current: String, targetPort: Int) =
+        "Detected CLI proxy is \"$current\", which differs from local proxy port \"http://127.0.0.1:$targetPort\"."
+
     override val doctorCheckCliMismatchSugg = "Click auto-fix to update to current port, or reset to official mode."
     override val doctorCheckCliOkTitle = "Antigravity CLI proxy integration is active"
-    override fun doctorCheckCliOkMsg(port: Int) = "cloud_code_url in CLI config is properly configured to http://127.0.0.1:$port."
+    override fun doctorCheckCliOkMsg(port: Int) =
+        "cloud_code_url in CLI config is properly configured to http://127.0.0.1:$port."
+
     override val doctorCheckCliOfficialTitle = "Antigravity CLI is in official mode (No proxy)"
     override val doctorCheckCliOfficialMsg = "CLI is currently in official direct mode."
     override fun doctorCheckProviderInvalidModelsTitle(provider: String) = "Provider \"$provider\" has invalid models"
-    override fun doctorCheckProviderInvalidModelsMsg(models: String) = "Upstream does not provide the following models: $models."
+    override fun doctorCheckProviderInvalidModelsMsg(models: String) =
+        "Upstream does not provide the following models: $models."
+
     override val doctorCheckProviderInvalidModelsSugg = "Prune invalid models to avoid request errors."
     override fun doctorCheckProviderOkTitle(provider: String) = "Provider \"$provider\" connected successfully"
-    override fun doctorCheckProviderOkMsg(count: Int) = "Authentication verified; all $count models are available in upstream catalog."
-    override fun doctorCheckProviderUnverifiedTitle(provider: String) = "Provider \"$provider\" reachable but catalog unverified"
-    override val doctorCheckProviderUnverifiedMsg = "Connected to upstream, but endpoint returned no parseable model catalog."
-    override val doctorCheckProviderUnverifiedSugg = "Verify models endpoint configuration and check model IDs manually."
+    override fun doctorCheckProviderOkMsg(count: Int) =
+        "Authentication verified; all $count models are available in upstream catalog."
+
+    override fun doctorCheckProviderUnverifiedTitle(provider: String) =
+        "Provider \"$provider\" reachable but catalog unverified"
+
+    override val doctorCheckProviderUnverifiedMsg =
+        "Connected to upstream, but endpoint returned no parseable model catalog."
+    override val doctorCheckProviderUnverifiedSugg =
+        "Verify models endpoint configuration and check model IDs manually."
 
     override val commonSave = "Save"
     override val commonCancel = "Cancel"
@@ -2581,7 +2721,8 @@ object StringsEn : Strings {
     override val accountsSwitchStatusAppRunning = "App is running · Will safely exit and restart"
     override val accountsSwitchStatusAppStopped = "App is stopped · Will inject credentials and launch"
     override val accountsSwitchStatusCliOnly = "App not installed · Syncs ~/.gemini/ credentials for CLI"
-    override val accountsSwitchStatusNone = "No client detected · Only updates Studio active account and shared credentials"
+    override val accountsSwitchStatusNone =
+        "No client detected · Only updates Studio active account and shared credentials"
     override val accountsSwitchRememberChoice = "Remember selection"
     override val accountsSwitching = "Switching..."
     override val accountsSwitchConfirmRestart = "Confirm & Restart"
@@ -2592,7 +2733,8 @@ object StringsEn : Strings {
 
     // Smart Switch Dialog & Strategy
     override val smartSwitchTitle = "Smart Account Switch"
-    override val smartSwitchSubtitle = "Automatically switch to the best fallback account on quota exhaustion or 429 errors"
+    override val smartSwitchSubtitle =
+        "Automatically switch to the best fallback account on quota exhaustion or 429 errors"
     override val smartSwitchEnableTitle = "Enable Smart Account Switch"
     override val smartSwitchEnableDesc = "Automatically switch account upon 429 rate limit or insufficient quota"
     override val smartSwitchThresholdLabel = "Switch Trigger Quota Threshold"
@@ -2603,7 +2745,8 @@ object StringsEn : Strings {
     override fun smartSwitchSeconds(seconds: Int) = "$seconds s"
     override val smartSwitchProtectGenerationTitle = "Active Generation Protection"
     override val smartSwitchProtectGenerationDesc = "Pause auto-switch during streaming responses or agent runs"
-    override val smartSwitchInterruptTip = "Protection note: Auto-switch is deferred during generation to avoid stream interruptions."
+    override val smartSwitchInterruptTip =
+        "Protection note: Auto-switch is deferred during generation to avoid stream interruptions."
     override val smartSwitchReasonDisabled = "Smart switch is disabled"
     override fun smartSwitchReasonCooldown(remainingSec: Long) = "In cooldown period (${remainingSec}s remaining)"
     override val smartSwitchReasonWorkflowLocked = "Active workflow is protected"
@@ -2612,7 +2755,9 @@ object StringsEn : Strings {
     override val smartSwitchTriggerReason429 = "Hit 429 Quota Exceeded"
     override val smartSwitchTriggerReasonLowQuota = "Quota fell below threshold"
     override fun smartSwitchReasonTaskRunning(trigger: String) = "$trigger, but another switch task is in progress"
-    override fun smartSwitchReasonSuggestSwitch(trigger: String, email: String) = "$trigger. Suggested switch to $email; please restart app to apply."
+    override fun smartSwitchReasonSuggestSwitch(trigger: String, email: String) =
+        "$trigger. Suggested switch to $email; please restart app to apply."
+
     override val hotSwitchTaskAlreadyRunning = "Another account switch task is already running, please try again later"
     override val hotSwitchIdeNotApplied = "IDE account is not yet active"
     override val hotSwitchNotAllTargetsApplied = "Account not yet active in all target applications"
@@ -2625,7 +2770,8 @@ object StringsEn : Strings {
     override val quotaRefreshCustomOption = "Custom…"
     override val quotaRefreshPlaceholderActive = "e.g. 45"
     override val quotaRefreshPlaceholderBackground = "e.g. 15"
-    override val quotaRefreshActiveHint = "Tip: Active account refresh interval directly impacts quota freshness and auto-switch timing."
+    override val quotaRefreshActiveHint =
+        "Tip: Active account refresh interval directly impacts quota freshness and auto-switch timing."
     override val quotaRefreshDefaultSummary = "Default: Active account 1 min, background accounts 10 min"
     override val quotaRefreshResetDefault = "Reset to Default"
     override val quotaRefreshUnitSecond = "sec"
@@ -2680,7 +2826,9 @@ object StringsEn : Strings {
     override val accountsSortChipLabel = "Sort by Quota"
     override val accountsAddAccountTooltip = "Add single Refresh Token or import in bulk"
     override val accountsRefreshAllTooltip = "Concurrently refresh quotas for all accounts"
-    override fun accountsAutoRefreshTooltip(activeSec: Int, bgMin: Int) = "Configure auto-refresh (Current: active ${activeSec}s / background ${bgMin}m)"
+    override fun accountsAutoRefreshTooltip(activeSec: Int, bgMin: Int) =
+        "Configure auto-refresh (Current: active ${activeSec}s / background ${bgMin}m)"
+
     override val accountsPrivacyHideTooltip = "Enable privacy mode to mask email"
     override val accountsPrivacyShowTooltip = "Disable privacy mode to show full email"
     override val accountsExportTooltip = "Export credentials (clipboard or JSON file)"
@@ -2693,7 +2841,9 @@ object StringsEn : Strings {
     override val accountsSmartSwitchTooltip = "Configure smart auto-switch for low quota or 429 errors"
     override fun accountsSearchNoMatch(query: String) = "No accounts found matching '$query'"
     override val accountsDeleteConfirmTitle = "Delete Account"
-    override fun accountsDeleteConfirmMsg(email: String) = "Are you sure you want to remove '$email'? Auto-refresh and monitoring will stop."
+    override fun accountsDeleteConfirmMsg(email: String) =
+        "Are you sure you want to remove '$email'? Auto-refresh and monitoring will stop."
+
     override val accountsDeleteConfirmBtn = "Delete"
 
     // Overview Screen & Hero Card
@@ -2703,7 +2853,9 @@ object StringsEn : Strings {
     override val overviewAvgLatency = "Avg Latency"
     override val overviewRouteUpstreamStatus = "Route Upstream"
     override val overviewOfficialDirect = "Official Direct"
-    override fun overviewCustomUpstreamSummary(providerCount: Int, modelCount: Int) = "$providerCount providers · $modelCount models"
+    override fun overviewCustomUpstreamSummary(providerCount: Int, modelCount: Int) =
+        "$providerCount providers · $modelCount models"
+
     override fun overviewSourceInUse(sources: String) = "$sources in use"
     override val overviewActiveAccountBadge = "Active Account"
     override val overviewSyncingQuotas = "Syncing quota data..."
@@ -2726,8 +2878,12 @@ object StringsEn : Strings {
     override fun noticeCleanAccountsSuccess(count: Int) = "Cleaned up $count invalid/expired accounts"
     override fun noticeCleanAccountsFailed(error: String) = "Failed to clean accounts: $error"
     override fun noticeBatchImportSuccess(count: Int) = "Successfully imported $count accounts"
-    override fun noticeBatchImportPartial(successCount: Int, failedCount: Int) = "Batch import completed: $successCount succeeded, $failedCount skipped"
-    override fun noticeBatchImportFailedAll(failedCount: Int) = "Batch import failed: all $failedCount tokens are invalid"
+    override fun noticeBatchImportPartial(successCount: Int, failedCount: Int) =
+        "Batch import completed: $successCount succeeded, $failedCount skipped"
+
+    override fun noticeBatchImportFailedAll(failedCount: Int) =
+        "Batch import failed: all $failedCount tokens are invalid"
+
     override val noticeQuotasUpdatedAll = "All account quotas updated"
     override fun noticeQuotasUpdateFailedAll(error: String) = "Quota refresh error: $error"
     override val noticeQuotaRefreshedSingle = "Account quota refreshed"
@@ -2750,11 +2906,14 @@ object StringsEn : Strings {
     override val accountsAddFallbackManualHint = "If auto-callback is blocked, paste the full URL from browser below:"
     override val accountsAddFallbackManualPlaceholder = "http://127.0.0.1:41321/... or Auth Code"
     override val accountsAddSubmit = "Submit"
-    override val accountsAddTokenBatchDesc = "Supports pasting single/multi-line Refresh Tokens, Cockpit exported JSON arrays, or backup files."
+    override val accountsAddTokenBatchDesc =
+        "Supports pasting single/multi-line Refresh Tokens, Cockpit exported JSON arrays, or backup files."
     override val accountsAddImportJsonFile = "Import JSON File"
     override val accountsAddPasteClipboard = "Paste from Clipboard"
     override val accountsAddTokenPlaceholder = "Paste 1//0g... tokens (Supports multi-line batch or JSON)"
-    override fun accountsAddRecognizedCount(count: Int, preview: String) = "Recognized $count valid account credentials $preview"
+    override fun accountsAddRecognizedCount(count: Int, preview: String) =
+        "Recognized $count valid account credentials $preview"
+
     override val accountsAddUnrecognizedTokens = "Unable to recognize valid Refresh Token or JSON data"
     override val accountsAddImporting = "Validating and importing accounts..."
     override fun accountsAddConfirmImport(count: Int) = when {

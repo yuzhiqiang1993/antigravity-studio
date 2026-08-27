@@ -184,18 +184,24 @@ object UniversalModelCatalogParser {
 
         // 输入上下文探测：max_tokens 只有 Gemini/CPA 语义下才可作为输入上限，
         // 普通 OpenAI/Anthropic 的 max_tokens 是输出预算，不能误写成输入上限。
-        val contextTokens = obj.findLong(
-            "context_window", "max_context_window", "contextWindow", "maxContextWindow"
-        )
-        val contextLength = obj.findLong("context_length", "max_context_length", "maxContextLength")
-        val explicitInputTokens = obj.findLong(
-            "inputTokenLimit", "input_token_limit", "maxInputTokens", "max_input_tokens",
-            "maxPromptTokens", "max_prompt_tokens", "maxContextTokens"
-        )
+        val contextTokens = listOfNotNull(
+            obj.findLong("max_context_window", "maxContextWindow"),
+            obj.findLong("context_window", "contextWindow")
+        ).maxOrNull()
+        val contextLength = listOfNotNull(
+            obj.findLong("max_context_length", "maxContextLength"),
+            obj.findLong("context_length", "contextLength")
+        ).maxOrNull()
+        val explicitInputTokens = listOfNotNull(
+            obj.findLong("maxInputTokens", "max_input_tokens"),
+            obj.findLong("inputTokenLimit", "input_token_limit"),
+            obj.findLong("maxPromptTokens", "max_prompt_tokens"),
+            obj.findLong("maxContextTokens")
+        ).maxOrNull()
         val inputTokens = explicitInputTokens ?: when {
-            isCpaCatalog -> contextTokens ?: contextLength
+            isCpaCatalog -> listOfNotNull(contextTokens, contextLength).maxOrNull()
             protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT -> obj.findLong("maxTokens", "max_tokens")
-            else -> contextTokens ?: contextLength
+            else -> listOfNotNull(contextTokens, contextLength).maxOrNull()
         }
 
         // 输出上限探测（严格由上游真实字段给出）

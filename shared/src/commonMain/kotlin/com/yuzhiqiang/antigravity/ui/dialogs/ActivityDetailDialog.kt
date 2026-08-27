@@ -153,6 +153,13 @@ fun ActivityDetailDialog(
                             DetailItemRow(s.activityDetailFirstToken, ttftFormatted, highlightColor = ttftColor)
                         }
                         DetailItemRow(s.activityDetailTimestamp, formatFullTime(log.timestamp))
+                        if (log.retryCount > 0) {
+                            DetailItemRow(
+                                s.activityRetryCount,
+                                s.activityRetryBadge(log.retryCount),
+                                highlightColor = MaterialTheme.colorScheme.tertiary
+                            )
+                        }
                         DetailItemRow(
                             s.activityDetailRouteMode,
                             if (log.isOfficialPassthrough) s.activityDetailPassthroughMode else s.activityDetailForwardMode
@@ -164,14 +171,6 @@ fun ActivityDetailDialog(
                         if (!log.isOfficialPassthrough) {
                             log.providerName?.let { DetailItemRow(s.activityDetailProvider, it) }
                         }
-
-                        if (log.fallbackAttempted) {
-                            DetailItemRow(
-                                s.activityDetailFallback,
-                                if (log.fallbackSucceeded) s.activityDetailFallbackSuccess else s.activityDetailFallbackFailed,
-                                highlightColor = if (log.fallbackSucceeded) AppStatusColors.success else MaterialTheme.colorScheme.error
-                            )
-                        }
                     }
 
                     // 2. Token 消耗统计 (若存在)
@@ -182,20 +181,46 @@ fun ActivityDetailDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                TokenMetricBadge(s.activityDetailPromptTokens, log.inputTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
-                                TokenMetricBadge(s.activityDetailCompletionTokens, log.outputTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
-                                TokenMetricBadge(s.activityDetailTotalTokens, log.totalTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f), isTotal = true)
+                                TokenMetricBadge(
+                                    s.activityDetailPromptTokens,
+                                    log.inputTokens?.let(::formatTokens) ?: "—",
+                                    Modifier.weight(1f)
+                                )
+                                TokenMetricBadge(
+                                    s.activityDetailCompletionTokens,
+                                    log.outputTokens?.let(::formatTokens) ?: "—",
+                                    Modifier.weight(1f)
+                                )
+                                TokenMetricBadge(
+                                    s.activityDetailTotalTokens,
+                                    log.totalTokens?.let(::formatTokens) ?: "—",
+                                    Modifier.weight(1f),
+                                    isTotal = true
+                                )
                             }
 
                             if (log.reasoningTokens != null || log.cacheReadTokens != null || log.cacheWriteTokens != null) {
-                                val hitRate = calculateCacheHitRate(log.cacheReadTokens, log.inputTokens, log.cacheWriteTokens)
+                                val hitRate =
+                                    calculateCacheHitRate(log.cacheReadTokens, log.inputTokens, log.cacheWriteTokens)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    TokenMetricBadge(s.activityDetailReasoningTokens, log.reasoningTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
-                                    TokenMetricBadge(s.activityDetailCacheReadTokens, log.cacheReadTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
-                                    TokenMetricBadge(s.activityDetailCacheWriteTokens, log.cacheWriteTokens?.let(::formatTokens) ?: "—", Modifier.weight(1f))
+                                    TokenMetricBadge(
+                                        s.activityDetailReasoningTokens,
+                                        log.reasoningTokens?.let(::formatTokens) ?: "—",
+                                        Modifier.weight(1f)
+                                    )
+                                    TokenMetricBadge(
+                                        s.activityDetailCacheReadTokens,
+                                        log.cacheReadTokens?.let(::formatTokens) ?: "—",
+                                        Modifier.weight(1f)
+                                    )
+                                    TokenMetricBadge(
+                                        s.activityDetailCacheWriteTokens,
+                                        log.cacheWriteTokens?.let(::formatTokens) ?: "—",
+                                        Modifier.weight(1f)
+                                    )
                                     if (hitRate != null) {
                                         TokenMetricBadge(
                                             label = s.activityDetailCacheHitRate,
@@ -217,11 +242,15 @@ fun ActivityDetailDialog(
                         ) {
                             Box(
                                 modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f))
-                                .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
-                                .padding(12.dp)
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f))
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(12.dp)
                             ) {
                                 Text(
                                     text = log.errorMessage,
@@ -260,6 +289,7 @@ fun ActivityDetailDialog(
                                     put("statusCode", log.statusCode)
                                     put("durationMs", log.durationMs)
                                     put("isPending", log.isPending)
+                                    if (log.retryCount > 0) put("retryCount", log.retryCount)
                                     log.firstTokenMs?.let { put("firstTokenMs", it) }
                                     put("isOfficialPassthrough", log.isOfficialPassthrough)
                                     put("modelId", log.modelId)
@@ -272,10 +302,11 @@ fun ActivityDetailDialog(
                                     put("reasoningTokens", log.reasoningTokens)
                                     put("totalTokens", log.totalTokens)
                                     put("errorMessage", log.errorMessage)
-                                    put("fallbackAttempted", log.fallbackAttempted)
-                                    put("fallbackSucceeded", log.fallbackSucceeded)
                                 }.toString()
-                                Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(jsonString), null)
+                                Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                                    StringSelection(jsonString),
+                                    null
+                                )
                                 onCopyNotice(s.commonCopied)
                             },
                             modifier = Modifier.height(32.dp),
@@ -297,7 +328,10 @@ fun ActivityDetailDialog(
                         if (!log.errorMessage.isNullOrBlank()) {
                             OutlinedButton(
                                 onClick = {
-                                    Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(log.errorMessage), null)
+                                    Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                                        StringSelection(log.errorMessage),
+                                        null
+                                    )
                                     onCopyNotice(s.commonCopied)
                                 },
                                 modifier = Modifier.height(32.dp),
@@ -349,7 +383,10 @@ private fun DetailSectionCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
     ) {
         Column(
             modifier = Modifier

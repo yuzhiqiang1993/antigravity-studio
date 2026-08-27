@@ -194,13 +194,22 @@ object OfficialCatalogProbe {
                     ?: modelId
 
                 val maxTokens = item["maxTokens"]?.jsonPrimitive?.longOrNull
-                val contextWindow = item["contextWindow"]?.jsonPrimitive?.longOrNull
-                    ?: item["context_window"]?.jsonPrimitive?.longOrNull
-                    ?: maxTokens
+                val contextWindow = listOfNotNull(
+                    item["maxContextWindow"]?.jsonPrimitive?.longOrNull,
+                    item["max_context_window"]?.jsonPrimitive?.longOrNull,
+                    item["contextWindow"]?.jsonPrimitive?.longOrNull,
+                    item["context_window"]?.jsonPrimitive?.longOrNull,
+                    maxTokens
+                ).maxOrNull()
 
-                val inputTokenLimit = item["inputTokenLimit"]?.jsonPrimitive?.longOrNull
-                    ?: item["input_token_limit"]?.jsonPrimitive?.longOrNull
-                    ?: maxTokens
+                val inputTokenLimit = listOfNotNull(
+                    item["maxInputTokens"]?.jsonPrimitive?.longOrNull,
+                    item["max_input_tokens"]?.jsonPrimitive?.longOrNull,
+                    item["inputTokenLimit"]?.jsonPrimitive?.longOrNull,
+                    item["input_token_limit"]?.jsonPrimitive?.longOrNull,
+                    contextWindow,
+                    maxTokens
+                ).maxOrNull()
 
                 val outputTokenLimit = item["outputTokenLimit"]?.jsonPrimitive?.longOrNull
                     ?: item["output_token_limit"]?.jsonPrimitive?.longOrNull
