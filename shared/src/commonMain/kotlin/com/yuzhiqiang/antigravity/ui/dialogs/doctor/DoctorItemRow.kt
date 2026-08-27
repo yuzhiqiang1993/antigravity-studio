@@ -20,6 +20,7 @@ import com.yuzhiqiang.antigravity.doctor.model.DoctorCheckStatus
 import com.yuzhiqiang.antigravity.doctor.model.DoctorFixAction
 import com.yuzhiqiang.antigravity.ui.components.BadgeTone
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
+import com.yuzhiqiang.antigravity.ui.components.StudioTonalButton
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
 @Composable
@@ -96,28 +97,15 @@ fun DoctorItemRow(
                     is DoctorFixAction.RetestNetwork -> s.doctorFixRetry
                 }
 
-                FilledTonalButton(
+                StudioTonalButton(
+                    text = actionLabel,
                     onClick = {
                         isActionInProgress = true
                         onRunFix(item.fixAction)
                     },
                     enabled = !isActionInProgress,
-                    shape = RoundedCornerShape(AppTokens.Radius.small),
-                    contentPadding = PaddingValues(horizontal = AppTokens.Spacing.content, vertical = 2.dp)
-                ) {
-                    if (isActionInProgress) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(AppTokens.Size.iconSmall),
-                            strokeWidth = 1.5.dp
-                        )
-                    } else {
-                        Text(
-                            text = actionLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                    isLoading = isActionInProgress
+                )
             } else {
                 val label = when (item.status) {
                     DoctorCheckStatus.PASSED -> s.doctorPassed

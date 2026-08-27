@@ -23,6 +23,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActionSquareIcon(
@@ -41,33 +46,46 @@ fun ActionSquareIcon(
     val shape = RoundedCornerShape(7.dp)
 
     val animatedBg by animateColorAsState(
-        targetValue = if (isHovered && onClick != null) containerColor.copy(alpha = (containerColor.alpha + 0.15f).coerceAtMost(1f)) else containerColor,
-        animationSpec = tween(150)
+        targetValue = if (isHovered && onClick != null) containerColor.copy(alpha = (containerColor.alpha + 0.18f).coerceAtMost(1f)) else containerColor,
+        animationSpec = tween(150),
+        label = "ActionSquareBg"
+    )
+
+    val animatedBorder by animateColorAsState(
+        targetValue = if (isHovered && onClick != null) borderColor.copy(alpha = (borderColor.alpha + 0.35f).coerceAtMost(1f)) else borderColor,
+        animationSpec = tween(150),
+        label = "ActionSquareBorder"
+    )
+
+    val animatedTint by animateColorAsState(
+        targetValue = if (isHovered && onClick != null) tint else tint.copy(alpha = 0.85f),
+        animationSpec = tween(150),
+        label = "ActionSquareTint"
     )
 
     val button = @Composable {
-        Surface(
+        Box(
             modifier = modifier
                 .size(size)
                 .clip(shape)
-                .hoverable(interactionSource)
-                .clickable(enabled = onClick != null, onClick = { onClick?.invoke() }),
-            shape = shape,
-            color = animatedBg,
-            contentColor = tint,
-            border = BorderStroke(1.dp, borderColor)
+                .background(animatedBg)
+                .border(1.dp, animatedBorder, shape)
+                .hoverable(interactionSource = interactionSource, enabled = onClick != null)
+                .pointerHoverIcon(if (onClick != null) PointerIcon.Hand else PointerIcon.Default)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    enabled = onClick != null,
+                    onClick = { onClick?.invoke() }
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = contentDescription,
-                    tint = tint,
-                    modifier = Modifier.size(15.dp)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = animatedTint,
+                modifier = Modifier.size(15.dp)
+            )
         }
     }
 

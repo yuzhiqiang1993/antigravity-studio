@@ -23,6 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
+import com.yuzhiqiang.antigravity.ui.components.StudioButton
+import com.yuzhiqiang.antigravity.ui.components.StudioTonalButton
+import com.yuzhiqiang.antigravity.ui.components.StudioOutlinedButton
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -181,82 +184,32 @@ fun HeroProxyServiceCard(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (onDiagnostics != null) {
-                        FilledTonalButton(
+                        StudioTonalButton(
+                            text = s.overviewDiagnostics,
+                            icon = Icons.Outlined.HealthAndSafety,
                             onClick = onDiagnostics,
-                            modifier = Modifier.height(36.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.HealthAndSafety,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = s.overviewDiagnostics,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
-                                )
-                            )
-                        }
+                            height = 36.dp,
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
 
                     // 控制开关按钮
                     if (isRunning) {
-                        OutlinedButton(
+                        StudioOutlinedButton(
+                            text = s.overviewStopProxy,
+                            icon = Icons.Outlined.Stop,
                             onClick = onStop,
-                            modifier = Modifier.height(36.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, AppStatusColors.warning.copy(alpha = 0.6f)),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = AppStatusColors.warning.copy(alpha = 0.08f),
-                                contentColor = AppStatusColors.warning
-                            ),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Stop,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = AppStatusColors.warning
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = s.overviewStopProxy,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
-                                ),
-                                color = AppStatusColors.warning
-                            )
-                        }
+                            height = 36.dp,
+                            customColor = AppStatusColors.warning
+                        )
                     } else {
-                        Button(
+                        StudioButton(
+                            text = s.overviewStartProxy,
+                            icon = Icons.Outlined.PlayArrow,
                             onClick = onStart,
-                            modifier = Modifier.height(36.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(17.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = s.overviewStartProxy,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
-                                )
-                            )
-                        }
+                            height = 36.dp
+                        )
                     }
                 }
             }
