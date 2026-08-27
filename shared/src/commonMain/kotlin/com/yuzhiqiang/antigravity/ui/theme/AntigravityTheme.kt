@@ -103,8 +103,12 @@ fun AntigravityTheme(
     val palette = ThemePalette.fromId(themePalette)
     val colorScheme = ThemePalettes.getColorScheme(palette, isDark)
     val statusColors = if (isDark) AppTokens.darkStatusColors else AppTokens.lightStatusColors
+    val featureColors = if (isDark) AppTokens.darkFeatureColors else AppTokens.lightFeatureColors
 
-    CompositionLocalProvider(LocalAppStatusColors provides statusColors) {
+    CompositionLocalProvider(
+        LocalAppStatusColors provides statusColors,
+        LocalAppFeatureColors provides featureColors
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = AppTypography,
