@@ -794,11 +794,14 @@ internal class AccountSwitchSession(
         val tempFile = File.createTempFile(".${file.name}.", ".tmp", parent)
         try {
             tempFile.writeText(content, Charsets.UTF_8)
-            tempFile.setReadable(false, false)
-            tempFile.setWritable(false, false)
-            tempFile.setExecutable(false, false)
-            tempFile.setReadable(true, true)
-            tempFile.setWritable(true, true)
+            // POSIX 文件权限操作在 Windows 上行为不一致且可能触发安全策略拦截，仅在类 Unix 系统执行
+            if (!System.getProperty("os.name", "").lowercase().contains("win")) {
+                tempFile.setReadable(false, false)
+                tempFile.setWritable(false, false)
+                tempFile.setExecutable(false, false)
+                tempFile.setReadable(true, true)
+                tempFile.setWritable(true, true)
+            }
             try {
                 java.nio.file.Files.move(
                     tempFile.toPath(),

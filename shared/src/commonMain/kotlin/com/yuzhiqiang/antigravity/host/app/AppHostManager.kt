@@ -164,6 +164,14 @@ object AppHostManager {
         val orig = getOriginalLanguageServerFile(customInstallation)
         if (orig != null && orig.exists()) return true
         val ls = getLanguageServerFile(customInstallation) ?: return false
+        // Windows 上 shim 写入 .cmd 文件，需额外检查
+        if (isWindows) {
+            val cmdFile = File(ls.parentFile, "language_server.cmd")
+            if (cmdFile.exists()) {
+                val content = runCatching { cmdFile.readText(Charsets.UTF_8) }.getOrNull()
+                if (content != null && content.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM")) return true
+            }
+        }
         if (!ls.exists()) return false
         val content = runCatching { ls.readText(Charsets.UTF_8) }.getOrNull() ?: return false
         return content.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM")
@@ -220,7 +228,13 @@ object AppHostManager {
                 appendLine("\"%ORIGINAL%\" %NEW_ARGS%")
             }
             runCatching {
-                ls.writeText(scriptContent, Charsets.UTF_8)
+                // Windows 不支持将 batch 脚本写入 .exe 扩展名的文件，
+                // 改为写入 .cmd 文件；原始 .exe 已在步骤 1 被重命名，
+                // Windows 会通过 PATHEXT 优先解析 .cmd 后缀
+                val cmdFile = File(binDir, "language_server.cmd")
+                cmdFile.writeText(scriptContent, Charsets.UTF_8)
+                // 确保 .exe 不残留（步骤 1 已 rename，此处是防御性清理）
+                if (ls.exists()) ls.delete()
                 true
             }.getOrDefault(false)
         } else {
@@ -283,6 +297,11 @@ object AppHostManager {
         val origFile = getOriginalLanguageServerFile(customInstallation)
         val ls = getLanguageServerFile(customInstallation)
         if (origFile != null && origFile.exists()) {
+            // Windows 上 shim 写入的是 .cmd 文件，还原时一并清理
+            if (isWindows && ls != null) {
+                val cmdFile = File(ls.parentFile, "language_server.cmd")
+                if (cmdFile.exists()) cmdFile.delete()
+            }
             if (ls != null && ls.exists()) {
                 ls.delete()
             }
@@ -516,10 +535,17 @@ object AppHostManager {
     }
 
     private fun isInstallationComplete(root: File): Boolean {
-        return if (isWindows) {
-            root.isDirectory && File(root, "Antigravity.exe").isFile
-        } else {
-            root.isDirectory && File(root, "Contents/MacOS/Antigravity").isFile
+        val os = System.getProperty("os.name", "").lowercase()
+        return when {
+            isWindows -> root.isDirectory && File(root, "Antigravity.exe").isFile
+            os.contains("mac") -> root.isDirectory && File(root, "Contents/MacOS/Antigravity").isFile
+            else -> {
+                // Linux Electron 应用：检查二进制或 package.json 存在性
+                root.isDirectory && (
+                    File(root, "antigravity").isFile ||
+                    File(root, "resources/app/package.json").isFile
+                )
+            }
         }
     }
 

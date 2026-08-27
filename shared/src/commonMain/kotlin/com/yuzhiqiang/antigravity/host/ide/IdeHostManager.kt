@@ -49,10 +49,17 @@ object IdeHostManager {
 
     private fun isInstallationComplete(root: File): Boolean {
         val os = System.getProperty("os.name").lowercase()
-        return if (os.contains("mac")) {
-            root.isDirectory && File(root, "Contents/MacOS/Electron").isFile
-        } else {
-            root.isDirectory && File(root, "Antigravity IDE.exe").isFile
+        return when {
+            os.contains("mac") -> root.isDirectory && File(root, "Contents/MacOS/Electron").isFile
+            os.contains("win") -> root.isDirectory && File(root, "Antigravity IDE.exe").isFile
+            else -> {
+                // Linux Electron 应用：检查二进制或 package.json 存在性
+                root.isDirectory && (
+                    File(root, "antigravity-ide").isFile ||
+                    File(root, "antigravity_ide").isFile ||
+                    File(root, "resources/app/package.json").isFile
+                )
+            }
         }
     }
 

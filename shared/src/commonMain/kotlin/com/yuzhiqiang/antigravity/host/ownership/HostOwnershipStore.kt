@@ -565,13 +565,19 @@ object HostOwnershipStore {
             if (parent != null && !parent.exists() && !parent.mkdirs()) {
                 return Result.failure(IllegalStateException("无法创建宿主配置目录：${parent.absolutePath}"))
             }
-            val originalPermissions = runCatching {
-                if (file.exists() && !Files.isSymbolicLink(file.toPath())) {
-                    Files.getPosixFilePermissions(file.toPath())
-                } else {
-                    null
-                }
-            }.getOrNull()
+            // POSIX 文件权限操作在 Windows 上不受支持，仅在类 Unix 系统保留和恢复权限
+            val isPosix = !System.getProperty("os.name", "").lowercase().contains("win")
+            val originalPermissions = if (isPosix) {
+                runCatching {
+                    if (file.exists() && !Files.isSymbolicLink(file.toPath())) {
+                        Files.getPosixFilePermissions(file.toPath())
+                    } else {
+                        null
+                    }
+                }.getOrNull()
+            } else {
+                null
+            }
             val temp = File.createTempFile("${file.name}-", ".tmp", parent)
             try {
                 temp.writeText(content, Charsets.UTF_8)
@@ -589,8 +595,10 @@ object HostOwnershipStore {
                 if (!moved) {
                     file.writeText(content, Charsets.UTF_8)
                 }
-                originalPermissions?.let { permissions: Set<PosixFilePermission> ->
-                    runCatching { Files.setPosixFilePermissions(file.toPath(), permissions) }
+                if (isPosix) {
+                    originalPermissions?.let { permissions: Set<PosixFilePermission> ->
+                        runCatching { Files.setPosixFilePermissions(file.toPath(), permissions) }
+                    }
                 }
             } finally {
                 if (temp.exists()) {
