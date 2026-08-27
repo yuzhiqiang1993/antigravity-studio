@@ -25,13 +25,14 @@ import com.yuzhiqiang.antigravity.domain.model.account.AccountStatus
 import com.yuzhiqiang.antigravity.domain.model.account.AccountTier
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioAccountCard
+import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
+import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
 import com.yuzhiqiang.antigravity.ui.components.StudioSearchField
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
 import com.yuzhiqiang.antigravity.ui.dialogs.AccountSwitchDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.AddAccountDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.QuotaRefreshConfigDialog
-import com.yuzhiqiang.antigravity.ui.dialogs.SmartSwitchDialog
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -90,7 +91,6 @@ fun AccountsScreen(
     var sortMode by remember { mutableStateOf(AccountsSortMode.DEFAULT) }
 
     var showAddDialog by remember { mutableStateOf(false) }
-    var showSmartSwitchDialog by remember { mutableStateOf(false) }
     var showQuotaRefreshConfigDialog by remember { mutableStateOf(false) }
     var accountToDelete by remember { mutableStateOf<AccountInfo?>(null) }
     var accountToSwitch by remember { mutableStateOf<AccountInfo?>(null) }
@@ -395,12 +395,12 @@ fun AccountsScreen(
                                     }
                                 }
 
-                                DropdownMenu(
+                                StudioDropdownMenu(
                                     expanded = showExportMenu,
                                     onDismissRequest = { showExportMenu = false }
                                 ) {
-                                    DropdownMenuItem(
-                                        text = { Text(s.accountsExportCopyToClipboard, style = MaterialTheme.typography.bodyMedium) },
+                                    StudioDropdownMenuItem(
+                                        text = s.accountsExportCopyToClipboard,
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = Icons.Outlined.ContentCopy,
@@ -423,13 +423,8 @@ fun AccountsScreen(
                                             )
                                         }
                                     )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                s.accountsExportSaveJson,
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                        },
+                                    StudioDropdownMenuItem(
+                                        text = s.accountsExportSaveJson,
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = Icons.Outlined.FolderOpen,
@@ -441,21 +436,6 @@ fun AccountsScreen(
                                             showExportMenu = false
                                             exportAccountsToFile(viewModel, s)
                                         }
-                                    )
-                                }
-                            }
-
-                            // 智能切号策略
-                            StudioTooltip(text = s.accountsSmartSwitchTooltip) {
-                                IconButton(
-                                    onClick = { showSmartSwitchDialog = true },
-                                    modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Bolt,
-                                        contentDescription = s.smartSwitchTitle,
-                                        modifier = Modifier.size(StudioDesignTokens.Sizes.topIconInnerSize),
-                                        tint = if (config.smartSwitchConfig.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -607,13 +587,6 @@ fun AccountsScreen(
         QuotaRefreshConfigDialog(
             viewModel = viewModel,
             onDismiss = { showQuotaRefreshConfigDialog = false }
-        )
-    }
-
-    if (showSmartSwitchDialog) {
-        SmartSwitchDialog(
-            viewModel = viewModel,
-            onDismiss = { showSmartSwitchDialog = false }
         )
     }
 
