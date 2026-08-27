@@ -78,35 +78,6 @@ object RouteResolver {
         return buildResolvedRoute(config, requestedModelId, null, directUpstream, request)
     }
 
-    /**
-     * 只解析当前虚拟模型声明的一层备用路由；不会沿 fallback_virtual_model_id 链继续递归。
-     * 备用路由仍经过完整的启用状态、Provider、Upstream 与参数合并校验。
-     */
-    fun resolveFallback(
-        config: AppConfig,
-        failedRoute: ResolvedRoute
-    ): Result<ResolvedRoute?> {
-        val fallbackId = failedRoute.virtualModel?.fallbackVirtualModelId
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: return Result.success(null)
-        val fallbackVirtual = config.virtualModels.firstOrNull { it.accepts(fallbackId) }
-            ?: return failure(404, "Fallback virtual model is not configured: $fallbackId")
-        if (failedRoute.virtualModel?.id == fallbackVirtual.id) {
-            return failure(422, "Fallback virtual model must differ from the primary model")
-        }
-        return resolve(
-            config,
-            failedRoute.originalRequest.copy(
-                originalModelId = normalizeModelId(fallbackId),
-                // 推理档位是请求级语义；保留主路由解析出的虚拟模型默认值。
-                reasoningLevel = failedRoute.request.reasoningLevel
-            )
-        ).fold(
-            onSuccess = { Result.success<ResolvedRoute?>(it) },
-            onFailure = { Result.failure(it) }
-        )
-    }
 
     fun isPotentialCustomModelId(config: AppConfig, modelId: String): Boolean {
         val normalized = normalizeModelId(modelId)

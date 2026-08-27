@@ -745,20 +745,7 @@ class AppViewModel(
 
             configStore.updateConfig { current ->
                 val updatedProviders = current.providers.filterNot { it.id == provider.id } + provider
-                val removedUpstreams = current.upstreamModels
-                    .filter {
-                        it.providerId == provider.id && it.id !in syncResult.upstreamModels.map(UpstreamModel::id)
-                            .toSet()
-                    }
-                val removedVirtualModels = current.virtualModels.filter { previous ->
-                    previous.upstreamModelId in removedUpstreams.map { it.id }.toSet() &&
-                            previous.id !in syncResult.virtualModels.map { it.id }.toSet()
-                }
-                val cleaned = current.removeFallbackReferences(
-                    removedUpstreams = removedUpstreams,
-                    removedVirtualModels = removedVirtualModels
-                )
-                cleaned.removeVirtualReferences(removedVirtualModels).copy(
+                current.copy(
                     providers = updatedProviders,
                     upstreamModels = syncResult.upstreamModels,
                     virtualModels = syncResult.virtualModels
@@ -772,60 +759,6 @@ class AppViewModel(
         }
     }
 
-    private fun AppConfig.removeFallbackReferences(
-        removedUpstreams: List<UpstreamModel> = emptyList(),
-        removedVirtualModels: List<VirtualModel> = emptyList()
-    ): AppConfig {
-        val blockers = fallbackBlockers(removedUpstreams, removedVirtualModels)
-        if (blockers.isNotEmpty()) {
-            throw IllegalStateException(
-                s.modelsDeleteBlockers(blockers.joinToString("、") { it.name.ifBlank { it.id } })
-            )
-        }
-        return this
-    }
-
-    private fun AppConfig.fallbackBlockers(
-        removedUpstreams: List<UpstreamModel> = emptyList(),
-        removedVirtualModels: List<VirtualModel> = emptyList()
-    ): List<VirtualModel> {
-        if (removedUpstreams.isEmpty() && removedVirtualModels.isEmpty()) return emptyList()
-        val removedUpstreamIds = removedUpstreams.map { upstream -> upstream.id }.toSet()
-        val removedUpstreamRefs = removedUpstreams.flatMap(::upstreamModelReferences).toSet()
-        val upstreamVirtualModels = virtualModels.filter { virtual ->
-            virtual.upstreamModelId in removedUpstreamIds
-        }
-        val allRemovedVirtualModels =
-            (upstreamVirtualModels + removedVirtualModels).distinctBy { virtual -> virtual.id }
-        val removedVirtualIds = allRemovedVirtualModels.map { virtual -> virtual.id }.toSet()
-        val removedVirtualRefs = allRemovedVirtualModels
-            .flatMap(::virtualModelReferences)
-            .toSet()
-        return virtualModels
-            .filterNot { virtual -> virtual.id in removedVirtualIds }
-            .filter { virtual ->
-                val fallback = virtual.fallbackVirtualModelId?.let(::normalizeModelReference)
-                fallback != null && (fallback in removedVirtualRefs || fallback in removedUpstreamRefs)
-            }
-    }
-
-    private fun AppConfig.removeVirtualReferences(removedVirtualModels: List<VirtualModel>): AppConfig {
-        if (removedVirtualModels.isEmpty()) return this
-        val removedVirtualRefs = removedVirtualModels
-            .flatMap(::virtualModelReferences)
-            .toSet()
-        return copy(
-            virtualModels = virtualModels.map { virtual ->
-                val fallback = virtual.fallbackVirtualModelId?.let(::normalizeModelReference)
-                if (fallback != null && fallback in removedVirtualRefs) {
-                    virtual.copy(fallbackVirtualModelId = null)
-                } else {
-                    virtual
-                }
-            }
-        )
-    }
-
     fun deleteProvider(providerId: String) {
         val current = configStore.currentConfig
         val targetProvider = current.providers.find { it.id == providerId } ?: return
@@ -834,18 +767,14 @@ class AppViewModel(
             it.upstreamModelId in removedUpstreams.map(UpstreamModel::id).toSet()
         }
         try {
-            val cleaned = current.removeFallbackReferences(
-                removedUpstreams = removedUpstreams,
-                removedVirtualModels = removedVirtualModels
-            )
             configStore.saveConfig(
-                cleaned.copy(
-                    providers = cleaned.providers.filterNot { it.id == providerId },
-                    upstreamModels = cleaned.upstreamModels.filterNot { it.providerId == providerId },
-                    virtualModels = cleaned.virtualModels.filterNot { virtual ->
+                current.copy(
+                    providers = current.providers.filterNot { it.id == providerId },
+                    upstreamModels = current.upstreamModels.filterNot { it.providerId == providerId },
+                    virtualModels = current.virtualModels.filterNot { virtual ->
                         virtual.upstreamModelId in removedUpstreams.map(UpstreamModel::id).toSet()
                     },
-                    modelCompressionPolicies = cleaned.modelCompressionPolicies.filterKeys { key ->
+                    modelCompressionPolicies = current.modelCompressionPolicies.filterKeys { key ->
                         key !in removedUpstreams.map(UpstreamModel::id) &&
                                 key !in removedVirtualModels.map(VirtualModel::id)
                     }
@@ -860,17 +789,12 @@ class AppViewModel(
     fun deleteSingleModel(modelId: String) {
         val current = configStore.currentConfig
         val targetModel = current.upstreamModels.find { it.id == modelId } ?: return
-        val removedVirtuals = current.virtualModels.filter { it.upstreamModelId == modelId }
         try {
-            val cleaned = current.removeFallbackReferences(
-                removedUpstreams = listOf(targetModel),
-                removedVirtualModels = removedVirtuals
-            )
             configStore.saveConfig(
-                cleaned.copy(
-                    upstreamModels = cleaned.upstreamModels.filterNot { it.id == modelId },
-                    virtualModels = cleaned.virtualModels.filterNot { it.upstreamModelId == modelId },
-                    modelCompressionPolicies = cleaned.modelCompressionPolicies - modelId
+                current.copy(
+                    upstreamModels = current.upstreamModels.filterNot { it.id == modelId },
+                    virtualModels = current.virtualModels.filterNot { it.upstreamModelId == modelId },
+                    modelCompressionPolicies = current.modelCompressionPolicies - modelId
                 )
             )
             showNotice(s.modelsModelDeleted(targetModel.displayName ?: targetModel.name), NoticeKind.SUCCESS)
@@ -892,14 +816,7 @@ class AppViewModel(
                     provider = provider,
                     selectedModels = providerModels
                 ).getOrThrow()
-                val removedVirtualModels = current.virtualModels.filter { previous ->
-                    synchronized.virtualModels.none { updated -> updated.id == previous.id }
-                }
-                val cleaned = current.removeFallbackReferences(
-                    removedUpstreams = emptyList(),
-                    removedVirtualModels = removedVirtualModels
-                )
-                cleaned.removeVirtualReferences(removedVirtualModels).copy(
+                current.copy(
                     upstreamModels = synchronized.upstreamModels,
                     virtualModels = synchronized.virtualModels
                 )
@@ -908,50 +825,6 @@ class AppViewModel(
             true
         } catch (e: Exception) {
             showNotice(s.modelsModelUpdateFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
-            false
-        }
-    }
-
-    fun updateVirtualModelFallback(
-        virtualModelId: String,
-        fallbackVirtualModelId: String?
-    ): Boolean {
-        return try {
-            configStore.updateConfig { current ->
-                val source = current.virtualModels.firstOrNull { it.id == virtualModelId }
-                    ?: throw IllegalArgumentException(s.modelsVirtualModelNotFound(virtualModelId))
-                val normalizedTarget = fallbackVirtualModelId
-                    ?.trim()
-                    ?.removePrefix("models/")
-                    ?.takeIf { it.isNotEmpty() }
-                val target = normalizedTarget?.let { targetId ->
-                    current.virtualModels.firstOrNull { virtual ->
-                        virtual.id == targetId || targetId in ModelIdentity.acceptedIds(virtual)
-                    }
-                }
-                if (normalizedTarget != null && target == null) {
-                    throw IllegalArgumentException(s.modelsVirtualModelNotFound(normalizedTarget))
-                }
-                if (target?.id == source.id) {
-                    throw IllegalArgumentException(s.modelsFallbackSelfError)
-                }
-                current.copy(
-                    virtualModels = current.virtualModels.map { virtual ->
-                        if (virtual.id == source.id) {
-                            virtual.copy(fallbackVirtualModelId = target?.id)
-                        } else {
-                            virtual
-                        }
-                    }
-                )
-            }
-            showNotice(
-                if (fallbackVirtualModelId.isNullOrBlank()) s.modelsFallbackCleared else s.modelsFallbackSaved,
-                NoticeKind.SUCCESS
-            )
-            true
-        } catch (error: Exception) {
-            showNotice(s.modelsFallbackSaveFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
             false
         }
     }
@@ -1298,24 +1171,6 @@ class AppViewModel(
     fun toggleDeveloperMode() {
         val current = configStore.currentConfig.developerMode
         updateDeveloperMode(!current)
-    }
-
-    private fun normalizeModelReference(value: String): String {
-        return value.trim().removePrefix("models/")
-    }
-
-    private fun upstreamModelReferences(model: UpstreamModel): Set<String> {
-        return setOf(
-            normalizeModelReference(model.id),
-            normalizeModelReference(model.upstreamModelId),
-            normalizeModelReference(ModelIdentity.effectiveUpstreamHostModelId(model))
-        )
-    }
-
-    private fun virtualModelReferences(model: VirtualModel): Set<String> {
-        return ModelIdentity.acceptedIds(model)
-            .map(::normalizeModelReference)
-            .toSet()
     }
 
     // --- 账号管理与 OAuth 交互方法 ---

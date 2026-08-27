@@ -199,6 +199,5 @@ data class VirtualModel(
     @SerialName("capabilities") val capabilities: ModelCapabilities = ModelCapabilities(),
     @SerialName("parameter_overrides") val parameterOverrides: ParameterOverrides? = null,
     @SerialName("default_reasoning_level") val defaultReasoningLevel: ReasoningLevel? = null,
-    @SerialName("fallback_virtual_model_id") val fallbackVirtualModelId: String? = null,
     @SerialName("enabled") val enabled: Boolean = true
 )
