@@ -98,10 +98,12 @@ object HostAccountDetector {
             os.contains("mac") -> {
                 File(userHome, "Library/Application Support/Antigravity/oauth_credentials.json")
             }
+
             os.contains("win") -> {
                 val appData = System.getenv("APPDATA") ?: "$userHome/AppData/Roaming"
                 File(appData, "Antigravity/oauth_credentials.json")
             }
+
             else -> {
                 val configHome = System.getenv("XDG_CONFIG_HOME")
                     ?.takeIf { it.isNotBlank() }
@@ -225,11 +227,24 @@ object HostAccountDetector {
     private fun detectEmailWithTimestampFromRecentLogs(): Pair<String?, Long> {
         try {
             val userHome = System.getProperty("user.home")
-            val candidateLogs = listOf(
-                File(userHome, ".gemini/antigravity-cli/cli.log"),
-                File(userHome, ".gemini/antigravity/app.log"),
-                File(userHome, ".gemini/antigravity/server.log")
-            )
+            val candidateLogs = buildList {
+                add(File(userHome, ".gemini/antigravity-cli/cli.log"))
+                add(File(userHome, ".gemini/antigravity/app.log"))
+                add(File(userHome, ".gemini/antigravity/server.log"))
+                // Windows 上日志可能存放在 LOCALAPPDATA 或 APPDATA 下
+                val localAppData = System.getenv("LOCALAPPDATA")
+                if (!localAppData.isNullOrBlank()) {
+                    add(File(localAppData, "antigravity-cli/cli.log"))
+                    add(File(localAppData, "antigravity/app.log"))
+                    add(File(localAppData, "antigravity/server.log"))
+                }
+                val appData = System.getenv("APPDATA")
+                if (!appData.isNullOrBlank()) {
+                    add(File(appData, "antigravity-cli/cli.log"))
+                    add(File(appData, "antigravity/app.log"))
+                    add(File(appData, "antigravity/server.log"))
+                }
+            }
 
             var bestEmail: String? = null
             var latestMtime: Long = 0L
@@ -252,9 +267,20 @@ object HostAccountDetector {
                 }
             }
 
-            // 亦扫描 ~/.gemini/antigravity-cli/log/ 目录下的最新日志
-            val logDir = File(userHome, ".gemini/antigravity-cli/log")
-            if (logDir.exists() && logDir.isDirectory) {
+            // 亦扫描 antigravity-cli/log/ 目录下的最新日志（含 Windows 路径候选）
+            val logDirs = buildList {
+                add(File(userHome, ".gemini/antigravity-cli/log"))
+                val localAppData = System.getenv("LOCALAPPDATA")
+                if (!localAppData.isNullOrBlank()) {
+                    add(File(localAppData, "antigravity-cli/log"))
+                }
+                val appData = System.getenv("APPDATA")
+                if (!appData.isNullOrBlank()) {
+                    add(File(appData, "antigravity-cli/log"))
+                }
+            }
+            for (logDir in logDirs) {
+                if (!logDir.exists() || !logDir.isDirectory) continue
                 val latestLog = logDir.listFiles { f -> f.name.endsWith(".log") }
                     ?.maxByOrNull { it.lastModified() }
                 if (latestLog != null) {
