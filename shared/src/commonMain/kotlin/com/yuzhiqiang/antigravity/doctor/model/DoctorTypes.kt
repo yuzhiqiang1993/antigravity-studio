@@ -30,6 +30,7 @@ sealed class DoctorFixAction {
     data object RestartIdeHost : DoctorFixAction()
     data class PruneInvalidModels(val providerId: String, val invalidModelIds: List<String>) : DoctorFixAction()
     data object RetestNetwork : DoctorFixAction()
+    data object OpenNetworkSettings : DoctorFixAction()
 }
 
 data class DoctorCheckItem(

@@ -575,6 +575,13 @@ interface Strings {
     fun settingsOutboundTestFallback(latencyMs: Long): String
     fun settingsOutboundTestFailed(error: String): String
     val settingsOpenNetworkSettings: String
+    val settingsOutboundDirectActiveDesc: String
+    fun settingsOutboundAutoActiveWithProxyDesc(proxy: String): String
+    val settingsOutboundAutoActiveNoProxyDesc: String
+    fun settingsOutboundSystemActiveDesc(proxy: String, fallback: Boolean): String
+    fun settingsOutboundSystemNoProxyDesc(fallback: Boolean): String
+    fun settingsOutboundManualActiveDesc(endpoint: String, fallback: Boolean): String
+    val settingsOutboundManualInvalidDesc: String
     val settingsHostPathsTitle: String
     val settingsHostPathsDesc: String
     val settingsDefaultSwitchTargetTitle: String
@@ -681,6 +688,7 @@ interface Strings {
     val doctorFixRestartApp: String
     val doctorFixPruneModels: String
     val doctorFixRetry: String
+    val doctorFixOpenNetworkSettings: String
     val doctorSuggestionPrefix: String
     val doctorAutoFixSuccess: String
     val doctorAutoFixFailed: String
@@ -696,9 +704,18 @@ interface Strings {
     val doctorCheckProxyUnreachableSugg: String
     val doctorCheckNetworkOkTitle: String
     fun doctorCheckNetworkOkMsg(latencyMs: Long): String
+    val doctorCheckNetworkDirectRouteDesc: String
+    val doctorCheckNetworkFallbackRouteDesc: String
+    fun doctorCheckNetworkOkWithRouteMsg(latencyMs: Long, mode: String, route: String): String
+    fun doctorCheckNetworkFallbackMsg(latencyMs: Long, mode: String): String
+    val doctorCheckNetworkFallbackSugg: String
     val doctorCheckNetworkFailedTitle: String
     fun doctorCheckNetworkFailedMsg(error: String): String
+    fun doctorCheckNetworkFailedWithModeMsg(error: String, mode: String): String
     val doctorCheckNetworkFailedSugg: String
+    val doctorCheckProxyConfigIssueTitle: String
+    val doctorCheckProxyConfigNoSystemMsg: String
+    val doctorCheckProxyConfigNoSystemSugg: String
     val doctorCheckNoProvidersTitle: String
     val doctorCheckNoProvidersMsg: String
     val doctorCheckNoProvidersSugg: String
@@ -1568,6 +1585,16 @@ object StringsZh : Strings {
     override fun settingsOutboundTestFallback(latencyMs: Long) = "代理不可用，已通过直连连接成功 · ${latencyMs}ms"
     override fun settingsOutboundTestFailed(error: String) = "连接失败：$error"
     override val settingsOpenNetworkSettings = "打开网络设置"
+    override val settingsOutboundDirectActiveDesc = "当前出站路径: 始终直连（已忽略操作系统网络代理）"
+    override fun settingsOutboundAutoActiveWithProxyDesc(proxy: String) = "智能调度: 优先代理 ($proxy) → 失败自动回退直连"
+    override val settingsOutboundAutoActiveNoProxyDesc = "智能调度: 未检测到系统代理 · 自动直连"
+    override fun settingsOutboundSystemActiveDesc(proxy: String, fallback: Boolean) =
+        "系统代理: $proxy" + if (fallback) " → 失败回退直连" else " (严格仅走代理)"
+    override fun settingsOutboundSystemNoProxyDesc(fallback: Boolean) =
+        if (fallback) "⚠️ 未检测到系统代理 · 已回退直连" else "⚠️ 未检测到系统代理，公网请求将被阻断"
+    override fun settingsOutboundManualActiveDesc(endpoint: String, fallback: Boolean) =
+        "手动代理: $endpoint" + if (fallback) " → 失败回退直连" else " (严格仅走代理)"
+    override val settingsOutboundManualInvalidDesc = "未配置有效的手动代理服务器"
     override val settingsHostPathsTitle = "应用安装路径"
     override val settingsHostPathsDesc = "自定义 Antigravity IDE、App 与 CLI 的安装目录或可执行文件路径"
     override val settingsDefaultSwitchTargetTitle = "切号默认目标应用"
@@ -1681,6 +1708,7 @@ object StringsZh : Strings {
     override val doctorFixRestartApp = "重启 App"
     override val doctorFixPruneModels = "清理模型"
     override val doctorFixRetry = "重试"
+    override val doctorFixOpenNetworkSettings = "网络设置"
     override val doctorSuggestionPrefix = "💡 建议: "
     override val doctorAutoFixSuccess = "已执行自动修复"
     override val doctorAutoFixFailed = "自动修复失败，请手动检查"
@@ -1695,10 +1723,25 @@ object StringsZh : Strings {
     override val doctorCheckProxyUnreachableSugg = "尝试重启代理服务。"
     override val doctorCheckNetworkOkTitle = "连接官方服务"
     override fun doctorCheckNetworkOkMsg(latencyMs: Long) = "官方 Cloud Code 服务通信正常（${latencyMs}ms）。"
+    override val doctorCheckNetworkDirectRouteDesc = "直连"
+    override val doctorCheckNetworkFallbackRouteDesc = "回退直连"
+    override fun doctorCheckNetworkOkWithRouteMsg(latencyMs: Long, mode: String, route: String) =
+        "官方 Cloud Code 服务通信正常（${latencyMs}ms） · 模式: $mode · 路径: $route。"
+    override fun doctorCheckNetworkFallbackMsg(latencyMs: Long, mode: String) =
+        "官方 Cloud Code 服务已连通（${latencyMs}ms） · 模式: $mode · ⚠️ 代理不可用，已自动回退直连。"
+    override val doctorCheckNetworkFallbackSugg =
+        "上游网络代理节点无法建立连接，当前已回退直连；如需走代理请检查本地代理客户端是否已开启。"
     override val doctorCheckNetworkFailedTitle = "连接官方服务失败"
     override fun doctorCheckNetworkFailedMsg(error: String) = "无法连通 Google 官方服务：$error。"
+    override fun doctorCheckNetworkFailedWithModeMsg(error: String, mode: String) =
+        "无法连通 Google 官方服务：$error（模式: $mode）。"
     override val doctorCheckNetworkFailedSugg =
-        "请检查网络与代理配置；如直连正常但 Studio 仍失败，请重启 Studio 后重新检测。"
+        "请检查网络与代理配置；如直连正常但 Studio 仍失败，请在「网络设置」中调整代理模式或允许直连回退。"
+    override val doctorCheckProxyConfigIssueTitle = "上游系统代理未配置"
+    override val doctorCheckProxyConfigNoSystemMsg =
+        "当前上游代理模式为「仅系统代理」且禁止直连回退，但系统未检测到有效代理配置，所有公网请求将被阻断。"
+    override val doctorCheckProxyConfigNoSystemSugg =
+        "建议在「网络设置」中开启直连回退，或将连接方式切换为「智能选择」。"
     override val doctorCheckNoProvidersTitle = "未配置或未启用任何服务商"
     override val doctorCheckNoProvidersMsg = "当前没有已启用的模型服务商，自定义模型请求将无法转发。"
     override val doctorCheckNoProvidersSugg = "前往「模型管理」添加服务商。"
@@ -2624,6 +2667,16 @@ object StringsEn : Strings {
 
     override fun settingsOutboundTestFailed(error: String) = "Connection failed: $error"
     override val settingsOpenNetworkSettings = "Open Network Settings"
+    override val settingsOutboundDirectActiveDesc = "Current outbound route: Always direct (system & env proxies bypassed)"
+    override fun settingsOutboundAutoActiveWithProxyDesc(proxy: String) = "Smart select: Preferred proxy ($proxy) → Direct fallback"
+    override val settingsOutboundAutoActiveNoProxyDesc = "Smart select: No system proxy detected · Direct connection"
+    override fun settingsOutboundSystemActiveDesc(proxy: String, fallback: Boolean) =
+        "System proxy: $proxy" + if (fallback) " → Direct fallback" else " (Strict proxy only)"
+    override fun settingsOutboundSystemNoProxyDesc(fallback: Boolean) =
+        if (fallback) "⚠️ No system proxy detected · Fell back to direct" else "⚠️ No system proxy detected, requests will be blocked"
+    override fun settingsOutboundManualActiveDesc(endpoint: String, fallback: Boolean) =
+        "Manual proxy: $endpoint" + if (fallback) " → Direct fallback" else " (Strict proxy only)"
+    override val settingsOutboundManualInvalidDesc = "No valid manual proxy configured"
     override val settingsHostPathsTitle = "Host Installation Paths"
     override val settingsHostPathsDesc = "Custom installation or executable paths for Antigravity IDE, App and CLI"
     override val settingsDefaultSwitchTargetTitle = "Default Switch Target"
@@ -2738,6 +2791,7 @@ object StringsEn : Strings {
     override val doctorFixRestartApp = "Restart App"
     override val doctorFixPruneModels = "Prune Models"
     override val doctorFixRetry = "Retry"
+    override val doctorFixOpenNetworkSettings = "Network Settings"
     override val doctorSuggestionPrefix = "💡 Suggestion: "
     override val doctorAutoFixSuccess = "Auto-fix applied successfully"
     override val doctorAutoFixFailed = "Auto-fix failed; please check manually"
@@ -2756,10 +2810,25 @@ object StringsEn : Strings {
     override val doctorCheckProxyUnreachableSugg = "Try restarting the proxy server."
     override val doctorCheckNetworkOkTitle = "Official service connectivity"
     override fun doctorCheckNetworkOkMsg(latencyMs: Long) = "Google Cloud Code service is reachable (${latencyMs}ms)."
+    override val doctorCheckNetworkDirectRouteDesc = "Direct"
+    override val doctorCheckNetworkFallbackRouteDesc = "Direct (fallback)"
+    override fun doctorCheckNetworkOkWithRouteMsg(latencyMs: Long, mode: String, route: String) =
+        "Google Cloud Code service reachable (${latencyMs}ms) · Mode: $mode · Route: $route."
+    override fun doctorCheckNetworkFallbackMsg(latencyMs: Long, mode: String) =
+        "Google Cloud Code service reachable (${latencyMs}ms) · Mode: $mode · ⚠️ Proxy unavailable, fell back to direct."
+    override val doctorCheckNetworkFallbackSugg =
+        "The configured proxy is unreachable and connection fell back to direct. Check your local proxy client if needed."
     override val doctorCheckNetworkFailedTitle = "Failed to connect to official service"
     override fun doctorCheckNetworkFailedMsg(error: String) = "Cannot reach Google official services: $error."
+    override fun doctorCheckNetworkFailedWithModeMsg(error: String, mode: String) =
+        "Cannot reach Google official services: $error (Mode: $mode)."
     override val doctorCheckNetworkFailedSugg =
-        "Check network and proxy settings; restart Studio if direct connection works."
+        "Check network and proxy settings; adjust outbound proxy mode or enable direct fallback in Network Settings."
+    override val doctorCheckProxyConfigIssueTitle = "Upstream system proxy not configured"
+    override val doctorCheckProxyConfigNoSystemMsg =
+        "Current proxy mode is 'System Proxy' without direct fallback, but no system proxy is detected. All requests will be blocked."
+    override val doctorCheckProxyConfigNoSystemSugg =
+        "Enable direct fallback in Network Settings or switch to Smart Select mode."
     override val doctorCheckNoProvidersTitle = "No model providers configured or enabled"
     override val doctorCheckNoProvidersMsg = "No active providers; all custom model requests will be blocked."
     override val doctorCheckNoProvidersSugg = "Go to Models screen to add a provider."

@@ -16,6 +16,7 @@ class DoctorDelegate(
     private val showDoctorDialogFlow: MutableStateFlow<Boolean>,
     private val showNotice: (String, NoticeKind) -> Unit,
     private val onOpenAddProvider: () -> Unit,
+    private val onOpenNetworkSettings: () -> Unit = {},
     private val onRefreshHostStatus: () -> Unit
 ) {
 
@@ -42,6 +43,11 @@ class DoctorDelegate(
     fun runDoctorAutoFix(action: DoctorFixAction) {
         if (action is DoctorFixAction.OpenAddProvider) {
             onOpenAddProvider()
+            closeDoctorDialog()
+            return
+        }
+        if (action is DoctorFixAction.OpenNetworkSettings) {
+            onOpenNetworkSettings()
             closeDoctorDialog()
             return
         }

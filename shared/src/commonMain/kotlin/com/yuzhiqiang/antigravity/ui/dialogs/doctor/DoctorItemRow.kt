@@ -95,6 +95,7 @@ fun DoctorItemRow(
                     is DoctorFixAction.RestartAppHost -> s.doctorFixRestartApp
                     is DoctorFixAction.PruneInvalidModels -> s.doctorFixPruneModels
                     is DoctorFixAction.RetestNetwork -> s.doctorFixRetry
+                    is DoctorFixAction.OpenNetworkSettings -> s.doctorFixOpenNetworkSettings
                 }
 
                 StudioTonalButton(
