@@ -19,12 +19,51 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.yuzhiqiang.antigravity.domain.model.OutboundProxyConfig
 import com.yuzhiqiang.antigravity.i18n.Strings
+import com.yuzhiqiang.antigravity.network.ConnectionTester
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
 @Composable
 fun NetworkSettingsSection(
+    portInput: String,
+    portError: String?,
+    outboundProxy: OutboundProxyConfig,
+    isTestingOutboundProxy: Boolean,
+    outboundProxyTestResult: ConnectionTester.OutboundProxyTestResult?,
+    onPortInputChange: (String) -> Unit,
+    onSavePort: () -> Unit,
+    onSaveOutboundProxy: (OutboundProxyConfig) -> Unit,
+    onTestOutboundProxy: (OutboundProxyConfig) -> Unit,
+    onClearOutboundProxyTestResult: () -> Unit,
+    s: Strings
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
+    ) {
+        LocalProxySettingsCard(
+            portInput = portInput,
+            portError = portError,
+            onPortInputChange = onPortInputChange,
+            onSavePort = onSavePort,
+            s = s
+        )
+        OutboundProxySettingsCard(
+            savedConfig = outboundProxy,
+            isTesting = isTestingOutboundProxy,
+            testResult = outboundProxyTestResult,
+            onSave = onSaveOutboundProxy,
+            onTest = onTestOutboundProxy,
+            onClearTestResult = onClearOutboundProxyTestResult,
+            s = s
+        )
+    }
+}
+
+@Composable
+private fun LocalProxySettingsCard(
     portInput: String,
     portError: String?,
     onPortInputChange: (String) -> Unit,
@@ -36,7 +75,7 @@ fun NetworkSettingsSection(
             modifier = Modifier.padding(horizontal = AppTokens.Spacing.card, vertical = AppTokens.Spacing.md),
             verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
         ) {
-            SettingsCardTitle(Icons.Outlined.Router, s.settingsNetwork)
+            SettingsCardTitle(Icons.Outlined.Router, s.settingsLocalProxyTitle)
             Spacer(Modifier.height(2.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
@@ -51,19 +90,19 @@ fun NetworkSettingsSection(
                     horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
                 ) {
                     val isError = portError != null
-                    val borderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                    
+                    val borderColor = if (isError) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                    }
+
                     Box(
                         modifier = Modifier
                             .width(100.dp)
                             .height(32.dp)
                             .clip(RoundedCornerShape(AppTokens.Radius.small))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-                            .border(
-                                width = 1.dp,
-                                color = borderColor,
-                                shape = RoundedCornerShape(AppTokens.Radius.small)
-                            )
+                            .border(1.dp, borderColor, RoundedCornerShape(AppTokens.Radius.small))
                             .padding(horizontal = 10.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
@@ -100,9 +139,9 @@ fun NetworkSettingsSection(
                 }
             }
 
-            if (portError != null) {
+            portError?.let { error ->
                 Text(
-                    text = portError,
+                    text = error,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(start = AppTokens.Spacing.card)

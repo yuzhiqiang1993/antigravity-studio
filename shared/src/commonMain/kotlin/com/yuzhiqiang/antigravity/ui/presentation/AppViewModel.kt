@@ -11,6 +11,7 @@ import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.network.ConnectionTester
+import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
 import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
 import com.yuzhiqiang.antigravity.proxy.routing.RouteResolver
@@ -116,6 +117,17 @@ class AppViewModel(
 
     private val _currentTab = MutableStateFlow(NavTab.OVERVIEW)
     val currentTab: StateFlow<NavTab> = _currentTab.asStateFlow()
+
+    private val _networkSettingsRequest = MutableStateFlow(0L)
+    val networkSettingsRequest: StateFlow<Long> = _networkSettingsRequest.asStateFlow()
+
+    private val _isTestingOutboundProxy = MutableStateFlow(false)
+    val isTestingOutboundProxy: StateFlow<Boolean> = _isTestingOutboundProxy.asStateFlow()
+
+    private val _outboundProxyTestResult = MutableStateFlow<ConnectionTester.OutboundProxyTestResult?>(null)
+    val outboundProxyTestResult: StateFlow<ConnectionTester.OutboundProxyTestResult?> =
+        _outboundProxyTestResult.asStateFlow()
+    private var outboundProxyTestJob: Job? = null
 
     private val _openProviderEditorRequest = MutableStateFlow(false)
     val openProviderEditorRequest: StateFlow<Boolean> = _openProviderEditorRequest.asStateFlow()
@@ -296,6 +308,7 @@ class AppViewModel(
     init {
         val initialLang = AppLanguage.fromCode(configStore.currentConfig.language)
         I18nManager.currentLanguage = initialLang
+        PlatformNetworkConfig.applyOutboundProxy(configStore.currentConfig.outboundProxy)
 
         // 启动底层文件与进程生命周期异步监听器
         com.yuzhiqiang.antigravity.services.events.HostFileWatcher.start()
@@ -519,6 +532,45 @@ class AppViewModel(
 
     fun selectTab(tab: NavTab) {
         _currentTab.value = tab
+    }
+
+    fun openNetworkSettings() {
+        _showDoctorDialog.value = false
+        _currentTab.value = NavTab.SETTINGS
+        _networkSettingsRequest.value += 1L
+    }
+
+    fun saveOutboundProxy(config: OutboundProxyConfig) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                configStore.updateConfig { current -> current.copy(outboundProxy = config) }
+                PlatformNetworkConfig.applyOutboundProxy(configStore.currentConfig.outboundProxy)
+                _outboundProxyTestResult.value = null
+                showNotice(s.settingsOutboundProxySaved, NoticeKind.SUCCESS)
+            } catch (error: Exception) {
+                showNotice(
+                    s.settingsOutboundProxySaveFailed(error.message ?: s.commonUnknown),
+                    NoticeKind.ERROR
+                )
+            }
+        }
+    }
+
+    fun testOutboundProxy(config: OutboundProxyConfig) {
+        outboundProxyTestJob?.cancel()
+        outboundProxyTestJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            _isTestingOutboundProxy.value = true
+            _outboundProxyTestResult.value = null
+            try {
+                _outboundProxyTestResult.value = ConnectionTester.testOutboundProxy(config)
+            } finally {
+                _isTestingOutboundProxy.value = false
+            }
+        }
+    }
+
+    fun clearOutboundProxyTestResult() {
+        _outboundProxyTestResult.value = null
     }
 
     fun requestOpenProviderEditor() {
@@ -1434,7 +1486,12 @@ class AppViewModel(
             val result = quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
             result.fold(
                 onSuccess = { showNotice(s.noticeQuotasUpdatedAll, NoticeKind.SUCCESS) },
-                onFailure = { showNotice(s.noticeQuotasUpdateFailedAll(it.message ?: s.commonUnknown), NoticeKind.ERROR) }
+                onFailure = {
+                    showNotice(
+                        s.noticeQuotasUpdateFailedAll(it.message ?: s.commonUnknown),
+                        NoticeKind.ERROR
+                    )
+                }
             )
         }
     }
@@ -1446,7 +1503,12 @@ class AppViewModel(
             val result = quotaPoller.refreshSingle(account, isActive)
             result.fold(
                 onSuccess = { showNotice(s.noticeQuotaRefreshedSingle, NoticeKind.SUCCESS) },
-                onFailure = { showNotice(s.noticeQuotaRefreshFailedSingle(it.message ?: s.commonError), NoticeKind.ERROR) }
+                onFailure = {
+                    showNotice(
+                        s.noticeQuotaRefreshFailedSingle(it.message ?: s.commonError),
+                        NoticeKind.ERROR
+                    )
+                }
             )
         }
     }

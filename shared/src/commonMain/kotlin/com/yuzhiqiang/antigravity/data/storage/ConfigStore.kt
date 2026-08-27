@@ -4,6 +4,7 @@ import com.yuzhiqiang.antigravity.domain.model.AppConfig
 import com.yuzhiqiang.antigravity.domain.model.ModelIdentity
 import com.yuzhiqiang.antigravity.domain.model.ModelCapabilities
 import com.yuzhiqiang.antigravity.domain.model.ModelModality
+import com.yuzhiqiang.antigravity.domain.model.OutboundProxyMode
 import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
@@ -231,6 +232,14 @@ class ConfigStore(
         require(config.proxyPort in 1024..65535) {
             "代理端口必须位于 1024 - 65535 之间"
         }
+        if (config.outboundProxy.mode == OutboundProxyMode.MANUAL) {
+            require(
+                config.outboundProxy.host.isNotBlank() &&
+                        "://" !in config.outboundProxy.host &&
+                        "/" !in config.outboundProxy.host
+            ) { "手动代理地址必须是不带协议和路径的主机名或 IP" }
+            require(config.outboundProxy.port in 1..65535) { "手动代理端口必须位于 1 - 65535 之间" }
+        }
         val providerIds = config.providers.map { provider ->
             require(provider.id.isNotBlank()) { "Provider ID 不能为空" }
             require(provider.name.isNotBlank()) { "Provider 名称不能为空" }
@@ -440,6 +449,7 @@ class ConfigStore(
             )
         }
         return config.copy(
+            outboundProxy = config.outboundProxy.copy(host = config.outboundProxy.host.trim()),
             providers = providers,
             upstreamModels = upstreams,
             virtualModels = virtuals
