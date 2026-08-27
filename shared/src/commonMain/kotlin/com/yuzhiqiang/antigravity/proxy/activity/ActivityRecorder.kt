@@ -63,6 +63,17 @@ object ActivityRecorder {
     }
 
     /**
+     * 触发重试时，原位更新该条请求的已重试次数
+     */
+    fun updateRetryCount(id: String, retryCount: Int) {
+        _logs.update { current ->
+            current.map { log ->
+                if (log.id == id) log.copy(retryCount = retryCount) else log
+            }
+        }
+    }
+
+    /**
      * 请求完成或异常中断时，原位更新该条日志为完成态
      */
     fun finishActivity(
@@ -72,10 +83,9 @@ object ActivityRecorder {
         modelId: String? = null,
         providerName: String? = null,
         errorMessage: String? = null,
-        fallbackAttempted: Boolean = false,
-        fallbackSucceeded: Boolean = false,
         usage: NeutralUsage? = null,
-        firstTokenMs: Long? = null
+        firstTokenMs: Long? = null,
+        retryCount: Int = 0
     ) {
         _logs.update { current ->
             current.map { log ->
@@ -86,8 +96,6 @@ object ActivityRecorder {
                         modelId = modelId ?: log.modelId,
                         providerName = providerName ?: log.providerName,
                         errorMessage = errorMessage,
-                        fallbackAttempted = fallbackAttempted,
-                        fallbackSucceeded = fallbackSucceeded,
                         inputTokens = usage?.inputTokens ?: log.inputTokens,
                         outputTokens = usage?.outputTokens ?: log.outputTokens,
                         cacheReadTokens = usage?.cacheReadTokens ?: log.cacheReadTokens,
@@ -95,6 +103,7 @@ object ActivityRecorder {
                         reasoningTokens = usage?.reasoningTokens ?: log.reasoningTokens,
                         totalTokens = usage?.totalTokens ?: log.totalTokens,
                         firstTokenMs = firstTokenMs ?: log.firstTokenMs,
+                        retryCount = if (retryCount > 0) retryCount else log.retryCount,
                         isPending = false
                     )
                 } else {
@@ -114,10 +123,9 @@ object ActivityRecorder {
         durationMs: Long,
         isOfficialPassthrough: Boolean,
         errorMessage: String? = null,
-        fallbackAttempted: Boolean = false,
-        fallbackSucceeded: Boolean = false,
         usage: NeutralUsage? = null,
-        firstTokenMs: Long? = null
+        firstTokenMs: Long? = null,
+        retryCount: Int = 0
     ) {
         val newLog = ActivityLog(
             id = UUID.randomUUID().toString(),
@@ -132,15 +140,14 @@ object ActivityRecorder {
             isOfficialPassthrough = isOfficialPassthrough,
             isPending = false,
             errorMessage = errorMessage,
-            fallbackAttempted = fallbackAttempted,
-            fallbackSucceeded = fallbackSucceeded,
             inputTokens = usage?.inputTokens,
             outputTokens = usage?.outputTokens,
             cacheReadTokens = usage?.cacheReadTokens,
             cacheWriteTokens = usage?.cacheWriteTokens,
             reasoningTokens = usage?.reasoningTokens,
             totalTokens = usage?.totalTokens,
-            firstTokenMs = firstTokenMs
+            firstTokenMs = firstTokenMs,
+            retryCount = retryCount
         )
         _logs.update { current ->
             val next = ArrayList<ActivityLog>(minOf(current.size + 1, MAX_LOGS))

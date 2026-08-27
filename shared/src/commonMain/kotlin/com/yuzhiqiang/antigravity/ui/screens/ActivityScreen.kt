@@ -84,7 +84,8 @@ fun ActivityScreen(
                 log.requestedModelId,
                 if (log.isOfficialPassthrough) s.activityPassthrough else log.providerName,
                 log.path,
-                log.errorMessage
+                log.errorMessage,
+                if (log.retryCount > 0) s.activityRetryBadge(log.retryCount) else null
             ).any { it.lowercase().contains(normalizedQuery) }
             val matchesFailed = !filterOnlyFailed || log.statusCode >= 400
             matchesTag && matchesQuery && matchesFailed
@@ -434,11 +435,6 @@ private fun ActivityLogRow(
         else -> BadgeTone.ERROR
     }
     val statusText = if (log.isPending) s.activityPending else "${log.statusCode}"
-    val routeLabel = when {
-        log.fallbackSucceeded -> s.activityFallback
-        log.fallbackAttempted -> s.activityFallbackFailed
-        else -> null
-    }
     val time = formatLogTime(log.timestamp)
 
     OutlinedCard(
@@ -498,6 +494,23 @@ private fun ActivityLogRow(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
+                        }
+
+                        if (log.retryCount > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(5.dp),
+                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.85f)
+                            ) {
+                                Text(
+                                    text = s.activityRetryBadge(log.retryCount),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
 
                         HighlightedText(
@@ -683,13 +696,6 @@ private fun ActivityLogRow(
                                     )
                                 }
                             }
-                        }
-                        if (routeLabel != null) {
-                            Text(
-                                text = routeLabel,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                                color = if (log.fallbackSucceeded) AppStatusColors.success else MaterialTheme.colorScheme.error
-                            )
                         }
                     }
                 }

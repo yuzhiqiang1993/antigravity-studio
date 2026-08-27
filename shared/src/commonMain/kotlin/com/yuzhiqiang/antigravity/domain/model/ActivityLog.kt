@@ -15,7 +15,7 @@ data class ActivityLog(
     val path: String,
     @SerialName("model_id")
     val modelId: String? = null,
-    /** 请求最初选择的模型；model_id 在 fallback 后记录实际成功路由。 */
+    /** 请求最初选择的模型 ID（宿主原始请求值）。 */
     @SerialName("requested_model_id")
     val requestedModelId: String? = null,
     @SerialName("provider_name")
@@ -30,10 +30,6 @@ data class ActivityLog(
     val isPending: Boolean = false,
     @SerialName("error_message")
     val errorMessage: String? = null,
-    @SerialName("fallback_attempted")
-    val fallbackAttempted: Boolean = false,
-    @SerialName("fallback_succeeded")
-    val fallbackSucceeded: Boolean = false,
     @SerialName("input_tokens")
     val inputTokens: Long? = null,
     @SerialName("output_tokens")
@@ -47,5 +43,7 @@ data class ActivityLog(
     @SerialName("total_tokens")
     val totalTokens: Long? = null,
     @SerialName("first_token_ms")
-    val firstTokenMs: Long? = null
+    val firstTokenMs: Long? = null,
+    @SerialName("retry_count")
+    val retryCount: Int = 0
 )

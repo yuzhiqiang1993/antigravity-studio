@@ -96,9 +96,8 @@ interface ProviderAdapter {
                     requestTimeoutMillis = 900_000L
                 }
                 install(HttpRequestRetry) {
-                    maxRetries = 2
-                    retryOnException(maxRetries = 2, retryOnTimeout = false)
-                    exponentialDelay()
+                    // 全局禁用对生成/转发请求的自动隐式重试，避免向已计费或产生中间状态的上游发起重复并发请求
+                    noRetry()
                 }
                 install(ContentNegotiation) {
                     json(Json {

@@ -406,6 +406,16 @@ class AnthropicAdapter : ProviderAdapter {
     private fun parseEvent(data: String): Result<List<NeutralStreamChunk>> {
         return try {
             val root = json.parseToJsonElement(data).jsonObject
+            if (root["type"]?.jsonPrimitive?.contentOrNull == "error") {
+                val errorObj = root["error"]?.jsonObject
+                val statusCode = errorObj?.get("status")?.jsonPrimitive?.intOrNull
+                    ?: errorObj?.get("status_code")?.jsonPrimitive?.intOrNull
+                    ?: errorObj?.get("code")?.jsonPrimitive?.intOrNull
+                    ?: 502
+                val errorMsg = errorObj?.get("message")?.jsonPrimitive?.contentOrNull
+                    ?: "Anthropic stream error"
+                return Result.success(listOf(NeutralStreamChunk.Error(errorMsg, statusCode, responseStarted = true)))
+            }
             val type = root["type"]?.jsonPrimitive?.contentOrNull
             val chunks = mutableListOf<NeutralStreamChunk>()
             when (type) {

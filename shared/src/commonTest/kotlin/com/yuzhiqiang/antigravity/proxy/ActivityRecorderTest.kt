@@ -39,9 +39,11 @@ class ActivityRecorderTest {
 
         // 2. 流式返回首字时更新 TTFT
         ActivityRecorder.updateFirstToken(logId, 1500L)
+        ActivityRecorder.updateRetryCount(logId, 2)
         val intermediateLogs = ActivityRecorder.logs.value
         assertEquals(1, intermediateLogs.size)
         assertEquals(1500L, intermediateLogs.first().firstTokenMs)
+        assertEquals(2, intermediateLogs.first().retryCount)
         assertTrue(intermediateLogs.first().isPending)
 
         // 3. 请求完成时更新 finishActivity
@@ -49,7 +51,8 @@ class ActivityRecorderTest {
             id = logId,
             statusCode = 200,
             durationMs = 3500L,
-            usage = NeutralUsage(inputTokens = 100, outputTokens = 200, totalTokens = 300)
+            usage = NeutralUsage(inputTokens = 100, outputTokens = 200, totalTokens = 300),
+            retryCount = 2
         )
         val finishedLogs = ActivityRecorder.logs.value
         assertEquals(1, finishedLogs.size)
@@ -59,6 +62,7 @@ class ActivityRecorderTest {
         assertEquals(3500L, finishedLog.durationMs)
         assertEquals(1500L, finishedLog.firstTokenMs)
         assertEquals(300L, finishedLog.totalTokens)
+        assertEquals(2, finishedLog.retryCount)
     }
 
     @Test

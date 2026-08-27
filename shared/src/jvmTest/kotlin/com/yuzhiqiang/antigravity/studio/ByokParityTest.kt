@@ -163,7 +163,8 @@ class ByokParityTest {
             val port = runBlocking { server.start(24_321).getOrThrow() }
             try {
                 fun get(path: String): Pair<Int, String> {
-                    val connection = java.net.URI("http://127.0.0.1:$port$path").toURL().openConnection() as HttpURLConnection
+                    val connection =
+                        java.net.URI("http://127.0.0.1:$port$path").toURL().openConnection() as HttpURLConnection
                     connection.requestMethod = "GET"
                     return connection.responseCode to connection.inputStream.bufferedReader().use { it.readText() }
                 }
@@ -221,10 +222,22 @@ class ByokParityTest {
             """.trimIndent()
         ).getOrThrow()
 
-        assertEquals("reason summary", (request.messages[0].contents[0] as com.yuzhiqiang.antigravity.proxy.model.NeutralContent.Thinking).text)
-        assertEquals("signed", (request.messages[0].contents[0] as com.yuzhiqiang.antigravity.proxy.model.NeutralContent.Thinking).signature)
-        assertEquals("call_0_2", (request.messages[0].contents[1] as com.yuzhiqiang.antigravity.proxy.model.NeutralContent.ToolCall).id)
-        assertEquals("call_0_3", (request.messages[0].contents[2] as com.yuzhiqiang.antigravity.proxy.model.NeutralContent.ToolCall).id)
+        assertEquals(
+            "reason summary",
+            (request.messages[0].contents[0] as com.yuzhiqiang.antigravity.proxy.model.NeutralContent.Thinking).text
+        )
+        assertEquals(
+            "signed",
+            (request.messages[0].contents[0] as com.yuzhiqiang.antigravity.proxy.model.NeutralContent.Thinking).signature
+        )
+        assertEquals(
+            "call_0_2",
+            (request.messages[0].contents[1] as com.yuzhiqiang.antigravity.proxy.model.NeutralContent.ToolCall).id
+        )
+        assertEquals(
+            "call_0_3",
+            (request.messages[0].contents[2] as com.yuzhiqiang.antigravity.proxy.model.NeutralContent.ToolCall).id
+        )
     }
 
     @Test
@@ -256,20 +269,24 @@ class ByokParityTest {
     @Test
     fun streamEncoderAttachesFinalUsageToFinishFrame() {
         val encoder = ResponseEncoder.newStreamEncoder()
-        encoder.encode(NeutralStreamChunk.Completed(
-            finishReason = "stop",
-            choiceIndex = 2
-        ))
-        encoder.encode(NeutralStreamChunk.Completed(
-            usage = NeutralUsage(
-                inputTokens = 7,
-                outputTokens = 4,
-                cacheReadTokens = 3,
-                reasoningTokens = 5,
-                totalTokens = 19
-            ),
-            choiceIndex = 2
-        ))
+        encoder.encode(
+            NeutralStreamChunk.Completed(
+                finishReason = "stop",
+                choiceIndex = 2
+            )
+        )
+        encoder.encode(
+            NeutralStreamChunk.Completed(
+                usage = NeutralUsage(
+                    inputTokens = 7,
+                    outputTokens = 4,
+                    cacheReadTokens = 3,
+                    reasoningTokens = 5,
+                    totalTokens = 19
+                ),
+                choiceIndex = 2
+            )
+        )
 
         val frame = encoder.finish().first()
         assertTrue(frame.contains("\"index\":2"))
@@ -277,6 +294,7 @@ class ByokParityTest {
         assertTrue(frame.contains("\"promptTokenCount\":10"))
         assertTrue(frame.contains("\"thoughtsTokenCount\":5"))
     }
+
     @Test
     fun openAiChatCompletionsHandlesDynamicThinkingBudgetWithReasoningLevel() {
         val config = AppConfig(
@@ -325,10 +343,13 @@ class ByokParityTest {
             """.trimIndent()
         ).getOrThrow()
 
-       val route = com.yuzhiqiang.antigravity.proxy.routing.RouteResolver.resolve(config, request).getOrThrow()
-       assertEquals("effort", route.request.reasoningMapping?.kind)
-       assertEquals("max", com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport.mappingValueAsString(route.request.reasoningMapping!!))
-   }
+        val route = com.yuzhiqiang.antigravity.proxy.routing.RouteResolver.resolve(config, request).getOrThrow()
+        assertEquals("effort", route.request.reasoningMapping?.kind)
+        assertEquals(
+            "max",
+            com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport.mappingValueAsString(route.request.reasoningMapping!!)
+        )
+    }
 
     @Test
     fun modelCatalogRegistersTieredParentForReasoningVariants() {
@@ -346,12 +367,12 @@ class ByokParityTest {
                     id = "um-1",
                     providerId = "p-1",
                     upstreamModelId = "stealth/ox-alpha",
-                   displayName = "stealth/ox-alpha",
-                   capabilities = com.yuzhiqiang.antigravity.domain.model.ModelCapabilities(
+                    displayName = "stealth/ox-alpha",
+                    capabilities = com.yuzhiqiang.antigravity.domain.model.ModelCapabilities(
                         roles = listOf(com.yuzhiqiang.antigravity.domain.model.ModelRole.AGENT),
-                       reasoning = com.yuzhiqiang.antigravity.domain.model.ReasoningCapability(supported = true)
-                   )
-               )
+                        reasoning = com.yuzhiqiang.antigravity.domain.model.ReasoningCapability(supported = true)
+                    )
+                )
             ),
             virtualModels = listOf(
                 VirtualModel(
@@ -390,7 +411,7 @@ class ByokParityTest {
                 },
                 config
             ).toString()
-                
+
             assertTrue(response.contains("custom-stealthox-alpha-tiered"))
             assertTrue(response.contains("stealth/ox-alpha"))
             assertTrue(response.contains("stealth/ox-alpha (High)"))
@@ -448,13 +469,15 @@ class ByokParityTest {
             """.trimIndent()
         ).getOrThrow()
 
-        val resolved = com.yuzhiqiang.antigravity.proxy.routing.RouteResolver.resolve(config, requestTiered).getOrThrow()
+        val resolved =
+            com.yuzhiqiang.antigravity.proxy.routing.RouteResolver.resolve(config, requestTiered).getOrThrow()
         assertEquals("custom-stealthox-alpha-high", resolved.virtualModel?.id)
     }
 
     @Test
     fun parsesZhipuRealCatalogDatasetAccurately() {
-        val file = File("../../docs/服务商模型数据源/智谱.json").let { if (it.exists()) it else File("docs/服务商模型数据源/智谱.json") }
+        val file =
+            File("../../docs/服务商模型数据源/智谱.json").let { if (it.exists()) it else File("docs/服务商模型数据源/智谱.json") }
         if (!file.exists()) return
         val rawJson = file.readText()
         val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS)
@@ -477,7 +500,8 @@ class ByokParityTest {
 
     @Test
     fun parsesOpenRouterRealCatalogDatasetAccurately() {
-        val file = File("../../docs/服务商模型数据源/openrouter.json").let { if (it.exists()) it else File("docs/服务商模型数据源/openrouter.json") }
+        val file =
+            File("../../docs/服务商模型数据源/openrouter.json").let { if (it.exists()) it else File("docs/服务商模型数据源/openrouter.json") }
         if (!file.exists()) return
         val rawJson = file.readText()
         val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS)
@@ -502,15 +526,20 @@ class ByokParityTest {
 
     @Test
     fun parsesCpaRealCatalogDatasetAccurately() {
-        val file = File("../../docs/服务商模型数据源/cpa.json").let { if (it.exists()) it else File("docs/服务商模型数据源/cpa.json") }
+        val file =
+            File("../../docs/服务商模型数据源/cpa.json").let { if (it.exists()) it else File("docs/服务商模型数据源/cpa.json") }
         if (!file.exists()) return
         val rawJson = file.readText()
-        val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS, isCpaCatalog = true)
+        val models = UniversalModelCatalogParser.parse(
+            rawJson,
+            protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+            isCpaCatalog = true
+        )
         assertTrue(models.isNotEmpty(), "Models should not be empty")
 
         val gpt56 = models.firstOrNull { it.id == "gpt-5.6-sol" }
         kotlin.test.assertNotNull(gpt56)
-        assertEquals(372000L, gpt56.inputTokenLimit)
+        assertEquals(921000L, gpt56.inputTokenLimit)
         assertEquals(128000L, gpt56.outputTokenLimit)
         assertTrue(gpt56.supportsVision)
         assertTrue(gpt56.supportsTools)
@@ -522,7 +551,8 @@ class ByokParityTest {
 
     @Test
     fun parsesGeminiRealCatalogDatasetAccurately() {
-        val file = File("../../docs/服务商模型数据源/gemini.json").let { if (it.exists()) it else File("docs/服务商模型数据源/gemini.json") }
+        val file =
+            File("../../docs/服务商模型数据源/gemini.json").let { if (it.exists()) it else File("docs/服务商模型数据源/gemini.json") }
         if (!file.exists()) return
         val rawJson = file.readText()
         val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.GEMINI_GENERATE_CONTENT)
@@ -552,7 +582,8 @@ class ByokParityTest {
 
     @Test
     fun parsesModelGateRealCatalogDatasetAccurately() {
-        val file = File("../../docs/服务商模型数据源/modelgate.json").let { if (it.exists()) it else File("docs/服务商模型数据源/modelgate.json") }
+        val file =
+            File("../../docs/服务商模型数据源/modelgate.json").let { if (it.exists()) it else File("docs/服务商模型数据源/modelgate.json") }
         if (!file.exists()) return
         val rawJson = file.readText()
         val models = UniversalModelCatalogParser.parse(rawJson, protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS)
@@ -574,7 +605,102 @@ class ByokParityTest {
         kotlin.test.assertNotNull(ds4)
         assertEquals("DeepSeek", ds4.vendor)
     }
+
+    @Test
+    fun streamEncoderEmitsErrorTextAndFinishReasonOnStreamError() {
+        val encoder = ResponseEncoder.newStreamEncoder(cloudCodeEnvelope = false)
+        val frames = encoder.encode(
+            NeutralStreamChunk.Error(
+                "stream disconnected before completion: stream closed before response.completed",
+                502
+            )
+        )
+        // 1. 必须包含标准 error 帧
+        assertTrue(frames.any { it.contains("\"code\":502") && it.contains("stream disconnected") })
+        // 2. 必须包含可见的候选文本帧，供客户端界面展示错误
+        assertTrue(frames.any { it.contains("[Studio 代理异常 (502)]") })
+        // 3. 必须包含 finishReason 为 OTHER 的 Candidate 结束帧，使客户端状态机结束生成
+        assertTrue(frames.any { it.contains("\"finishReason\":\"OTHER\"") })
+        // 4. 标准流下必须包含 [DONE] 帧
+        assertTrue(frames.any { it.contains("[DONE]") })
+    }
+
+    @Test
+    fun streamEncoderWrapsErrorEnvelopeForCloudCode() {
+        val encoder = ResponseEncoder.newStreamEncoder(cloudCodeEnvelope = true)
+        val frames = encoder.encode(
+            NeutralStreamChunk.Error(
+                "upstream timeout",
+                504
+            )
+        )
+        // 包含带 response 包裹的错误及顶层错误
+        assertTrue(frames.any { it.contains("\"response\"") && it.contains("\"code\":504") })
+        assertTrue(frames.any { it.contains("\"error\"") && it.contains("\"code\":504") })
+        assertTrue(frames.any { it.contains("[Studio 代理异常 (504)]") })
+        assertTrue(frames.any { it.contains("\"finishReason\":\"OTHER\"") })
+    }
+
+    @Test
+    fun testRetryableStatusCodes() {
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(500))
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(502))
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(503))
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(504))
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(525))
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(429))
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(408))
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(499))
+
+        kotlin.test.assertFalse(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(400))
+        kotlin.test.assertFalse(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(401))
+        kotlin.test.assertFalse(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(403))
+        kotlin.test.assertFalse(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(404))
+        kotlin.test.assertFalse(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(501))
+
+        // 测试带有 TLS handshake EOF 等网络瞬态报错信息的 Error 结构体重试判定
+        val tlsEofError = NeutralStreamChunk.Error(
+            "OpenAI API error (500): Post \"https://chatgpt.com/backend-api/codex/responses\": utls: TLS handshake: EOF",
+            500
+        )
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(tlsEofError))
+
+        val socketError = NeutralStreamChunk.Error("connection reset by peer", 502)
+        assertTrue(com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.isRetryableError(socketError))
+    }
+
+    @Test
+    fun testExponentialBackoffWithJitter() {
+        val delay1 = com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.calculateBackoff(1, 500L)
+        val delay2 = com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.calculateBackoff(2, 500L)
+        val delay3 = com.yuzhiqiang.antigravity.proxy.server.ByokForwardHandler.calculateBackoff(3, 500L)
+
+        assertTrue(delay1 in 350L..650L)
+        assertTrue(delay2 in 700L..1300L)
+        assertTrue(delay3 in 1400L..2600L)
+    }
+
+    @Test
+    fun testCloudCodeErrorFrameAlwaysContainsCandidates() {
+        val encoder = ResponseEncoder.newStreamEncoder(cloudCodeEnvelope = true)
+        val frames = encoder.encode(
+            NeutralStreamChunk.Error(
+                "stream disconnected before completion: stream closed before response.completed",
+                502
+            )
+        )
+        // 验证所有发送给 Cloud Code 的数据帧都必须含有 candidates，杜绝 IDE 前端 TypeError: Cannot read properties of undefined
+        val dataFrames = frames.filter { it.startsWith("data:") && !it.contains("[DONE]") }
+        assertTrue(dataFrames.isNotEmpty())
+        dataFrames.forEach { frame ->
+            assertTrue(frame.contains("\"candidates\""), "Frame must contain candidates array: $frame")
+        }
+    }
+
+    @Test
+    fun testProviderRetryDefaults() {
+        val provider = Provider(id = "test-provider", name = "Test")
+        assertEquals(2, provider.maxRetries)
+        assertEquals(500L, provider.retryDelayMs)
+    }
 }
-
-
-

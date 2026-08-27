@@ -64,6 +64,7 @@ object ResponseEncoder {
                 is NeutralStreamChunk.TextDelta -> candidate(chunk.choiceIndex).parts.add(
                     buildJsonObject { put("text", chunk.text) }
                 )
+
                 is NeutralStreamChunk.ReasoningDelta -> candidate(chunk.choiceIndex).parts.add(
                     buildJsonObject {
                         put("thought", true)
@@ -92,6 +93,7 @@ object ResponseEncoder {
                     candidate(chunk.choiceIndex).finishReason = finishReasonValue(chunk.finishReason)
                     usage = chunk.usage ?: usage
                 }
+
                 is NeutralStreamChunk.Error -> error = chunk
             }
         }
@@ -148,6 +150,7 @@ object ResponseEncoder {
             "TOOL_CALL", "TOOL_USE", "FUNCTION_CALL", "FUNCTION_CALLS" -> "TOOL_CALL"
             "SAFETY", "CONTENT_FILTER", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII",
             "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT" -> "SAFETY"
+
             "OTHER" -> "OTHER"
             null -> "STOP"
             else -> "OTHER"
@@ -228,7 +231,11 @@ object ResponseEncoder {
     private fun errorCategory(statusCode: Int, message: String): String {
         return when {
             message.contains("stream", ignoreCase = true) || message.contains("SSE", ignoreCase = true) ||
-                    message.contains("tool arguments", ignoreCase = true) || message.contains("流") -> "stream_interrupted"
+                    message.contains(
+                        "tool arguments",
+                        ignoreCase = true
+                    ) || message.contains("流") -> "stream_interrupted"
+
             message.contains("unsupported", ignoreCase = true) || message.contains("不支持") -> "unsupported_feature"
             statusCode == 400 -> "invalid_request"
             statusCode == 401 || statusCode == 403 -> "authentication"
@@ -309,7 +316,58 @@ object ResponseEncoder {
                     failureStatusCode = chunk.statusCode
                     failureMessage = chunk.message
                     streamFinished = true
-                    listOf(sse(errorPayload(chunk.statusCode, chunk.message, false)))
+                    val frames = mutableListOf<String>()
+                    val errorText = "\n\n[Studio 代理异常 (${chunk.statusCode})]: ${chunk.message}"
+                    val errorPayload = buildJsonObject {
+                        put("candidates", buildJsonArray {
+                            add(buildJsonObject {
+                                put("index", 0)
+                                put("content", buildJsonObject {
+                                    put("role", "model")
+                                    put("parts", buildJsonArray {
+                                        add(buildJsonObject { put("text", errorText) })
+                                    })
+                                })
+                            })
+                        })
+                        put("error", buildJsonObject {
+                            put("code", chunk.statusCode)
+                            put("category", errorCategory(chunk.statusCode, chunk.message))
+                            put("message", chunk.message)
+                        })
+                        modelVersion?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
+                    }
+                    frames.add(sse(wrapIfNeeded(errorPayload)))
+                    if (cloudCodeEnvelope) {
+                        frames.add(sse(errorPayload))
+                    }
+                    val candidateIndexes = linkedSetOf<Int>().apply {
+                        addAll(finishReasons.keys)
+                        if (isEmpty()) add(0)
+                    }
+                    val finishPayload = buildJsonObject {
+                        put("candidates", buildJsonArray {
+                            candidateIndexes.toSortedSet().forEach { choiceIndex ->
+                                add(buildJsonObject {
+                                    put("index", choiceIndex)
+                                    put("content", buildJsonObject {
+                                        put("role", "model")
+                                        put("parts", buildJsonArray {
+                                            add(buildJsonObject { put("text", "") })
+                                        })
+                                    })
+                                    put("finishReason", "OTHER")
+                                })
+                            }
+                        })
+                        modelVersion?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
+                        lastUsage?.let { put("usageMetadata", usageMetadata(it)) }
+                    }
+                    frames.add(sse(wrapIfNeeded(finishPayload)))
+                    if (!cloudCodeEnvelope) {
+                        frames.add("data: [DONE]\n\n")
+                    }
+                    frames
                 }
 
                 is NeutralStreamChunk.Completed -> {
@@ -322,7 +380,7 @@ object ResponseEncoder {
                         val previous = finishReasons[chunk.choiceIndex]
                         finishReasons[chunk.choiceIndex] = chunk.finishReason
                             ?: previous
-                            ?: chunk.usage?.let { "OTHER" }
+                                    ?: chunk.usage?.let { "OTHER" }
                     }
                     emptyList()
                 }
@@ -347,25 +405,74 @@ object ResponseEncoder {
                 if (isEmpty()) add(0)
             }
             val toolCandidateIndexes = pendingToolCalls.keys.map { key -> key.first }.toSet()
-            pendingToolCalls.toSortedMap(compareBy<Pair<Int, Int>> { it.first }.thenBy { it.second }).forEach { (key, pending) ->
-                val arguments = parseArguments(pending.arguments.toString())
-                if (arguments.isFailure) {
-                    failureStatusCode = 502
-                    failureMessage = arguments.exceptionOrNull()?.message ?: "Invalid tool arguments"
-                    pendingToolCalls.clear()
-                    streamFinished = true
-                    return listOf(
+            pendingToolCalls.toSortedMap(compareBy<Pair<Int, Int>> { it.first }.thenBy { it.second })
+                .forEach { (key, pending) ->
+                    val arguments = parseArguments(pending.arguments.toString())
+                    if (arguments.isFailure) {
+                        failureStatusCode = 502
+                        failureMessage = arguments.exceptionOrNull()?.message ?: "Invalid tool arguments"
+                        pendingToolCalls.clear()
+                        streamFinished = true
+                        val errFrames = mutableListOf<String>()
+                        val errorText = "\n\n[Studio 代理异常 (502)]: ${failureMessage ?: "Invalid tool arguments"}"
+                        val errorPayload = buildJsonObject {
+                            put("candidates", buildJsonArray {
+                                add(buildJsonObject {
+                                    put("index", key.first)
+                                    put("content", buildJsonObject {
+                                        put("role", "model")
+                                        put("parts", buildJsonArray {
+                                            add(buildJsonObject { put("text", errorText) })
+                                        })
+                                    })
+                                })
+                            })
+                            put("error", buildJsonObject {
+                                put("code", 502)
+                                put("category", errorCategory(502, failureMessage ?: "Invalid tool arguments"))
+                                put("message", failureMessage ?: "Invalid tool arguments")
+                            })
+                            modelVersion?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
+                        }
+                        errFrames.add(sse(wrapIfNeeded(errorPayload)))
+                        if (cloudCodeEnvelope) {
+                            errFrames.add(sse(errorPayload))
+                        }
+                        val finishPayload = buildJsonObject {
+                            put("candidates", buildJsonArray {
+                                add(buildJsonObject {
+                                    put("index", key.first)
+                                    put("content", buildJsonObject {
+                                        put("role", "model")
+                                        put("parts", buildJsonArray {
+                                            add(buildJsonObject { put("text", "") })
+                                        })
+                                    })
+                                    put("finishReason", "OTHER")
+                                })
+                            })
+                            modelVersion?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
+                            lastUsage?.let { put("usageMetadata", usageMetadata(it)) }
+                        }
+                        errFrames.add(sse(wrapIfNeeded(finishPayload)))
+                        if (!cloudCodeEnvelope) {
+                            errFrames.add("data: [DONE]\n\n")
+                        }
+                        return errFrames
+                    }
+                    frames.add(
                         sse(
-                            errorPayload(
-                                502,
-                                failureMessage ?: "Invalid tool arguments",
-                                false
+                            wrapIfNeeded(
+                                toolCallPayload(
+                                    key.first,
+                                    pending.id,
+                                    pending.name,
+                                    arguments.getOrThrow()
+                                )
                             )
                         )
                     )
                 }
-                frames.add(sse(wrapIfNeeded(toolCallPayload(key.first, pending.id, pending.name, arguments.getOrThrow()))))
-            }
             pendingToolCalls.clear()
             val finishPayload = buildJsonObject {
                 put("candidates", buildJsonArray {

@@ -651,11 +651,16 @@ class OpenAiAdapter : ProviderAdapter {
         return try {
             val root = json.parseToJsonElement(data).jsonObject
             root["error"]?.jsonObject?.let { error ->
+                val statusCode = error["code"]?.jsonPrimitive?.intOrNull
+                    ?: error["status"]?.jsonPrimitive?.intOrNull
+                    ?: error["status_code"]?.jsonPrimitive?.intOrNull
+                    ?: error["statusCode"]?.jsonPrimitive?.intOrNull
+                    ?: 502
                 return Result.success(
                     listOf(
                         NeutralStreamChunk.Error(
                             error["message"]?.jsonPrimitive?.contentOrNull ?: "OpenAI stream error",
-                            error["code"]?.jsonPrimitive?.intOrNull ?: 502
+                            statusCode
                         )
                     )
                 )
