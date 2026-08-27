@@ -302,6 +302,9 @@ class AppViewModel(
             selectTab(NavTab.MODELS)
             requestOpenProviderEditor()
         },
+        onOpenNetworkSettings = {
+            openNetworkSettings()
+        },
         onRefreshHostStatus = ::refreshHostStatus
     )
 

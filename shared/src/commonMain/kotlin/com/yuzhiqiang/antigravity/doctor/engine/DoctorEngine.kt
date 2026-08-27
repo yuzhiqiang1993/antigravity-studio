@@ -80,19 +80,51 @@ class DoctorEngine(
         }
 
         // =========================================================================
-        // 2. 官方服务网络检测 (NETWORK)
+        // 2. 官方服务与网络代理检测 (NETWORK)
         // =========================================================================
-        val networkResult = ConnectionTester.testOfficialService()
+        val outboundConfig = config.outboundProxy
+        val inspection = com.yuzhiqiang.antigravity.network.PlatformNetworkConfig.inspectOutboundProxy(outboundConfig)
+        val networkResult = ConnectionTester.testOutboundProxy(outboundConfig)
+
+        val modeLabel = when (outboundConfig.mode) {
+            com.yuzhiqiang.antigravity.domain.model.OutboundProxyMode.AUTO -> s.settingsOutboundAuto
+            com.yuzhiqiang.antigravity.domain.model.OutboundProxyMode.DIRECT -> s.settingsOutboundDirect
+            com.yuzhiqiang.antigravity.domain.model.OutboundProxyMode.SYSTEM -> s.settingsOutboundSystem
+            com.yuzhiqiang.antigravity.domain.model.OutboundProxyMode.MANUAL -> s.settingsOutboundManual
+        }
+
         if (networkResult.success) {
-            items.add(
-                DoctorCheckItem(
-                    id = "network.official_cloud_code.healthy",
-                    category = DoctorCheckCategory.NETWORK,
-                    title = s.doctorCheckNetworkOkTitle,
-                    status = DoctorCheckStatus.PASSED,
-                    message = s.doctorCheckNetworkOkMsg(networkResult.latencyMs)
+            val routeDesc = when {
+                networkResult.fellBackToDirect -> s.doctorCheckNetworkFallbackRouteDesc
+                networkResult.direct -> s.doctorCheckNetworkDirectRouteDesc
+                networkResult.endpoint != null -> "${networkResult.endpoint.protocol.name} ${networkResult.endpoint.address}"
+                else -> s.doctorCheckNetworkDirectRouteDesc
+            }
+
+            if (networkResult.fellBackToDirect) {
+                items.add(
+                    DoctorCheckItem(
+                        id = "network.official_cloud_code.fallback",
+                        category = DoctorCheckCategory.NETWORK,
+                        title = s.doctorCheckNetworkOkTitle,
+                        status = DoctorCheckStatus.WARNING,
+                        message = s.doctorCheckNetworkFallbackMsg(networkResult.latencyMs, modeLabel),
+                        suggestion = s.doctorCheckNetworkFallbackSugg,
+                        autoFixable = true,
+                        fixAction = DoctorFixAction.OpenNetworkSettings
+                    )
                 )
-            )
+            } else {
+                items.add(
+                    DoctorCheckItem(
+                        id = "network.official_cloud_code.healthy",
+                        category = DoctorCheckCategory.NETWORK,
+                        title = s.doctorCheckNetworkOkTitle,
+                        status = DoctorCheckStatus.PASSED,
+                        message = s.doctorCheckNetworkOkWithRouteMsg(networkResult.latencyMs, modeLabel, routeDesc)
+                    )
+                )
+            }
         } else {
             items.add(
                 DoctorCheckItem(
@@ -100,10 +132,31 @@ class DoctorEngine(
                     category = DoctorCheckCategory.NETWORK,
                     title = s.doctorCheckNetworkFailedTitle,
                     status = DoctorCheckStatus.FAILED,
-                    message = s.doctorCheckNetworkFailedMsg(networkResult.error ?: "HTTP ${networkResult.statusCode}"),
+                    message = s.doctorCheckNetworkFailedWithModeMsg(
+                        networkResult.error ?: "HTTP ${networkResult.statusCode ?: 502}",
+                        modeLabel
+                    ),
                     suggestion = s.doctorCheckNetworkFailedSugg,
                     autoFixable = true,
-                    fixAction = DoctorFixAction.RetestNetwork
+                    fixAction = DoctorFixAction.OpenNetworkSettings
+                )
+            )
+        }
+
+        if (outboundConfig.mode == com.yuzhiqiang.antigravity.domain.model.OutboundProxyMode.SYSTEM &&
+            inspection.systemProxies.isEmpty() &&
+            !outboundConfig.fallbackToDirect
+        ) {
+            items.add(
+                DoctorCheckItem(
+                    id = "network.outbound_proxy.no_system_proxy",
+                    category = DoctorCheckCategory.NETWORK,
+                    title = s.doctorCheckProxyConfigIssueTitle,
+                    status = DoctorCheckStatus.WARNING,
+                    message = s.doctorCheckProxyConfigNoSystemMsg,
+                    suggestion = s.doctorCheckProxyConfigNoSystemSugg,
+                    autoFixable = true,
+                    fixAction = DoctorFixAction.OpenNetworkSettings
                 )
             )
         }
