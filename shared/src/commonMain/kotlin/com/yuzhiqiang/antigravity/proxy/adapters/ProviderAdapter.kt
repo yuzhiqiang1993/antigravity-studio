@@ -1,7 +1,9 @@
 package com.yuzhiqiang.antigravity.proxy.adapters
 
-import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.ParameterOverrides
+import com.yuzhiqiang.antigravity.domain.model.Provider
+import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
+import com.yuzhiqiang.antigravity.proxy.catalog.DiscoveredModelInfo
 import com.yuzhiqiang.antigravity.proxy.model.NeutralChatRequest
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
 import io.ktor.client.*
@@ -26,12 +28,9 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import com.yuzhiqiang.antigravity.proxy.catalog.DiscoveredModelInfo
 import java.io.ByteArrayOutputStream
-import java.net.URI
-import java.net.InetSocketAddress
 import java.net.Proxy
-import java.net.ProxySelector
+import java.net.URI
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
@@ -59,7 +58,7 @@ interface ProviderAdapter {
         /** 针对长思考推理模型与大 Prompt Prefill，默认最小请求超时保底为 600 秒（10 分钟）。 */
         const val DEFAULT_MINIMUM_REQUEST_TIMEOUT_MS: Long = 600_000L
 
-        /** Provider 请求与官方 Cloud Code 统一使用 OkHttp 高性能工业级引擎，自动跟随系统代理与 CONNECT 隧道。 */
+        /** Provider 与官方请求统一使用 OkHttp，并按 Studio 上游网络设置动态选择直连或代理路由。 */
         val sharedHttpClient = createHttpClient(useSystemProxy = true)
         val officialHttpClient = createHttpClient(useSystemProxy = true)
 
@@ -84,7 +83,7 @@ interface ProviderAdapter {
                         readTimeout(900, TimeUnit.SECONDS)
                         writeTimeout(900, TimeUnit.SECONDS)
                         if (useSystemProxy) {
-                            proxySelector(ProxySelector.getDefault())
+                            proxySelector(PlatformNetworkConfig.createSmartProxySelector())
                         } else {
                             proxy(Proxy.NO_PROXY)
                         }
@@ -184,6 +183,7 @@ interface ProviderAdapter {
                 is HttpRequestTimeoutException,
                 is SocketTimeoutException,
                 is kotlinx.coroutines.TimeoutCancellationException -> 504
+
                 else -> {
                     if (error.message?.contains("timed out", ignoreCase = true) == true ||
                         error.message?.contains("timeout", ignoreCase = true) == true
@@ -272,7 +272,8 @@ interface ProviderAdapter {
             }
         }
 
-        suspend fun readLimitedResponseBytes(response: HttpResponse): Result<ByteArray> = readResponseBodyBytes(response)
+        suspend fun readLimitedResponseBytes(response: HttpResponse): Result<ByteArray> =
+            readResponseBodyBytes(response)
 
         private fun mergeJsonElement(parent: JsonElement?, child: JsonElement): JsonElement {
             if (parent !is JsonObject || child !is JsonObject) return child

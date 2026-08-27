@@ -83,6 +83,7 @@ object ActivityRecorder {
         modelId: String? = null,
         providerName: String? = null,
         errorMessage: String? = null,
+        errorSource: String? = null,
         usage: NeutralUsage? = null,
         firstTokenMs: Long? = null,
         retryCount: Int = 0
@@ -96,6 +97,7 @@ object ActivityRecorder {
                         modelId = modelId ?: log.modelId,
                         providerName = providerName ?: log.providerName,
                         errorMessage = errorMessage,
+                        errorSource = errorSource,
                         inputTokens = usage?.inputTokens ?: log.inputTokens,
                         outputTokens = usage?.outputTokens ?: log.outputTokens,
                         cacheReadTokens = usage?.cacheReadTokens ?: log.cacheReadTokens,
@@ -123,6 +125,7 @@ object ActivityRecorder {
         durationMs: Long,
         isOfficialPassthrough: Boolean,
         errorMessage: String? = null,
+        errorSource: String? = null,
         usage: NeutralUsage? = null,
         firstTokenMs: Long? = null,
         retryCount: Int = 0
@@ -140,6 +143,7 @@ object ActivityRecorder {
             isOfficialPassthrough = isOfficialPassthrough,
             isPending = false,
             errorMessage = errorMessage,
+            errorSource = errorSource,
             inputTokens = usage?.inputTokens,
             outputTokens = usage?.outputTokens,
             cacheReadTokens = usage?.cacheReadTokens,

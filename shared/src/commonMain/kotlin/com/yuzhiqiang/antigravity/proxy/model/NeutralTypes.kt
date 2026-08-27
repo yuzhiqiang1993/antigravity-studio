@@ -79,6 +79,13 @@ data class NeutralChatRequest(
     val imageGenerationConfig: JsonElement? = null
 )
 
+enum class StreamErrorSource {
+    UPSTREAM_RESPONSE,
+    UPSTREAM_TRANSPORT,
+    STUDIO_ADAPTER,
+    STUDIO_PROXY
+}
+
 sealed class NeutralStreamChunk {
     data class TextDelta(val text: String, val choiceIndex: Int = 0) : NeutralStreamChunk()
     data class ReasoningDelta(
@@ -86,11 +93,13 @@ sealed class NeutralStreamChunk {
         val signature: String? = null,
         val choiceIndex: Int = 0
     ) : NeutralStreamChunk()
+
     data class InlineDataDelta(
         val mimeType: String,
         val base64Data: String,
         val choiceIndex: Int = 0
     ) : NeutralStreamChunk()
+
     data class ToolCallDelta(
         val index: Int,
         val id: String?,
@@ -105,10 +114,12 @@ sealed class NeutralStreamChunk {
         val usage: NeutralUsage? = null,
         val choiceIndex: Int = 0
     ) : NeutralStreamChunk()
+
     data class Error(
         val message: String,
         val statusCode: Int = 500,
         /** 上游 HTTP 流已经建立后发生的解析/断流错误不能再修改下游状态码。 */
-        val responseStarted: Boolean = false
+        val responseStarted: Boolean = false,
+        val source: StreamErrorSource = StreamErrorSource.STUDIO_PROXY
     ) : NeutralStreamChunk()
 }

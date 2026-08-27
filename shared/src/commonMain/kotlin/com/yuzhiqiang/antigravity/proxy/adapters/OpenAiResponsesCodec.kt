@@ -7,6 +7,7 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralMessage
 import com.yuzhiqiang.antigravity.proxy.model.NeutralRole
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
+import com.yuzhiqiang.antigravity.proxy.model.StreamErrorSource
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -107,7 +108,15 @@ object OpenAiResponsesCodec {
             if (error != null) return Result.success(listOf(error))
             val status = root.stringValue("status")?.lowercase() ?: "completed"
             if (status == "failed") {
-                return Result.success(listOf(NeutralStreamChunk.Error(responseErrorMessage(root), 502)))
+                return Result.success(
+                    listOf(
+                        NeutralStreamChunk.Error(
+                            responseErrorMessage(root),
+                            502,
+                            source = StreamErrorSource.UPSTREAM_RESPONSE
+                        )
+                    )
+                )
             }
             val output = root["output"]?.jsonArray ?: JsonArray(emptyList())
             val chunks = mutableListOf<NeutralStreamChunk>()
@@ -192,7 +201,13 @@ object OpenAiResponsesCodec {
                 }
 
                 "response.failed" -> Result.success(
-                    listOf(NeutralStreamChunk.Error(responseErrorMessage(root), 502))
+                    listOf(
+                        NeutralStreamChunk.Error(
+                            responseErrorMessage(root),
+                            502,
+                            source = StreamErrorSource.UPSTREAM_RESPONSE
+                        )
+                    )
                 )
 
                 else -> Result.success(emptyList())
@@ -353,7 +368,8 @@ object OpenAiResponsesCodec {
             val statusCode = it.intValue("code", "status", "status_code", "statusCode") ?: 502
             NeutralStreamChunk.Error(
                 message = it.stringValue("message") ?: "OpenAI Responses upstream error",
-                statusCode = statusCode
+                statusCode = statusCode,
+                source = StreamErrorSource.UPSTREAM_RESPONSE
             )
         }
     }
@@ -412,6 +428,7 @@ object OpenAiResponsesCodec {
                     normalizeJsonSchema(child)
                 }
             })
+
             is JsonArray -> JsonArray(value.map(::normalizeJsonSchema))
             else -> value
         }

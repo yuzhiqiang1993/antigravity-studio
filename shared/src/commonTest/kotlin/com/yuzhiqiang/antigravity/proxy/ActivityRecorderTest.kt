@@ -51,6 +51,8 @@ class ActivityRecorderTest {
             id = logId,
             statusCode = 200,
             durationMs = 3500L,
+            errorMessage = "upstream failed",
+            errorSource = "UPSTREAM_RESPONSE",
             usage = NeutralUsage(inputTokens = 100, outputTokens = 200, totalTokens = 300),
             retryCount = 2
         )
@@ -62,6 +64,7 @@ class ActivityRecorderTest {
         assertEquals(3500L, finishedLog.durationMs)
         assertEquals(1500L, finishedLog.firstTokenMs)
         assertEquals(300L, finishedLog.totalTokens)
+        assertEquals("UPSTREAM_RESPONSE", finishedLog.errorSource)
         assertEquals(2, finishedLog.retryCount)
     }
 

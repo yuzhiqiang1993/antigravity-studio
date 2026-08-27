@@ -30,6 +30,8 @@ data class ActivityLog(
     val isPending: Boolean = false,
     @SerialName("error_message")
     val errorMessage: String? = null,
+    @SerialName("error_source")
+    val errorSource: String? = null,
     @SerialName("input_tokens")
     val inputTokens: Long? = null,
     @SerialName("output_tokens")
