@@ -29,6 +29,75 @@ object CliHostManager {
     }
 
     /**
+     * 获取 CLI 工具候选路径列表。
+     */
+    fun getCandidateInstallations(customInstallation: String? = null): List<File> {
+        val customBin = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)?.let {
+            if (it.isDirectory) {
+                if (File(it, "agy").isFile) File(it, "agy")
+                else if (File(it, "agy.exe").isFile) File(it, "agy.exe")
+                else if (File(it, "agy.cmd").isFile) File(it, "agy.cmd")
+                else it
+            } else it
+        }
+        val userHome = System.getProperty("user.home", "")
+        val os = System.getProperty("os.name", "").lowercase()
+        val candidates = if (os.contains("win")) {
+            val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome/AppData/Local"
+            val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
+            buildList {
+                customBin?.let(::add)
+                findExecutableInPath("agy.exe")?.let(::add)
+                add(File(localAppData, "Programs/Antigravity/agy.exe"))
+                add(File(localAppData, "Programs/agy/agy.exe"))
+                add(File(localAppData, "agy/bin/agy.exe"))
+                add(File(programFiles, "Antigravity/agy.exe"))
+                add(File(userHome, ".cargo/bin/agy.exe"))
+            }
+        } else {
+            buildList {
+                customBin?.let(::add)
+                findExecutableInPath("agy")?.let(::add)
+                add(File("/usr/local/bin/agy"))
+                add(File("/opt/homebrew/bin/agy"))
+                add(File(userHome, ".local/bin/agy"))
+                add(File(userHome, ".cargo/bin/agy"))
+                add(File(userHome, "bin/agy"))
+                add(File("/usr/bin/agy"))
+            }
+        }
+        return candidates.filterNot { file ->
+            val path = file.absolutePath.replace('\\', '/')
+            path.contains("/Antigravity IDE", ignoreCase = true) ||
+                    path.contains("/Antigravity-IDE", ignoreCase = true) ||
+                    path.contains("/Antigravity Studio", ignoreCase = true)
+        }.distinct()
+    }
+
+    private fun findExecutableInPath(command: String): File? {
+        return try {
+            val os = System.getProperty("os.name", "").lowercase()
+            val proc = if (os.contains("win")) {
+                ProcessBuilder("where", command).start()
+            } else {
+                ProcessBuilder("/usr/bin/which", command).start()
+            }
+            if (proc.waitFor(400, java.util.concurrent.TimeUnit.MILLISECONDS) && proc.exitValue() == 0) {
+                val output = proc.inputStream.bufferedReader().readText().lineSequence().firstOrNull()?.trim()
+                if (!output.isNullOrBlank()) {
+                    val file = File(output)
+                    if (file.exists()) file else null
+                } else null
+            } else {
+                proc.destroyForcibly()
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * 检测 CLI 工具是否已安装（跨平台支持 macOS/Linux 和 Windows）。
      */
     fun isInstalled(customInstallation: String? = null): Boolean {
@@ -39,34 +108,7 @@ object CliHostManager {
                 if (file.isDirectory && (File(file, "agy").isFile || File(file, "agy.exe").isFile)) return true
             }
         }
-        return try {
-            val os = System.getProperty("os.name", "").lowercase()
-            val userHome = System.getProperty("user.home")
-            if (os.contains("win")) {
-                val whereProcess = ProcessBuilder("where", "agy").start()
-                if (whereProcess.waitFor() == 0) return true
-
-                val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome/AppData/Local"
-                listOf(
-                    File(localAppData, "agy/bin/agy.exe"),
-                    File(localAppData, "Programs/agy/agy.exe"),
-                    File(localAppData, "Programs/Antigravity/agy.exe"),
-                    File(userHome, ".cargo/bin/agy.exe")
-                ).any { it.exists() }
-            } else {
-                val whichProcess = ProcessBuilder("/usr/bin/which", "agy").start()
-                if (whichProcess.waitFor() == 0) return true
-
-                listOf(
-                    File("$userHome/.local/bin/agy"),
-                    File("/usr/local/bin/agy"),
-                    File("/opt/homebrew/bin/agy"),
-                    File("$userHome/.cargo/bin/agy")
-                ).any { it.exists() }
-            }
-        } catch (_: Exception) {
-            false
-        }
+        return getCandidateInstallations(customInstallation).any { it.exists() && it.isFile }
     }
 
     /**

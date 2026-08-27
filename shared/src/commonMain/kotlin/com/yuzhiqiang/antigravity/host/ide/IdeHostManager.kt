@@ -7,16 +7,18 @@ import java.io.File
 
 object IdeHostManager {
 
-    private fun getCandidateInstallations(customInstallation: String? = null): List<File> {
+    fun getCandidateInstallations(customInstallation: String? = null): List<File> {
         val home = System.getProperty("user.home")
         val os = System.getProperty("os.name").lowercase()
         val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
             ?.let { if (it.isFile) it.parentFile else it }
-        return when {
+        val candidates = when {
             os.contains("mac") -> buildList {
                 customRoot?.let(::add)
                 add(File("/Applications/Antigravity IDE.app"))
                 add(File(home, "Applications/Antigravity IDE.app"))
+                add(File("/Applications/Antigravity-IDE.app"))
+                add(File(home, "Applications/Antigravity-IDE.app"))
                 addAll(discoverMacApplications("com.google.antigravity-ide"))
             }
 
@@ -32,8 +34,17 @@ object IdeHostManager {
                 }
             }
 
-            else -> emptyList()
+            else -> buildList {
+                customRoot?.let(::add)
+                add(File("/opt/antigravity-ide"))
+                add(File("/usr/share/antigravity-ide"))
+                add(File(home, ".local/share/antigravity-ide"))
+            }
         }
+        return candidates.filterNot { file ->
+            val path = file.absolutePath.replace('\\', '/')
+            path.endsWith("/Antigravity.app") || path.endsWith("/Antigravity App.app") || path.endsWith("/Antigravity Studio.app")
+        }.distinct()
     }
 
     private fun isInstallationComplete(root: File): Boolean {
@@ -51,20 +62,20 @@ object IdeHostManager {
         return when {
             os.contains("mac") -> listOf(
                 File(userHome, "Library/Application Support/Antigravity IDE/User/settings.json"),
-                File(userHome, "Library/Application Support/Antigravity/User/settings.json")
+                File(userHome, "Library/Application Support/Antigravity-IDE/User/settings.json")
             )
 
             os.contains("win") -> {
                 val appData = System.getenv("APPDATA") ?: "$userHome/AppData/Roaming"
                 listOf(
                     File(appData, "Antigravity IDE/User/settings.json"),
-                    File(appData, "Antigravity/User/settings.json")
+                    File(appData, "Antigravity-IDE/User/settings.json")
                 )
             }
 
             else -> listOf(
                 File(userHome, ".config/Antigravity IDE/User/settings.json"),
-                File(userHome, ".config/Antigravity/User/settings.json")
+                File(userHome, ".config/Antigravity-IDE/User/settings.json")
             )
         }
     }
