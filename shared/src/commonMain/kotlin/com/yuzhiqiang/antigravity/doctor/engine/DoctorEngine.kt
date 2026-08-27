@@ -386,15 +386,7 @@ class DoctorEngine(
             current.copy(
                 upstreamModels = current.upstreamModels.filterNot { it.id in removedUpstreamIds },
                 virtualModels = current.virtualModels
-                    .filterNot { it.id in removedVirtualModelIds }
-                    .map { virtual ->
-                        val fallback = virtual.fallbackVirtualModelId
-                        if (fallback != null && normalizeModelReference(fallback) in removedReferences) {
-                            virtual.copy(fallbackVirtualModelId = null)
-                        } else {
-                            virtual
-                        }
-                    },
+                    .filterNot { it.id in removedVirtualModelIds },
                 modelCompressionPolicies = current.modelCompressionPolicies.filterKeys { key ->
                     normalizeModelReference(key) !in removedReferences
                 }
