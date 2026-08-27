@@ -37,6 +37,7 @@ fun DetailedQuotaPoolBlock(
     group: QuotaGroup,
     modifier: Modifier = Modifier
 ) {
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -53,13 +54,13 @@ fun DetailedQuotaPoolBlock(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Group Header (e.g. "Gemini 模型 ℹ")
+            // Group Header (e.g. "Gemini Models" / "Gemini 模型")
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = group.displayName,
+                    text = s.accountsModelFamily(group.label),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.5.sp
@@ -94,6 +95,7 @@ private fun DetailedBucketRow(
 
     val ringColor = com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors.quotaColor(bucket.percentage, isDark)
 
+    val s = com.yuzhiqiang.antigravity.i18n.strings()
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -105,7 +107,7 @@ private fun DetailedBucketRow(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = bucket.displayName,
+                text = bucket.displayTitle(s),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
@@ -114,7 +116,7 @@ private fun DetailedBucketRow(
             )
 
             Text(
-                text = bucket.naturalLanguageDescription(),
+                text = bucket.naturalLanguageDescription(s),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.5.sp,
                     lineHeight = 18.sp

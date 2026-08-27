@@ -3,6 +3,8 @@ package com.yuzhiqiang.antigravity.studio
 import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import com.yuzhiqiang.antigravity.host.cli.CliHostManager
 import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
+import com.yuzhiqiang.antigravity.ui.components.MarkdownBlock
+import com.yuzhiqiang.antigravity.ui.components.parseMarkdownBlocks
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -37,23 +39,23 @@ class SharedLogicDesktopTest {
             ```
         """.trimIndent()
 
-        val blocks = com.yuzhiqiang.antigravity.ui.components.parseMarkdownBlocks(rawMarkdown)
+        val blocks = parseMarkdownBlocks(rawMarkdown)
         assertNotNull(blocks)
         kotlin.test.assertTrue(blocks.isNotEmpty())
 
-        val hasHeader = blocks.any { it is com.yuzhiqiang.antigravity.ui.components.MarkdownBlock.Header }
+        val hasHeader = blocks.any { it is MarkdownBlock.Header }
         kotlin.test.assertTrue(hasHeader)
 
-        val listItems = blocks.filterIsInstance<com.yuzhiqiang.antigravity.ui.components.MarkdownBlock.ListItem>()
+        val listItems = blocks.filterIsInstance<MarkdownBlock.ListItem>()
         kotlin.test.assertEquals(2, listItems.size)
 
-        val hasDivider = blocks.any { it is com.yuzhiqiang.antigravity.ui.components.MarkdownBlock.Divider }
+        val hasDivider = blocks.any { it is MarkdownBlock.Divider }
         kotlin.test.assertTrue(hasDivider)
 
-        val hasQuote = blocks.any { it is com.yuzhiqiang.antigravity.ui.components.MarkdownBlock.Quote }
+        val hasQuote = blocks.any { it is MarkdownBlock.Quote }
         kotlin.test.assertTrue(hasQuote)
 
-        val hasCodeBlock = blocks.any { it is com.yuzhiqiang.antigravity.ui.components.MarkdownBlock.CodeBlock }
+        val hasCodeBlock = blocks.any { it is MarkdownBlock.CodeBlock }
         kotlin.test.assertTrue(hasCodeBlock)
     }
 }

@@ -298,7 +298,7 @@ object HostAccountDetector {
     }
 
     /**
-     * 探测 Antigravity App & CLI 共享认证通道生效的 Profile。
+     * 探测 Antigravity App & CLI 共享认证生效的 Profile。
      *
      * 优先级：运行态 API → 凭据文件回退（仅 App 在运行但 API 失败时）。
      * App 未运行时返回 null，UI 不显示账号 tag。
@@ -327,7 +327,7 @@ object HostAccountDetector {
     }
 
     /**
-     * 探测 Antigravity App & CLI 共享认证通道生效的邮箱。
+     * 探测 Antigravity App & CLI 共享认证生效的邮箱。
      */
     suspend fun detectAppCliActiveEmail(): String? {
         return detectAppCliActiveProfile()?.email

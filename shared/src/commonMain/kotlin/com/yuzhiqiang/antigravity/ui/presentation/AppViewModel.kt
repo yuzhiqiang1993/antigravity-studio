@@ -342,7 +342,7 @@ class AppViewModel(
                 val appCliProfile = HostAccountDetector.detectAppCliActiveProfile()
                 val ideProfile = HostAccountDetector.detectIdeActiveProfile()
 
-                // 统一收敛为 IDE 宿主通道与 App & CLI 共享宿主通道
+                // 统一收敛为 IDE 宿主应用与 App & CLI 宿主应用
                 _appCliActiveEmail.value = appCliProfile?.email
                 _ideActiveEmail.value = ideProfile?.email
 
@@ -577,6 +577,22 @@ class AppViewModel(
         refreshHostStatus()
         showNotice(if (cleanPath != null) s.hostPathSavedCustom else s.hostPathResetNotice, NoticeKind.SUCCESS)
         closeHostPathDialog()
+    }
+
+    fun updateDefaultSwitchTarget(target: String) {
+        configStore.updateConfig { current ->
+            current.copy(defaultSwitchTarget = target)
+        }
+    }
+
+    fun saveLastSwitchChoice(applyToIde: Boolean, applyToAppCli: Boolean) {
+        configStore.updateConfig { current ->
+            current.copy(
+                defaultSwitchTarget = DefaultSwitchTarget.REMEMBER_LAST.value,
+                lastSwitchApplyToIde = applyToIde,
+                lastSwitchApplyToAppCli = applyToAppCli
+            )
+        }
     }
 
     fun showConfirmDialog(state: ConfirmDialogState) {
@@ -1329,7 +1345,7 @@ class AppViewModel(
                         java.awt.datatransfer.StringSelection(url),
                         null
                     )
-                    showNotice("授权链接已复制到剪贴板", NoticeKind.SUCCESS)
+                    showNotice(s.noticeAuthLinkCopied, NoticeKind.SUCCESS)
                 }
             }
             return
@@ -1345,7 +1361,7 @@ class AppViewModel(
                         java.awt.datatransfer.StringSelection(authUrl),
                         null
                     )
-                    showNotice("授权链接已复制到剪贴板，请在浏览器中打开", NoticeKind.SUCCESS)
+                    showNotice(s.noticeAuthLinkCopiedBrowser, NoticeKind.SUCCESS)
                 }
             }
             _isOAuthAuthorizing.value = false
@@ -1358,7 +1374,7 @@ class AppViewModel(
                     onFinished?.invoke(true)
                 },
                 onFailure = { error ->
-                    showNotice("${s.accountsAuthFailed}: ${error.message ?: "未知错误"}", NoticeKind.ERROR)
+                    showNotice("${s.accountsAuthFailed}: ${error.message ?: s.commonUnknown}", NoticeKind.ERROR)
                     onFinished?.invoke(false)
                 }
             )
@@ -1375,7 +1391,7 @@ class AppViewModel(
                     onFinished?.invoke(true)
                 },
                 onFailure = { error ->
-                    showNotice("${s.accountsAuthFailed}: ${error.message ?: "未知错误"}", NoticeKind.ERROR)
+                    showNotice("${s.accountsAuthFailed}: ${error.message ?: s.commonUnknown}", NoticeKind.ERROR)
                     onFinished?.invoke(false)
                 }
             )
@@ -1390,7 +1406,7 @@ class AppViewModel(
         restartApp: Boolean = true
     ) {
         if (!accountSwitchRequestActive.compareAndSet(false, true)) {
-            showNotice("已有账号切换任务正在执行，请稍后再试", NoticeKind.WARNING)
+            showNotice(s.noticeSwitchAlreadyRunning, NoticeKind.WARNING)
             return
         }
         _isAccountSwitching.value = true
@@ -1419,7 +1435,7 @@ class AppViewModel(
                             HotSwitchCoordinator.OverallStatus.WARNING -> NoticeKind.WARNING
                             HotSwitchCoordinator.OverallStatus.ERROR -> NoticeKind.ERROR
                         }
-                        showNotice("账号切换结果：$summary", noticeKind)
+                        showNotice(s.noticeSwitchResult(summary), noticeKind)
                         if (report.overallStatus == HotSwitchCoordinator.OverallStatus.SUCCESS) {
                             quotaPoller.refreshSingle(targetAccount, true)
                         }
@@ -1427,7 +1443,7 @@ class AppViewModel(
                     onFailure = { error ->
                         syncHostAccounts().join()
                         refreshHostStatus()
-                        showNotice("切换账号失败: ${error.message ?: "未知错误"}", NoticeKind.ERROR)
+                        showNotice(s.noticeSwitchFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
                     }
                 )
             } finally {
@@ -1443,11 +1459,11 @@ class AppViewModel(
     ): String? {
         return when (result.status) {
             HotSwitchCoordinator.TargetStatus.NOT_REQUESTED -> null
-            HotSwitchCoordinator.TargetStatus.NOT_AVAILABLE -> result.message ?: "$label 当前不可用"
-            HotSwitchCoordinator.TargetStatus.CONFIGURED -> result.message ?: "$label 已配置"
-            HotSwitchCoordinator.TargetStatus.CONFIRMED -> result.message ?: "$label 已生效"
-            HotSwitchCoordinator.TargetStatus.PENDING_RESTART -> "$label 待用户确认重启"
-            HotSwitchCoordinator.TargetStatus.FAILED -> result.message ?: "$label 未确认生效"
+            HotSwitchCoordinator.TargetStatus.NOT_AVAILABLE -> result.message ?: s.switchStatusNotAvailable(label)
+            HotSwitchCoordinator.TargetStatus.CONFIGURED -> result.message ?: s.switchStatusConfigured(label)
+            HotSwitchCoordinator.TargetStatus.CONFIRMED -> result.message ?: s.switchStatusConfirmed(label)
+            HotSwitchCoordinator.TargetStatus.PENDING_RESTART -> s.switchStatusPendingRestart(label)
+            HotSwitchCoordinator.TargetStatus.FAILED -> result.message ?: s.switchStatusFailed(label)
         }
     }
 
@@ -1455,7 +1471,7 @@ class AppViewModel(
         val target = accountStore.currentAccounts()
             .firstOrNull { it.id == idOrEmail || it.email.equals(idOrEmail, ignoreCase = true) }
         if (target == null) {
-            showNotice("未找到账号: $idOrEmail", NoticeKind.ERROR)
+            showNotice(s.noticeAccountNotFound(idOrEmail), NoticeKind.ERROR)
             return
         }
         switchAccount(
@@ -1467,7 +1483,7 @@ class AppViewModel(
 
     fun updateSmartSwitchConfig(smartSwitchConfig: SmartSwitchConfig) {
         configStore.updateConfig { it.copy(smartSwitchConfig = smartSwitchConfig) }
-        showNotice(if (smartSwitchConfig.enabled) "已启用自动智能切号" else "已停用自动智能切号", NoticeKind.INFO)
+        showNotice(if (smartSwitchConfig.enabled) s.noticeSmartSwitchEnabled else s.noticeSmartSwitchDisabled, NoticeKind.INFO)
     }
 
     fun updateQuotaRefreshConfig(enabled: Boolean, activeIntervalSec: Int, backgroundIntervalSec: Int) {
@@ -1478,14 +1494,14 @@ class AppViewModel(
                 quotaBackgroundIntervalSeconds = backgroundIntervalSec
             )
         }
-        showNotice(if (enabled) "已更新配额自动刷新配置" else "已停用配额自动刷新", NoticeKind.INFO)
+        showNotice(if (enabled) s.noticeQuotaAutoRefreshEnabled else s.noticeQuotaAutoRefreshDisabled, NoticeKind.INFO)
     }
 
 
     fun removeAccount(idOrEmail: String) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             accountStore.removeAccount(idOrEmail)
-            showNotice("已移除账号", NoticeKind.INFO)
+            showNotice(s.noticeAccountRemoved, NoticeKind.INFO)
         }
     }
 
@@ -1493,8 +1509,8 @@ class AppViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val result = tokenRenewalManager.refreshAccount(email)
             result.fold(
-                onSuccess = { showNotice("账号凭据已成功刷新", NoticeKind.SUCCESS) },
-                onFailure = { showNotice("凭据刷新失败: ${it.message ?: "未知错误"}", NoticeKind.ERROR) }
+                onSuccess = { showNotice(s.noticeTokenRefreshed, NoticeKind.SUCCESS) },
+                onFailure = { showNotice(s.noticeTokenRefreshFailed(it.message ?: s.commonUnknown), NoticeKind.ERROR) }
             )
         }
     }
@@ -1509,7 +1525,7 @@ class AppViewModel(
     fun updateAccountNote(id: String, note: String?) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             accountStore.updateAccountNote(id, note)
-            showNotice("已更新账号备注", NoticeKind.SUCCESS)
+            showNotice(s.noticeRemarkUpdated, NoticeKind.SUCCESS)
         }
     }
 
@@ -1523,8 +1539,8 @@ class AppViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val result = accountStore.cleanInvalidAccounts()
             result.fold(
-                onSuccess = { count -> showNotice("已清理 $count 个异常/过期账号", NoticeKind.SUCCESS) },
-                onFailure = { showNotice("清理失败: ${it.message ?: "未知错误"}", NoticeKind.ERROR) }
+                onSuccess = { count -> showNotice(s.noticeCleanAccountsSuccess(count), NoticeKind.SUCCESS) },
+                onFailure = { showNotice(s.noticeCleanAccountsFailed(it.message ?: s.commonUnknown), NoticeKind.ERROR) }
             )
         }
     }
@@ -1550,13 +1566,13 @@ class AppViewModel(
                 )
             }
             if (successCount > 0 && failedCount == 0) {
-                showNotice("成功批量导入 $successCount 个账号", NoticeKind.SUCCESS)
+                showNotice(s.noticeBatchImportSuccess(successCount), NoticeKind.SUCCESS)
                 quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
             } else if (successCount > 0 && failedCount > 0) {
-                showNotice("批量导入完成：成功 $successCount 个，已跳过 $failedCount 个无效 Token", NoticeKind.SUCCESS)
+                showNotice(s.noticeBatchImportPartial(successCount, failedCount), NoticeKind.SUCCESS)
                 quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
             } else if (failedCount > 0) {
-                showNotice("批量导入失败：所有输入的 $failedCount 个 Token 均已失效或被撤销", NoticeKind.ERROR)
+                showNotice(s.noticeBatchImportFailedAll(failedCount), NoticeKind.ERROR)
             }
             onFinished?.invoke(successCount, failedCount)
         }
@@ -1568,8 +1584,8 @@ class AppViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val result = quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
             result.fold(
-                onSuccess = { showNotice("已更新所有账号配额数据", NoticeKind.SUCCESS) },
-                onFailure = { showNotice("配额刷新异常: ${it.message ?: "未知错误"}", NoticeKind.ERROR) }
+                onSuccess = { showNotice(s.noticeQuotasUpdatedAll, NoticeKind.SUCCESS) },
+                onFailure = { showNotice(s.noticeQuotasUpdateFailedAll(it.message ?: s.commonUnknown), NoticeKind.ERROR) }
             )
         }
     }
@@ -1580,8 +1596,8 @@ class AppViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val result = quotaPoller.refreshSingle(account, isActive)
             result.fold(
-                onSuccess = { showNotice("已刷新账号配额", NoticeKind.SUCCESS) },
-                onFailure = { showNotice("配额拉取失败: ${it.message ?: "网络异常"}", NoticeKind.ERROR) }
+                onSuccess = { showNotice(s.noticeQuotaRefreshedSingle, NoticeKind.SUCCESS) },
+                onFailure = { showNotice(s.noticeQuotaRefreshFailedSingle(it.message ?: s.commonError), NoticeKind.ERROR) }
             )
         }
     }

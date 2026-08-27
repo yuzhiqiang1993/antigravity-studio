@@ -54,19 +54,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.AccountTier
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.BadgeTone
+import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.overview.HeroProxyServiceCard
+import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import com.yuzhiqiang.antigravity.ui.screens.overview.HostCardData
 import com.yuzhiqiang.antigravity.ui.screens.overview.HostCardItem
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
-import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -113,13 +120,13 @@ fun OverviewScreen(
             ?.toLong()
             ?.let { formatDuration(it) } ?: "--"
     }
-    val upstreamSummary = remember(config) {
+    val upstreamSummary = remember(config, s) {
         val providerCount = config.providers.size
         val upstreamModelCount = config.upstreamModels.size
         if (providerCount > 0) {
-            "$providerCount 个服务商 · $upstreamModelCount 个模型"
+            s.overviewCustomUpstreamSummary(providerCount, upstreamModelCount)
         } else {
-            "官方默认直连通道"
+            s.overviewOfficialDirect
         }
     }
 
@@ -150,7 +157,7 @@ fun OverviewScreen(
             onDiagnostics = { viewModel.openDoctorDialog() }
         )
 
-        // 宿主实际生效活跃账号与核心模型配额摘要 (按 IDE 与 App & CLI 两大通道归集)
+        // 宿主实际生效活跃账号与核心模型配额摘要 (按 IDE 与 App & CLI 两大应用环境归集)
         val accounts by viewModel.accounts.collectAsState()
         val appCliActiveEmail by viewModel.appCliActiveEmail.collectAsState()
         val ideActiveEmail by viewModel.ideActiveEmail.collectAsState()
@@ -166,7 +173,8 @@ fun OverviewScreen(
             accounts,
             appCliActiveEmail,
             ideActiveEmail,
-            activeAccount
+            activeAccount,
+            s
         ) {
             val sourceGroups = linkedMapOf<String, MutableList<String>>()
             listOf(
@@ -183,19 +191,19 @@ fun OverviewScreen(
                     ?: return@mapNotNull null
                 HostActiveAccountDisplay(
                     account = account,
-                    sourceLabel = "${sources.joinToString(" & ")} 正在使用",
+                    sourceLabel = s.overviewSourceInUse(sources.joinToString(" & ")),
                     isIde = sources.contains("IDE"),
                     isApp = sources.contains("App & CLI"),
                     isCli = sources.contains("App & CLI")
                 )
             }.toMutableList()
 
-            // 若未探测到任何宿主账号，则回退展示 Studio 当前激活账号
+            // 若未检测到任何客户端账号，则回退展示 Studio 当前生效账号
             if (result.isEmpty() && activeAccount != null) {
                 result.add(
                     HostActiveAccountDisplay(
                         activeAccount!!,
-                        "激活账号",
+                        s.overviewActiveAccountBadge,
                         isIde = false,
                         isApp = false,
                         isCli = false
@@ -213,6 +221,9 @@ fun OverviewScreen(
                     item = item,
                     quotaSnapshot = activeQuota,
                     isPrivacyMode = isPrivacyMode,
+                    onCopyEmail = {
+                        viewModel.showNotice(s.accountsCopiedEmail, NoticeKind.SUCCESS)
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
@@ -226,6 +237,9 @@ fun OverviewScreen(
                             item = item,
                             quotaSnapshot = activeQuota,
                             isPrivacyMode = isPrivacyMode,
+                            onCopyEmail = {
+                                viewModel.showNotice(s.accountsCopiedEmail, NoticeKind.SUCCESS)
+                            },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -388,8 +402,11 @@ private fun ActiveAccountQuotaCard(
     item: HostActiveAccountDisplay,
     quotaSnapshot: com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot?,
     isPrivacyMode: Boolean,
+    onCopyEmail: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val s = strings()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val acc = item.account
     val displayEmail = if (isPrivacyMode) acc.maskedEmail() else acc.email
     val badgeTone = if (item.isIde) BadgeTone.INFO else BadgeTone.SUCCESS
@@ -472,17 +489,41 @@ private fun ActiveAccountQuotaCard(
                 }
             }
 
-            // === 头部第二行: 纯邮箱地址独立成行 ===
-            Text(
-                text = displayEmail,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
+            // === 头部第二行: 纯邮箱地址独立成行 (支持点击复制) ===
+            val emailInteractionSource = remember { MutableInteractionSource() }
+            val isEmailHovered by emailInteractionSource.collectIsHoveredAsState()
+
+            StudioTooltip(text = s.accountsEmailTooltip(acc.email)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(StudioDesignTokens.CornerRadius.xs))
+                        .background(
+                            if (isEmailHovered) MaterialTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.10f else 0.06f)
+                            else Color.Transparent
+                        )
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(
+                            interactionSource = emailInteractionSource,
+                            indication = null
+                        ) {
+                            copyToClipboard(acc.email)
+                            onCopyEmail?.invoke(acc.email)
+                        }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = displayEmail,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        ),
+                        color = if (isEmailHovered) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
 
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
@@ -493,18 +534,13 @@ private fun ActiveAccountQuotaCard(
             if (quotaSnapshot != null) {
                 com.yuzhiqiang.antigravity.ui.components.CompactDualQuotaBar(quotaSnapshot = quotaSnapshot)
             } else {
+                val s = strings()
                 Text(
-                    text = "正在同步配额数据...",
+                    text = s.overviewSyncingQuotas,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
-    }
-}
-
-private fun copyToClipboard(value: String) {
-    runCatching {
-        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(value), null)
     }
 }

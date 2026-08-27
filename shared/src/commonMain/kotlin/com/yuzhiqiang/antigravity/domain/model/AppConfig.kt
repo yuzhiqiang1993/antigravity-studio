@@ -1,9 +1,24 @@
 package com.yuzhiqiang.antigravity.domain.model
 
 import com.yuzhiqiang.antigravity.domain.model.account.SmartSwitchConfig
-
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+
+/**
+ * 账号切换默认目标应用偏好枚举
+ */
+enum class DefaultSwitchTarget(val value: String) {
+    ALL("all"),                  // 全部目标应用 (默认)
+    IDE_ONLY("ide_only"),        // 仅 IDE
+    APP_CLI_ONLY("app_cli_only"),// 仅 App & CLI
+    REMEMBER_LAST("remember_last"); // 记住上次手动选择
+
+    companion object {
+        fun fromValue(value: String?): DefaultSwitchTarget {
+            return entries.firstOrNull { it.value.equals(value, ignoreCase = true) } ?: ALL
+        }
+    }
+}
 
 @Serializable
 data class AppConfig(
@@ -23,6 +38,12 @@ data class AppConfig(
     val customHostPaths: Map<String, String?> = emptyMap(),
     @SerialName("smart_switch_config")
     val smartSwitchConfig: SmartSwitchConfig = SmartSwitchConfig(),
+    @SerialName("default_switch_target")
+    val defaultSwitchTarget: String = "all",
+    @SerialName("last_switch_apply_to_ide")
+    val lastSwitchApplyToIde: Boolean? = null,
+    @SerialName("last_switch_apply_to_app_cli")
+    val lastSwitchApplyToAppCli: Boolean? = null,
     @SerialName("language")
     val language: String = "zh-CN",
     @SerialName("theme_mode")

@@ -685,7 +685,7 @@ internal class AccountSwitchSession(
         return listOf(report.ide, report.appCli)
             .filter { result -> result.status == HotSwitchCoordinator.TargetStatus.FAILED }
             .mapNotNull { result -> result.message }
-            .ifEmpty { listOf("目标宿主未确认账号切换结果") }
+            .ifEmpty { listOf("目标应用未确认账号切换结果") }
             .joinToString("；")
     }
 
