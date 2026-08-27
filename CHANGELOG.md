@@ -4,6 +4,44 @@
 
 ---
 
+## [1.1.0] - 2026-08-27
+
+### 🇨🇳 中文
+
+#### ✨ 新增功能
+- **多账号与配额中心**：新增账号配额管理中心，支持多账号集中管理、宿主环境活跃账号自动探测，以及账号凭据复制与 JSON 导出备份
+- **官方配额直查与快照缓存**：支持官方配额直连查询与代理模式切换，配合磁盘快照缓存提升配额刷新速度
+- **Material 3 主题调色板**：升级 Material Design 3 色彩体系，支持多套个性化主题配色无缝切换
+
+#### 🎨 体验优化
+- **桌面交互与动效体系**：统一桌面按钮规范、悬停动效与下拉菜单交互，优化账号卡片与配额数据动态展示
+- **概览页布局优化**：重构运行概览页面，清晰展示各宿主（IDE / App / CLI）的活跃账号与状态看板
+- **多语言与文案规范**：全面优化中英文多语言词条，统一各功能模块的术语与操作反馈
+
+#### 🐛 问题修复
+- **Windows 兼容性修复**：修复 Windows 环境下宿主凭据注入、Shim 管理与跨平台权限兼容问题
+- **宿主路径检测隔离**：严格隔离 IDE、App 与 CLI 的路径扫描与候选发现逻辑，避免环境误判
+
+---
+
+### 🌐 English
+
+#### ✨ New Features
+- **Multi-Account & Quota Center**: Added an account quota management center with multi-account centralized management, active host account auto-detection, credential copying, and JSON export/backup.
+- **Direct Quota Probe & Snapshot Cache**: Supported direct official quota querying and proxy mode toggling, combined with disk snapshot caching for instant quota display.
+- **Material 3 Theme Palettes**: Upgraded the Material Design 3 color system with seamless switching across multiple custom theme palettes.
+
+#### 🎨 Improvements
+- **Desktop UI & Motion System**: Unified desktop button styling, hover animations, and dropdown menus, while enhancing dynamic motion for account cards and quota metrics.
+- **Overview Layout Enhancement**: Refactored the overview screen layout to clearly showcase active accounts and health status across IDE, App, and CLI hosts.
+- **i18n & Terminology Polish**: Polished English and Chinese localization strings, standardizing host application terms and interactive feedback.
+
+#### 🐛 Bug Fixes
+- **Windows Compatibility**: Fixed host credential injection, Shim management, and cross-platform permission compatibility on Windows.
+- **Host Path Detection Isolation**: Strictly isolated path scanning and candidate discovery across IDE, App, and CLI to prevent environment misjudgment.
+
+---
+
 ## [1.0.2] - 2026-08-24
 
 ### ✨ 核心功能与特性

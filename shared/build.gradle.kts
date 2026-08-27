@@ -119,8 +119,8 @@ val isDebugBuild = effectiveBuildType.equals("debug", ignoreCase = true)
 val generateBuildConfig = tasks.register<GenerateBuildConfigTask>("generateBuildConfig") {
     debugMode.set(isDebugBuild)
     buildType.set(effectiveBuildType)
-    versionName.set("1.0.2")
-    versionCode.set(102)
+    versionName.set("1.1.0")
+    versionCode.set(110)
     outputDir.set(layout.buildDirectory.dir("generated/source/buildConfig/commonMain/kotlin"))
 }
 
