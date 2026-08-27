@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +45,10 @@ fun DoctorDialog(
     val s = com.yuzhiqiang.antigravity.i18n.strings()
     val report by viewModel.doctorReport.collectAsState()
     val isRunning by viewModel.isDoctorRunning.collectAsState()
+    val hasNetworkIssue = report?.items?.any { item ->
+        item.category == DoctorCheckCategory.NETWORK &&
+                item.status in setOf(DoctorCheckStatus.WARNING, DoctorCheckStatus.FAILED)
+    } == true
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -256,6 +261,23 @@ fun DoctorDialog(
                     )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)) {
+                        if (hasNetworkIssue) {
+                            OutlinedButton(
+                                onClick = { viewModel.openNetworkSettings() },
+                                modifier = Modifier.height(32.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Router,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AppTokens.Size.iconSmall)
+                                )
+                                Spacer(Modifier.width(AppTokens.Spacing.xs))
+                                Text(s.settingsOpenNetworkSettings, style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+
                         OutlinedButton(
                             onClick = onDismiss,
                             modifier = Modifier.height(32.dp),
@@ -375,7 +397,11 @@ private fun DoctorScanningView() {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(AppTokens.Radius.medium))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(AppTokens.Radius.medium))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            RoundedCornerShape(AppTokens.Radius.medium)
+                        )
                         .padding(AppTokens.Spacing.content)
                 ) {
                     Row(

@@ -24,6 +24,8 @@ enum class DefaultSwitchTarget(val value: String) {
 data class AppConfig(
     @SerialName("proxy_port")
     val proxyPort: Int = 8321,
+    @SerialName("outbound_proxy")
+    val outboundProxy: OutboundProxyConfig = OutboundProxyConfig(),
     @SerialName("providers")
     val providers: List<Provider> = emptyList(),
     @SerialName("upstream_models")

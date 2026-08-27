@@ -498,6 +498,11 @@ interface Strings {
     val activityDetailCacheReadTokens: String
     val activityDetailCacheWriteTokens: String
     val activityDetailErrorSection: String
+    val activityDetailErrorSource: String
+    val activityErrorSourceUpstreamResponse: String
+    val activityErrorSourceUpstreamTransport: String
+    val activityErrorSourceStudioAdapter: String
+    val activityErrorSourceStudioProxy: String
     val activityDetailCopyJson: String
     val activityDetailCopyError: String
     val activityDetailCopiedError: String
@@ -532,6 +537,44 @@ interface Strings {
     fun settingsPortUpdated(port: Int): String
     fun settingsPortRestartFailed(error: String): String
     fun settingsPortUpdateFailed(error: String): String
+    val settingsLocalProxyTitle: String
+    val settingsOutboundProxyTitle: String
+    val settingsOutboundProxyDescription: String
+    val settingsOutboundMode: String
+    val settingsOutboundAuto: String
+    val settingsOutboundAutoDescription: String
+    val settingsOutboundDirect: String
+    val settingsOutboundDirectDescription: String
+    val settingsOutboundSystem: String
+    val settingsOutboundSystemDescription: String
+    val settingsOutboundManual: String
+    val settingsOutboundManualDescription: String
+    val settingsOutboundRecommended: String
+    val settingsOutboundProtocol: String
+    val settingsOutboundHost: String
+    val settingsOutboundPort: String
+    val settingsOutboundFallback: String
+    val settingsOutboundFallbackDescription: String
+    val settingsOutboundDetection: String
+    val settingsOutboundSystemDetected: String
+    val settingsOutboundEnvironmentDetected: String
+    val settingsOutboundEffectiveRoute: String
+    val settingsOutboundNotConfigured: String
+    val settingsOutboundDirectRoute: String
+    val settingsOutboundTest: String
+    val settingsOutboundTesting: String
+    val settingsOutboundSave: String
+    val settingsOutboundReset: String
+    val settingsOutboundUnsaved: String
+    val settingsOutboundManualHostRequired: String
+    val settingsOutboundManualPortInvalid: String
+    val settingsOutboundSystemUnavailable: String
+    val settingsOutboundProxySaved: String
+    fun settingsOutboundProxySaveFailed(error: String): String
+    fun settingsOutboundTestSuccess(route: String, latencyMs: Long): String
+    fun settingsOutboundTestFallback(latencyMs: Long): String
+    fun settingsOutboundTestFailed(error: String): String
+    val settingsOpenNetworkSettings: String
     val settingsHostPathsTitle: String
     val settingsHostPathsDesc: String
     val settingsDefaultSwitchTargetTitle: String
@@ -1448,6 +1491,11 @@ object StringsZh : Strings {
     override val activityDetailCacheReadTokens = "缓存读取 (Read)"
     override val activityDetailCacheWriteTokens = "缓存写入 (Write)"
     override val activityDetailErrorSection = "错误详情与服务端原始响应"
+    override val activityDetailErrorSource = "错误来源"
+    override val activityErrorSourceUpstreamResponse = "上游服务响应"
+    override val activityErrorSourceUpstreamTransport = "上游网络传输"
+    override val activityErrorSourceStudioAdapter = "Studio 协议适配"
+    override val activityErrorSourceStudioProxy = "Studio 代理内部"
     override val activityDetailCopyJson = "复制完整 JSON"
     override val activityDetailCopyError = "复制错误信息"
     override val activityDetailCopiedError = "已复制错误信息"
@@ -1475,12 +1523,51 @@ object StringsZh : Strings {
     override val paletteViolet = "幻境紫罗兰"
     override val paletteRose = "活力珊瑚"
     override val paletteAmber = "晨曦金珀"
-    override val settingsPort = "本地代理默认端口"
-    override val settingsPortDescription = "修改后会重启本地代理服务"
+    override val settingsPort = "Studio 本地监听端口"
+    override val settingsPortDescription = "IDE、App 和 CLI 连接 Studio 使用的端口；修改后会重启本地代理服务"
     override val settingsPortInvalid = "端口必须在 1024 到 65535 之间"
     override fun settingsPortUpdated(port: Int) = "代理端口已更新为 $port"
     override fun settingsPortRestartFailed(error: String) = "代理端口更新后启动失败：$error"
     override fun settingsPortUpdateFailed(error: String) = "更新代理端口失败：$error"
+    override val settingsLocalProxyTitle = "本地代理服务"
+    override val settingsOutboundProxyTitle = "上游网络代理"
+    override val settingsOutboundProxyDescription =
+        "控制 Studio 访问官方服务和公网 Provider 时使用的网络路径；本地地址始终直连"
+    override val settingsOutboundMode = "连接方式"
+    override val settingsOutboundAuto = "智能选择"
+    override val settingsOutboundAutoDescription = "系统或环境代理不可用时自动回退直连"
+    override val settingsOutboundDirect = "始终直连"
+    override val settingsOutboundDirectDescription = "忽略系统代理和代理环境变量"
+    override val settingsOutboundSystem = "系统代理"
+    override val settingsOutboundSystemDescription = "仅使用操作系统配置的网络代理"
+    override val settingsOutboundManual = "手动代理"
+    override val settingsOutboundManualDescription = "指定 HTTP 或 SOCKS5 代理节点"
+    override val settingsOutboundRecommended = "推荐"
+    override val settingsOutboundProtocol = "代理协议"
+    override val settingsOutboundHost = "服务器地址"
+    override val settingsOutboundPort = "端口"
+    override val settingsOutboundFallback = "代理不可用时允许回退直连"
+    override val settingsOutboundFallbackDescription = "关闭后代理连接失败将直接结束请求，不会绕过代理"
+    override val settingsOutboundDetection = "当前网络检测"
+    override val settingsOutboundSystemDetected = "系统代理"
+    override val settingsOutboundEnvironmentDetected = "环境代理"
+    override val settingsOutboundEffectiveRoute = "候选路径"
+    override val settingsOutboundNotConfigured = "未配置"
+    override val settingsOutboundDirectRoute = "直连"
+    override val settingsOutboundTest = "测试连接"
+    override val settingsOutboundTesting = "正在测试"
+    override val settingsOutboundSave = "保存并应用"
+    override val settingsOutboundReset = "恢复默认"
+    override val settingsOutboundUnsaved = "有未保存的更改"
+    override val settingsOutboundManualHostRequired = "请输入不带协议和路径的代理服务器地址"
+    override val settingsOutboundManualPortInvalid = "代理端口必须在 1 到 65535 之间"
+    override val settingsOutboundSystemUnavailable = "未检测到系统代理；关闭直连回退后请求将无法发送"
+    override val settingsOutboundProxySaved = "上游网络代理设置已保存并立即生效"
+    override fun settingsOutboundProxySaveFailed(error: String) = "保存上游网络代理失败：$error"
+    override fun settingsOutboundTestSuccess(route: String, latencyMs: Long) = "连接成功 · $route · ${latencyMs}ms"
+    override fun settingsOutboundTestFallback(latencyMs: Long) = "代理不可用，已通过直连连接成功 · ${latencyMs}ms"
+    override fun settingsOutboundTestFailed(error: String) = "连接失败：$error"
+    override val settingsOpenNetworkSettings = "打开网络设置"
     override val settingsHostPathsTitle = "应用安装路径"
     override val settingsHostPathsDesc = "自定义 Antigravity IDE、App 与 CLI 的安装目录或可执行文件路径"
     override val settingsDefaultSwitchTargetTitle = "切号默认目标应用"
@@ -2455,6 +2542,11 @@ object StringsEn : Strings {
     override val activityDetailCacheReadTokens = "Cache Read Tokens"
     override val activityDetailCacheWriteTokens = "Cache Write Tokens"
     override val activityDetailErrorSection = "Error Details & Upstream Response"
+    override val activityDetailErrorSource = "Error Source"
+    override val activityErrorSourceUpstreamResponse = "Upstream provider response"
+    override val activityErrorSourceUpstreamTransport = "Upstream network transport"
+    override val activityErrorSourceStudioAdapter = "Studio protocol adapter"
+    override val activityErrorSourceStudioProxy = "Studio proxy internals"
     override val activityDetailCopyJson = "Copy Full JSON"
     override val activityDetailCopyError = "Copy Error Message"
     override val activityDetailCopiedError = "Error message copied to clipboard"
@@ -2482,12 +2574,56 @@ object StringsEn : Strings {
     override val paletteViolet = "Mystic Violet"
     override val paletteRose = "Vibrant Coral"
     override val paletteAmber = "Dawn Amber"
-    override val settingsPort = "Local Proxy Default Port"
-    override val settingsPortDescription = "The local proxy server will restart after saving"
+    override val settingsPort = "Studio Local Listening Port"
+    override val settingsPortDescription =
+        "Used by IDE, App and CLI to connect to Studio; saving restarts the local proxy service"
     override val settingsPortInvalid = "Port must be between 1024 and 65535"
     override fun settingsPortUpdated(port: Int) = "Proxy port updated to $port"
     override fun settingsPortRestartFailed(error: String) = "Failed to restart proxy on new port: $error"
     override fun settingsPortUpdateFailed(error: String) = "Failed to update proxy port: $error"
+    override val settingsLocalProxyTitle = "Local Proxy Service"
+    override val settingsOutboundProxyTitle = "Upstream Network Proxy"
+    override val settingsOutboundProxyDescription =
+        "Controls the network path Studio uses for official services and public providers; local addresses always connect directly"
+    override val settingsOutboundMode = "Connection mode"
+    override val settingsOutboundAuto = "Smart Select"
+    override val settingsOutboundAutoDescription = "Use system or environment proxies, then fall back to direct"
+    override val settingsOutboundDirect = "Always Direct"
+    override val settingsOutboundDirectDescription = "Ignore system proxies and proxy environment variables"
+    override val settingsOutboundSystem = "System Proxy"
+    override val settingsOutboundSystemDescription = "Only use the proxy configured by the operating system"
+    override val settingsOutboundManual = "Manual Proxy"
+    override val settingsOutboundManualDescription = "Specify an HTTP or SOCKS5 proxy endpoint"
+    override val settingsOutboundRecommended = "Recommended"
+    override val settingsOutboundProtocol = "Proxy protocol"
+    override val settingsOutboundHost = "Server address"
+    override val settingsOutboundPort = "Port"
+    override val settingsOutboundFallback = "Allow direct fallback when the proxy is unavailable"
+    override val settingsOutboundFallbackDescription =
+        "When disabled, a proxy connection failure ends the request without bypassing the proxy"
+    override val settingsOutboundDetection = "Current network detection"
+    override val settingsOutboundSystemDetected = "System proxy"
+    override val settingsOutboundEnvironmentDetected = "Environment proxy"
+    override val settingsOutboundEffectiveRoute = "Candidate routes"
+    override val settingsOutboundNotConfigured = "Not configured"
+    override val settingsOutboundDirectRoute = "Direct"
+    override val settingsOutboundTest = "Test Connection"
+    override val settingsOutboundTesting = "Testing"
+    override val settingsOutboundSave = "Save & Apply"
+    override val settingsOutboundReset = "Restore Defaults"
+    override val settingsOutboundUnsaved = "Unsaved changes"
+    override val settingsOutboundManualHostRequired = "Enter a proxy host without a scheme or path"
+    override val settingsOutboundManualPortInvalid = "Proxy port must be between 1 and 65535"
+    override val settingsOutboundSystemUnavailable =
+        "No system proxy detected; requests cannot be sent with direct fallback disabled"
+    override val settingsOutboundProxySaved = "Upstream network proxy settings saved and applied"
+    override fun settingsOutboundProxySaveFailed(error: String) = "Failed to save upstream network proxy: $error"
+    override fun settingsOutboundTestSuccess(route: String, latencyMs: Long) = "Connected · $route · ${latencyMs}ms"
+    override fun settingsOutboundTestFallback(latencyMs: Long) =
+        "Proxy unavailable; connected directly · ${latencyMs}ms"
+
+    override fun settingsOutboundTestFailed(error: String) = "Connection failed: $error"
+    override val settingsOpenNetworkSettings = "Open Network Settings"
     override val settingsHostPathsTitle = "Host Installation Paths"
     override val settingsHostPathsDesc = "Custom installation or executable paths for Antigravity IDE, App and CLI"
     override val settingsDefaultSwitchTargetTitle = "Default Switch Target"

@@ -12,8 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
+import com.yuzhiqiang.antigravity.domain.model.OutboundProxyConfig
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.network.ConnectionTester
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StudioSlidingTabLayout
 import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
@@ -32,12 +34,22 @@ fun SettingsScreen(
     val config by viewModel.config.collectAsState()
     val loadError by viewModel.configLoadError.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val networkSettingsRequest by viewModel.networkSettingsRequest.collectAsState()
+    val isTestingOutboundProxy by viewModel.isTestingOutboundProxy.collectAsState()
+    val outboundProxyTestResult by viewModel.outboundProxyTestResult.collectAsState()
 
     var selectedSection by remember { mutableStateOf(SettingsSection.GENERAL) }
     var portInput by remember(config.proxyPort) { mutableStateOf(config.proxyPort.toString()) }
     var portError by remember { mutableStateOf<String?>(null) }
     var openDirectoryError by remember { mutableStateOf<String?>(null) }
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(networkSettingsRequest) {
+        if (networkSettingsRequest > 0L) {
+            selectedSection = SettingsSection.NETWORK
+            scrollState.scrollTo(0)
+        }
+    }
 
     val sections = remember { SettingsSection.values() }
     val tabItems = remember(s) {
@@ -81,10 +93,10 @@ fun SettingsScreen(
                     towards = direction,
                     animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
                 ) + fadeIn(animationSpec = tween(200)) togetherWith
-                slideOutOfContainer(
-                    towards = direction,
-                    animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
-                ) + fadeOut(animationSpec = tween(160))
+                        slideOutOfContainer(
+                            towards = direction,
+                            animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeOut(animationSpec = tween(160))
             },
             modifier = Modifier.fillMaxWidth()
         ) { targetSection ->
@@ -118,6 +130,11 @@ fun SettingsScreen(
                         viewModel.updateProxyPort(port)
                     }
                 },
+                outboundProxyTestResult = outboundProxyTestResult,
+                isTestingOutboundProxy = isTestingOutboundProxy,
+                onSaveOutboundProxy = viewModel::saveOutboundProxy,
+                onTestOutboundProxy = viewModel::testOutboundProxy,
+                onClearOutboundProxyTestResult = viewModel::clearOutboundProxyTestResult,
                 onOpenDirectory = {
                     openDirectoryError = openConfigDirectory(viewModel)
                 },
@@ -148,6 +165,11 @@ private fun SettingsContent(
     onOpenUpdateDialog: () -> Unit,
     onPortInputChange: (String) -> Unit,
     onSavePort: () -> Unit,
+    outboundProxyTestResult: ConnectionTester.OutboundProxyTestResult?,
+    isTestingOutboundProxy: Boolean,
+    onSaveOutboundProxy: (OutboundProxyConfig) -> Unit,
+    onTestOutboundProxy: (OutboundProxyConfig) -> Unit,
+    onClearOutboundProxyTestResult: () -> Unit,
     onOpenDirectory: () -> Unit,
     onConfigureHostPath: ((String, String) -> Unit)? = null,
     s: Strings,
@@ -165,19 +187,28 @@ private fun SettingsContent(
                 onConfigureHostPath = onConfigureHostPath,
                 s = s
             )
+
             SettingsSection.NETWORK -> NetworkSettingsSection(
                 portInput = portInput,
                 portError = portError,
+                outboundProxy = config.outboundProxy,
+                isTestingOutboundProxy = isTestingOutboundProxy,
+                outboundProxyTestResult = outboundProxyTestResult,
                 onPortInputChange = onPortInputChange,
                 onSavePort = onSavePort,
+                onSaveOutboundProxy = onSaveOutboundProxy,
+                onTestOutboundProxy = onTestOutboundProxy,
+                onClearOutboundProxyTestResult = onClearOutboundProxyTestResult,
                 s = s
             )
+
             SettingsSection.DATA -> DataSettingsSection(
                 loadError = loadError,
                 openDirectoryError = openDirectoryError,
                 onOpenDirectory = onOpenDirectory,
                 s = s
             )
+
             SettingsSection.ABOUT -> AboutSettingsSection(
                 updateState = updateState,
                 isDeveloperMode = config.developerMode,
@@ -211,10 +242,12 @@ private fun openConfigDirectory(viewModel: AppViewModel): String? {
                     ProcessBuilder("explorer.exe", dir.absolutePath).start()
                     opened = true
                 }
+
                 osName.contains("mac") -> {
                     ProcessBuilder("/usr/bin/open", dir.absolutePath).start()
                     opened = true
                 }
+
                 else -> {
                     ProcessBuilder("xdg-open", dir.absolutePath).start()
                     opened = true

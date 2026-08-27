@@ -3,9 +3,12 @@ package com.yuzhiqiang.antigravity.network
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import com.yuzhiqiang.antigravity.domain.model.OutboundProxyConfig
 import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
 import java.net.HttpURLConnection
+import java.net.Proxy
+import java.net.URI
 import java.net.URL
 import com.yuzhiqiang.antigravity.proxy.adapters.ProviderAdapter
 
@@ -19,6 +22,16 @@ object ConnectionTester {
         val success: Boolean,
         val latencyMs: Long = 0,
         val statusCode: Int = 0,
+        val error: String? = null
+    )
+
+    data class OutboundProxyTestResult(
+        val success: Boolean,
+        val latencyMs: Long,
+        val statusCode: Int = 0,
+        val endpoint: NetworkProxyEndpoint? = null,
+        val direct: Boolean = false,
+        val fellBackToDirect: Boolean = false,
         val error: String? = null
     )
 
@@ -60,35 +73,51 @@ object ConnectionTester {
      * 测试官方 Cloud Code 服务是否能够建立网络通信。
      * 该检查关注网络连通性，不把官方接口返回的鉴权或业务状态误判为网络失败。
      */
-    suspend fun testOfficialService(): TestResult = withContext(Dispatchers.IO) {
-        val startTime = System.currentTimeMillis()
-        var connection: HttpURLConnection? = null
-        try {
-            connection = URL("https://daily-cloudcode-pa.googleapis.com/v1internal:listExperiments")
-                .openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.connectTimeout = 3500
-            connection.readTimeout = 3500
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.outputStream.use { output -> output.write("{}".toByteArray(Charsets.UTF_8)) }
-            val responseCode = connection.responseCode
-            TestResult(
-                success = responseCode > 0,
-                latencyMs = System.currentTimeMillis() - startTime,
-                statusCode = responseCode,
-                error = if (responseCode > 0) null else "官方服务未返回有效 HTTP 状态"
-            )
-        } catch (error: Exception) {
-            TestResult(
-                success = false,
-                latencyMs = System.currentTimeMillis() - startTime,
-                error = error.message ?: "无法连接官方服务"
-            )
-        } finally {
-            connection?.disconnect()
-        }
+    suspend fun testOfficialService(): TestResult {
+        val result = testOutboundProxy(PlatformNetworkConfig.currentOutboundProxy())
+        return TestResult(
+            success = result.success,
+            latencyMs = result.latencyMs,
+            statusCode = result.statusCode,
+            error = result.error
+        )
     }
+
+    suspend fun testOutboundProxy(config: OutboundProxyConfig): OutboundProxyTestResult =
+        withContext(Dispatchers.IO) {
+            val target = URI("https://daily-cloudcode-pa.googleapis.com/v1internal:listExperiments")
+            val routes = PlatformNetworkConfig.selectProxies(config, target)
+            if (routes.isEmpty()) {
+                return@withContext OutboundProxyTestResult(
+                    success = false,
+                    latencyMs = 0L,
+                    error = "当前模式未检测到可用的系统代理，且未允许直连回退"
+                )
+            }
+
+            val startedAt = System.currentTimeMillis()
+            var lastError: String? = null
+            routes.forEachIndexed { index, proxy ->
+                val result = testOfficialRoute(target, proxy)
+                if (result.success) {
+                    return@withContext OutboundProxyTestResult(
+                        success = true,
+                        latencyMs = System.currentTimeMillis() - startedAt,
+                        statusCode = result.statusCode,
+                        endpoint = proxyEndpoint(proxy),
+                        direct = proxy.type() == Proxy.Type.DIRECT,
+                        fellBackToDirect = index > 0 && proxy.type() == Proxy.Type.DIRECT
+                    )
+                }
+                lastError = result.error
+            }
+
+            OutboundProxyTestResult(
+                success = false,
+                latencyMs = System.currentTimeMillis() - startedAt,
+                error = lastError ?: "所有出站网络路径均连接失败"
+            )
+        }
 
     /**
      * 测试上游 Provider 是否可达。
@@ -231,6 +260,7 @@ object ConnectionTester {
                             outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
                         }
                     }
+
                     com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.GEMINI_GENERATE_CONTENT -> {
                         val endpoint = provider.generateEndpoint
                             ?.takeIf { it.isNotBlank() }
@@ -261,6 +291,7 @@ object ConnectionTester {
                             outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
                         }
                     }
+
                     else -> {
                         // 默认 OPENAI_CHAT_COMPLETIONS / OPENAI_RESPONSES 格式
                         val defaultPath = if (
@@ -272,14 +303,15 @@ object ConnectionTester {
                                 error = "OpenAI Responses API 不支持图像生成"
                             )
                         }
-                        val endpoint = if (imageOnly && provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.OPENAI_CHAT_COMPLETIONS) {
-                            deriveOpenAiImageEndpoint(provider)
-                        } else {
-                            provider.generateEndpoint
-                            ?.takeIf { it.isNotBlank() }
-                            ?.replace("{model}", modelId)
-                            ?: appendProtocolPath(baseUrl, defaultPath.removePrefix("/v1"))
-                        }
+                        val endpoint =
+                            if (imageOnly && provider.protocol == com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.OPENAI_CHAT_COMPLETIONS) {
+                                deriveOpenAiImageEndpoint(provider)
+                            } else {
+                                provider.generateEndpoint
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?.replace("{model}", modelId)
+                                    ?: appendProtocolPath(baseUrl, defaultPath.removePrefix("/v1"))
+                            }
                         connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                             requestMethod = "POST"
                             connectTimeout = effectiveConnectTimeout
@@ -390,6 +422,46 @@ object ConnectionTester {
         }
     }
 
+    private fun testOfficialRoute(target: URI, proxy: Proxy): TestResult {
+        val startedAt = System.currentTimeMillis()
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (target.toURL().openConnection(proxy) as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 5_000
+                readTimeout = 5_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+            connection.outputStream.use { it.write("{}".toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            TestResult(
+                success = status > 0 && status != 407,
+                latencyMs = System.currentTimeMillis() - startedAt,
+                statusCode = status,
+                error = if (status == 407) "代理服务器要求身份认证，当前配置未提供认证信息" else null
+            )
+        } catch (error: Exception) {
+            TestResult(
+                success = false,
+                latencyMs = System.currentTimeMillis() - startedAt,
+                error = error.message ?: "网络连接异常"
+            )
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    private fun proxyEndpoint(proxy: Proxy): NetworkProxyEndpoint? {
+        val address = proxy.address() as? java.net.InetSocketAddress ?: return null
+        val protocol = if (proxy.type() == Proxy.Type.SOCKS) {
+            com.yuzhiqiang.antigravity.domain.model.OutboundProxyProtocol.SOCKS5
+        } else {
+            com.yuzhiqiang.antigravity.domain.model.OutboundProxyProtocol.HTTP
+        }
+        return NetworkProxyEndpoint(protocol, address.hostString, address.port)
+    }
+
     private fun applyProviderAuth(
         connection: HttpURLConnection,
         provider: com.yuzhiqiang.antigravity.domain.model.Provider
@@ -398,8 +470,10 @@ object ConnectionTester {
         when (provider.protocol) {
             com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.ANTHROPIC_MESSAGES ->
                 connection.setRequestProperty("x-api-key", provider.apiKey)
+
             com.yuzhiqiang.antigravity.domain.model.ProviderProtocol.GEMINI_GENERATE_CONTENT ->
                 connection.setRequestProperty("x-goog-api-key", provider.apiKey)
+
             else -> connection.setRequestProperty("Authorization", "Bearer ${provider.apiKey}")
         }
     }
