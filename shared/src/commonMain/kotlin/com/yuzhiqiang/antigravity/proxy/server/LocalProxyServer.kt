@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
+import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
 import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
 import com.yuzhiqiang.antigravity.proxy.parser.AntigravityRequestParser
@@ -16,6 +17,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readAvailable
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +25,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -55,6 +58,11 @@ class LocalProxyServer(
             return Result.failure(IllegalArgumentException("代理端口必须位于 1024 - 65535 之间"))
         }
 
+        // 在开始监听前完成有界预热，避免首个生成请求等待或错过 macOS 系统代理。
+        withContext(Dispatchers.IO) {
+            PlatformNetworkConfig.awaitSystemProxyPrewarm()
+        }
+
         val availablePort = findAvailablePort(desiredPort, (desiredPort + 20).coerceAtMost(65535))
             ?: return Result.failure(IllegalStateException("No available port found near $desiredPort"))
 
@@ -79,14 +87,16 @@ class LocalProxyServer(
                     }
                     post("/{...}") {
                         val normalizedPath = normalizeProxyPath(call.request.path())
-                                                when {
+                        when {
                             isFixedGetPath(normalizedPath) -> respondMethodNotAllowed(call)
                             isOfficialCatalogFetchPath(normalizedPath) -> {
                                 controlPlaneSemaphore.withPermit { handleChatRequest(call) }
                             }
+
                             isGenerationPath(normalizedPath) -> {
                                 generationSemaphore.withPermit { handleChatRequest(call) }
                             }
+
                             else -> controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                         }
                     }
@@ -97,16 +107,20 @@ class LocalProxyServer(
                                 """{"status":"ok","product":"antigravity-studio","port":$availablePort,"capabilities":{"models":true,"generate":true,"stream":true}}""",
                                 ContentType.Application.Json
                             )
+
                             "/healthz" -> call.respondText(
                                 """{"status":"ok","product":"antigravity-studio","port":$availablePort}""",
                                 ContentType.Application.Json
                             )
+
                             "/v1/models", "/v1beta/models" -> {
                                 controlPlaneSemaphore.withPermit { respondModelCatalog(call) }
                             }
+
                             "/antigravity/official-catalog" -> {
                                 controlPlaneSemaphore.withPermit { respondPureOfficialCatalog(call) }
                             }
+
                             else -> if (isGenerationPath(normalizedPath)) {
                                 respondMethodNotAllowed(call)
                             } else {
@@ -194,15 +208,13 @@ class LocalProxyServer(
         }
 
         val pathModelId = extractPathModelId(path)
-        val bodyModelResult = AntigravityRequestParser.extractModelId(rawBody)
-        if (bodyModelResult.isFailure &&
-            !bodyModelResult.exceptionOrNull()?.message.orEmpty().startsWith("Missing model ID")
-        ) {
-            val message = bodyModelResult.exceptionOrNull()?.message ?: "Invalid request body"
+        val requestRoot = AntigravityRequestParser.parseObject(rawBody).getOrElse { error ->
+            val message = error.message ?: "Invalid request body"
             recordFailure(path, pathModelId, startTime, 400, message, clientSource = clientSource)
             respondError(call, HttpStatusCode.BadRequest, message)
             return
         }
+        val bodyModelResult = AntigravityRequestParser.extractModelId(requestRoot)
         val requestedModelId = bodyModelResult.getOrNull() ?: pathModelId
 
         if (requestedModelId.isNullOrBlank()) {
@@ -213,7 +225,7 @@ class LocalProxyServer(
 
         if (RouteResolver.isPotentialCustomModelId(config, requestedModelId)) {
             val parsedRequest = AntigravityRequestParser.parse(
-                rawJson = rawBody,
+                root = requestRoot,
                 fallbackOriginalModelId = requestedModelId
             )
             if (parsedRequest.isFailure) {
@@ -250,7 +262,15 @@ class LocalProxyServer(
         } else {
             val body = readRequestBodyBytes(call).getOrElse { error ->
                 val message = error.message ?: "Failed to read request body"
-                recordFailure(path, null, startTime, 400, message, method = call.request.httpMethod.value, clientSource = clientSource)
+                recordFailure(
+                    path,
+                    null,
+                    startTime,
+                    400,
+                    message,
+                    method = call.request.httpMethod.value,
+                    clientSource = clientSource
+                )
                 respondError(call, HttpStatusCode.BadRequest, message)
                 return
             }
@@ -291,7 +311,11 @@ class LocalProxyServer(
     private fun errorCategory(statusCode: Int, message: String): String {
         return when {
             message.contains("stream", ignoreCase = true) || message.contains("SSE", ignoreCase = true) ||
-                    message.contains("tool arguments", ignoreCase = true) || message.contains("流") -> "stream_interrupted"
+                    message.contains(
+                        "tool arguments",
+                        ignoreCase = true
+                    ) || message.contains("流") -> "stream_interrupted"
+
             message.contains("unsupported", ignoreCase = true) || message.contains("不支持") -> "unsupported_feature"
             statusCode == 400 -> "invalid_request"
             statusCode == 401 || statusCode == 403 -> "authentication"
@@ -327,7 +351,7 @@ class LocalProxyServer(
             isOfficialPassthrough = false
         )
         call.respondText(responseJson.toString(), ContentType.Application.Json, HttpStatusCode.OK)
-        
+
     }
 
     private suspend fun respondPureOfficialCatalog(call: ApplicationCall) {
@@ -336,7 +360,12 @@ class LocalProxyServer(
             call.respondText(cached, ContentType.Application.Json, HttpStatusCode.OK)
             return
         }
-        respondError(call, HttpStatusCode.BadGateway, "未获取到官方原始模型目录（请先启动 Antigravity IDE 或 App）", "native_forwarding_failed")
+        respondError(
+            call,
+            HttpStatusCode.BadGateway,
+            "未获取到官方原始模型目录（请先启动 Antigravity IDE 或 App）",
+            "native_forwarding_failed"
+        )
     }
 
     private suspend fun readRequestBody(call: ApplicationCall): Result<String> {
@@ -407,6 +436,7 @@ class LocalProxyServer(
             path.contains("generateContent") -> false
             (path.contains("/chat/completions") || path.contains("/messages") || path.contains("/responses")) &&
                     !rawBody.contains("\"stream\"") -> false
+
             else -> bodyStream
         }
     }

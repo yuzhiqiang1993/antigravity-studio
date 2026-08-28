@@ -4,8 +4,11 @@ import com.yuzhiqiang.antigravity.domain.model.OutboundProxyProtocol
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URI
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 internal data class MacSystemProxySnapshot(
     val http: NetworkProxyEndpoint? = null,
@@ -75,9 +78,21 @@ internal object MacSystemProxyDetector {
     )
 
     private val cache = AtomicReference(CachedSnapshot(0L, MacSystemProxySnapshot()))
+    private val refreshInFlight = AtomicBoolean(false)
+    private val initialRefreshCompleted = CountDownLatch(1)
+
+    fun prewarm() {
+        if (isMacOs()) refreshAsync()
+    }
+
+    fun awaitInitialSnapshot(timeoutMs: Long): Boolean {
+        if (!isMacOs()) return true
+        prewarm()
+        return initialRefreshCompleted.await(timeoutMs, TimeUnit.MILLISECONDS)
+    }
 
     fun select(uri: URI): List<Proxy> {
-        if (!System.getProperty("os.name", "").contains("mac", ignoreCase = true)) return emptyList()
+        if (!isMacOs()) return emptyList()
         return currentSnapshot().select(uri)
     }
 
@@ -124,22 +139,37 @@ internal object MacSystemProxyDetector {
     }
 
     private fun currentSnapshot(): MacSystemProxySnapshot {
-        val now = System.currentTimeMillis()
         val cached = cache.get()
-        if (now - cached.timestamp < CACHE_TTL_MS) return cached.snapshot
-
-        val detected = runCatching {
-            val process = ProcessBuilder("/usr/sbin/scutil", "--proxy")
-                .redirectErrorStream(true)
-                .start()
-            if (!process.waitFor(1_500L, TimeUnit.MILLISECONDS)) {
-                process.destroyForcibly()
-                throw IllegalStateException("scutil --proxy timed out")
-            }
-            parse(process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
-        }.getOrDefault(MacSystemProxySnapshot())
-
-        cache.set(CachedSnapshot(now, detected))
-        return detected
+        if (System.currentTimeMillis() - cached.timestamp >= CACHE_TTL_MS) {
+            refreshAsync()
+        }
+        return cached.snapshot
     }
+
+    private fun refreshAsync() {
+        if (!refreshInFlight.compareAndSet(false, true)) return
+        thread(name = "studio-system-proxy-refresh", isDaemon = true) {
+            try {
+                val detected = detectSnapshot()
+                cache.set(CachedSnapshot(System.currentTimeMillis(), detected))
+            } finally {
+                refreshInFlight.set(false)
+                initialRefreshCompleted.countDown()
+            }
+        }
+    }
+
+    private fun detectSnapshot(): MacSystemProxySnapshot = runCatching {
+        val process = ProcessBuilder("/usr/sbin/scutil", "--proxy")
+            .redirectErrorStream(true)
+            .start()
+        if (!process.waitFor(1_500L, TimeUnit.MILLISECONDS)) {
+            process.destroyForcibly()
+            throw IllegalStateException("scutil --proxy timed out")
+        }
+        parse(process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+    }.getOrDefault(MacSystemProxySnapshot())
+
+    private fun isMacOs(): Boolean =
+        System.getProperty("os.name", "").contains("mac", ignoreCase = true)
 }
