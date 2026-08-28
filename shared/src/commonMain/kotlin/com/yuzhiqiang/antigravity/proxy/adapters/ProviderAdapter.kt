@@ -223,7 +223,10 @@ interface ProviderAdapter {
                 firstLine = false
                 if (line.trim().isEmpty()) {
                     if (dataLines.isEmpty()) continue
-                    return Result.success(dataLines.joinToString("\n"))
+                    val data = dataLines.joinToString("\n")
+                    dataLines.clear()
+                    if (data.isBlank()) continue
+                    return Result.success(data)
                 }
                 val trimmed = line.trimEnd()
                 if (trimmed.startsWith(":")) continue
@@ -237,11 +240,8 @@ interface ProviderAdapter {
                 // 未知行/非标准字段容错跳过，避免中断长流
                 continue
             }
-            return if (dataLines.isEmpty()) {
-                Result.success(null)
-            } else {
-                Result.success(dataLines.joinToString("\n"))
-            }
+            val data = dataLines.joinToString("\n")
+            return Result.success(data.takeIf { it.isNotBlank() })
         }
 
         /** 读取上游响应文本内容。 */

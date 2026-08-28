@@ -401,6 +401,17 @@ class ByokParityTest {
         assertEquals("{\"text\":\n\"ok\"}", ProviderAdapter.readSseDataEvent(channel).getOrThrow())
     }
 
+    @Test
+    fun sseReaderSkipsEmptyDataHeartbeatBeforeJsonEvent() = runBlocking {
+        val channel = ByteReadChannel(
+            "event: ping\ndata:\n\n:keep-alive\ndata: {\"type\":\"message_stop\"}\n\n"
+        )
+
+        assertEquals(
+            "{\"type\":\"message_stop\"}",
+            ProviderAdapter.readSseDataEvent(channel).getOrThrow()
+        )
+    }
 
     @Test
     fun localProxyExposesHealthAndCustomCatalog() {
