@@ -326,9 +326,11 @@ fun ActivityScreen(
             log = log,
             onDismiss = { selectedLog = null },
             onCopyNotice = { viewModel.showNotice(it) },
-            onOpenNetworkSettings = viewModel::openNetworkSettings
+            onOpenNetworkSettings = viewModel::openNetworkSettings,
+            isDebugMode = config.isDebugMode
         )
     }
+
 }
 
 @Composable

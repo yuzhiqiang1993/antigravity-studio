@@ -13,7 +13,7 @@ import androidx.compose.material.icons.outlined.DataObject
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,7 +47,8 @@ fun ActivityDetailDialog(
     log: ActivityLog,
     onDismiss: () -> Unit,
     onCopyNotice: (String) -> Unit,
-    onOpenNetworkSettings: (() -> Unit)? = null
+    onOpenNetworkSettings: (() -> Unit)? = null,
+    isDebugMode: Boolean = false
 ) {
     val s = strings()
     val isSuccess = log.statusCode in 200..399
@@ -58,12 +59,13 @@ fun ActivityDetailDialog(
         else -> BadgeTone.ERROR
     }
     val statusBadgeText = if (log.isPending) s.activityPending else "HTTP ${log.statusCode}"
+    val hasDebugData = isDebugMode || log.requestHeaders != null || log.requestBody != null || log.responseHeaders != null || log.responseBody != null
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .width(680.dp)
-                .heightIn(min = 400.dp, max = 700.dp),
+                .width(760.dp)
+                .heightIn(min = 420.dp, max = 760.dp),
             shape = RoundedCornerShape(AppTokens.Radius.large),
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = AppTokens.Elevation.dialog
@@ -95,6 +97,12 @@ fun ActivityDetailDialog(
                                 showDot = log.isPending,
                                 pulse = log.isPending
                             )
+                            if (isDebugMode) {
+                                StatusBadge(
+                                    text = "DEBUG",
+                                    tone = BadgeTone.INFO
+                                )
+                            }
                         }
                         Text(
                             text = log.id,
@@ -281,6 +289,80 @@ fun ActivityDetailDialog(
                             }
                         }
                     }
+
+                    // 4. Debug 详细报文（请求头、请求体、响应头、响应体）
+                    if (hasDebugData) {
+                        DetailSectionCard(
+                            title = s.activityDetailDebugSection,
+                            headerColor = MaterialTheme.colorScheme.primary
+                        ) {
+                            // 4.1 请求头 (Request Headers)
+                            if (!log.requestHeaders.isNullOrEmpty()) {
+                                HeadersDisplayBlock(
+                                    title = s.activityDetailRequestHeaders,
+                                    headers = log.requestHeaders,
+                                    onCopy = {
+                                        copyHeadersToClipboard(log.requestHeaders, onCopyNotice, s)
+                                    },
+                                    s = s
+                                )
+                            }
+
+                            // 4.2 请求数据 (Request Body)
+                            if (!log.requestBody.isNullOrBlank()) {
+                                PayloadDisplayBlock(
+                                    title = s.activityDetailRequestBody,
+                                    payload = log.requestBody,
+                                    onCopy = {
+                                        Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                                            StringSelection(log.requestBody),
+                                            null
+                                        )
+                                        onCopyNotice(s.commonCopied)
+                                    },
+                                    s = s
+                                )
+                            }
+
+                            // 4.3 响应头 (Response Headers)
+                            if (!log.responseHeaders.isNullOrEmpty()) {
+                                HeadersDisplayBlock(
+                                    title = s.activityDetailResponseHeaders,
+                                    headers = log.responseHeaders,
+                                    onCopy = {
+                                        copyHeadersToClipboard(log.responseHeaders, onCopyNotice, s)
+                                    },
+                                    s = s
+                                )
+                            }
+
+                            // 4.4 响应数据 (Response Body)
+                            if (!log.responseBody.isNullOrBlank()) {
+                                PayloadDisplayBlock(
+                                    title = s.activityDetailResponseBody,
+                                    payload = log.responseBody,
+                                    onCopy = {
+                                        Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                                            StringSelection(log.responseBody),
+                                            null
+                                        )
+                                        onCopyNotice(s.commonCopied)
+                                    },
+                                    s = s
+                                )
+                            }
+
+                            if (log.requestHeaders.isNullOrEmpty() && log.requestBody.isNullOrBlank() &&
+                                log.responseHeaders.isNullOrEmpty() && log.responseBody.isNullOrBlank()
+                            ) {
+                                Text(
+                                    text = s.activityDetailEmptyPayload,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -321,6 +403,18 @@ fun ActivityDetailDialog(
                                     put("totalTokens", log.totalTokens)
                                     put("errorMessage", log.errorMessage)
                                     put("errorSource", log.errorSource)
+                                    log.requestHeaders?.let { headers ->
+                                        put("requestHeaders", buildJsonObject {
+                                            headers.forEach { (k, v) -> put(k, v) }
+                                        })
+                                    }
+                                    log.requestBody?.let { put("requestBody", it) }
+                                    log.responseHeaders?.let { headers ->
+                                        put("responseHeaders", buildJsonObject {
+                                            headers.forEach { (k, v) -> put(k, v) }
+                                        })
+                                    }
+                                    log.responseBody?.let { put("responseBody", it) }
                                 }.toString()
                                 Toolkit.getDefaultToolkit().systemClipboard.setContents(
                                     StringSelection(jsonString),
@@ -412,6 +506,208 @@ fun ActivityDetailDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HeadersDisplayBlock(
+    title: String,
+    headers: Map<String, String>,
+    onCopy: () -> Unit,
+    s: com.yuzhiqiang.antigravity.i18n.Strings
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$title (${headers.size})",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            TextButton(
+                onClick = onCopy,
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                modifier = Modifier.height(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ContentCopy,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = s.activityDetailCopyHeaders,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                .padding(8.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                headers.forEach { (key, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text(
+                            text = "$key:",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.widthIn(min = 120.dp, max = 220.dp)
+                        )
+                        Text(
+                            text = value,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PayloadDisplayBlock(
+    title: String,
+    payload: String,
+    onCopy: () -> Unit,
+    s: com.yuzhiqiang.antigravity.i18n.Strings
+) {
+    var isFormatted by remember { mutableStateOf(true) }
+    val isJsonLikely = remember(payload) {
+        val trimmed = payload.trim()
+        (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    }
+    val displayedText = remember(payload, isFormatted) {
+        if (isFormatted && isJsonLikely) {
+            formatJsonIfPossible(payload)
+        } else {
+            payload
+        }
+    }
+
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isJsonLikely) {
+                    TextButton(
+                        onClick = { isFormatted = !isFormatted },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                        modifier = Modifier.height(24.dp)
+                    ) {
+                        Text(
+                            text = if (isFormatted) s.activityDetailRawText else s.activityDetailFormatJson,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = onCopy,
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                    modifier = Modifier.height(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = s.activityDetailCopyBody,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
+                    )
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 280.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                .padding(10.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                Text(
+                    text = displayedText,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.5.sp,
+                        lineHeight = 16.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+private fun copyHeadersToClipboard(
+    headers: Map<String, String>,
+    onCopyNotice: (String) -> Unit,
+    s: com.yuzhiqiang.antigravity.i18n.Strings
+) {
+    val text = headers.entries.joinToString("\n") { "${it.key}: ${it.value}" }
+    Toolkit.getDefaultToolkit().systemClipboard.setContents(
+        StringSelection(text),
+        null
+    )
+    onCopyNotice(s.commonCopied)
+}
+
+private val prettyJsonInstance = kotlinx.serialization.json.Json {
+    prettyPrint = true
+    isLenient = true
+    ignoreUnknownKeys = true
+}
+
+private fun formatJsonIfPossible(raw: String): String {
+    return try {
+        val element = prettyJsonInstance.parseToJsonElement(raw)
+        prettyJsonInstance.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), element)
+    } catch (_: Exception) {
+        raw
     }
 }
 
@@ -524,3 +820,4 @@ private fun formatFullTime(timestamp: Long): String {
         "--"
     }
 }
+

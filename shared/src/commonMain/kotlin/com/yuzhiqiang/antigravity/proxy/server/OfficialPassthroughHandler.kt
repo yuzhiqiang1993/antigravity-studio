@@ -51,6 +51,10 @@ class OfficialPassthroughHandler(
         modelId: String?,
         startTime: Long
     ) {
+        val isDebug = configStore.currentConfig.isDebugMode
+        val reqHeaders = if (isDebug) extractRequestHeaders(call) else null
+        val reqBodyStr = if (isDebug && rawBody.isNotEmpty()) rawBody.decodeToString() else null
+
         val logId = ActivityRecorder.startActivity(
             method = call.request.httpMethod.value,
             path = path,
@@ -59,7 +63,9 @@ class OfficialPassthroughHandler(
             clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
             providerName = "Official Cloud Code",
             isOfficialPassthrough = true,
-            timestamp = startTime
+            timestamp = startTime,
+            requestHeaders = reqHeaders,
+            requestBody = reqBodyStr
         )
         val officialUrlResult = officialUrl(path, call.request.queryString())
         if (officialUrlResult.isFailure) {
@@ -69,7 +75,8 @@ class OfficialPassthroughHandler(
                 statusCode = 502,
                 durationMs = System.currentTimeMillis() - startTime,
                 errorMessage = message,
-                errorSource = StreamErrorSource.STUDIO_PROXY.name
+                errorSource = StreamErrorSource.STUDIO_PROXY.name,
+                responseBody = if (isDebug) message else null
             )
             respondError(call, HttpStatusCode.BadGateway, message, "native_forwarding_failed")
             return
@@ -123,6 +130,7 @@ class OfficialPassthroughHandler(
                     lastStatus = status
                     val responseContentType = response.contentType() ?: ContentType.Application.Json
                     val responseIsStreaming = isStreaming || responseContentType.match(ContentType.Text.EventStream)
+                    val respHeaders = if (isDebug) extractResponseHeaders(response.headers) else null
 
                     // 如果在首包到达前收到任何错误（4xx、5xx），直接触发重试
                     if (status >= 400 && attempt <= maxRetries) {
@@ -222,7 +230,9 @@ class OfficialPassthroughHandler(
                                 usage = latestUsage,
                                 errorMessage = streamErrorCaught?.message,
                                 errorSource = streamErrorCaught?.let { StreamErrorSource.UPSTREAM_TRANSPORT.name },
-                                retryCount = attempt - 1
+                                retryCount = attempt - 1,
+                                responseHeaders = respHeaders,
+                                responseBody = if (isDebug) sseBuffer.toString() else null
                             )
                         } catch (error: Exception) {
                             ActivityRecorder.finishActivity(
@@ -236,7 +246,9 @@ class OfficialPassthroughHandler(
                                     StreamErrorSource.STUDIO_PROXY.name
                                 },
                                 usage = latestUsage,
-                                retryCount = attempt - 1
+                                retryCount = attempt - 1,
+                                responseHeaders = respHeaders,
+                                responseBody = if (isDebug) sseBuffer.toString() else null
                             )
                         }
                         return@execute
@@ -268,7 +280,9 @@ class OfficialPassthroughHandler(
                         statusCode = status,
                         durationMs = System.currentTimeMillis() - startTime,
                         usage = nonStreamingUsage,
-                        retryCount = attempt - 1
+                        retryCount = attempt - 1,
+                        responseHeaders = respHeaders,
+                        responseBody = if (isDebug) (responseBodyString ?: bodyBytes.decodeToString()) else null
                     )
                     copyForwardResponseHeaders(call, response)
                     val responseBody = responseBodyString?.toByteArray(Charsets.UTF_8) ?: bodyBytes
@@ -283,6 +297,7 @@ class OfficialPassthroughHandler(
                 lastErrorSource = StreamErrorSource.UPSTREAM_TRANSPORT
                 if (attempt <= maxRetries) {
                     val backoffMs = ByokForwardHandler.calculateBackoff(attempt, baseDelayMs)
+
                     delay(backoffMs)
                     continue
                 }
@@ -341,6 +356,9 @@ class OfficialPassthroughHandler(
         startTime: Long
     ) {
         val officialUrlResult = officialUrl(path, call.request.queryString())
+        val isDebug = configStore.currentConfig.isDebugMode
+        val reqHeaders = if (isDebug) extractRequestHeaders(call) else null
+
         if (officialUrlResult.isFailure) {
             val message = officialUrlResult.exceptionOrNull()?.message ?: "Invalid official Cloud Code endpoint"
             recordFailure(
@@ -374,6 +392,7 @@ class OfficialPassthroughHandler(
                     }
                 }
             }.execute()
+            val respHeaders = if (isDebug) extractResponseHeaders(response.headers) else null
             val body = ProviderAdapter.readResponseBodyText(response).getOrElse { error ->
                 throw IllegalStateException(error.message ?: "Failed to read official catalog response", error)
             }
@@ -384,7 +403,11 @@ class OfficialPassthroughHandler(
                     startTime,
                     response.status.value,
                     body,
-                    errorSource = StreamErrorSource.UPSTREAM_RESPONSE
+                    errorSource = StreamErrorSource.UPSTREAM_RESPONSE,
+                    requestHeaders = reqHeaders,
+                    requestBody = if (isDebug) rawBody else null,
+                    responseHeaders = respHeaders,
+                    responseBody = if (isDebug) body else null
                 )
                 call.respondText(
                     rewriteOfficialUrls(body, call),
@@ -405,14 +428,25 @@ class OfficialPassthroughHandler(
             )
             val responseJson = CatalogInjector.injectCustomModels(overridden, configStore.currentConfig)
             val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
-            recordActivity(path, null, startTime, response.status.value, null, clientSource = clientSource)
+            recordActivity(
+                path = path,
+                modelId = null,
+                startTime = startTime,
+                status = response.status.value,
+                message = null,
+                clientSource = clientSource,
+                requestHeaders = reqHeaders,
+                requestBody = if (isDebug) rawBody else null,
+                responseHeaders = respHeaders,
+                responseBody = if (isDebug) responseJson.toString() else null
+            )
             call.respondText(
                 rewriteOfficialUrls(responseJson.toString(), call),
                 response.contentType() ?: ContentType.Application.Json,
                 response.status
             )
         } catch (error: Exception) {
-            respondCatalogFallback(call, path, startTime, error.message ?: "官方目录获取失败")
+            respondCatalogFallback(call, path, startTime, error.message ?: "官方目录获取失败", rawBody = rawBody)
         }
     }
 
@@ -420,9 +454,12 @@ class OfficialPassthroughHandler(
         call: ApplicationCall,
         path: String,
         startTime: Long,
-        reason: String
+        reason: String,
+        rawBody: String? = null
     ) {
         val config = configStore.currentConfig
+        val isDebug = config.isDebugMode
+        val reqHeaders = if (isDebug) extractRequestHeaders(call) else null
         val baseCatalog = if (path.contains("fetchAvailableModels")) {
             buildJsonObject {
                 put("response", buildJsonObject { put("models", JsonObject(emptyMap())) })
@@ -451,13 +488,16 @@ class OfficialPassthroughHandler(
         }
         val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
         recordActivity(
-            path,
-            null,
-            startTime,
-            status.value,
-            if (status == HttpStatusCode.OK) null else finalReason,
+            path = path,
+            modelId = null,
+            startTime = startTime,
+            status = status.value,
+            message = if (status == HttpStatusCode.OK) null else finalReason,
             errorSource = errorSource.takeIf { status != HttpStatusCode.OK },
-            clientSource = clientSource
+            clientSource = clientSource,
+            requestHeaders = reqHeaders,
+            requestBody = if (isDebug) rawBody else null,
+            responseBody = if (isDebug) fallback.toString() else null
         )
         if (hasCustomModels) {
             call.respondText(
@@ -474,6 +514,7 @@ class OfficialPassthroughHandler(
             if (status == HttpStatusCode.BadGateway) "native_forwarding_failed" else "internal"
         )
     }
+
 
     fun officialUrl(path: String, query: String): Result<String> {
         val endpoint = System.getenv("ANTIGRAVITY_CLOUD_CODE_URL")
@@ -590,9 +631,26 @@ class OfficialPassthroughHandler(
         message: String?,
         method: String = "POST",
         errorSource: StreamErrorSource = StreamErrorSource.STUDIO_PROXY,
-        clientSource: String? = null
+        clientSource: String? = null,
+        requestHeaders: Map<String, String>? = null,
+        requestBody: String? = null,
+        responseHeaders: Map<String, String>? = null,
+        responseBody: String? = null
     ) {
-        recordActivity(path, modelId, startTime, status, message, method, errorSource = errorSource, clientSource = clientSource)
+        recordActivity(
+            path,
+            modelId,
+            startTime,
+            status,
+            message,
+            method,
+            errorSource = errorSource,
+            clientSource = clientSource,
+            requestHeaders = requestHeaders,
+            requestBody = requestBody,
+            responseHeaders = responseHeaders,
+            responseBody = responseBody
+        )
     }
 
     private fun recordActivity(
@@ -604,7 +662,11 @@ class OfficialPassthroughHandler(
         method: String = "POST",
         firstTokenMs: Long? = null,
         errorSource: StreamErrorSource? = null,
-        clientSource: String? = null
+        clientSource: String? = null,
+        requestHeaders: Map<String, String>? = null,
+        requestBody: String? = null,
+        responseHeaders: Map<String, String>? = null,
+        responseBody: String? = null
     ) {
         ActivityRecorder.record(
             method = method,
@@ -618,9 +680,14 @@ class OfficialPassthroughHandler(
             isOfficialPassthrough = true,
             errorMessage = message,
             errorSource = errorSource?.name,
-            firstTokenMs = firstTokenMs
+            firstTokenMs = firstTokenMs,
+            requestHeaders = requestHeaders,
+            requestBody = requestBody,
+            responseHeaders = responseHeaders,
+            responseBody = responseBody
         )
     }
+
 
     private fun parseGeminiUsage(jsonElement: JsonElement): NeutralUsage? {
         val root = when (jsonElement) {
@@ -698,3 +765,20 @@ class OfficialPassthroughHandler(
         return eventUsage
     }
 }
+
+internal fun extractRequestHeaders(call: ApplicationCall): Map<String, String> {
+    val map = LinkedHashMap<String, String>()
+    call.request.headers.forEach { key, values ->
+        map[key] = values.joinToString(", ")
+    }
+    return map
+}
+
+internal fun extractResponseHeaders(headers: io.ktor.http.Headers): Map<String, String> {
+    val map = LinkedHashMap<String, String>()
+    headers.forEach { key, values ->
+        map[key] = values.joinToString(", ")
+    }
+    return map
+}
+

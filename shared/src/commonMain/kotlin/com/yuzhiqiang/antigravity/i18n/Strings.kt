@@ -530,6 +530,16 @@ interface Strings {
     val activityDetailCopiedError: String
     val activityRetryCount: String
     fun activityRetryBadge(count: Int): String
+    val activityDetailDebugSection: String
+    val activityDetailRequestHeaders: String
+    val activityDetailRequestBody: String
+    val activityDetailResponseHeaders: String
+    val activityDetailResponseBody: String
+    val activityDetailEmptyPayload: String
+    val activityDetailFormatJson: String
+    val activityDetailRawText: String
+    val activityDetailCopyHeaders: String
+    val activityDetailCopyBody: String
 
     // Settings Screen & Sections
     val settingsTitle: String
@@ -1562,6 +1572,16 @@ object StringsZh : Strings {
     override val activityDetailCopiedError = "已复制错误信息"
     override val activityRetryCount = "重试次数"
     override fun activityRetryBadge(count: Int) = "重试 $count 次"
+    override val activityDetailDebugSection = "调试明细 (Debug)"
+    override val activityDetailRequestHeaders = "请求头 (Headers)"
+    override val activityDetailRequestBody = "请求数据 (Body)"
+    override val activityDetailResponseHeaders = "响应头 (Headers)"
+    override val activityDetailResponseBody = "响应数据 (Body)"
+    override val activityDetailEmptyPayload = "（无数据）"
+    override val activityDetailFormatJson = "格式化 JSON"
+    override val activityDetailRawText = "原始报文"
+    override val activityDetailCopyHeaders = "复制请求头"
+    override val activityDetailCopyBody = "复制数据"
 
     override val settingsTitle = "应用偏好与配置"
     override val settingsSubtitle = "管理语言、外观、代理端口与数据存储"
@@ -2669,6 +2689,16 @@ object StringsEn : Strings {
     override val activityDetailCopiedError = "Error message copied to clipboard"
     override val activityRetryCount = "Retry Count"
     override fun activityRetryBadge(count: Int) = "Retry ×$count"
+    override val activityDetailDebugSection = "Debug Details"
+    override val activityDetailRequestHeaders = "Request Headers"
+    override val activityDetailRequestBody = "Request Body"
+    override val activityDetailResponseHeaders = "Response Headers"
+    override val activityDetailResponseBody = "Response Body"
+    override val activityDetailEmptyPayload = "(Empty)"
+    override val activityDetailFormatJson = "Format JSON"
+    override val activityDetailRawText = "Raw Text"
+    override val activityDetailCopyHeaders = "Copy Headers"
+    override val activityDetailCopyBody = "Copy Body"
 
     override val settingsTitle = "Preferences & Settings"
     override val settingsSubtitle = "Manage language, appearance, proxy port and storage"
