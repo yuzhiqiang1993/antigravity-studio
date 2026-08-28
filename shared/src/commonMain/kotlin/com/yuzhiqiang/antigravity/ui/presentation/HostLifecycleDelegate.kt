@@ -259,8 +259,11 @@ class HostLifecycleDelegate(
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["app"]
                 val isCurrentlyRunning = wasRunning || AppHostManager.isRunning(customInstallation)
+                if (isCurrentlyRunning) {
+                    AppHostManager.terminate(customInstallation, force = true)
+                }
                 val operationSucceeded = AppHostManager.enable(actualPort, customInstallation)
-                val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation, actualPort) else true
+                val restartSucceeded = if (isCurrentlyRunning) AppHostManager.launch(customInstallation, actualPort) else true
                 val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
                 appDetailedStatusFlow.value = newStatus
                 isAppHostActiveFlow.value = newStatus.isProxyActive
@@ -288,8 +291,11 @@ class HostLifecycleDelegate(
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["app"]
                 val isCurrentlyRunning = wasRunning || AppHostManager.isRunning(customInstallation)
+                if (isCurrentlyRunning) {
+                    AppHostManager.terminate(customInstallation, force = true)
+                }
                 val operationSucceeded = AppHostManager.disable(customInstallation)
-                val restartSucceeded = if (isCurrentlyRunning) AppHostManager.restart(customInstallation, null) else true
+                val restartSucceeded = if (isCurrentlyRunning) AppHostManager.launch(customInstallation, null) else true
                 val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
                 appDetailedStatusFlow.value = newStatus
                 isAppHostActiveFlow.value = newStatus.isProxyActive
@@ -423,9 +429,12 @@ class HostLifecycleDelegate(
                     "app" -> {
                         val customPath = configStore.currentConfig.customHostPaths["app"]
                         val isRunning = AppHostManager.isRunning(customPath)
+                        if (isRunning) {
+                            AppHostManager.terminate(customPath, force = true)
+                        }
                         AppHostManager.forceReset(customPath)
                         if (isRunning) {
-                            AppHostManager.restart(customPath, null)
+                            AppHostManager.launch(customPath, null)
                         }
                         showNotice(s.hostForceResetSuccess(s.hostAppTitle), NoticeKind.SUCCESS)
                     }

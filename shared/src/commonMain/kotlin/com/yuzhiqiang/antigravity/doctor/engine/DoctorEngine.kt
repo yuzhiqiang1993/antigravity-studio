@@ -469,7 +469,16 @@ class DoctorEngine(
                 }
 
                 is DoctorFixAction.RepairAppEnvironment -> {
-                    AppHostManager.enable(port)
+                    val customPath = configStore.currentConfig.customHostPaths["app"]
+                    val isRunning = AppHostManager.isRunning(customPath)
+                    if (isRunning) {
+                        AppHostManager.terminate(customPath, force = true)
+                    }
+                    val ok = AppHostManager.enable(port, customPath)
+                    if (ok && isRunning) {
+                        AppHostManager.launch(customPath, port)
+                    }
+                    ok
                 }
 
                 is DoctorFixAction.UpdateIdeSettings -> {
@@ -481,9 +490,14 @@ class DoctorEngine(
                 }
 
                 is DoctorFixAction.UpdateAppEnvironment -> {
-                    val ok = AppHostManager.enable(port)
-                    if (ok && AppHostManager.isRunning()) {
-                        AppHostManager.restart(configStore.currentConfig.customHostPaths["app"], port)
+                    val customPath = configStore.currentConfig.customHostPaths["app"]
+                    val isRunning = AppHostManager.isRunning(customPath)
+                    if (isRunning) {
+                        AppHostManager.terminate(customPath, force = true)
+                    }
+                    val ok = AppHostManager.enable(port, customPath)
+                    if (ok && isRunning) {
+                        AppHostManager.launch(customPath, port)
                     }
                     ok
                 }
@@ -501,9 +515,14 @@ class DoctorEngine(
                 }
 
                 is DoctorFixAction.ResetAppHostToOfficial -> {
-                    val ok = AppHostManager.forceReset()
-                    if (ok && AppHostManager.isRunning()) {
-                        AppHostManager.restart(configStore.currentConfig.customHostPaths["app"], null)
+                    val customPath = configStore.currentConfig.customHostPaths["app"]
+                    val isRunning = AppHostManager.isRunning(customPath)
+                    if (isRunning) {
+                        AppHostManager.terminate(customPath, force = true)
+                    }
+                    val ok = AppHostManager.forceReset(customPath)
+                    if (ok && isRunning) {
+                        AppHostManager.launch(customPath, null)
                     }
                     ok
                 }
