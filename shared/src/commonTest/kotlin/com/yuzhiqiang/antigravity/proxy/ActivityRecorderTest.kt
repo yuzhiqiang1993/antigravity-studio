@@ -24,6 +24,7 @@ class ActivityRecorderTest {
             path = "/v1internal:streamGenerateContent",
             modelId = "custom-gpt-5",
             requestedModelId = "gpt-5",
+            clientSource = "Antigravity IDE",
             providerName = "OpenAI",
             isOfficialPassthrough = false,
             timestamp = 1000L
@@ -36,6 +37,7 @@ class ActivityRecorderTest {
         assertTrue(pendingLog.isPending)
         assertEquals(0, pendingLog.statusCode)
         assertEquals("OpenAI", pendingLog.providerName)
+        assertEquals("Antigravity IDE", pendingLog.clientSource)
 
         // 2. 流式返回首字时更新 TTFT
         ActivityRecorder.updateFirstToken(logId, 1500L)

@@ -39,6 +39,7 @@ class ByokForwardHandler(
             path = path,
             modelId = route.virtualModel?.id ?: route.upstreamModel.id,
             requestedModelId = route.requestedModelId,
+            clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
             providerName = route.provider.name,
             isOfficialPassthrough = false,
             timestamp = startTime
