@@ -162,6 +162,7 @@ fun ActivityDetailDialog(
                                 highlightColor = MaterialTheme.colorScheme.tertiary
                             )
                         }
+                        log.clientSource?.let { DetailItemRow(s.activityDetailClientSource, it) }
                         DetailItemRow(
                             s.activityDetailRouteMode,
                             if (log.isOfficialPassthrough) s.activityDetailPassthroughMode else s.activityDetailForwardMode
@@ -307,6 +308,7 @@ fun ActivityDetailDialog(
                                     put("isPending", log.isPending)
                                     if (log.retryCount > 0) put("retryCount", log.retryCount)
                                     log.firstTokenMs?.let { put("firstTokenMs", it) }
+                                    put("clientSource", log.clientSource)
                                     put("isOfficialPassthrough", log.isOfficialPassthrough)
                                     put("modelId", log.modelId)
                                     put("requestedModelId", log.requestedModelId)

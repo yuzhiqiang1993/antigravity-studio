@@ -56,6 +56,7 @@ class OfficialPassthroughHandler(
             path = path,
             modelId = modelId,
             requestedModelId = null,
+            clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
             providerName = "Official Cloud Code",
             isOfficialPassthrough = true,
             timestamp = startTime
@@ -403,7 +404,8 @@ class OfficialPassthroughHandler(
                 configStore.currentConfig.modelCompressionPolicies
             )
             val responseJson = CatalogInjector.injectCustomModels(overridden, configStore.currentConfig)
-            recordActivity(path, null, startTime, response.status.value, null)
+            val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
+            recordActivity(path, null, startTime, response.status.value, null, clientSource = clientSource)
             call.respondText(
                 rewriteOfficialUrls(responseJson.toString(), call),
                 response.contentType() ?: ContentType.Application.Json,
@@ -447,13 +449,15 @@ class OfficialPassthroughHandler(
         } else {
             reason
         }
+        val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
         recordActivity(
             path,
             null,
             startTime,
             status.value,
             if (status == HttpStatusCode.OK) null else finalReason,
-            errorSource = errorSource.takeIf { status != HttpStatusCode.OK }
+            errorSource = errorSource.takeIf { status != HttpStatusCode.OK },
+            clientSource = clientSource
         )
         if (hasCustomModels) {
             call.respondText(
@@ -585,9 +589,10 @@ class OfficialPassthroughHandler(
         status: Int,
         message: String?,
         method: String = "POST",
-        errorSource: StreamErrorSource = StreamErrorSource.STUDIO_PROXY
+        errorSource: StreamErrorSource = StreamErrorSource.STUDIO_PROXY,
+        clientSource: String? = null
     ) {
-        recordActivity(path, modelId, startTime, status, message, method, errorSource = errorSource)
+        recordActivity(path, modelId, startTime, status, message, method, errorSource = errorSource, clientSource = clientSource)
     }
 
     private fun recordActivity(
@@ -598,13 +603,15 @@ class OfficialPassthroughHandler(
         message: String?,
         method: String = "POST",
         firstTokenMs: Long? = null,
-        errorSource: StreamErrorSource? = null
+        errorSource: StreamErrorSource? = null,
+        clientSource: String? = null
     ) {
         ActivityRecorder.record(
             method = method,
             path = path,
             modelId = modelId,
             requestedModelId = null,
+            clientSource = clientSource,
             providerName = "Official Cloud Code",
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,

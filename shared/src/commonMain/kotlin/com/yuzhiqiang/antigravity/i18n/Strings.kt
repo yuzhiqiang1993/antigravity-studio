@@ -484,6 +484,10 @@ interface Strings {
     val activityDetailDuration: String
     val activityDetailFirstToken: String
     val activityDetailTimestamp: String
+    val activityDetailClientSource: String
+    val activityClientIde: String
+    val activityClientApp: String
+    val activityClientCli: String
     val activityDetailRouteMode: String
     val activityDetailPassthroughMode: String
     val activityDetailForwardMode: String
@@ -1494,6 +1498,10 @@ object StringsZh : Strings {
     override val activityDetailDuration = "总响应耗时"
     override val activityDetailFirstToken = "首字响应耗时 (TTFT)"
     override val activityDetailTimestamp = "请求发起时间"
+    override val activityDetailClientSource = "请求客户端"
+    override val activityClientIde = "Antigravity IDE"
+    override val activityClientApp = "Antigravity App"
+    override val activityClientCli = "Antigravity CLI"
     override val activityDetailRouteMode = "路由模式"
     override val activityDetailPassthroughMode = "官方直连透传"
     override val activityDetailForwardMode = "三方服务商转发 (BYOK)"
@@ -2571,6 +2579,10 @@ object StringsEn : Strings {
     override val activityDetailDuration = "Total Response Latency"
     override val activityDetailFirstToken = "Time to First Token (TTFT)"
     override val activityDetailTimestamp = "Request Start Time"
+    override val activityDetailClientSource = "Client Source"
+    override val activityClientIde = "Antigravity IDE"
+    override val activityClientApp = "Antigravity App"
+    override val activityClientCli = "Antigravity CLI"
     override val activityDetailRouteMode = "Route Mode"
     override val activityDetailPassthroughMode = "Official Direct (Cloud Code Passthrough)"
     override val activityDetailForwardMode = "Custom Forward (BYOK Forward)"

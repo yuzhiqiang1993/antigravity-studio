@@ -18,6 +18,8 @@ data class ActivityLog(
     /** 请求最初选择的模型 ID（宿主原始请求值）。 */
     @SerialName("requested_model_id")
     val requestedModelId: String? = null,
+    @SerialName("client_source")
+    val clientSource: String? = null,
     @SerialName("provider_name")
     val providerName: String? = null,
     @SerialName("status_code")

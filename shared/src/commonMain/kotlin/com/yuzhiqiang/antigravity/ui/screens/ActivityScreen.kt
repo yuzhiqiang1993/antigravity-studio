@@ -80,6 +80,7 @@ fun ActivityScreen(
                 ?: s.activityUnknownProvider)
             val matchesTag = selectedTags.isEmpty() || tag in selectedTags
             val matchesQuery = normalizedQuery.isBlank() || listOfNotNull(
+                log.clientSource,
                 log.modelId,
                 log.requestedModelId,
                 if (log.isOfficialPassthrough) s.activityPassthrough else log.providerName,
@@ -616,15 +617,23 @@ private fun ActivityLogRow(
                         log.isOfficialPassthrough -> s.activityPassthrough
                         else -> log.providerName.orEmpty()
                     }
-                    if (subtitleText.isNotEmpty()) {
-                        HighlightedText(
-                            text = subtitleText,
-                            query = searchQuery,
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Spacer(Modifier.width(1.dp))
+
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        log.clientSource?.takeIf { it.isNotBlank() }?.let { client ->
+                            ClientSourceBadge(client)
+                        }
+                        if (subtitleText.isNotEmpty()) {
+                            HighlightedText(
+                                text = subtitleText,
+                                query = searchQuery,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
                     Row(
@@ -947,3 +956,40 @@ private fun TagFilterDropdown(
         }
     }
 }
+
+@Composable
+private fun ClientSourceBadge(
+    clientSource: String,
+    modifier: Modifier = Modifier
+) {
+    val isIde = "IDE" in clientSource
+    val isApp = "App" in clientSource
+    val isCli = "CLI" in clientSource || "agy" in clientSource.lowercase()
+
+    val (bg, textColor) = when {
+        isIde -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onPrimaryContainer
+        isApp -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onTertiaryContainer
+        isCli -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f) to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        color = bg,
+        shape = RoundedCornerShape(AppTokens.Radius.pill),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                text = clientSource,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                fontWeight = FontWeight.SemiBold,
+                color = textColor
+            )
+        }
+    }
+}
+

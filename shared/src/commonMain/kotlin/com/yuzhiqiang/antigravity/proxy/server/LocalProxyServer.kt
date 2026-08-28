@@ -179,9 +179,10 @@ class LocalProxyServer(
     private suspend fun handleChatRequest(call: ApplicationCall) {
         val startTime = System.currentTimeMillis()
         val path = normalizeProxyPath(call.request.path())
+        val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
         val rawBody = readRequestBody(call).getOrElse { error ->
             val message = error.message ?: "Failed to read request body"
-            recordFailure(path, null, startTime, 400, message)
+            recordFailure(path, null, startTime, 400, message, clientSource = clientSource)
             respondError(call, HttpStatusCode.BadRequest, message)
             return
         }
@@ -198,14 +199,14 @@ class LocalProxyServer(
             !bodyModelResult.exceptionOrNull()?.message.orEmpty().startsWith("Missing model ID")
         ) {
             val message = bodyModelResult.exceptionOrNull()?.message ?: "Invalid request body"
-            recordFailure(path, pathModelId, startTime, 400, message)
+            recordFailure(path, pathModelId, startTime, 400, message, clientSource = clientSource)
             respondError(call, HttpStatusCode.BadRequest, message)
             return
         }
         val requestedModelId = bodyModelResult.getOrNull() ?: pathModelId
 
         if (requestedModelId.isNullOrBlank()) {
-            recordFailure(path, null, startTime, 400, "Missing model ID in request")
+            recordFailure(path, null, startTime, 400, "Missing model ID in request", clientSource = clientSource)
             respondError(call, HttpStatusCode.BadRequest, "Missing model ID in request")
             return
         }
@@ -217,7 +218,7 @@ class LocalProxyServer(
             )
             if (parsedRequest.isFailure) {
                 val message = parsedRequest.exceptionOrNull()?.message ?: "Invalid request"
-                recordFailure(path, requestedModelId, startTime, 400, message)
+                recordFailure(path, requestedModelId, startTime, 400, message, clientSource = clientSource)
                 respondError(call, HttpStatusCode.BadRequest, message)
                 return
             }
@@ -229,7 +230,7 @@ class LocalProxyServer(
                 val error = routeResult.exceptionOrNull()
                 val status = (error as? RouteResolutionException)?.statusCode ?: 404
                 val message = error?.message ?: "Unable to resolve configured model"
-                recordFailure(path, requestedModelId, startTime, status, message)
+                recordFailure(path, requestedModelId, startTime, status, message, clientSource = clientSource)
                 respondError(call, HttpStatusCode.fromValue(status), message)
                 return
             }
@@ -243,12 +244,13 @@ class LocalProxyServer(
     private suspend fun handlePassthroughRequest(call: ApplicationCall) {
         val startTime = System.currentTimeMillis()
         val path = normalizeProxyPath(call.request.path())
+        val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
         val rawBody = if (call.request.httpMethod == HttpMethod.Head) {
             ByteArray(0)
         } else {
             val body = readRequestBodyBytes(call).getOrElse { error ->
                 val message = error.message ?: "Failed to read request body"
-                recordFailure(path, null, startTime, 400, message, method = call.request.httpMethod.value)
+                recordFailure(path, null, startTime, 400, message, method = call.request.httpMethod.value, clientSource = clientSource)
                 respondError(call, HttpStatusCode.BadRequest, message)
                 return
             }
@@ -318,6 +320,7 @@ class LocalProxyServer(
             path = path,
             modelId = null,
             requestedModelId = null,
+            clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
             providerName = "Studio Local Catalog",
             statusCode = 200,
             durationMs = System.currentTimeMillis() - startTime,
@@ -414,13 +417,15 @@ class LocalProxyServer(
         startTime: Long,
         status: Int,
         message: String?,
-        method: String = "POST"
+        method: String = "POST",
+        clientSource: String? = null
     ) {
         ActivityRecorder.record(
             method = method,
             path = path,
             modelId = modelId,
             requestedModelId = null,
+            clientSource = clientSource,
             providerName = null,
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,
