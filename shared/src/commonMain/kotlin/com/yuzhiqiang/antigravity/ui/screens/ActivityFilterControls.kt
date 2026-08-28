@@ -2,7 +2,6 @@ package com.yuzhiqiang.antigravity.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -10,6 +9,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,11 +27,17 @@ import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.ArrowDropUp
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,46 +46,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCheckbox
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
 import com.yuzhiqiang.antigravity.ui.components.StudioSearchField
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
-
-@Composable
-internal fun ActivityQuickClientFilters(
-    clientCounts: Map<ActivityClientKind, Int>,
-    filter: ActivityLogFilter,
-    onFilterChange: (ActivityLogFilter) -> Unit,
-    s: Strings,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp)
-    ) {
-        listOf(ActivityClientKind.IDE, ActivityClientKind.CLI, ActivityClientKind.APP).forEach { kind ->
-            CompactActivityFilterChip(
-                label = activityClientLabel(kind, s),
-                count = clientCounts[kind] ?: 0,
-                selected = kind in filter.clients,
-                onClick = {
-                    onFilterChange(filter.copy(clients = filter.clients.toggle(kind)))
-                }
-            )
-        }
-    }
-}
 
 @Composable
 internal fun ActivityFilterDropdown(
@@ -102,42 +80,40 @@ internal fun ActivityFilterDropdown(
     LaunchedEffect(resetKey) {
         endpointSearch = ""
     }
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
+
     val isFiltered = filter.isActive
-    val containerColor = when {
-        isFiltered -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        else -> MaterialTheme.colorScheme.surface
-    }
-    val borderColor = when {
-        isFiltered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-        isHovered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-        else -> MaterialTheme.colorScheme.outlineVariant
-    }
     val buttonLabel = if (isFiltered) {
-        s.activitySelectedTagsCount(filter.activeCount)
+        "${s.activityTagFilterTitle} (${filter.activeCount})"
     } else {
-        s.activityAllTags
+        s.activityTagFilterTitle
     }
 
     Box(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .height(StudioDesignTokens.Sizes.topButtonHeight)
-                .clip(RoundedCornerShape(StudioDesignTokens.CornerRadius.sm))
-                .background(containerColor)
-                .border(1.dp, borderColor, RoundedCornerShape(StudioDesignTokens.CornerRadius.sm))
-                .pointerHoverIcon(PointerIcon.Hand)
-                .hoverable(interactionSource)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = { expanded = !expanded }
-                )
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        OutlinedButton(
+            onClick = { expanded = !expanded },
+            modifier = Modifier.height(StudioDesignTokens.Sizes.topButtonHeight),
+            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.sm),
+            contentPadding = PaddingValues(horizontal = StudioDesignTokens.Padding.topBarVertical, vertical = 0.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (isFiltered) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+                contentColor = if (isFiltered) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            ),
+            border = BorderStroke(
+                1.dp,
+                if (isFiltered) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant
+                }
+            )
         ) {
             Icon(
                 imageVector = Icons.Outlined.Tune,
@@ -145,15 +121,16 @@ internal fun ActivityFilterDropdown(
                 tint = if (isFiltered) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(AppTokens.Size.iconSmall)
             )
+            Spacer(Modifier.width(AppTokens.Spacing.xs))
             Text(
                 text = buttonLabel,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontSize = StudioDesignTokens.TextSize.body,
                     fontWeight = if (isFiltered) FontWeight.SemiBold else FontWeight.Normal
                 ),
-                color = if (isFiltered) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
+            Spacer(Modifier.width(AppTokens.Spacing.xxs))
             Icon(
                 imageVector = if (expanded) Icons.Outlined.ArrowDropUp else Icons.Outlined.ArrowDropDown,
                 contentDescription = null,
@@ -165,18 +142,24 @@ internal fun ActivityFilterDropdown(
         StudioDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.width(560.dp)
+            modifier = Modifier.width(660.dp)
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = StudioDesignTokens.Padding.spaceBetweenColumns,
+                        vertical = StudioDesignTokens.Padding.innerBlock
+                    ),
+                verticalArrangement = Arrangement.spacedBy(StudioDesignTokens.Padding.spaceBetweenRows)
             ) {
+                // 面板 Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xxs)) {
                         Text(
                             text = s.activityTagFilterTitle,
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
@@ -225,27 +208,29 @@ internal fun ActivityFilterDropdown(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(StudioDesignTokens.Padding.spaceBetweenColumns),
                     verticalAlignment = Alignment.Top
                 ) {
+                    // 左栏：客户端、状态、路由/服务商（固定紧凑宽度 230dp）
                     Column(
-                        modifier = Modifier.weight(0.95f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.width(230.dp),
+                        verticalArrangement = Arrangement.spacedBy(StudioDesignTokens.Padding.spaceBetweenRows)
                     ) {
+                        // 1. 客户端
                         ActivityFilterSectionHeader(
                             title = s.activityFilterClients,
                             allSelected = filter.clients.isEmpty(),
                             onSelectAll = { onFilterChange(filter.copy(clients = emptySet())) },
                             s = s
                         )
-                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)) {
                             ActivityClientKind.values().toList().chunked(2).forEach { rowKinds ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
                                 ) {
                                     rowKinds.forEach { kind ->
-                                        CompactActivityFilterChip(
+                                        ActivityFilterChip(
                                             label = activityClientLabel(kind, s),
                                             count = clientCounts[kind] ?: 0,
                                             selected = kind in filter.clients,
@@ -259,20 +244,21 @@ internal fun ActivityFilterDropdown(
                             }
                         }
 
+                        // 2. 请求状态
                         ActivityFilterSectionHeader(
                             title = s.activityFilterStatuses,
                             allSelected = filter.statuses.isEmpty(),
                             onSelectAll = { onFilterChange(filter.copy(statuses = emptySet())) },
                             s = s
                         )
-                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)) {
                             ActivityStatusKind.values().toList().chunked(2).forEach { rowStatuses ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
                                 ) {
                                     rowStatuses.forEach { status ->
-                                        CompactActivityFilterChip(
+                                        ActivityFilterChip(
                                             label = activityStatusLabel(status, s),
                                             count = statusCounts[status] ?: 0,
                                             selected = status in filter.statuses,
@@ -286,6 +272,7 @@ internal fun ActivityFilterDropdown(
                             }
                         }
 
+                        // 3. 路由 / 服务商
                         ActivityFilterSectionHeader(
                             title = s.activityFilterRoutes,
                             allSelected = filter.routes.isEmpty(),
@@ -298,7 +285,7 @@ internal fun ActivityFilterDropdown(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(max = 126.dp)
+                                    .heightIn(max = 120.dp)
                                     .verticalScroll(rememberScrollState())
                             ) {
                                 orderedRoutes.forEach { (route, count) ->
@@ -315,14 +302,15 @@ internal fun ActivityFilterDropdown(
                         }
                     }
 
-                    androidx.compose.material3.VerticalDivider(
-                        modifier = Modifier.height(330.dp),
+                    VerticalDivider(
+                        modifier = Modifier.height(355.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
 
+                    // 右栏：请求接口多选（宽幅占满剩余空间 ~390dp）
                     Column(
-                        modifier = Modifier.weight(1.1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
                     ) {
                         ActivityFilterSectionHeader(
                             title = s.activityFilterEndpoints,
@@ -342,18 +330,17 @@ internal fun ActivityFilterDropdown(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(max = 276.dp)
+                                    .heightIn(max = 285.dp)
                                     .verticalScroll(rememberScrollState())
                             ) {
                                 visibleEndpoints.forEach { (path, count) ->
-                                    ActivityFilterOptionRow(
-                                        label = path,
+                                    EndpointFilterOptionRow(
+                                        path = path,
                                         count = count,
                                         checked = path in filter.endpoints,
                                         onClick = {
                                             onFilterChange(filter.copy(endpoints = filter.endpoints.toggle(path)))
-                                        },
-                                        monospace = true
+                                        }
                                     )
                                 }
                             }
@@ -382,34 +369,34 @@ internal fun ActivityFilterSummaryRow(
     ) {
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (filter.clients.isNotEmpty()) {
                 val label = filter.clients.singleOrNull()?.let { activityClientLabel(it, s) }
                     ?: s.activityFilterSelectedDimension(s.activityFilterClients, filter.clients.size)
-                ActivityFilterSummaryChip(label) {
+                ActivityFilterSummaryChip(label = label) {
                     onFilterChange(filter.copy(clients = emptySet()))
                 }
             }
             if (filter.statuses.isNotEmpty()) {
                 val label = filter.statuses.singleOrNull()?.let { activityStatusLabel(it, s) }
                     ?: s.activityFilterSelectedDimension(s.activityFilterStatuses, filter.statuses.size)
-                ActivityFilterSummaryChip(label) {
+                ActivityFilterSummaryChip(label = label) {
                     onFilterChange(filter.copy(statuses = emptySet()))
                 }
             }
             if (filter.routes.isNotEmpty()) {
                 val label = filter.routes.singleOrNull()?.let { activityRouteLabel(it, s) }
                     ?: s.activityFilterSelectedDimension(s.activityFilterRoutes, filter.routes.size)
-                ActivityFilterSummaryChip(label) {
+                ActivityFilterSummaryChip(label = label) {
                     onFilterChange(filter.copy(routes = emptySet()))
                 }
             }
             if (filter.endpoints.isNotEmpty()) {
                 val label = filter.endpoints.singleOrNull()?.let(::compactPath)
                     ?: s.activityFilterSelectedDimension(s.activityFilterEndpoints, filter.endpoints.size)
-                ActivityFilterSummaryChip(label, maxWidth = 220.dp) {
+                ActivityFilterSummaryChip(label = label, maxWidth = 240.dp) {
                     onFilterChange(filter.copy(endpoints = emptySet()))
                 }
             }
@@ -417,11 +404,11 @@ internal fun ActivityFilterSummaryRow(
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(StudioDesignTokens.Padding.spaceBetweenRows)
         ) {
             Text(
                 text = s.activityFilterMatches(shownCount, totalCount),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
@@ -467,62 +454,61 @@ private fun ActivityFilterSectionHeader(
 }
 
 @Composable
-private fun CompactActivityFilterChip(
+private fun ActivityFilterChip(
     label: String,
     count: Int,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-    val background = when {
-        selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
-        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-        else -> MaterialTheme.colorScheme.surface
-    }
-    val borderColor = when {
-        selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-        isHovered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f)
-    }
-
-    Surface(
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = StudioDesignTokens.TextSize.badge,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = StudioDesignTokens.TextSize.caption),
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    }
+                )
+            }
+        },
         modifier = modifier
-            .height(30.dp)
-            .pointerHoverIcon(PointerIcon.Hand)
-            .hoverable(interactionSource)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+            .height(28.dp)
+            .pointerHoverIcon(PointerIcon.Hand),
         shape = RoundedCornerShape(AppTokens.Radius.pill),
-        color = background,
-        border = BorderStroke(1.dp, borderColor)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 11.5.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-                ),
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-                color = if (selected) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                }
-            )
-        }
-    }
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
+            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+            selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+            borderWidth = 1.dp,
+            selectedBorderWidth = 1.dp
+        )
+    )
 }
 
 @Composable
@@ -530,8 +516,7 @@ private fun ActivityFilterOptionRow(
     label: String,
     count: Int,
     checked: Boolean,
-    onClick: () -> Unit,
-    monospace: Boolean = false
+    onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -540,90 +525,185 @@ private fun ActivityFilterOptionRow(
             .fillMaxWidth()
             .background(
                 if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent,
-                RoundedCornerShape(6.dp)
+                RoundedCornerShape(StudioDesignTokens.CornerRadius.sm)
             )
             .pointerHoverIcon(PointerIcon.Hand)
             .hoverable(interactionSource)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 5.dp),
+            .padding(horizontal = AppTokens.Spacing.sm, vertical = AppTokens.Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
         ) {
             StudioCheckbox(checked = checked, onCheckedChange = { onClick() })
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 12.sp,
-                    fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal,
-                    fontFamily = if (monospace) androidx.compose.ui.text.font.FontFamily.Monospace else null
+                    fontSize = StudioDesignTokens.TextSize.body,
+                    fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal
                 ),
                 color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
+        Spacer(Modifier.width(AppTokens.Spacing.xs))
         Text(
             text = count.toString(),
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
     }
 }
 
 @Composable
-private fun ActivityFilterSummaryChip(
-    label: String,
-    maxWidth: androidx.compose.ui.unit.Dp = 160.dp,
-    onClear: () -> Unit
+private fun EndpointFilterOptionRow(
+    path: String,
+    count: Int,
+    checked: Boolean,
+    onClick: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.height(27.dp).widthIn(max = maxWidth),
-        shape = RoundedCornerShape(AppTokens.Radius.pill),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val (prefix, action) = remember(path) { splitEndpointPath(path) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent,
+                RoundedCornerShape(StudioDesignTokens.CornerRadius.sm)
+            )
+            .pointerHoverIcon(PointerIcon.Hand)
+            .hoverable(interactionSource)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(horizontal = AppTokens.Spacing.sm, vertical = AppTokens.Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
-            modifier = Modifier.padding(start = 9.dp, end = 5.dp),
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm)
         ) {
-            Text(
-                text = label,
-                modifier = Modifier.weight(1f, fill = false),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .pointerHoverIcon(PointerIcon.Hand)
-                    .clickable(onClick = onClear),
-                contentAlignment = Alignment.Center
+            StudioCheckbox(checked = checked, onCheckedChange = { onClick() })
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Close,
-                    contentDescription = null,
-                    modifier = Modifier.size(11.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                if (prefix.isNotEmpty()) {
+                    Text(
+                        text = prefix,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = StudioDesignTokens.TextSize.body,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        color = if (checked) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                        },
+                        maxLines = 1
+                    )
+                }
+                Text(
+                    text = action,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = StudioDesignTokens.TextSize.body,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium
+                    ),
+                    color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
+        Spacer(Modifier.width(AppTokens.Spacing.xs))
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (checked) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            }
+        )
     }
+}
+
+private fun splitEndpointPath(path: String): Pair<String, String> {
+    val colonIdx = path.lastIndexOf(':')
+    if (colonIdx > 0 && colonIdx < path.length - 1) {
+        return path.substring(0, colonIdx + 1) to path.substring(colonIdx + 1)
+    }
+    val slashIdx = path.lastIndexOf('/')
+    if (slashIdx > 0 && slashIdx < path.length - 1) {
+        return path.substring(0, slashIdx + 1) to path.substring(slashIdx + 1)
+    }
+    return "" to path
+}
+
+@Composable
+private fun ActivityFilterSummaryChip(
+    label: String,
+    maxWidth: androidx.compose.ui.unit.Dp = 180.dp,
+    onClear: () -> Unit
+) {
+    InputChip(
+        selected = true,
+        onClick = onClear,
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = StudioDesignTokens.TextSize.badge,
+                    fontWeight = FontWeight.SemiBold
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        trailingIcon = {
+            Icon(
+                imageVector = Icons.Outlined.Close,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(AppTokens.Size.iconSmall)
+                    .pointerHoverIcon(PointerIcon.Hand)
+            )
+        },
+        modifier = Modifier
+            .height(28.dp)
+            .widthIn(max = maxWidth)
+            .pointerHoverIcon(PointerIcon.Hand),
+        shape = RoundedCornerShape(AppTokens.Radius.pill),
+        colors = InputChipDefaults.inputChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+            selectedLabelColor = MaterialTheme.colorScheme.primary,
+            selectedTrailingIconColor = MaterialTheme.colorScheme.primary
+        ),
+        border = InputChipDefaults.inputChipBorder(
+            enabled = true,
+            selected = true,
+            selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+            selectedBorderWidth = 1.dp
+        )
+    )
 }
 
 @Composable
 private fun ActivityFilterEmptyText(text: String) {
     Text(
         text = text,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = AppTokens.Spacing.sm),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
