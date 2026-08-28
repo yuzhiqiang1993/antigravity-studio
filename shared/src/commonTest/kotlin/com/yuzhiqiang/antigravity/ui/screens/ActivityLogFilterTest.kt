@@ -32,6 +32,13 @@ class ActivityLogFilterTest {
             status = 200
         ),
         log(
+            id = "plugin-cockpit",
+            path = "/v1internal:fetchUserInfo",
+            client = "Cockpit Plugin",
+            provider = "Official Cloud Code",
+            status = 200
+        ),
+        log(
             id = "other-pending",
             path = "/v1/models",
             client = "Custom Client",
@@ -47,12 +54,13 @@ class ActivityLogFilterTest {
             logs = logs,
             query = "",
             filter = ActivityLogFilter(
-                clients = setOf(ActivityClientKind.IDE, ActivityClientKind.CLI)
+                clients = setOf(ActivityClientKind.IDE, ActivityClientKind.CLI, ActivityClientKind.PLUGIN)
             )
         )
 
-        assertEquals(listOf("ide-official", "cli-modelgate"), result.map { it.id })
+        assertEquals(listOf("ide-official", "cli-modelgate", "plugin-cockpit"), result.map { it.id })
     }
+
 
     @Test
     fun combinesEndpointRouteAndStatusDimensionsUsingAnd() {

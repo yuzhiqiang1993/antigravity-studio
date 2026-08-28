@@ -47,14 +47,27 @@ class ClientSourceDetectorTest {
     }
 
     @Test
-    fun genericAntigravityUserAgentIsNotMisclassifiedAsIde() {
+    fun detectsIdeFromOfficialNodeJsClientUserAgent() {
         val source = ClientSourceDetector.detect(
             explicitClient = null,
-            userAgent = "antigravity/2.11.0 (aidev_client)"
+            userAgent = "antigravity/2.5.5 darwin/arm64 google-api-nodejs-client/10.3.0"
+        )
+
+        assertEquals(ClientSourceDetector.CLIENT_IDE, source)
+    }
+
+    @Test
+    fun genericUnknownClientIsPreserved() {
+        val source = ClientSourceDetector.detect(
+            explicitClient = null,
+            userAgent = "antigravity/2.11.0 (unsupported_tool)"
         )
 
         assertEquals("antigravity/2.11.0", source)
     }
+
+
+
 
     @Test
     fun genericHttpClientIsNotMisclassifiedAsAntigravityCli() {
@@ -85,4 +98,42 @@ class ClientSourceDetectorTest {
 
         assertEquals("My Integration", source)
     }
+
+    @Test
+    fun detectsPluginFromExplicitClientHeader() {
+        val fromStandardKebab = ClientSourceDetector.detect(
+            explicitClient = "cockpit-plugin",
+            userAgent = "antigravity/ide/2.5.5 (aidev_client; os_type=darwin; arch=arm64)"
+        )
+        val fromCockpitPlugin = ClientSourceDetector.detect(
+            explicitClient = "Cockpit Plugin",
+            userAgent = "antigravity/ide/2.5.5 (aidev_client; os_type=darwin; arch=arm64)"
+        )
+        val fromCockpit = ClientSourceDetector.detect(
+            explicitClient = "Cockpit",
+            userAgent = "antigravity/ide/2.5.5 (aidev_client; os_type=darwin; arch=arm64)"
+        )
+        val fromPlugin = ClientSourceDetector.detect(
+            explicitClient = "plugin",
+            userAgent = null
+        )
+
+        assertEquals(ClientSourceDetector.CLIENT_PLUGIN, fromStandardKebab)
+        assertEquals(ClientSourceDetector.CLIENT_PLUGIN, fromCockpitPlugin)
+        assertEquals(ClientSourceDetector.CLIENT_PLUGIN, fromCockpit)
+        assertEquals(ClientSourceDetector.CLIENT_PLUGIN, fromPlugin)
+    }
+
+
+
+    @Test
+    fun detectsPluginFromCockpitUserAgent() {
+        val source = ClientSourceDetector.detect(
+            explicitClient = null,
+            userAgent = "antigravity/cockpit/1.3.11 (aidev_client; os_type=darwin; arch=arm64)"
+        )
+
+        assertEquals(ClientSourceDetector.CLIENT_PLUGIN, source)
+    }
 }
+
