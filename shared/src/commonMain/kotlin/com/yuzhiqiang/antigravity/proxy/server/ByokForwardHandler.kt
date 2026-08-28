@@ -87,7 +87,7 @@ class ByokForwardHandler(
                 .firstOrNull()
                 ?.let(::classifyErrorSource)
                 ?.let(::toUserFacingError)
-            if (errorChunk == null || attempt > maxRetries) {
+            if (errorChunk == null || !isRetryableError(errorChunk) || attempt > maxRetries) {
                 break
             }
             delay(calculateBackoff(attempt, baseDelayMs))
@@ -165,41 +165,48 @@ class ByokForwardHandler(
             call.response.headers.append("X-Accel-Buffering", "no")
             call.respondTextWriter(ContentType.Text.EventStream) {
                 suspend fun writeFrames(frames: List<String>) {
-                    frames.forEach { frame ->
-                        write(frame)
-                        flush()
-                    }
-                }
-
-                suspend fun writeHeartbeat() {
+                    if (frames.isEmpty()) return
                     try {
-                        write(": ping\n\n")
+                        frames.forEach { write(it) }
                         flush()
                     } catch (error: Throwable) {
                         throw DownstreamWriteException(error)
                     }
                 }
 
-                // 先提交 SSE 注释并持续发心跳；注释不包含业务内容，因此任何上游失败都仍可安全重试。
+                suspend fun writeHeartbeat() {
+                    writeFrames(listOf(": ping\n\n"))
+                }
+
+                // SSE 注释先提交响应头但不提交业务内容，首个业务帧写出前仍可安全重试。
                 writeHeartbeat()
 
-                var successfulFrames: List<String>? = null
-                var successfulUsage: NeutralUsage? = null
-                var finalError: NeutralStreamChunk.Error? = null
-
-                while (attempt <= maxRetries && successfulFrames == null) {
+                var finalResult: StreamAttemptResult? = null
+                while (attempt <= maxRetries) {
                     attempt++
                     if (attempt > 1) {
                         ActivityRecorder.updateRetryCount(logId, attempt - 1)
                     }
 
-                    val bufferedAttempt = try {
+                    val attemptResult = try {
                         val channel = openProviderStream(route)
                         try {
-                            collectBufferedStreamAttempt(
+                            streamProviderAttempt(
                                 channel = channel,
+                                encoder = ResponseEncoder.newStreamEncoder(
+                                    cloudCode,
+                                    route.request.targetUpstreamModelId
+                                ),
                                 requestStartTimeMs = startTime,
                                 idleTimeoutMs = idleTimeoutMs,
+                                mapError = { error ->
+                                    toUserFacingError(classifyErrorSource(error))
+                                },
+                                onFrames = ::writeFrames,
+                                onFirstToken = { elapsedMs ->
+                                    firstTokenMs = elapsedMs
+                                    ActivityRecorder.updateFirstToken(logId, elapsedMs)
+                                },
                                 onHeartbeat = ::writeHeartbeat
                             )
                         } finally {
@@ -209,72 +216,53 @@ class ByokForwardHandler(
                         if (error is kotlinx.coroutines.CancellationException || error is DownstreamWriteException) {
                             throw error
                         }
-                        BufferedStreamAttempt(
-                            chunks = emptyList(),
-                            error = NeutralStreamChunk.Error(
-                                error.message ?: "上游流式请求失败",
-                                ProviderAdapter.upstreamFailureStatus(error),
-                                source = StreamErrorSource.UPSTREAM_TRANSPORT
-                            ),
-                            firstTokenMs = null
-                        )
-                    }
-
-                    val upstreamError = bufferedAttempt.error
-                        ?.let(::classifyErrorSource)
-                        ?.let(::toUserFacingError)
-                    if (upstreamError == null && bufferedAttempt.isSuccessful) {
-                        val encodedAttempt = encodeBufferedAttempt(
-                            bufferedAttempt.chunks,
-                            cloudCode,
-                            route.request.targetUpstreamModelId
-                        )
-                        if (encodedAttempt.error == null) {
-                            successfulFrames = encodedAttempt.frames
-                            successfulUsage = bufferedAttempt.chunks
-                                .filterIsInstance<NeutralStreamChunk.Completed>()
-                                .lastOrNull { it.usage != null }
-                                ?.usage
-                            finalError = null
-                            break
-                        }
-                        finalError = encodedAttempt.error
-                    } else {
-                        finalError = upstreamError ?: NeutralStreamChunk.Error(
-                            "上游流在完成信令前关闭",
-                            502,
+                        val upstreamError = NeutralStreamChunk.Error(
+                            error.message ?: "上游流式请求失败",
+                            ProviderAdapter.upstreamFailureStatus(error),
                             source = StreamErrorSource.UPSTREAM_TRANSPORT
                         )
+                        StreamAttemptResult(
+                            error = toUserFacingError(classifyErrorSource(upstreamError)),
+                            usage = null,
+                            firstTokenMs = null,
+                            committed = false,
+                            completed = false
+                        )
                     }
 
-                    if (attempt <= maxRetries) {
-                        delay(calculateBackoff(attempt, baseDelayMs))
-                        writeHeartbeat()
-                    }
+                    finalResult = attemptResult
+                    latestUsage = attemptResult.usage
+                    firstTokenMs = attemptResult.firstTokenMs ?: firstTokenMs
+                    if (attemptResult.isSuccessful || attemptResult.committed) break
+
+                    val retryError = attemptResult.error ?: NeutralStreamChunk.Error(
+                        "上游流在完成信令前关闭",
+                        502,
+                        source = StreamErrorSource.UPSTREAM_TRANSPORT
+                    )
+                    if (!isRetryableError(retryError) || attempt > maxRetries) break
+
+                    delay(calculateBackoff(attempt, baseDelayMs))
+                    writeHeartbeat()
                 }
 
-                val frames = successfulFrames
-                if (frames != null) {
-                    latestUsage = successfulUsage
-                    if (frames.any { it.isNotEmpty() && !it.startsWith(":") }) {
-                        firstTokenMs = System.currentTimeMillis() - startTime
-                        ActivityRecorder.updateFirstToken(logId, firstTokenMs ?: 0L)
-                    }
-                    writeFrames(frames)
-                } else {
-                    val exhaustedError = finalError ?: NeutralStreamChunk.Error(
+                val outcome = finalResult
+                if (outcome == null || !outcome.isSuccessful) {
+                    val finalError = outcome?.error ?: NeutralStreamChunk.Error(
                         "服务商未能提供有效响应",
                         502,
                         source = StreamErrorSource.UPSTREAM_TRANSPORT
                     )
-                    status = exhaustedError.statusCode
-                    errorMessage = exhaustedError.message
-                    errorSource = exhaustedError.source
-                    val encoder = ResponseEncoder.newStreamEncoder(
-                        cloudCode,
-                        route.request.targetUpstreamModelId
-                    )
-                    writeFrames(encoder.encode(exhaustedError))
+                    status = finalError.statusCode
+                    errorMessage = finalError.message
+                    errorSource = finalError.source
+                    if (outcome?.committed != true) {
+                        val encoder = ResponseEncoder.newStreamEncoder(
+                            cloudCode,
+                            route.request.targetUpstreamModelId
+                        )
+                        writeFrames(encoder.encode(finalError))
+                    }
                 }
             }
         } catch (error: Throwable) {
@@ -309,50 +297,6 @@ class ByokForwardHandler(
     }
 
     private class DownstreamWriteException(cause: Throwable) : RuntimeException(cause)
-
-    private data class EncodedAttempt(
-        val frames: List<String>,
-        val error: NeutralStreamChunk.Error?
-    )
-
-    private fun encodeBufferedAttempt(
-        chunks: List<NeutralStreamChunk>,
-        cloudCode: Boolean,
-        modelId: String?
-    ): EncodedAttempt {
-        val encoder = ResponseEncoder.newStreamEncoder(cloudCode, modelId)
-        val frames = mutableListOf<String>()
-        for (chunk in chunks) {
-            frames += encoder.encode(chunk)
-            if (encoder.failureStatusCode != null) {
-                return EncodedAttempt(
-                    emptyList(),
-                    NeutralStreamChunk.Error(
-                        encoder.failureMessage ?: "Failed to encode provider response",
-                        encoder.failureStatusCode ?: 502,
-                        source = if (chunk is NeutralStreamChunk.Error) {
-                            chunk.source
-                        } else {
-                            StreamErrorSource.STUDIO_ADAPTER
-                        }
-                    )
-                )
-            }
-        }
-        frames += encoder.finish()
-        val failureStatus = encoder.failureStatusCode
-        if (failureStatus != null) {
-            return EncodedAttempt(
-                emptyList(),
-                NeutralStreamChunk.Error(
-                    encoder.failureMessage ?: "Failed to finalize provider response",
-                    failureStatus,
-                    source = StreamErrorSource.STUDIO_ADAPTER
-                )
-            )
-        }
-        return EncodedAttempt(frames, null)
-    }
 
     private suspend fun collectProviderChunks(route: ResolvedRoute): List<NeutralStreamChunk> {
         val adapter = AdapterFactory.getAdapter(route.provider.protocol)
@@ -447,8 +391,10 @@ class ByokForwardHandler(
         }
 
         fun isRetryableError(error: NeutralStreamChunk.Error): Boolean {
-            if (!error.responseStarted) return true
+            if (error.source == StreamErrorSource.STUDIO_ADAPTER) return false
             if (isRetryableError(error.statusCode)) return true
+            if (error.statusCode in 400..499) return false
+            if (!error.responseStarted) return true
             val message = error.message.lowercase()
             return message.contains("tls handshake") ||
                     message.contains("handshake") ||

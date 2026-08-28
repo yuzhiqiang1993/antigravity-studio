@@ -33,6 +33,7 @@ object PlatformNetworkConfig {
 
     init {
         applySystemProperties()
+        MacSystemProxyDetector.prewarm()
     }
 
     fun applySystemProperties() {
@@ -47,6 +48,10 @@ object PlatformNetworkConfig {
     }
 
     fun currentOutboundProxy(): OutboundProxyConfig = activeOutboundProxy.get()
+
+    internal fun awaitSystemProxyPrewarm(timeoutMs: Long = 2_000L): Boolean {
+        return MacSystemProxyDetector.awaitInitialSnapshot(timeoutMs)
+    }
 
     /**
      * 为长期存活的 HTTP Client 创建动态代理选择器。每次请求都会读取最新的 Studio 配置和系统代理，

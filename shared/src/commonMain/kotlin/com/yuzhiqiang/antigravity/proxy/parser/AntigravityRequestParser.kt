@@ -55,6 +55,15 @@ object AntigravityRequestParser {
         fallbackOriginalModelId: String? = null
     ): Result<NeutralChatRequest> {
         val root = parseObject(rawJson).getOrElse { return Result.failure(it) }
+        return parse(root, targetUpstreamModelId, fallbackOriginalModelId)
+    }
+
+    /** 复用已解析的请求对象，避免路由识别和完整请求转换各解析一次大型 JSON。 */
+    fun parse(
+        root: JsonObject,
+        targetUpstreamModelId: String = "",
+        fallbackOriginalModelId: String? = null
+    ): Result<NeutralChatRequest> {
         val originalModel = extractModelId(root).getOrElse { error ->
             val fallback = fallbackOriginalModelId
                 ?.trim()
@@ -102,7 +111,7 @@ object AntigravityRequestParser {
         )
     }
 
-    private fun parseObject(rawJson: String): Result<JsonObject> {
+    internal fun parseObject(rawJson: String): Result<JsonObject> {
         return try {
             val element = json.parseToJsonElement(rawJson)
             if (element is JsonObject) {
