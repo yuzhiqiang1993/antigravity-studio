@@ -511,10 +511,17 @@ class AppViewModel(
             _isFetchingOfficialModels.value = true
             _officialModelsError.value = null
             try {
+                val currentAccount = accountStore.currentActiveAccount()
+                    ?: accountStore.currentAccounts().firstOrNull()
+
                 val excludedCustomIds = configStore.currentConfig.upstreamModels
                     .map(UpstreamModel::id)
                     .toSet()
                 val result = OfficialCatalogProbe.fetchOfficialModels(
+                    account = currentAccount,
+                    tokenRefreshCallback = { refreshToken ->
+                        googleAuthService.refreshAccessToken(refreshToken).map { it.accessToken }
+                    },
                     excludedModelIds = excludedCustomIds
                 )
                 result.fold(

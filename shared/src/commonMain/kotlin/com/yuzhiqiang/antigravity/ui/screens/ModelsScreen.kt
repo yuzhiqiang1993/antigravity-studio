@@ -27,6 +27,7 @@ import com.yuzhiqiang.antigravity.ui.dialogs.*
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.models.*
+import com.yuzhiqiang.antigravity.ui.presentation.NavTab
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlinx.coroutines.launch
 
@@ -35,6 +36,7 @@ fun ModelsScreen(
     viewModel: AppViewModel,
     modifier: Modifier = Modifier
 ) {
+    val accounts by viewModel.accounts.collectAsState()
     val config by viewModel.config.collectAsState()
     val officialModels by viewModel.officialModels.collectAsState()
     val officialModelsError by viewModel.officialModelsError.collectAsState()
@@ -188,6 +190,8 @@ fun ModelsScreen(
                     isTestSuccess = isOfficialTestSuccess,
                     isTesting = isTestingOfficial,
                     fetchError = officialModelsError,
+                    hasAccounts = accounts.isNotEmpty(),
+                    onNavigateToAccounts = { viewModel.selectTab(NavTab.ACCOUNTS) },
                     onTestConnection = {
                         scope.launch {
                             isTestingOfficial = true

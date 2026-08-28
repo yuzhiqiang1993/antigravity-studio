@@ -39,6 +39,8 @@ fun OfficialModelsView(
     onOpenVisionDetail: (String, Boolean) -> Unit,
     onOpenReasoningDetail: (String, List<String>) -> Unit,
     onOpenInfoDetail: (ModelMetaInfo) -> Unit,
+    hasAccounts: Boolean = true,
+    onNavigateToAccounts: (() -> Unit)? = null,
     isDebugMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -74,10 +76,11 @@ fun OfficialModelsView(
                     val statusText = testSummary
                         ?: fetchError?.let { error -> s.modelsOfficialSyncFailed(error) }
                         ?: if (isFetching) s.modelsOfficialSyncing
+                        else if (!hasAccounts) s.modelsNoAccountTitle
                         else if (groupedModels.isNotEmpty()) s.modelsOfficialSynced
                         else s.modelsOfficialWaitingSync
                     val statusColor = when {
-                        isTesting || isFetching -> AppStatusColors.warning
+                        isTesting || isFetching || !hasAccounts -> AppStatusColors.warning
                         hasError -> MaterialTheme.colorScheme.error
                         groupedModels.isNotEmpty() -> AppStatusColors.success
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -103,15 +106,17 @@ fun OfficialModelsView(
                 ) {
                     ModernToolButton(
                         icon = Icons.Outlined.Sensors,
-                        text = if (isTesting) s.modelsTesting else s.modelsTestConnection,
+                        text = s.modelsTestConnection,
                         onClick = onTestConnection,
-                        enabled = !isTesting
+                        enabled = !isTesting && hasAccounts,
+                        isLoading = isTesting
                     )
                     ModernToolButton(
                         icon = Icons.Outlined.Refresh,
-                        text = if (isFetching) s.modelsFetchingOfficial else s.commonRefresh,
+                        text = s.commonRefresh,
                         onClick = onRefresh,
-                        enabled = !isFetching
+                        enabled = !isFetching,
+                        isLoading = isFetching
                     )
                     if (isDebugMode) {
                         ModernToolButton(
@@ -160,31 +165,60 @@ fun OfficialModelsView(
                     verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
                 ) {
                     Icon(
-                        Icons.Outlined.LayersClear,
+                        if (!hasAccounts) Icons.Outlined.AccountCircle else Icons.Outlined.LayersClear,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(40.dp)
+                        tint = if (!hasAccounts) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(44.dp)
                     )
                     Text(
-                        text = s.modelsNoOfficialDetected,
+                        text = if (!hasAccounts) s.modelsNoAccountTitle else s.modelsNoOfficialDetected,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = s.modelsNoOfficialHint,
+                        text = if (!hasAccounts) s.modelsNoAccountHint else s.modelsNoOfficialHint,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(AppTokens.Spacing.xs))
-                    Button(
-                        onClick = onRefresh,
-                        enabled = !isFetching,
-                        shape = RoundedCornerShape(AppTokens.Radius.medium),
-                        contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section, vertical = AppTokens.Spacing.xs)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
-                        Spacer(Modifier.width(AppTokens.Spacing.xs))
-                        Text(s.modelsRefreshOfficial, style = MaterialTheme.typography.labelMedium)
+                        if (!hasAccounts && onNavigateToAccounts != null) {
+                            Button(
+                                onClick = onNavigateToAccounts,
+                                shape = RoundedCornerShape(AppTokens.Radius.medium),
+                                contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section, vertical = AppTokens.Spacing.xs)
+                            ) {
+                                Icon(Icons.Outlined.Login, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
+                                Spacer(Modifier.width(AppTokens.Spacing.xs))
+                                Text(s.modelsGoToAccounts, style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                        if (hasAccounts) {
+                            Button(
+                                onClick = onRefresh,
+                                enabled = !isFetching,
+                                shape = RoundedCornerShape(AppTokens.Radius.medium),
+                                contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section, vertical = AppTokens.Spacing.xs)
+                            ) {
+                                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
+                                Spacer(Modifier.width(AppTokens.Spacing.xs))
+                                Text(s.modelsRefreshOfficial, style = MaterialTheme.typography.labelMedium)
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = onRefresh,
+                                enabled = !isFetching,
+                                shape = RoundedCornerShape(AppTokens.Radius.medium),
+                                contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section, vertical = AppTokens.Spacing.xs)
+                            ) {
+                                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
+                                Spacer(Modifier.width(AppTokens.Spacing.xs))
+                                Text(s.commonRefresh, style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
                     }
                 }
             }

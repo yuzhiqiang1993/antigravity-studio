@@ -229,6 +229,9 @@ interface Strings {
     val modelsModifiedJson: String
     val modelsNoOfficialDetected: String
     val modelsNoOfficialHint: String
+    val modelsNoAccountTitle: String
+    val modelsNoAccountHint: String
+    val modelsGoToAccounts: String
     val modelsCopiedProviderUrl: String
     val modelsCopiedJson: String
     fun modelsPassedCount(passed: Int, total: Int): String
@@ -1254,7 +1257,7 @@ object StringsZh : Strings {
     override val modelsConnectionOk = "连通正常"
     override val modelsConnectionFailed = "连接失败"
     override val modelsRefreshOfficial = "刷新官方模型"
-    override val modelsFetchingOfficial = "正在扫描探测语言服务并获取官方模型…"
+    override val modelsFetchingOfficial = "正在请求 Google 官方服务同步可用模型…"
     override fun modelsOfficialSyncFailed(error: String) = "官方模型同步失败：$error"
     override val modelsOfficialSyncing = "正在同步官方模型数据..."
     override val modelsOfficialSynced = "官方模型数据已同步"
@@ -1262,7 +1265,10 @@ object StringsZh : Strings {
     override val modelsRawJson = "原始 JSON"
     override val modelsModifiedJson = "修改后 JSON"
     override val modelsNoOfficialDetected = "当前未检测到官方模型"
-    override val modelsNoOfficialHint = "请确认已在「运行概览」中打开 Antigravity IDE 或 App，随后点击「刷新」"
+    override val modelsNoOfficialHint = "请先在「账号配额」页登录或导入有效账号，随后点击「刷新」"
+    override val modelsNoAccountTitle = "暂未登录或导入账号"
+    override val modelsNoAccountHint = "首次使用请先登录或导入账号，系统将自动基于账号同步官方模型列表与配额。"
+    override val modelsGoToAccounts = "导入 / 登录账号"
     override val modelsCopiedProviderUrl = "已复制服务地址"
     override val modelsCopiedJson = "已复制 JSON 数据"
     override fun modelsPassedCount(passed: Int, total: Int) = "$passed/$total 项通过"
@@ -2358,7 +2364,7 @@ object StringsEn : Strings {
     override val modelsConnectionOk = "Connected"
     override val modelsConnectionFailed = "Connection failed"
     override val modelsRefreshOfficial = "Refresh Official Models"
-    override val modelsFetchingOfficial = "Probing language server and fetching official models…"
+    override val modelsFetchingOfficial = "Fetching available models from Google official services…"
     override fun modelsOfficialSyncFailed(error: String) = "Official model sync failed: $error"
     override val modelsOfficialSyncing = "Syncing official model catalog..."
     override val modelsOfficialSynced = "Official model catalog synchronized"
@@ -2366,7 +2372,10 @@ object StringsEn : Strings {
     override val modelsRawJson = "Raw JSON"
     override val modelsModifiedJson = "Modified JSON"
     override val modelsNoOfficialDetected = "No official models detected"
-    override val modelsNoOfficialHint = "Ensure Antigravity IDE or App is opened in Overview, then click Refresh"
+    override val modelsNoOfficialHint = "Please sign in or import an active account in Accounts page, then click Refresh"
+    override val modelsNoAccountTitle = "No Active Account Found"
+    override val modelsNoAccountHint = "Please sign in or import an account first. Official models and quotas will be automatically synchronized."
+    override val modelsGoToAccounts = "Import / Sign In"
     override val modelsCopiedProviderUrl = "Provider endpoint copied to clipboard"
     override val modelsCopiedJson = "JSON data copied to clipboard"
     override fun modelsPassedCount(passed: Int, total: Int) = "$passed/$total passed"
