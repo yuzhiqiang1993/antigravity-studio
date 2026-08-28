@@ -161,157 +161,249 @@ object AppHostManager {
     }
 
     /**
+     * 检测指定文件是否包含 Shim 脚本标识。
+     */
+    private fun isShimScript(file: File): Boolean {
+        if (!file.exists() || !file.isFile) return false
+        return runCatching {
+            file.inputStream().use { input ->
+                val buffer = ByteArray(1024)
+                val read = input.read(buffer)
+                if (read > 0) {
+                    val text = String(buffer, 0, read, Charsets.UTF_8)
+                    text.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM")
+                } else {
+                    false
+                }
+            }
+        }.getOrDefault(false)
+    }
+
+    /**
      * 检测是否已安装 Language Server Shim 包装脚本。
      */
     fun isShimInstalled(customInstallation: String? = null): Boolean {
-        val orig = getOriginalLanguageServerFile(customInstallation)
-        if (orig != null && orig.exists()) return true
-        val ls = getLanguageServerFile(customInstallation) ?: return false
-        // Windows 上 shim 写入 .cmd 文件，需额外检查
-        if (isWindows) {
-            val cmdFile = File(ls.parentFile, "language_server.cmd")
-            if (cmdFile.exists()) {
-                val content = runCatching { cmdFile.readText(Charsets.UTF_8) }.getOrNull()
-                if (content != null && content.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM")) return true
+        val candidates = getCandidateInstallations(customInstallation)
+        for (root in candidates) {
+            if (!root.exists()) continue
+            val binDir = if (isWindows) File(root, "resources/bin") else File(root, "Contents/Resources/bin")
+            if (isWindows) {
+                val cmdFile = File(binDir, "language_server.cmd")
+                if (cmdFile.exists() && isShimScript(cmdFile)) return true
+            }
+            val lsFile = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+            if (lsFile.exists() && isShimScript(lsFile)) return true
+            val origFile = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+            if (origFile.exists() && !lsFile.exists()) {
+                return true
             }
         }
-        if (!ls.exists()) return false
-        val content = runCatching { ls.readText(Charsets.UTF_8) }.getOrNull() ?: return false
-        return content.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM")
+        return false
+    }
+
+    private fun moveOrReplaceFile(source: File, target: File): Boolean {
+        if (!source.exists()) return false
+        return try {
+            try {
+                java.nio.file.Files.move(
+                    source.toPath(),
+                    target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                )
+                true
+            } catch (_: Exception) {
+                java.nio.file.Files.move(
+                    source.toPath(),
+                    target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+                true
+            }
+        } catch (_: Exception) {
+            try {
+                java.nio.file.Files.copy(
+                    source.toPath(),
+                    target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+                source.delete()
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    private fun buildWindowsShimScript(targetEndpoint: String): String {
+        return buildString {
+            appendLine("@echo off")
+            appendLine("rem ANTIGRAVITY_STUDIO_MANAGED_SHIM")
+            appendLine("setlocal enabledelayedexpansion")
+            appendLine("set \"DIR=%~dp0\"")
+            appendLine("set \"ORIGINAL=%DIR%language_server.original.exe\"")
+            appendLine("set \"TARGET_URL=$targetEndpoint\"")
+            appendLine("if defined CLOUD_CODE_URL set \"TARGET_URL=%CLOUD_CODE_URL%\"")
+            appendLine("set \"NEW_ARGS=\"")
+            appendLine("set \"SKIP_NEXT=0\"")
+            appendLine("for %%A in (%*) do (")
+            appendLine("    if !SKIP_NEXT! equ 1 (")
+            appendLine("        set \"NEW_ARGS=!NEW_ARGS! !TARGET_URL!\"")
+            appendLine("        set \"SKIP_NEXT=0\"")
+            appendLine("    ) else if \"%%~A\"==\"--cloud_code_endpoint\" (")
+            appendLine("        set \"NEW_ARGS=!NEW_ARGS! %%~A\"")
+            appendLine("        set \"SKIP_NEXT=1\"")
+            appendLine("    ) else (")
+            appendLine("        set \"ARG=%%~A\"")
+            appendLine("        if \"!ARG:~0,22!\"==\"--cloud_code_endpoint=\" (")
+            appendLine("            set \"NEW_ARGS=!NEW_ARGS! --cloud_code_endpoint=!TARGET_URL!\"")
+            appendLine("        ) else (")
+            appendLine("            set \"NEW_ARGS=!NEW_ARGS! %%~A\"")
+            appendLine("        )")
+            appendLine("    )")
+            appendLine(")")
+            appendLine("\"%ORIGINAL%\" %NEW_ARGS%")
+        }
+    }
+
+    private fun buildMacShimScript(targetEndpoint: String): String {
+        return """
+            #!/bin/bash
+            # ANTIGRAVITY_STUDIO_MANAGED_SHIM
+            DIR="$(cd "$(dirname "${'$'}{BASH_SOURCE[0]}")" && pwd)"
+            ORIGINAL_BIN="${'$'}DIR/language_server.original"
+
+            TARGET_URL="${'$'}{CLOUD_CODE_URL}"
+            if [ -z "${'$'}TARGET_URL" ]; then
+                TARGET_URL="$(launchctl getenv CLOUD_CODE_URL 2>/dev/null)"
+            fi
+            if [ -z "${'$'}TARGET_URL" ]; then
+                TARGET_URL="$targetEndpoint"
+            fi
+
+            ARGS=()
+            SKIP_NEXT=0
+            HAS_ENDPOINT=0
+
+            for arg in "${'$'}@"; do
+                if [ "${'$'}SKIP_NEXT" -eq 1 ]; then
+                    ARGS+=("${'$'}TARGET_URL")
+                    SKIP_NEXT=0
+                    HAS_ENDPOINT=1
+                    continue
+                fi
+                if [ "${'$'}arg" = "--cloud_code_endpoint" ]; then
+                    ARGS+=("${'$'}arg")
+                    SKIP_NEXT=1
+                    continue
+                fi
+                if [[ "${'$'}arg" =~ ^--cloud_code_endpoint= ]]; then
+                    ARGS+=("--cloud_code_endpoint=${'$'}TARGET_URL")
+                    HAS_ENDPOINT=1
+                    continue
+                fi
+                ARGS+=("${'$'}arg")
+            done
+
+            if [ "${'$'}HAS_ENDPOINT" -eq 0 ] && [ "${'$'}SKIP_NEXT" -eq 0 ]; then
+                ARGS+=("--cloud_code_endpoint" "${'$'}TARGET_URL")
+            fi
+
+            exec "${'$'}ORIGINAL_BIN" "${'$'}{ARGS[@]}"
+        """.trimIndent()
     }
 
     /**
      * 安装 Language Server Shim 包装脚本，将写死的 --cloud_code_endpoint 动态重写为本地代理端口。
      */
     fun installLanguageServerShim(proxyPort: Int, customInstallation: String? = null): Boolean {
-        val ls = getLanguageServerFile(customInstallation) ?: return false
-        val binDir = ls.parentFile ?: return false
-        val origFile = if (isWindows) {
-            File(binDir, "language_server.original.exe")
-        } else {
-            File(binDir, "language_server.original")
-        }
+        val candidates = getCandidateInstallations(customInstallation)
+        var anySuccess = false
+        for (root in candidates) {
+            if (!root.exists()) continue
+            val binDir = if (isWindows) File(root, "resources/bin") else File(root, "Contents/Resources/bin")
+            if (!binDir.exists() && !binDir.mkdirs()) continue
 
-        // 1. 如果 original 不存在，将当前二进制备份重命名为 original
-        if (!origFile.exists()) {
-            if (!ls.exists()) return false
-            val renamed = ls.renameTo(origFile)
-            if (!renamed) return false
-        }
+            val lsFile = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+            val origFile = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
 
-        // 2. 写入包装脚本
-        val targetEndpoint = "http://127.0.0.1:$proxyPort"
-        return if (isWindows) {
-            val scriptContent = buildString {
-                appendLine("@echo off")
-                appendLine("rem ANTIGRAVITY_STUDIO_MANAGED_SHIM")
-                appendLine("setlocal enabledelayedexpansion")
-                appendLine("set \"DIR=%~dp0\"")
-                appendLine("set \"ORIGINAL=%DIR%language_server.original.exe\"")
-                appendLine("set \"TARGET_URL=$targetEndpoint\"")
-                appendLine("if defined CLOUD_CODE_URL set \"TARGET_URL=%CLOUD_CODE_URL%\"")
-                appendLine("set \"NEW_ARGS=\"")
-                appendLine("set \"SKIP_NEXT=0\"")
-                appendLine("for %%A in (%*) do (")
-                appendLine("    if !SKIP_NEXT! equ 1 (")
-                appendLine("        set \"NEW_ARGS=!NEW_ARGS! !TARGET_URL!\"")
-                appendLine("        set \"SKIP_NEXT=0\"")
-                appendLine("    ) else if \"%%~A\"==\"--cloud_code_endpoint\" (")
-                appendLine("        set \"NEW_ARGS=!NEW_ARGS! %%~A\"")
-                appendLine("        set \"SKIP_NEXT=1\"")
-                appendLine("    ) else (")
-                appendLine("        set \"ARG=%%~A\"")
-                appendLine("        if \"!ARG:~0,22!\"==\"--cloud_code_endpoint=\" (")
-                appendLine("            set \"NEW_ARGS=!NEW_ARGS! --cloud_code_endpoint=!TARGET_URL!\"")
-                appendLine("        ) else (")
-                appendLine("            set \"NEW_ARGS=!NEW_ARGS! %%~A\"")
-                appendLine("        )")
-                appendLine("    )")
-                appendLine(")")
-                appendLine("\"%ORIGINAL%\" %NEW_ARGS%")
+            // 1. 如果 original 不存在，将当前原生二进制备份重命名为 original
+            if (!origFile.exists()) {
+                if (!lsFile.exists()) continue
+                if (!isShimScript(lsFile)) {
+                    val moved = moveOrReplaceFile(lsFile, origFile)
+                    if (!moved) continue
+                }
             }
-            runCatching {
-                // Windows 不支持将 batch 脚本写入 .exe 扩展名的文件，
-                // 改为写入 .cmd 文件；原始 .exe 已在步骤 1 被重命名，
-                // Windows 会通过 PATHEXT 优先解析 .cmd 后缀
+
+            // 2. 写入包装脚本
+            val targetEndpoint = "http://127.0.0.1:$proxyPort"
+            val ok = if (isWindows) {
                 val cmdFile = File(binDir, "language_server.cmd")
-                cmdFile.writeText(scriptContent, Charsets.UTF_8)
-                // 确保 .exe 不残留（步骤 1 已 rename，此处是防御性清理）
-                if (ls.exists()) ls.delete()
-                true
-            }.getOrDefault(false)
-        } else {
-            val scriptContent = """
-                #!/bin/bash
-                # ANTIGRAVITY_STUDIO_MANAGED_SHIM
-                DIR="$(cd "$(dirname "${'$'}{BASH_SOURCE[0]}")" && pwd)"
-                ORIGINAL_BIN="${'$'}DIR/language_server.original"
-
-                TARGET_URL="${'$'}{CLOUD_CODE_URL}"
-                if [ -z "${'$'}TARGET_URL" ]; then
-                    TARGET_URL="$(launchctl getenv CLOUD_CODE_URL 2>/dev/null)"
-                fi
-                if [ -z "${'$'}TARGET_URL" ]; then
-                    TARGET_URL="$targetEndpoint"
-                fi
-
-                ARGS=()
-                SKIP_NEXT=0
-                HAS_ENDPOINT=0
-
-                for arg in "${'$'}@"; do
-                    if [ "${'$'}SKIP_NEXT" -eq 1 ]; then
-                        ARGS+=("${'$'}TARGET_URL")
-                        SKIP_NEXT=0
-                        HAS_ENDPOINT=1
-                        continue
-                    fi
-                    if [ "${'$'}arg" = "--cloud_code_endpoint" ]; then
-                        ARGS+=("${'$'}arg")
-                        SKIP_NEXT=1
-                        continue
-                    fi
-                    if [[ "${'$'}arg" =~ ^--cloud_code_endpoint= ]]; then
-                        ARGS+=("--cloud_code_endpoint=${'$'}TARGET_URL")
-                        HAS_ENDPOINT=1
-                        continue
-                    fi
-                    ARGS+=("${'$'}arg")
-                done
-
-                if [ "${'$'}HAS_ENDPOINT" -eq 0 ] && [ "${'$'}SKIP_NEXT" -eq 0 ]; then
-                    ARGS+=("--cloud_code_endpoint" "${'$'}TARGET_URL")
-                fi
-
-                exec "${'$'}ORIGINAL_BIN" "${'$'}{ARGS[@]}"
-            """.trimIndent()
-            runCatching {
-                ls.writeText(scriptContent + "\n", Charsets.UTF_8)
-                ls.setExecutable(true, false)
-                true
-            }.getOrDefault(false)
+                val scriptContent = buildWindowsShimScript(targetEndpoint)
+                runCatching {
+                    cmdFile.writeText(scriptContent, Charsets.UTF_8)
+                    if (lsFile.exists() && isShimScript(lsFile)) lsFile.delete()
+                    true
+                }.getOrDefault(false)
+            } else {
+                val scriptContent = buildMacShimScript(targetEndpoint)
+                runCatching {
+                    lsFile.writeText(scriptContent + "\n", Charsets.UTF_8)
+                    lsFile.setExecutable(true, false)
+                    true
+                }.getOrDefault(false)
+            }
+            if (ok) anySuccess = true
         }
+        return anySuccess
     }
 
     /**
-     * 还原原始 language_server 二进制文件（彻底清除包装器脚本）。
+     * 还原原始 language_server 二进制文件（彻底清除包装器脚本与残留备份）。
      */
     fun restoreOriginalLanguageServer(customInstallation: String? = null): Boolean {
-        val origFile = getOriginalLanguageServerFile(customInstallation)
-        val ls = getLanguageServerFile(customInstallation)
-        if (origFile != null && origFile.exists()) {
-            // Windows 上 shim 写入的是 .cmd 文件，还原时一并清理
-            if (isWindows && ls != null) {
-                val cmdFile = File(ls.parentFile, "language_server.cmd")
-                if (cmdFile.exists()) cmdFile.delete()
+        val candidates = getCandidateInstallations(customInstallation)
+        var anyRestoredOrClean = false
+        for (root in candidates) {
+            if (!root.exists()) continue
+            val binDir = if (isWindows) File(root, "resources/bin") else File(root, "Contents/Resources/bin")
+            if (!binDir.exists()) continue
+
+            // 1. Windows 下清理 language_server.cmd
+            if (isWindows) {
+                val cmdFile = File(binDir, "language_server.cmd")
+                if (cmdFile.exists()) {
+                    cmdFile.delete()
+                }
             }
-            if (ls != null && ls.exists()) {
-                ls.delete()
+
+            val lsFile = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+            val origFile = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+
+            // 2. 如果 lsFile 存在且是 shim 脚本，则删除 shim 脚本
+            if (lsFile.exists() && isShimScript(lsFile)) {
+                lsFile.delete()
             }
-            val target = ls ?: File(origFile.parentFile, if (isWindows) "language_server.exe" else "language_server")
-            return origFile.renameTo(target)
+
+            // 3. 还原 origFile
+            if (origFile.exists()) {
+                if (!lsFile.exists()) {
+                    val moved = moveOrReplaceFile(origFile, lsFile)
+                    if (moved) {
+                        if (!isWindows) lsFile.setExecutable(true, false)
+                        anyRestoredOrClean = true
+                    }
+                } else if (!isShimScript(lsFile)) {
+                    // lsFile 存在且是正常二进制，origFile 只是多余备份，直接清理
+                    origFile.delete()
+                    anyRestoredOrClean = true
+                }
+            } else if (lsFile.exists() && !isShimScript(lsFile)) {
+                anyRestoredOrClean = true
+            }
         }
-        return true
+        return anyRestoredOrClean || candidates.none { it.exists() }
     }
 
     /**

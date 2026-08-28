@@ -78,4 +78,44 @@ class AppHostManagerTest {
         }
         assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
     }
+
+    @Test
+    fun testRestoreWhenOriginalExistsAndShimDeleted() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+        val origBinary = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+
+        // 模拟异常状态：lsBinary 不存在，仅 origBinary 存在
+        origBinary.writeText("RECOVERABLE_CONTENT")
+        assertTrue(origBinary.exists())
+        assertFalse(lsBinary.exists())
+        assertTrue(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
+
+        // 执行还原，验证自愈
+        val restoreOk = AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
+        assertTrue(restoreOk)
+        assertTrue(lsBinary.exists())
+        assertEquals("RECOVERABLE_CONTENT", lsBinary.readText())
+        assertFalse(origBinary.exists())
+        assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
+    }
+
+    @Test
+    fun testShimDetectionWhenNativeBinaryExists() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+        val origBinary = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+
+        // 原生 Mach-O / PE 二进制文件内容，不含 shim 标记
+        lsBinary.writeBytes(byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01))
+        assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
+
+        // 即使由于残留存在 origBinary，只要 lsBinary 存在且不是 shim 脚本，执行 restore 会自愈清理 origBinary
+        origBinary.writeText("EXTRA_BACKUP")
+        val restoreOk = AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
+        assertTrue(restoreOk)
+        assertTrue(lsBinary.exists())
+        assertFalse(origBinary.exists())
+        assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
+    }
 }
