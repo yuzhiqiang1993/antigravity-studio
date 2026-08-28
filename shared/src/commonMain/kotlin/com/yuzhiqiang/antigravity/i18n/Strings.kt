@@ -467,6 +467,24 @@ interface Strings {
     val activitySelectAll: String
     val activityClearFilter: String
     fun activitySelectedTagsCount(count: Int): String
+    val activityFilterClients: String
+    val activityFilterEndpoints: String
+    val activityFilterRoutes: String
+    val activityFilterStatuses: String
+    val activityFilterAllOption: String
+    val activityFilterSuccess: String
+    val activityFilterFailedStatus: String
+    val activityFilterRetried: String
+    val activityFilterClientIde: String
+    val activityFilterClientCli: String
+    val activityFilterClientApp: String
+    val activityFilterOtherClient: String
+    val activityFilterEndpointSearch: String
+    val activityFilterNoEndpoints: String
+    val activityFilterNoRoutes: String
+    val activityFilterResetAll: String
+    fun activityFilterMatches(shown: Int, total: Int): String
+    fun activityFilterSelectedDimension(label: String, count: Int): String
     val activityTokenInput: String
     val activityTokenOutput: String
     val activityTokenCache: String
@@ -1467,7 +1485,7 @@ object StringsZh : Strings {
     override val activityNoMatchingDesc = "尝试输入其他关键词或清除筛选条件"
     override val activityPassthrough = "官方直连"
     override val activityRouted = "三方路由"
-    override val activitySearchPlaceholder = "搜索模型或服务商名称..."
+    override val activitySearchPlaceholder = "搜索接口、模型、服务商或错误..."
     override val activityRecent = "最近日志"
     override val activityTotal = "总请求量"
     override val activityFailedTotal = "异常请求"
@@ -1481,6 +1499,24 @@ object StringsZh : Strings {
     override val activitySelectAll = "全选"
     override val activityClearFilter = "清空"
     override fun activitySelectedTagsCount(count: Int) = "已选 $count 项"
+    override val activityFilterClients = "客户端"
+    override val activityFilterEndpoints = "请求接口"
+    override val activityFilterRoutes = "路由 / 服务商"
+    override val activityFilterStatuses = "请求状态"
+    override val activityFilterAllOption = "全部"
+    override val activityFilterSuccess = "成功"
+    override val activityFilterFailedStatus = "失败"
+    override val activityFilterRetried = "有重试"
+    override val activityFilterClientIde = "IDE"
+    override val activityFilterClientCli = "CLI"
+    override val activityFilterClientApp = "App"
+    override val activityFilterOtherClient = "其他"
+    override val activityFilterEndpointSearch = "搜索接口路径..."
+    override val activityFilterNoEndpoints = "暂无匹配接口"
+    override val activityFilterNoRoutes = "暂无路由记录"
+    override val activityFilterResetAll = "重置全部"
+    override fun activityFilterMatches(shown: Int, total: Int) = "匹配 $shown / $total 条"
+    override fun activityFilterSelectedDimension(label: String, count: Int) = "$label $count"
     override val activityTokenInput = "输入"
     override val activityTokenOutput = "输出"
     override val activityTokenCache = "缓存"
@@ -1594,14 +1630,19 @@ object StringsZh : Strings {
     override fun settingsOutboundTestFailed(error: String) = "连接失败：$error"
     override val settingsOpenNetworkSettings = "打开网络设置"
     override val settingsOutboundDirectActiveDesc = "当前出站路径: 始终直连（已忽略操作系统网络代理）"
-    override fun settingsOutboundAutoActiveWithProxyDesc(proxy: String) = "智能调度: 优先代理 ($proxy) → 失败自动回退直连"
+    override fun settingsOutboundAutoActiveWithProxyDesc(proxy: String) =
+        "智能调度: 优先代理 ($proxy) → 失败自动回退直连"
+
     override val settingsOutboundAutoActiveNoProxyDesc = "智能调度: 未检测到系统代理 · 自动直连"
     override fun settingsOutboundSystemActiveDesc(proxy: String, fallback: Boolean) =
         "系统代理: $proxy" + if (fallback) " → 失败回退直连" else " (严格仅走代理)"
+
     override fun settingsOutboundSystemNoProxyDesc(fallback: Boolean) =
         if (fallback) "⚠️ 未检测到系统代理 · 已回退直连" else "⚠️ 未检测到系统代理，公网请求将被阻断"
+
     override fun settingsOutboundManualActiveDesc(endpoint: String, fallback: Boolean) =
         "手动代理: $endpoint" + if (fallback) " → 失败回退直连" else " (严格仅走代理)"
+
     override val settingsOutboundManualInvalidDesc = "未配置有效的手动代理服务器"
     override val settingsHostPathsTitle = "应用安装路径"
     override val settingsHostPathsDesc = "自定义 Antigravity IDE、App 与 CLI 的安装目录或可执行文件路径"
@@ -1735,14 +1776,17 @@ object StringsZh : Strings {
     override val doctorCheckNetworkFallbackRouteDesc = "回退直连"
     override fun doctorCheckNetworkOkWithRouteMsg(latencyMs: Long, mode: String, route: String) =
         "官方 Cloud Code 服务通信正常（${latencyMs}ms） · 模式: $mode · 路径: $route。"
+
     override fun doctorCheckNetworkFallbackMsg(latencyMs: Long, mode: String) =
         "官方 Cloud Code 服务已连通（${latencyMs}ms） · 模式: $mode · ⚠️ 代理不可用，已自动回退直连。"
+
     override val doctorCheckNetworkFallbackSugg =
         "上游网络代理节点无法建立连接，当前已回退直连；如需走代理请检查本地代理客户端是否已开启。"
     override val doctorCheckNetworkFailedTitle = "连接官方服务失败"
     override fun doctorCheckNetworkFailedMsg(error: String) = "无法连通 Google 官方服务：$error。"
     override fun doctorCheckNetworkFailedWithModeMsg(error: String, mode: String) =
         "无法连通 Google 官方服务：$error（模式: $mode）。"
+
     override val doctorCheckNetworkFailedSugg =
         "请检查网络与代理配置；如直连正常但 Studio 仍失败，请在「网络设置」中调整代理模式或允许直连回退。"
     override val doctorCheckProxyConfigIssueTitle = "上游系统代理未配置"
@@ -2548,7 +2592,7 @@ object StringsEn : Strings {
     override val activityNoMatchingDesc = "Try searching with different keywords or clearing active filters"
     override val activityPassthrough = "Official Passthrough"
     override val activityRouted = "Custom Route"
-    override val activitySearchPlaceholder = "Search model or provider"
+    override val activitySearchPlaceholder = "Search endpoint, model, provider, or error"
     override val activityRecent = "Recent logs"
     override val activityTotal = "Total requests"
     override val activityFailedTotal = "Failed requests"
@@ -2562,6 +2606,24 @@ object StringsEn : Strings {
     override val activitySelectAll = "Select All"
     override val activityClearFilter = "Reset"
     override fun activitySelectedTagsCount(count: Int) = "$count selected"
+    override val activityFilterClients = "Clients"
+    override val activityFilterEndpoints = "Endpoints"
+    override val activityFilterRoutes = "Routes / Providers"
+    override val activityFilterStatuses = "Request Status"
+    override val activityFilterAllOption = "All"
+    override val activityFilterSuccess = "Successful"
+    override val activityFilterFailedStatus = "Failed"
+    override val activityFilterRetried = "Retried"
+    override val activityFilterClientIde = "IDE"
+    override val activityFilterClientCli = "CLI"
+    override val activityFilterClientApp = "App"
+    override val activityFilterOtherClient = "Other"
+    override val activityFilterEndpointSearch = "Search endpoint path"
+    override val activityFilterNoEndpoints = "No matching endpoints"
+    override val activityFilterNoRoutes = "No route records"
+    override val activityFilterResetAll = "Reset All"
+    override fun activityFilterMatches(shown: Int, total: Int) = "$shown of $total matching"
+    override fun activityFilterSelectedDimension(label: String, count: Int) = "$label: $count"
     override val activityTokenInput = "Input"
     override val activityTokenOutput = "Output"
     override val activityTokenCache = "Cache"
@@ -2679,15 +2741,22 @@ object StringsEn : Strings {
 
     override fun settingsOutboundTestFailed(error: String) = "Connection failed: $error"
     override val settingsOpenNetworkSettings = "Open Network Settings"
-    override val settingsOutboundDirectActiveDesc = "Current outbound route: Always direct (system & env proxies bypassed)"
-    override fun settingsOutboundAutoActiveWithProxyDesc(proxy: String) = "Smart select: Preferred proxy ($proxy) → Direct fallback"
+    override val settingsOutboundDirectActiveDesc =
+        "Current outbound route: Always direct (system & env proxies bypassed)"
+
+    override fun settingsOutboundAutoActiveWithProxyDesc(proxy: String) =
+        "Smart select: Preferred proxy ($proxy) → Direct fallback"
+
     override val settingsOutboundAutoActiveNoProxyDesc = "Smart select: No system proxy detected · Direct connection"
     override fun settingsOutboundSystemActiveDesc(proxy: String, fallback: Boolean) =
         "System proxy: $proxy" + if (fallback) " → Direct fallback" else " (Strict proxy only)"
+
     override fun settingsOutboundSystemNoProxyDesc(fallback: Boolean) =
         if (fallback) "⚠️ No system proxy detected · Fell back to direct" else "⚠️ No system proxy detected, requests will be blocked"
+
     override fun settingsOutboundManualActiveDesc(endpoint: String, fallback: Boolean) =
         "Manual proxy: $endpoint" + if (fallback) " → Direct fallback" else " (Strict proxy only)"
+
     override val settingsOutboundManualInvalidDesc = "No valid manual proxy configured"
     override val settingsHostPathsTitle = "Host Installation Paths"
     override val settingsHostPathsDesc = "Custom installation or executable paths for Antigravity IDE, App and CLI"
@@ -2826,14 +2895,17 @@ object StringsEn : Strings {
     override val doctorCheckNetworkFallbackRouteDesc = "Direct (fallback)"
     override fun doctorCheckNetworkOkWithRouteMsg(latencyMs: Long, mode: String, route: String) =
         "Google Cloud Code service reachable (${latencyMs}ms) · Mode: $mode · Route: $route."
+
     override fun doctorCheckNetworkFallbackMsg(latencyMs: Long, mode: String) =
         "Google Cloud Code service reachable (${latencyMs}ms) · Mode: $mode · ⚠️ Proxy unavailable, fell back to direct."
+
     override val doctorCheckNetworkFallbackSugg =
         "The configured proxy is unreachable and connection fell back to direct. Check your local proxy client if needed."
     override val doctorCheckNetworkFailedTitle = "Failed to connect to official service"
     override fun doctorCheckNetworkFailedMsg(error: String) = "Cannot reach Google official services: $error."
     override fun doctorCheckNetworkFailedWithModeMsg(error: String, mode: String) =
         "Cannot reach Google official services: $error (Mode: $mode)."
+
     override val doctorCheckNetworkFailedSugg =
         "Check network and proxy settings; adjust outbound proxy mode or enable direct fallback in Network Settings."
     override val doctorCheckProxyConfigIssueTitle = "Upstream system proxy not configured"
