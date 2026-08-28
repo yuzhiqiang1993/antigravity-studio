@@ -69,7 +69,7 @@ internal class AccountSwitchSession(
             if (report.overallStatus == HotSwitchCoordinator.OverallStatus.ERROR) {
                 throw IllegalStateException(buildVerificationError(report))
             }
-            refreshOfficialCatalog(changes)
+            refreshOfficialCatalog(changes, request.targetAccount)
             Result.success(report)
         } catch (error: CancellationException) {
             val rollbackErrors = rollbackNonCancellable(
@@ -666,11 +666,14 @@ internal class AccountSwitchSession(
         return isRunning()
     }
 
-    private suspend fun refreshOfficialCatalog(changes: AppliedChanges) {
+    private suspend fun refreshOfficialCatalog(changes: AppliedChanges, targetAccount: AccountInfo) {
         OfficialCatalogProbe.clearRawOfficialCatalog()
-        if (changes.ideLaunchAttempted || changes.appLaunchAttempted) {
-            OfficialCatalogProbe.fetchOfficialModels()
-        }
+        OfficialCatalogProbe.fetchOfficialModels(
+            account = targetAccount,
+            tokenRefreshCallback = { refreshToken ->
+                googleAuthService.refreshAccessToken(refreshToken).map { it.accessToken }
+            }
+        )
     }
 
     private fun targetResult(

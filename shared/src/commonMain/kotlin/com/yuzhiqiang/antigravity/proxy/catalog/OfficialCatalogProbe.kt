@@ -1,34 +1,57 @@
 package com.yuzhiqiang.antigravity.proxy.catalog
 
 import com.yuzhiqiang.antigravity.domain.model.OfficialCatalogModel
+import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
+import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.URL
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.*
+import java.util.concurrent.TimeUnit
 
 /**
- * 官方模型探针，完全 1:1 复刻 agy-byok 的 fetch_official_models_catalog 与 parser 实现。
- * 动态探测本地 Antigravity IDE / App 运行中的语言服务，
- * 实时拉取并解析 GetAvailableModels 原始协议与元数据（无任何写死配置）。
+ * 官方模型探针。
+ * 基于当前有效账号凭据与 Token 自动续期，直接请求 Google 官方 CloudCode PA 远端端点，
+ * 实时拉取并解析 fetchAvailableModels 官方原生协议报文与能力元数据。
  */
 object OfficialCatalogProbe {
 
-    private data class LanguageServerCandidate(
-        val pid: Long,
-        val source: String,
-        val csrf: String,
-        val port: Int
+    private val CLOUD_CODE_HOSTS = listOf(
+        "https://cloudcode-pa.googleapis.com",
+        "https://daily-cloudcode-pa.googleapis.com"
     )
+    private const val DEFAULT_PROJECT_ID = "cloudaicompanion-enterprise"
+    private const val USER_AGENT = "Antigravity/4.1.29 Chrome/132.0.6834.160 Electron/39.2.3"
 
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
         prettyPrint = true
+    }
+
+    private val httpClient = HttpClient(OkHttp) {
+        engine {
+            config {
+                proxySelector(PlatformNetworkConfig.createSmartProxySelector())
+                connectTimeout(6, TimeUnit.SECONDS)
+                readTimeout(10, TimeUnit.SECONDS)
+            }
+        }
+        install(HttpTimeout) {
+            connectTimeoutMillis = 6_000L
+            requestTimeoutMillis = 10_000L
+        }
     }
 
     var rawOfficialCatalogBody: String? = null
@@ -53,62 +76,137 @@ object OfficialCatalogProbe {
     }
 
     /**
-     * 动态探测并直连本地 Antigravity IDE / App 语言服务纯接口：
-     * 1. 严格基于系统进程动态发现运行中的 language_server 实例（零硬编码端口）
-     * 2. 直连官方 RPC 接口 /exa.language_server_pb.LanguageServerService/GetAvailableModels
-     * 3. 自动排除自定义 Provider / 虚拟模型，杜绝三方污染
+     * 基于账号凭据直接请求 Google 官方 CloudCode PA 服务获取官方模型列表：
+     * 1. 自动检查 Token 状态，若过期或遇到 401 自动触发 tokenRefreshCallback 换取最新 Token
+     * 2. 依次请求 /v1internal:loadCodeAssist（提取精准 projectId）与 /v1internal:fetchAvailableModels
+     * 3. 彻底剔除三方自定义模型，确保展示纯净官方数据
      */
     suspend fun fetchOfficialModels(
+        account: AccountInfo?,
+        tokenRefreshCallback: (suspend (refreshToken: String) -> Result<String>)? = null,
         excludedModelIds: Set<String> = emptySet()
     ): Result<List<OfficialCatalogModel>> = withContext(Dispatchers.IO) {
-        val candidates = discoverLanguageServerCandidates()
-        if (candidates.isEmpty()) {
-            return@withContext Result.failure(IllegalStateException("未找到本地运行中的 Antigravity IDE 或 App 官方语言服务进程"))
+        if (account == null) {
+            return@withContext Result.failure(IllegalStateException("请先在「账号配额」页添加或激活有效账号"))
         }
 
-        val trustAllSsl = createInsecureSslSocketFactory()
-        var lastException: Exception? = null
+        if (account.tokens.accessToken.isBlank() && account.tokens.refreshToken.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("当前账号暂无可用认证凭据"))
+        }
 
-        for (candidate in candidates) {
-            try {
-                val url = URL("https://127.0.0.1:${candidate.port}/exa.language_server_pb.LanguageServerService/GetAvailableModels")
-                val connection = (url.openConnection() as HttpsURLConnection).apply {
-                    sslSocketFactory = trustAllSsl
-                    hostnameVerifier = HostnameVerifier { _, _ -> true }
-                    requestMethod = "POST"
-                    connectTimeout = 3000
-                    readTimeout = 5000
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Accept", "application/json")
-                    setRequestProperty("X-Codeium-Csrf-Token", candidate.csrf)
-                    doOutput = true
-                }
+        var currentToken = account.tokens.accessToken
+        var attemptedRefresh = false
 
-                connection.outputStream.use { os ->
-                    os.write("{}".toByteArray(Charsets.UTF_8))
-                }
-
-                val responseCode = connection.responseCode
-                if (responseCode in 200..299) {
-                    val responseBytes = connection.inputStream.use { it.readBytes() }
-                    val responseBody = responseBytes.toString(Charsets.UTF_8)
-                    rawOfficialCatalogBody = responseBody
-                    val rawModels = parseOfficialCatalogModels(responseBody)
-                    // 彻底剔除三方自定义模型，确保展示纯净官方数据
-                    val models = rawModels.filterNot { m ->
-                        m.id in excludedModelIds || m.displayName in excludedModelIds
-                    }
-                    lastParsedModels = models
-                    return@withContext Result.success(models)
-                } else {
-                    lastException = IllegalStateException("官方语言服务返回 HTTP $responseCode")
-                }
-            } catch (e: Exception) {
-                lastException = e
+        // 预检：如果 token 为空或即将过期（60秒内），优先尝试刷新
+        val nowSec = System.currentTimeMillis() / 1000L
+        val isExpired = account.tokens.expiryTimestamp <= (nowSec + 60L)
+        if ((currentToken.isBlank() || isExpired) && account.tokens.refreshToken.isNotBlank() && tokenRefreshCallback != null) {
+            attemptedRefresh = true
+            val refreshResult = tokenRefreshCallback.invoke(account.tokens.refreshToken)
+            if (refreshResult.isSuccess) {
+                currentToken = refreshResult.getOrThrow()
             }
         }
 
-        return@withContext Result.failure(lastException ?: IllegalStateException("拉取官方模型失败"))
+        if (currentToken.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("无法获取有效的 Access Token，请检查账号状态"))
+        }
+
+        while (true) {
+            val result = executeFetch(currentToken, excludedModelIds)
+            if (result.isSuccess) {
+                return@withContext result
+            }
+
+            val error = result.exceptionOrNull()
+            val isUnauthorized = error?.message?.contains("401") == true ||
+                    error?.message?.contains("UNAUTHENTICATED", ignoreCase = true) == true
+
+            // 遇到 401 且未刷新过时，自动刷新一次重试
+            if (isUnauthorized && !attemptedRefresh && tokenRefreshCallback != null && account.tokens.refreshToken.isNotBlank()) {
+                attemptedRefresh = true
+                val refreshResult = tokenRefreshCallback.invoke(account.tokens.refreshToken)
+                if (refreshResult.isSuccess) {
+                    currentToken = refreshResult.getOrThrow()
+                    continue
+                }
+            }
+
+            return@withContext result
+        }
+
+        @Suppress("UNREACHABLE_CODE")
+        Result.failure(IllegalStateException("拉取官方模型失败"))
+    }
+
+    private suspend fun executeFetch(
+        token: String,
+        excludedModelIds: Set<String>
+    ): Result<List<OfficialCatalogModel>> {
+        var projectId = DEFAULT_PROJECT_ID
+        var lastError: Exception? = null
+
+        // 1. 尝试 loadCodeAssist 获取 projectId
+        for (host in CLOUD_CODE_HOSTS) {
+            try {
+                val url = "$host/v1internal:loadCodeAssist"
+                val response: HttpResponse = httpClient.post(url) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    header(HttpHeaders.UserAgent, USER_AGENT)
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"metadata":{"ideType":"ANTIGRAVITY"}}""")
+                }
+
+                if (response.status == HttpStatusCode.Unauthorized) {
+                    return Result.failure(IllegalStateException("HTTP 401 Unauthorized: Access Token 已失效"))
+                }
+
+                val responseText = response.bodyAsText()
+                val root = json.parseToJsonElement(responseText) as? JsonObject
+                root?.get("cloudaicompanionProject")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }?.let {
+                    projectId = it
+                }
+                break
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+
+        // 2. 请求 fetchAvailableModels 获取官方模型列表
+        for (host in CLOUD_CODE_HOSTS) {
+            try {
+                val url = "$host/v1internal:fetchAvailableModels"
+                val response: HttpResponse = httpClient.post(url) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    header(HttpHeaders.UserAgent, USER_AGENT)
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"project":"$projectId"}""")
+                }
+
+                if (response.status == HttpStatusCode.Unauthorized) {
+                    return Result.failure(IllegalStateException("HTTP 401 Unauthorized: Access Token 已失效"))
+                }
+
+                if (response.status.value in 200..299) {
+                    val responseBody = response.bodyAsText()
+                    rawOfficialCatalogBody = responseBody
+                    val rawModels = parseOfficialCatalogModels(responseBody)
+                    val models = rawModels.filterNot { m ->
+                        m.id in excludedModelIds || m.displayName in excludedModelIds
+                    }
+                    if (models.isNotEmpty()) {
+                        lastParsedModels = models
+                        return Result.success(models)
+                    }
+                } else {
+                    lastError = IllegalStateException("官方接口返回 HTTP ${response.status.value}")
+                }
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+
+        return Result.failure(lastError ?: IllegalStateException("拉取官方模型失败"))
     }
 
     /**
@@ -337,173 +435,5 @@ object OfficialCatalogProbe {
         }
 
         return rolesMap.mapValues { it.value.toList() } to hasMetadata
-    }
-
-    private fun discoverLanguageServerCandidates(): List<LanguageServerCandidate> {
-        val os = System.getProperty("os.name", "").lowercase()
-        return when {
-            os.contains("mac") || os.contains("linux") -> discoverUnixCandidates()
-            os.contains("win") -> discoverWindowsCandidates()
-            else -> emptyList()
-        }
-    }
-
-    private fun discoverUnixCandidates(): List<LanguageServerCandidate> {
-        val candidates = mutableListOf<LanguageServerCandidate>()
-        try {
-            val process = ProcessBuilder("/bin/ps", "-axo", "pid=,command=").start()
-            val lines = BufferedReader(InputStreamReader(process.inputStream)).readLines()
-            process.waitFor()
-
-            for (line in lines) {
-                val trimmed = line.trim()
-                if (trimmed.isEmpty() || !trimmed.contains("language_server")) continue
-                val separator = trimmed.indexOfFirst { it.isWhitespace() }
-                if (separator <= 0) continue
-                val pid = trimmed.substring(0, separator).trim().toLongOrNull() ?: continue
-                val command = trimmed.substring(separator).trim()
-
-                val csrf = extractFlagValue(command, "--csrf_token")
-                if (!csrf.isNullOrBlank()) {
-                    val source = extractFlagValue(command, "--subclient_type") ?: "ide"
-                    val httpsPort = extractFlagValue(command, "--https_server_port")?.toIntOrNull()
-                    val ports = mutableListOf<Int>()
-                    if (httpsPort != null && httpsPort > 0) {
-                        ports.add(httpsPort)
-                    }
-                    if (ports.isEmpty()) {
-                        ports.addAll(getListeningPortsByLsof(pid))
-                    }
-                    for (port in ports) {
-                        if (port > 0 && candidates.none { it.port == port }) {
-                            candidates.add(LanguageServerCandidate(pid, source, csrf, port))
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return candidates
-    }
-
-    private fun discoverWindowsCandidates(): List<LanguageServerCandidate> {
-        val candidates = mutableListOf<LanguageServerCandidate>()
-        try {
-            val process = ProcessBuilder(
-                "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
-                "Get-CimInstance Win32_Process -Filter \"Name LIKE '%language_server%'\" | ForEach-Object { \$_.ProcessId.ToString() + ' ' + \$_.CommandLine }"
-            ).start()
-            val lines = BufferedReader(InputStreamReader(process.inputStream)).readLines()
-            process.waitFor()
-
-            for (line in lines) {
-                val trimmed = line.trim()
-                if (trimmed.isEmpty()) continue
-                val parts = trimmed.split(Regex("\\s+"), limit = 2)
-                if (parts.size < 2) continue
-                val pid = parts[0].toLongOrNull() ?: continue
-                val command = parts[1]
-
-                val csrf = extractFlagValue(command, "--csrf_token") ?: continue
-                val source = extractFlagValue(command, "--subclient_type") ?: "ide"
-                val httpsPort = extractFlagValue(command, "--https_server_port")?.toIntOrNull()
-                val ports = mutableListOf<Int>()
-                if (httpsPort != null && httpsPort > 0) {
-                    ports.add(httpsPort)
-                }
-                if (ports.isEmpty()) {
-                    ports.addAll(getListeningPortsWindows(pid))
-                }
-
-                for (port in ports) {
-                    if (port > 0 && candidates.none { it.port == port }) {
-                        candidates.add(LanguageServerCandidate(pid, source, csrf, port))
-                    }
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return candidates
-    }
-
-    private fun getListeningPortsWindows(pid: Long): List<Int> {
-        val ports = mutableListOf<Int>()
-        try {
-            val process = ProcessBuilder("netstat", "-ano", "-p", "tcp").start()
-            val lines = BufferedReader(InputStreamReader(process.inputStream)).readLines()
-            process.waitFor()
-            for (line in lines) {
-                val trimmed = line.trim()
-                if (!trimmed.startsWith("TCP", ignoreCase = true)) continue
-                val parts = trimmed.split(Regex("\\s+"))
-                if (parts.size >= 5 && parts[3].equals("LISTENING", ignoreCase = true)) {
-                    val linePid = parts[4].toLongOrNull()
-                    if (linePid == pid) {
-                        val localAddress = parts[1]
-                        val port = localAddress.substringAfterLast(':', "").toIntOrNull()
-                        if (port != null && port > 0) {
-                            ports.add(port)
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return ports
-    }
-
-    private fun getListeningPortsByLsof(pid: Long): List<Int> {
-        val ports = mutableListOf<Int>()
-        try {
-            val process = ProcessBuilder(
-                "/usr/sbin/lsof",
-                "-nP",
-                "-a",
-                "-p", pid.toString(),
-                "-iTCP",
-                "-sTCP:LISTEN",
-                "-Fn"
-            ).start()
-            val lines = BufferedReader(InputStreamReader(process.inputStream)).readLines()
-            process.waitFor()
-
-            for (line in lines) {
-                if (line.startsWith("n*:")) {
-                    val port = line.removePrefix("n*:").toIntOrNull()
-                    if (port != null && port > 0) ports.add(port)
-                } else if (line.startsWith("n127.0.0.1:")) {
-                    val port = line.removePrefix("n127.0.0.1:").toIntOrNull()
-                    if (port != null && port > 0) ports.add(port)
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return ports
-    }
-
-    private fun extractFlagValue(command: String, flag: String): String? {
-        val prefix = "$flag="
-        val parts = command.split(Regex("\\s+"))
-        for (i in parts.indices) {
-            val part = parts[i]
-            if (part == flag && i + 1 < parts.size) {
-                return parts[i + 1].trim('"', '\'')
-            }
-            if (part.startsWith(prefix)) {
-                return part.removePrefix(prefix).trim('"', '\'')
-            }
-        }
-        return null
-    }
-
-    private fun createInsecureSslSocketFactory(): SSLSocketFactory {
-        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-            override fun getAcceptedIssuers(): Array<X509Certificate>? = null
-            override fun checkClientTrusted(certs: Array<X509Certificate>?, authType: String?) {}
-            override fun checkServerTrusted(certs: Array<X509Certificate>?, authType: String?) {}
-        })
-        val sslContext = SSLContext.getInstance("TLS")
-        sslContext.init(null, trustAllCerts, SecureRandom())
-        return sslContext.socketFactory
     }
 }

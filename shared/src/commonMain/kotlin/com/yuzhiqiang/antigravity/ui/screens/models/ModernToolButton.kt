@@ -12,6 +12,7 @@ fun ModernToolButton(
     text: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    isLoading: Boolean = false,
     isDestructive: Boolean = false,
     isTonal: Boolean = true
 ) {
@@ -21,6 +22,7 @@ fun ModernToolButton(
             onClick = onClick,
             icon = icon,
             enabled = enabled,
+            isLoading = isLoading,
             isDestructive = true
         )
     } else if (isTonal) {
@@ -28,7 +30,8 @@ fun ModernToolButton(
             text = text,
             onClick = onClick,
             icon = icon,
-            enabled = enabled
+            enabled = enabled,
+            isLoading = isLoading
         )
     } else {
         StudioOutlinedButton(
@@ -36,6 +39,7 @@ fun ModernToolButton(
             onClick = onClick,
             icon = icon,
             enabled = enabled,
+            isLoading = isLoading,
             isDestructive = false
         )
     }
