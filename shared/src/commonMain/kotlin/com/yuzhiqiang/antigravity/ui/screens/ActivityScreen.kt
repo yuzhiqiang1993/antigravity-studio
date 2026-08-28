@@ -135,7 +135,7 @@ fun ActivityScreen(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                // 顶部工具栏：全文搜索 + 客户端快捷筛选 + 多维筛选 + 日志操作
+                // 顶部工具栏：全文搜索 + 多维筛选 + 日志操作
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -149,14 +149,7 @@ fun ActivityScreen(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             placeholder = s.activitySearchPlaceholder,
-                            modifier = Modifier.width(300.dp)
-                        )
-
-                        ActivityQuickClientFilters(
-                            clientCounts = clientCounts,
-                            filter = activityFilter,
-                            onFilterChange = { activityFilter = it },
-                            s = s
+                            modifier = Modifier.width(320.dp)
                         )
 
                         ActivityFilterDropdown(
