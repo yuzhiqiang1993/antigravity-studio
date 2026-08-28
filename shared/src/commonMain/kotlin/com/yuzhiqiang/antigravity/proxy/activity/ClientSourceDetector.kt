@@ -7,41 +7,73 @@ object ClientSourceDetector {
     const val CLIENT_IDE = "Antigravity IDE"
     const val CLIENT_APP = "Antigravity App"
     const val CLIENT_CLI = "Antigravity CLI"
+    const val CLIENT_UNKNOWN = "Unknown Client"
 
     fun detect(call: ApplicationCall): String {
-        // 1. 显式请求头
-        val explicitHeader = call.request.header("X-Antigravity-Client")
+        val explicitClient = call.request.header("X-Antigravity-Client")
             ?: call.request.header("X-Client-Type")
             ?: call.request.header("X-Client-Name")
-        if (!explicitHeader.isNullOrBlank()) {
-            val lower = explicitHeader.lowercase()
-            return when {
-                "ide" in lower || "vscode" in lower || "visual_studio_code" in lower -> CLIENT_IDE
-                "app" in lower || "desktop" in lower || "electron" in lower -> CLIENT_APP
-                "cli" in lower || "agy" in lower || "terminal" in lower -> CLIENT_CLI
-                else -> explicitHeader.trim()
-            }
-        }
-
-        // 2. User-Agent 智能匹配
-        val ua = call.request.header("User-Agent")?.lowercase().orEmpty()
-        val hasCodeiumCsrf = call.request.header("x-codeium-csrf-token") != null
-        val hasConnectProto = call.request.header("connect-protocol-version") != null
-
-        if (ua.contains("agy") || ua.contains("antigravity-cli") || ua.contains("curl") || ua.contains("python") || ua.contains("go-http-client")) {
-            return CLIENT_CLI
-        }
-
-        if (ua.contains("antigravityapp") || ua.contains("antigravity-app")) {
-            return CLIENT_APP
-        }
-
-        if (ua.contains("vscode") || ua.contains("codeium") || ua.contains("antigravity") ||
-            hasCodeiumCsrf || hasConnectProto || ua.contains("node-fetch") || ua.contains("axios")
-        ) {
-            return CLIENT_IDE
-        }
-
-        return if (ua.isNotBlank()) ua.substringBefore(' ').take(24) else CLIENT_IDE
+        return detect(
+            explicitClient = explicitClient,
+            userAgent = call.request.header("User-Agent"),
+            hasCodeiumCsrfToken = call.request.header("x-codeium-csrf-token") != null
+        )
     }
+
+    internal fun detect(
+        explicitClient: String?,
+        userAgent: String?,
+        hasCodeiumCsrfToken: Boolean = false
+    ): String {
+        explicitClient?.trim()?.takeIf { it.isNotEmpty() }?.let { client ->
+            return normalizeExplicitClient(client)
+        }
+
+        val normalizedUserAgent = userAgent?.trim().orEmpty()
+        val lowerUserAgent = normalizedUserAgent.lowercase()
+        return when {
+            lowerUserAgent.contains("antigravity/cli/") ||
+                    lowerUserAgent.contains("antigravity-cli") -> CLIENT_CLI
+
+            lowerUserAgent.contains("antigravity/hub/") ||
+                    lowerUserAgent.contains("antigravity-app") ||
+                    lowerUserAgent.contains("antigravityapp") -> CLIENT_APP
+
+            lowerUserAgent.contains("antigravity/ide/") ||
+                    lowerUserAgent.contains("antigravity-ide") ||
+                    lowerUserAgent.contains("vscode") ||
+                    lowerUserAgent.contains("codeium") ||
+                    hasCodeiumCsrfToken -> CLIENT_IDE
+
+            normalizedUserAgent.isNotEmpty() -> normalizedUserAgent.substringBefore(' ').take(MAX_FALLBACK_LENGTH)
+            else -> CLIENT_UNKNOWN
+        }
+    }
+
+    private fun normalizeExplicitClient(client: String): String {
+        val lower = client.lowercase()
+        return when {
+            lower.containsClientToken("ide") ||
+                    lower.contains("vscode") ||
+                    lower.contains("visual_studio_code") -> CLIENT_IDE
+
+            lower.containsClientToken("app") ||
+                    lower.containsClientToken("hub") ||
+                    lower.containsClientToken("desktop") ||
+                    lower.containsClientToken("electron") -> CLIENT_APP
+
+            lower.containsClientToken("cli") ||
+                    lower.containsClientToken("agy") ||
+                    lower.containsClientToken("terminal") -> CLIENT_CLI
+
+            else -> client
+        }
+    }
+
+    private fun String.containsClientToken(token: String): Boolean {
+        return split(NON_ALPHANUMERIC_REGEX).any { it == token }
+    }
+
+    private const val MAX_FALLBACK_LENGTH = 64
+    private val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9]+")
 }
