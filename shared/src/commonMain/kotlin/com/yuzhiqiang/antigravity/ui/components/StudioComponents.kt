@@ -77,12 +77,15 @@ import org.jetbrains.compose.resources.painterResource
 
 
 /**
- * Material Design 3 现代极简单行顶栏 Header。
+ * Material Design 3 现代标准页面顶栏 Header。
+ * 标题使用 24sp 加粗主题主色，支持徽标 Badge、副标题 Subtitle 以及右侧操作 Action。
  */
 @Composable
 fun PageHeader(
     title: String,
     modifier: Modifier = Modifier,
+    badge: String? = null,
+    badgeContent: (@Composable () -> Unit)? = null,
     subtitle: String? = null,
     action: (@Composable () -> Unit)? = null
 ) {
@@ -93,25 +96,45 @@ fun PageHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (subtitle.isNullOrBlank()) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontSize = 18.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
                     ),
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = MaterialTheme.colorScheme.primary
                 )
+
+                if (badgeContent != null) {
+                    badgeContent()
+                } else if (!badge.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(AppTokens.Radius.pill),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Text(
+                            text = badge,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),

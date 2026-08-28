@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.AccountStatus
-import com.yuzhiqiang.antigravity.domain.model.account.AccountTier
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StudioAccountCard
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
@@ -164,42 +164,15 @@ fun AccountsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // 1. 顶部主标题
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Accounts",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            )
-
-            Surface(
-                shape = RoundedCornerShape(AppTokens.Radius.pill),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                )
-            ) {
-                Text(
-                    text = if (searchQuery.isNotBlank() && displayAccounts.size != accounts.size) {
-                        "${displayAccounts.size}/${accounts.size}"
-                    } else {
-                        "${accounts.size}"
-                    },
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    ),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+        val accountsBadge = if (searchQuery.isNotBlank() && displayAccounts.size != accounts.size) {
+            "${displayAccounts.size}/${accounts.size}"
+        } else {
+            "${accounts.size}"
         }
+        PageHeader(
+            title = s.navAccounts,
+            badge = accountsBadge
+        )
 
         // 2. 现代 MD3 顶栏操作栏
         Surface(
