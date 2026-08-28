@@ -29,10 +29,13 @@ class ByokForwardHandler(
         call: ApplicationCall,
         path: String,
         startTime: Long,
-        route: ResolvedRoute
+        route: ResolvedRoute,
+        rawBody: String? = null
     ) {
         val cloudCode = path.contains("/v1internal")
         val stream = route.request.stream
+        val isDebug = configStore.currentConfig.isDebugMode
+        val reqHeaders = if (isDebug) extractRequestHeaders(call) else null
 
         val logId = ActivityRecorder.startActivity(
             method = "POST",
@@ -42,15 +45,17 @@ class ByokForwardHandler(
             clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
             providerName = route.provider.name,
             isOfficialPassthrough = false,
-            timestamp = startTime
+            timestamp = startTime,
+            requestHeaders = reqHeaders,
+            requestBody = if (isDebug) rawBody else null
         )
 
         if (!stream) {
-            forwardNonStreaming(call, route, cloudCode, startTime, logId)
+            forwardNonStreaming(call, route, cloudCode, startTime, logId, isDebug)
             return
         }
 
-        forwardTransactionalStream(call, route, cloudCode, startTime, logId)
+        forwardTransactionalStream(call, route, cloudCode, startTime, logId, isDebug)
     }
 
     private suspend fun forwardNonStreaming(
@@ -58,8 +63,10 @@ class ByokForwardHandler(
         route: ResolvedRoute,
         cloudCode: Boolean,
         startTime: Long,
-        logId: String
+        logId: String,
+        isDebug: Boolean = false
     ) {
+
         val maxRetries = maxOf(0, route.provider.maxRetries)
         val baseDelayMs = maxOf(100L, route.provider.retryDelayMs)
         var attempt = 0
@@ -137,7 +144,8 @@ class ByokForwardHandler(
                 ?: encoderError?.let { StreamErrorSource.STUDIO_ADAPTER.name },
             usage = usage,
             firstTokenMs = nonStreamingFirstTokenMs,
-            retryCount = retryCount
+            retryCount = retryCount,
+            responseBody = if (isDebug) body else null
         )
         call.respondText(body, ContentType.Application.Json, HttpStatusCode.fromValue(status))
     }
@@ -147,7 +155,8 @@ class ByokForwardHandler(
         route: ResolvedRoute,
         cloudCode: Boolean,
         startTime: Long,
-        logId: String
+        logId: String,
+        isDebug: Boolean = false
     ) {
         var status = 200
         var errorMessage: String? = null
@@ -155,6 +164,7 @@ class ByokForwardHandler(
         var latestUsage: NeutralUsage? = null
         var firstTokenMs: Long? = null
         var attempt = 0
+        val sseBuffer = if (isDebug) StringBuilder() else null
 
         val maxRetries = maxOf(0, route.provider.maxRetries)
         val baseDelayMs = maxOf(100L, route.provider.retryDelayMs)
@@ -167,7 +177,10 @@ class ByokForwardHandler(
                 suspend fun writeFrames(frames: List<String>) {
                     if (frames.isEmpty()) return
                     try {
-                        frames.forEach { write(it) }
+                        frames.forEach { frame ->
+                            sseBuffer?.append(frame)
+                            write(frame)
+                        }
                         flush()
                     } catch (error: Throwable) {
                         throw DownstreamWriteException(error)
@@ -292,9 +305,11 @@ class ByokForwardHandler(
             errorSource = errorSource?.name,
             usage = latestUsage,
             firstTokenMs = firstTokenMs,
-            retryCount = attempt - 1
+            retryCount = attempt - 1,
+            responseBody = if (isDebug) sseBuffer?.toString() else null
         )
     }
+
 
     private class DownstreamWriteException(cause: Throwable) : RuntimeException(cause)
 

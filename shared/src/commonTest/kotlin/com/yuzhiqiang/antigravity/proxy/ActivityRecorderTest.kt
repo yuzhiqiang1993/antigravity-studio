@@ -56,7 +56,9 @@ class ActivityRecorderTest {
             errorMessage = "upstream failed",
             errorSource = "UPSTREAM_RESPONSE",
             usage = NeutralUsage(inputTokens = 100, outputTokens = 200, totalTokens = 300),
-            retryCount = 2
+            retryCount = 2,
+            responseHeaders = mapOf("content-type" to "application/json"),
+            responseBody = "{\"status\":\"ok\"}"
         )
         val finishedLogs = ActivityRecorder.logs.value
         assertEquals(1, finishedLogs.size)
@@ -68,10 +70,12 @@ class ActivityRecorderTest {
         assertEquals(300L, finishedLog.totalTokens)
         assertEquals("UPSTREAM_RESPONSE", finishedLog.errorSource)
         assertEquals(2, finishedLog.retryCount)
+        assertEquals("{\"status\":\"ok\"}", finishedLog.responseBody)
+        assertEquals("application/json", finishedLog.responseHeaders?.get("content-type"))
     }
 
     @Test
-    fun testRecordDirectly() {
+    fun testRecordDirectlyWithDebugPayloads() {
         ActivityRecorder.record(
             method = "GET",
             path = "/v1beta/models",
@@ -79,11 +83,36 @@ class ActivityRecorderTest {
             providerName = "Studio Local Catalog",
             statusCode = 200,
             durationMs = 50L,
-            isOfficialPassthrough = false
+            isOfficialPassthrough = false,
+            requestHeaders = mapOf("accept" to "application/json"),
+            requestBody = null,
+            responseHeaders = mapOf("server" to "antigravity-studio"),
+            responseBody = "{\"models\":[]}"
         )
         val logs = ActivityRecorder.logs.value
         assertEquals(1, logs.size)
         assertFalse(logs.first().isPending)
         assertEquals(200, logs.first().statusCode)
+        assertEquals("application/json", logs.first().requestHeaders?.get("accept"))
+        assertEquals("antigravity-studio", logs.first().responseHeaders?.get("server"))
+        assertEquals("{\"models\":[]}", logs.first().responseBody)
+    }
+
+    @Test
+    fun testLargePayloadSanitization() {
+        val hugeBody = "A".repeat(1_200_000)
+        val logId = ActivityRecorder.startActivity(
+            method = "POST",
+            path = "/v1/chat",
+            modelId = "gpt-4",
+            providerName = "OpenAI",
+            isOfficialPassthrough = false,
+            requestBody = hugeBody
+        )
+        val log = ActivityRecorder.logs.value.first()
+        assertNotNull(log.requestBody)
+        assertTrue(log.requestBody!!.contains("... [Truncated:"))
+        assertTrue(log.requestBody!!.length < 1_100_000)
     }
 }
+

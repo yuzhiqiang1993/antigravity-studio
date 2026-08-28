@@ -194,13 +194,25 @@ class LocalProxyServer(
         val startTime = System.currentTimeMillis()
         val path = normalizeProxyPath(call.request.path())
         val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
+        val config = configStore.currentConfig
+        val isDebug = config.isDebugMode
+        val reqHeaders = if (isDebug) extractRequestHeaders(call) else null
+
         val rawBody = readRequestBody(call).getOrElse { error ->
             val message = error.message ?: "Failed to read request body"
-            recordFailure(path, null, startTime, 400, message, clientSource = clientSource)
+            recordFailure(
+                path,
+                null,
+                startTime,
+                400,
+                message,
+                clientSource = clientSource,
+                requestHeaders = reqHeaders,
+                responseBody = if (isDebug) message else null
+            )
             respondError(call, HttpStatusCode.BadRequest, message)
             return
         }
-        val config = configStore.currentConfig
 
         if (isOfficialCatalogFetchPath(path)) {
             passthroughHandler.forwardOfficialCatalog(call, path, rawBody, startTime)
@@ -210,7 +222,17 @@ class LocalProxyServer(
         val pathModelId = extractPathModelId(path)
         val requestRoot = AntigravityRequestParser.parseObject(rawBody).getOrElse { error ->
             val message = error.message ?: "Invalid request body"
-            recordFailure(path, pathModelId, startTime, 400, message, clientSource = clientSource)
+            recordFailure(
+                path,
+                pathModelId,
+                startTime,
+                400,
+                message,
+                clientSource = clientSource,
+                requestHeaders = reqHeaders,
+                requestBody = if (isDebug) rawBody else null,
+                responseBody = if (isDebug) message else null
+            )
             respondError(call, HttpStatusCode.BadRequest, message)
             return
         }
@@ -218,7 +240,17 @@ class LocalProxyServer(
         val requestedModelId = bodyModelResult.getOrNull() ?: pathModelId
 
         if (requestedModelId.isNullOrBlank()) {
-            recordFailure(path, null, startTime, 400, "Missing model ID in request", clientSource = clientSource)
+            recordFailure(
+                path,
+                null,
+                startTime,
+                400,
+                "Missing model ID in request",
+                clientSource = clientSource,
+                requestHeaders = reqHeaders,
+                requestBody = if (isDebug) rawBody else null,
+                responseBody = if (isDebug) "Missing model ID in request" else null
+            )
             respondError(call, HttpStatusCode.BadRequest, "Missing model ID in request")
             return
         }
@@ -230,7 +262,17 @@ class LocalProxyServer(
             )
             if (parsedRequest.isFailure) {
                 val message = parsedRequest.exceptionOrNull()?.message ?: "Invalid request"
-                recordFailure(path, requestedModelId, startTime, 400, message, clientSource = clientSource)
+                recordFailure(
+                    path,
+                    requestedModelId,
+                    startTime,
+                    400,
+                    message,
+                    clientSource = clientSource,
+                    requestHeaders = reqHeaders,
+                    requestBody = if (isDebug) rawBody else null,
+                    responseBody = if (isDebug) message else null
+                )
                 respondError(call, HttpStatusCode.BadRequest, message)
                 return
             }
@@ -242,11 +284,21 @@ class LocalProxyServer(
                 val error = routeResult.exceptionOrNull()
                 val status = (error as? RouteResolutionException)?.statusCode ?: 404
                 val message = error?.message ?: "Unable to resolve configured model"
-                recordFailure(path, requestedModelId, startTime, status, message, clientSource = clientSource)
+                recordFailure(
+                    path,
+                    requestedModelId,
+                    startTime,
+                    status,
+                    message,
+                    clientSource = clientSource,
+                    requestHeaders = reqHeaders,
+                    requestBody = if (isDebug) rawBody else null,
+                    responseBody = if (isDebug) message else null
+                )
                 respondError(call, HttpStatusCode.fromValue(status), message)
                 return
             }
-            byokHandler.forwardToByok(call, path, startTime, routeResult.getOrThrow())
+            byokHandler.forwardToByok(call, path, startTime, routeResult.getOrThrow(), rawBody)
             return
         }
 
@@ -257,6 +309,9 @@ class LocalProxyServer(
         val startTime = System.currentTimeMillis()
         val path = normalizeProxyPath(call.request.path())
         val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
+        val isDebug = configStore.currentConfig.isDebugMode
+        val reqHeaders = if (isDebug) extractRequestHeaders(call) else null
+
         val rawBody = if (call.request.httpMethod == HttpMethod.Head) {
             ByteArray(0)
         } else {
@@ -269,13 +324,16 @@ class LocalProxyServer(
                     400,
                     message,
                     method = call.request.httpMethod.value,
-                    clientSource = clientSource
+                    clientSource = clientSource,
+                    requestHeaders = reqHeaders,
+                    responseBody = if (isDebug) message else null
                 )
                 respondError(call, HttpStatusCode.BadRequest, message)
                 return
             }
             body
         }
+
         passthroughHandler.forwardOfficial(
             call = call,
             path = path,
@@ -339,6 +397,7 @@ class LocalProxyServer(
             config,
             includeTiered = false
         )
+        val isDebug = config.isDebugMode
         ActivityRecorder.record(
             method = "GET",
             path = path,
@@ -348,7 +407,9 @@ class LocalProxyServer(
             providerName = "Studio Local Catalog",
             statusCode = 200,
             durationMs = System.currentTimeMillis() - startTime,
-            isOfficialPassthrough = false
+            isOfficialPassthrough = false,
+            requestHeaders = if (isDebug) extractRequestHeaders(call) else null,
+            responseBody = if (isDebug) responseJson.toString() else null
         )
         call.respondText(responseJson.toString(), ContentType.Application.Json, HttpStatusCode.OK)
 
@@ -448,7 +509,11 @@ class LocalProxyServer(
         status: Int,
         message: String?,
         method: String = "POST",
-        clientSource: String? = null
+        clientSource: String? = null,
+        requestHeaders: Map<String, String>? = null,
+        requestBody: String? = null,
+        responseHeaders: Map<String, String>? = null,
+        responseBody: String? = null
     ) {
         ActivityRecorder.record(
             method = method,
@@ -460,7 +525,12 @@ class LocalProxyServer(
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,
             isOfficialPassthrough = false,
-            errorMessage = message
+            errorMessage = message,
+            requestHeaders = requestHeaders,
+            requestBody = requestBody,
+            responseHeaders = responseHeaders,
+            responseBody = responseBody
         )
     }
 }
+

@@ -13,6 +13,8 @@ object ActivityRecorder {
     private val _logs = MutableStateFlow<List<ActivityLog>>(emptyList())
     val logs: StateFlow<List<ActivityLog>> = _logs.asStateFlow()
 
+    private const val MAX_PAYLOAD_CHARS = 1_000_000 // 约 1MB 字符限制，避免大 Payload 导致内存暴涨
+
     /**
      * 请求刚到达时立即调用，生成一条处于 isPending = true 状态的日志并推送到列表头部
      */
@@ -24,7 +26,9 @@ object ActivityRecorder {
         clientSource: String? = null,
         providerName: String?,
         isOfficialPassthrough: Boolean,
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        requestHeaders: Map<String, String>? = null,
+        requestBody: String? = null
     ): String {
         val id = UUID.randomUUID().toString()
         val newLog = ActivityLog(
@@ -39,7 +43,9 @@ object ActivityRecorder {
             statusCode = 0,
             durationMs = 0L,
             isOfficialPassthrough = isOfficialPassthrough,
-            isPending = true
+            isPending = true,
+            requestHeaders = requestHeaders,
+            requestBody = sanitizePayload(requestBody)
         )
         _logs.update { current ->
             val next = ArrayList<ActivityLog>(minOf(current.size + 1, MAX_LOGS))
@@ -88,7 +94,9 @@ object ActivityRecorder {
         errorSource: String? = null,
         usage: NeutralUsage? = null,
         firstTokenMs: Long? = null,
-        retryCount: Int = 0
+        retryCount: Int = 0,
+        responseHeaders: Map<String, String>? = null,
+        responseBody: String? = null
     ) {
         _logs.update { current ->
             current.map { log ->
@@ -108,6 +116,8 @@ object ActivityRecorder {
                         totalTokens = usage?.totalTokens ?: log.totalTokens,
                         firstTokenMs = firstTokenMs ?: log.firstTokenMs,
                         retryCount = if (retryCount > 0) retryCount else log.retryCount,
+                        responseHeaders = responseHeaders ?: log.responseHeaders,
+                        responseBody = sanitizePayload(responseBody) ?: log.responseBody,
                         isPending = false
                     )
                 } else {
@@ -131,7 +141,11 @@ object ActivityRecorder {
         errorSource: String? = null,
         usage: NeutralUsage? = null,
         firstTokenMs: Long? = null,
-        retryCount: Int = 0
+        retryCount: Int = 0,
+        requestHeaders: Map<String, String>? = null,
+        requestBody: String? = null,
+        responseHeaders: Map<String, String>? = null,
+        responseBody: String? = null
     ) {
         val newLog = ActivityLog(
             id = UUID.randomUUID().toString(),
@@ -155,7 +169,11 @@ object ActivityRecorder {
             reasoningTokens = usage?.reasoningTokens,
             totalTokens = usage?.totalTokens,
             firstTokenMs = firstTokenMs,
-            retryCount = retryCount
+            retryCount = retryCount,
+            requestHeaders = requestHeaders,
+            requestBody = sanitizePayload(requestBody),
+            responseHeaders = responseHeaders,
+            responseBody = sanitizePayload(responseBody)
         )
         _logs.update { current ->
             val next = ArrayList<ActivityLog>(minOf(current.size + 1, MAX_LOGS))
@@ -171,4 +189,11 @@ object ActivityRecorder {
     fun clear() {
         _logs.value = emptyList()
     }
+
+    private fun sanitizePayload(payload: String?): String? {
+        if (payload == null) return null
+        if (payload.length <= MAX_PAYLOAD_CHARS) return payload
+        return payload.substring(0, MAX_PAYLOAD_CHARS) + "\n\n... [Truncated: ${payload.length - MAX_PAYLOAD_CHARS} chars omitted for performance]"
+    }
 }
+

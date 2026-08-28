@@ -49,5 +49,14 @@ data class ActivityLog(
     @SerialName("first_token_ms")
     val firstTokenMs: Long? = null,
     @SerialName("retry_count")
-    val retryCount: Int = 0
+    val retryCount: Int = 0,
+    @SerialName("request_headers")
+    val requestHeaders: Map<String, String>? = null,
+    @SerialName("request_body")
+    val requestBody: String? = null,
+    @SerialName("response_headers")
+    val responseHeaders: Map<String, String>? = null,
+    @SerialName("response_body")
+    val responseBody: String? = null
 )
+
