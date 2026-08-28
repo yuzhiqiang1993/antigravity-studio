@@ -713,8 +713,10 @@ internal fun activityClientLabel(kind: ActivityClientKind, s: Strings): String =
     ActivityClientKind.IDE -> s.activityFilterClientIde
     ActivityClientKind.CLI -> s.activityFilterClientCli
     ActivityClientKind.APP -> s.activityFilterClientApp
+    ActivityClientKind.PLUGIN -> s.activityFilterClientPlugin
     ActivityClientKind.OTHER -> s.activityFilterOtherClient
 }
+
 
 internal fun activityStatusLabel(status: ActivityStatusKind, s: Strings): String = when (status) {
     ActivityStatusKind.SUCCESS -> s.activityFilterSuccess

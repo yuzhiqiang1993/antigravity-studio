@@ -9,8 +9,10 @@ internal enum class ActivityClientKind {
     IDE,
     CLI,
     APP,
+    PLUGIN,
     OTHER
 }
+
 
 internal enum class ActivityStatusKind {
     SUCCESS,
@@ -43,12 +45,14 @@ internal fun ActivityLog.clientKind(): ActivityClientKind {
     val normalized = clientSource.orEmpty().lowercase()
     val tokens = normalized.split(NON_ALPHANUMERIC_REGEX).filter { it.isNotEmpty() }.toSet()
     return when {
+        "cockpit" in tokens || "plugin" in tokens -> ActivityClientKind.PLUGIN
         "ide" in tokens || "vscode" in tokens || "codeium" in tokens -> ActivityClientKind.IDE
         "cli" in tokens || "agy" in tokens || "terminal" in tokens -> ActivityClientKind.CLI
         "app" in tokens || "hub" in tokens || "desktop" in tokens || "electron" in tokens -> ActivityClientKind.APP
         else -> ActivityClientKind.OTHER
     }
 }
+
 
 internal fun ActivityLog.routeKey(): String = when {
     isOfficialPassthrough -> OFFICIAL_ROUTE_KEY

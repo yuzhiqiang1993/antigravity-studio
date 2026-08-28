@@ -114,18 +114,12 @@ class OfficialPassthroughHandler(
                         setBody(ByteArray(0))
                     }
                     call.request.headers.forEach { name, values ->
-                        if (!isHopByHopHeader(name) &&
-                            !name.equals(HttpHeaders.ContentType, ignoreCase = true) &&
-                            !name.equals(HttpHeaders.AcceptEncoding, ignoreCase = true) &&
-                            !name.equals("x-antigravity-studio-token", ignoreCase = true) &&
-                            !name.equals("x-antigravity-studio-internal-probe", ignoreCase = true) &&
-                            !name.equals("x-agy-byok-token", ignoreCase = true) &&
-                            !name.equals("x-agy-byok-internal-probe", ignoreCase = true)
-                        ) {
+                        if (!isInternalHeader(name)) {
                             values.forEach { header(name, it) }
                         }
                     }
                 }.execute { response ->
+
                     val status = response.status.value
                     lastStatus = status
                     val responseContentType = response.contentType() ?: ContentType.Application.Json
@@ -380,18 +374,12 @@ class OfficialPassthroughHandler(
                 header(HttpHeaders.AcceptEncoding, "identity")
                 setBody(rawBody)
                 call.request.headers.forEach { name, values ->
-                    if (!isHopByHopHeader(name) &&
-                        !name.equals(HttpHeaders.ContentType, ignoreCase = true) &&
-                        !name.equals(HttpHeaders.AcceptEncoding, ignoreCase = true) &&
-                        !name.equals("x-antigravity-studio-token", ignoreCase = true) &&
-                        !name.equals("x-antigravity-studio-internal-probe", ignoreCase = true) &&
-                        !name.equals("x-agy-byok-token", ignoreCase = true) &&
-                        !name.equals("x-agy-byok-internal-probe", ignoreCase = true)
-                    ) {
+                    if (!isInternalHeader(name)) {
                         values.forEach { header(name, it) }
                     }
                 }
             }.execute()
+
             val respHeaders = if (isDebug) extractResponseHeaders(response.headers) else null
             val body = ProviderAdapter.readResponseBodyText(response).getOrElse { error ->
                 throw IllegalStateException(error.message ?: "Failed to read official catalog response", error)
@@ -577,7 +565,23 @@ class OfficialPassthroughHandler(
         )
     }
 
+    fun isInternalHeader(name: String): Boolean {
+        if (isHopByHopHeader(name)) return true
+        val lower = name.lowercase()
+        return lower == HttpHeaders.ContentType.lowercase() ||
+                lower == HttpHeaders.AcceptEncoding.lowercase() ||
+                lower == "x-antigravity-studio-token" ||
+                lower == "x-antigravity-studio-internal-probe" ||
+                lower == "x-antigravity-client" ||
+                lower == "x-client-type" ||
+                lower == "x-client-name" ||
+                lower == "x-client-version" ||
+                lower == "x-agy-byok-token" ||
+                lower == "x-agy-byok-internal-probe"
+    }
+
     fun isHopByHopHeader(name: String): Boolean {
+
         if (name.startsWith(":")) return true
         return name.equals(HttpHeaders.Host, ignoreCase = true) ||
                 name.equals(HttpHeaders.ContentLength, ignoreCase = true) ||

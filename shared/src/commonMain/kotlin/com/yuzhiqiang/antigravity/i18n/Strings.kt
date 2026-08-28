@@ -478,6 +478,7 @@ interface Strings {
     val activityFilterClientIde: String
     val activityFilterClientCli: String
     val activityFilterClientApp: String
+    val activityFilterClientPlugin: String
     val activityFilterOtherClient: String
     val activityFilterEndpointSearch: String
     val activityFilterNoEndpoints: String
@@ -1520,6 +1521,7 @@ object StringsZh : Strings {
     override val activityFilterClientIde = "IDE"
     override val activityFilterClientCli = "CLI"
     override val activityFilterClientApp = "App"
+    override val activityFilterClientPlugin = "插件"
     override val activityFilterOtherClient = "其他"
     override val activityFilterEndpointSearch = "搜索接口路径..."
     override val activityFilterNoEndpoints = "暂无匹配接口"
@@ -2637,6 +2639,7 @@ object StringsEn : Strings {
     override val activityFilterClientIde = "IDE"
     override val activityFilterClientCli = "CLI"
     override val activityFilterClientApp = "App"
+    override val activityFilterClientPlugin = "Plugin"
     override val activityFilterOtherClient = "Other"
     override val activityFilterEndpointSearch = "Search endpoint path"
     override val activityFilterNoEndpoints = "No matching endpoints"

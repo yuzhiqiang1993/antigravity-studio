@@ -756,16 +756,19 @@ private fun ClientSourceBadge(
     clientSource: String,
     modifier: Modifier = Modifier
 ) {
+    val isPlugin = "Plugin" in clientSource || "Cockpit" in clientSource
     val isIde = "IDE" in clientSource
     val isApp = "App" in clientSource
     val isCli = "CLI" in clientSource || "agy" in clientSource.lowercase()
 
     val (bg, textColor) = when {
+        isPlugin -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.75f) to MaterialTheme.colorScheme.onTertiaryContainer
         isIde -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onPrimaryContainer
-        isApp -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onTertiaryContainer
-        isCli -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onSecondaryContainer
+        isApp -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onSecondaryContainer
+        isCli -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) to MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f) to MaterialTheme.colorScheme.onSurfaceVariant
     }
+
 
     Surface(
         color = bg,
