@@ -1,10 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,17 +10,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -60,36 +53,42 @@ fun ActivityScreen(
     val autoScroll = config.activityAutoScroll
     val listState = rememberLazyListState()
     var searchQuery by remember { mutableStateOf("") }
-    var filterOnlyFailed by remember { mutableStateOf(false) }
+    var activityFilter by remember { mutableStateOf(ActivityLogFilter()) }
+    var filterResetKey by remember { mutableIntStateOf(0) }
     var selectedLog by remember { mutableStateOf<ActivityLog?>(null) }
-    var selectedTags by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val normalizedQuery = searchQuery.trim().lowercase()
+    val normalizedQuery = searchQuery.trim()
 
-    val availableTagsWithCounts = remember(logs, s) {
-        logs.groupingBy {
-            if (it.isOfficialPassthrough) s.activityPassthrough else (it.providerName ?: s.activityUnknownProvider)
-        }
-            .eachCount()
-            .toList()
-            .sortedByDescending { it.second }
+    fun resetActivityFilters() {
+        activityFilter = ActivityLogFilter()
+        searchQuery = ""
+        filterResetKey++
     }
 
-    val displayedLogs = remember(logs, normalizedQuery, filterOnlyFailed, selectedTags) {
-        logs.filter { log ->
-            val tag = if (log.isOfficialPassthrough) s.activityPassthrough else (log.providerName
-                ?: s.activityUnknownProvider)
-            val matchesTag = selectedTags.isEmpty() || tag in selectedTags
-            val matchesQuery = normalizedQuery.isBlank() || listOfNotNull(
-                log.clientSource,
-                log.modelId,
-                log.requestedModelId,
-                if (log.isOfficialPassthrough) s.activityPassthrough else log.providerName,
-                log.path,
-                log.errorMessage,
-                if (log.retryCount > 0) s.activityRetryBadge(log.retryCount) else null
-            ).any { it.lowercase().contains(normalizedQuery) }
-            val matchesFailed = !filterOnlyFailed || log.statusCode >= 400
-            matchesTag && matchesQuery && matchesFailed
+    val clientCounts = remember(logs) {
+        ActivityClientKind.values().associateWith { kind -> logs.count { it.clientKind() == kind } }
+    }
+    val endpointCounts = remember(logs) {
+        logs.groupingBy(ActivityLog::path)
+            .eachCount()
+            .toList()
+            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
+    }
+    val routeCounts = remember(logs) {
+        logs.groupingBy(ActivityLog::routeKey)
+            .eachCount()
+            .toList()
+            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
+    }
+    val statusCounts = remember(logs) {
+        ActivityStatusKind.values().associateWith { status -> logs.count(status::matches) }
+    }
+    val displayedLogs = remember(logs, normalizedQuery, activityFilter, s) {
+        filterActivityLogs(logs, normalizedQuery, activityFilter) { log ->
+            buildList {
+                add(if (log.isOfficialPassthrough) s.activityPassthrough else s.activityRouted)
+                if (log.retryCount > 0) add(s.activityRetryBadge(log.retryCount))
+                add(activityClientLabel(log.clientKind(), s))
+            }
         }
     }
 
@@ -136,7 +135,7 @@ fun ActivityScreen(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                // 顶部工具栏：搜索框 + Tag 多选筛选器 + 清空操作
+                // 顶部工具栏：全文搜索 + 客户端快捷筛选 + 多维筛选 + 日志操作
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -150,20 +149,27 @@ fun ActivityScreen(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             placeholder = s.activitySearchPlaceholder,
-                            modifier = Modifier.width(280.dp)
+                            modifier = Modifier.width(300.dp)
                         )
 
-                        TagFilterDropdown(
-                            availableTagsWithCounts = availableTagsWithCounts,
-                            selectedTags = selectedTags,
-                            onTagToggle = { tag ->
-                                val allTagNames = availableTagsWithCounts.map { it.first }.toSet()
-                                val effective = if (selectedTags.isEmpty()) allTagNames else selectedTags
-                                val next = if (tag in effective) effective - tag else effective + tag
-                                selectedTags = if (next.isEmpty() || next.size == allTagNames.size) emptySet() else next
-                            },
-                            onSelectAll = { selectedTags = emptySet() },
-                            onClearAll = { selectedTags = emptySet() },
+                        ActivityQuickClientFilters(
+                            clientCounts = clientCounts,
+                            filter = activityFilter,
+                            onFilterChange = { activityFilter = it },
+                            s = s
+                        )
+
+                        ActivityFilterDropdown(
+                            totalCount = logs.size,
+                            matchingCount = displayedLogs.size,
+                            clientCounts = clientCounts,
+                            endpointCounts = endpointCounts,
+                            routeCounts = routeCounts,
+                            statusCounts = statusCounts,
+                            filter = activityFilter,
+                            resetKey = filterResetKey,
+                            onFilterChange = { activityFilter = it },
+                            onResetAll = ::resetActivityFilters,
                             s = s
                         )
                     }
@@ -216,7 +222,7 @@ fun ActivityScreen(
                         OutlinedButton(
                             onClick = {
                                 viewModel.clearActivityLogs()
-                                selectedTags = emptySet()
+                                resetActivityFilters()
                             },
                             modifier = Modifier.height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.topButtonHeight),
                             shape = RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm),
@@ -240,6 +246,18 @@ fun ActivityScreen(
                     }
                 }
 
+                if (activityFilter.isActive || normalizedQuery.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    ActivityFilterSummaryRow(
+                        filter = activityFilter,
+                        shownCount = displayedLogs.size,
+                        totalCount = logs.size,
+                        onFilterChange = { activityFilter = it },
+                        onResetAll = ::resetActivityFilters,
+                        s = s
+                    )
+                }
+
                 Spacer(Modifier.height(14.dp))
 
                 // 指标卡片（前两项支持点击快速切换筛选）
@@ -250,16 +268,18 @@ fun ActivityScreen(
                     ActivityMetricCard(
                         label = s.activityTotal,
                         value = logs.size.toString(),
-                        selected = !filterOnlyFailed,
-                        onClick = { filterOnlyFailed = false },
+                        selected = activityFilter.statuses.isEmpty(),
+                        onClick = { activityFilter = activityFilter.copy(statuses = emptySet()) },
                         modifier = Modifier.weight(1f)
                     )
                     ActivityMetricCard(
                         label = s.activityFailedTotal,
                         value = failedCount.toString(),
                         isWarning = failedCount > 0,
-                        selected = filterOnlyFailed,
-                        onClick = { filterOnlyFailed = true },
+                        selected = activityFilter.statuses == setOf(ActivityStatusKind.FAILED),
+                        onClick = {
+                            activityFilter = activityFilter.copy(statuses = setOf(ActivityStatusKind.FAILED))
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     val avgTier = getDurationLatencyTier(averageDuration)
@@ -737,227 +757,6 @@ private fun formatLogTime(timestampMs: Long): String {
 }
 
 @Composable
-private fun TagFilterDropdown(
-    availableTagsWithCounts: List<Pair<String, Int>>,
-    selectedTags: Set<String>,
-    onTagToggle: (String) -> Unit,
-    onSelectAll: () -> Unit,
-    onClearAll: () -> Unit,
-    s: Strings,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val isFiltered = selectedTags.isNotEmpty()
-
-    val buttonLabel = when {
-        selectedTags.isEmpty() -> s.activityAllTags
-        selectedTags.size == 1 -> selectedTags.first()
-        else -> s.activitySelectedTagsCount(selectedTags.size)
-    }
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-
-    val containerColor = if (isFiltered) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-    } else if (isHovered) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-
-    val borderColor = if (isFiltered) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-    } else if (isHovered) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-    } else {
-        MaterialTheme.colorScheme.outlineVariant
-    }
-
-    val textColor = if (isFiltered) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-
-    Box(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .height(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.Sizes.topButtonHeight)
-                .clip(RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm))
-                .background(containerColor)
-                .border(
-                    1.dp,
-                    borderColor,
-                    RoundedCornerShape(com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.CornerRadius.sm)
-                )
-                .pointerHoverIcon(PointerIcon.Hand)
-                .hoverable(interactionSource = interactionSource)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = { expanded = !expanded }
-                )
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Tune,
-                contentDescription = null,
-                tint = if (isFiltered) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(AppTokens.Size.iconSmall)
-            )
-
-            Text(
-                text = buttonLabel,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens.TextSize.body,
-                    fontWeight = if (isFiltered) FontWeight.SemiBold else FontWeight.Normal
-                ),
-                color = textColor,
-                maxLines = 1
-            )
-
-            if (isFiltered) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .clickable { onClearAll() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = s.activityClearFilter,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
-            } else {
-                Icon(
-                    imageVector = if (expanded) Icons.Outlined.ArrowDropUp else Icons.Outlined.ArrowDropDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(AppTokens.Size.iconSmall)
-                )
-            }
-        }
-
-        StudioDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.widthIn(min = 260.dp, max = 340.dp)
-        ) {
-            // Header: Title + Select All / Reset Actions
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${s.activityTagFilterTitle} (${availableTagsWithCounts.size})",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = s.activitySelectAll,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .pointerHoverIcon(PointerIcon.Hand)
-                                .clickable { onSelectAll() }
-                        )
-                        if (isFiltered) {
-                            Text(
-                                text = s.activityClearFilter,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier
-                                    .pointerHoverIcon(PointerIcon.Hand)
-                                    .clickable { onClearAll() }
-                            )
-                        }
-                    }
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-            if (availableTagsWithCounts.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = s.activityEmpty,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 240.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    availableTagsWithCounts.forEach { (tag, count) ->
-                        val isExplicitChecked = tag in selectedTags
-
-                        val itemInteractionSource = remember { MutableInteractionSource() }
-                        val isItemHovered by itemInteractionSource.collectIsHoveredAsState()
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(if (isItemHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent)
-                                .pointerHoverIcon(PointerIcon.Hand)
-                                .hoverable(itemInteractionSource)
-                                .clickable(
-                                    interactionSource = itemInteractionSource,
-                                    indication = null,
-                                    onClick = { onTagToggle(tag) }
-                                )
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                StudioCheckbox(
-                                    checked = if (selectedTags.isEmpty()) true else isExplicitChecked,
-                                    onCheckedChange = { onTagToggle(tag) }
-                                )
-                                Text(
-                                    text = tag,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isExplicitChecked) FontWeight.SemiBold else FontWeight.Normal
-                                    ),
-                                    color = if (isExplicitChecked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
-                                )
-                            }
-                            Text(
-                                text = "($count)",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ClientSourceBadge(
     clientSource: String,
     modifier: Modifier = Modifier
@@ -992,4 +791,3 @@ private fun ClientSourceBadge(
         }
     }
 }
-
