@@ -220,10 +220,16 @@ fun main() {
                 }
             }
 
-            LaunchedEffect(Unit) {
+            LaunchedEffect(window) {
                 window.minimumSize = java.awt.Dimension(1280, 820)
+                try {
+                    val rootPane = window.rootPane
+                    rootPane.putClientProperty("apple.awt.fullWindowContent", true)
+                    rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
+                    rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+                } catch (_: Exception) {
+                }
             }
-
 
             App(window = window)
         }
