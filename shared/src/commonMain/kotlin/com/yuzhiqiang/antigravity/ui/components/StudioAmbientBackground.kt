@@ -15,10 +15,10 @@ import androidx.compose.ui.graphics.luminance
 
 /**
  * 全局环境氛围流光背景容器 (StudioAmbientBackground)。
- * 深度融合现代浅色纯白毛玻璃双主题体系：
- * 1. 晨曦微光 (DAWN): 极净晨曦暖粉 (#FAF4F6) + 珊瑚暖桃 (#F43F5E) 柔光漫射 (Toolbox 经典温润感)
- * 2. 深海幽蓝 (DEEP_OCEAN 浅色): 极净冰川冷白 (#F0F6FA) + 深海湛蓝 (#0284C7) 与冰川天蓝 (#38BDF8) 清澈漫射
- * 3. 深色模式: 深邃深空曜黑 (#090D16 / #0B132B) + 星空极光
+ * 自适应 8 大主题色彩体系（赤橙黄绿青蓝紫 + 极简纯白）：
+ * - 浅色模式下以极净浅色底板为基底，由主色 (Primary) 与辅助色 (Tertiary) 动态生成 8%~12% 专属极淡优雅漫射；
+ * - 为上层纯白半透明磨砂毛玻璃卡片 (Color.White 0.82f) 提供通透晶莹的散射折射光源；
+ * - 深色模式下提供深邃冷夜星空与柔和星云极光漫射。
  */
 @Composable
 fun StudioAmbientBackground(
@@ -31,11 +31,13 @@ fun StudioAmbientBackground(
     val primaryColor = MaterialTheme.colorScheme.primary
     val tertiaryColor = MaterialTheme.colorScheme.tertiary
     val secondaryColor = MaterialTheme.colorScheme.secondary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val secondaryContainer = MaterialTheme.colorScheme.secondaryContainer
 
-    // 判断当前浅色主题是否为深海幽蓝 (冰川蓝底色)
-    val isDeepOceanLight = !isDark && surfaceColor == Color(0xFFF0F6FA)
+    // 判断是否为 100% 纯白主题
+    val isPureWhite = !isDark && surfaceColor == Color.White
 
-    // 1. 视口全屏底色：根据主题选用晨曦暖桃或冰川湛蓝
+    // 1. 视口全屏底色：根据当前主题色动态合成流光大底板 (纯白主题下为绝对纯白)
     val bgBrush = if (isDark) {
         Brush.linearGradient(
             colors = listOf(
@@ -47,25 +49,20 @@ fun StudioAmbientBackground(
             start = Offset(0f, 0f),
             end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
         )
-    } else if (isDeepOceanLight) {
+    } else if (isPureWhite) {
         Brush.linearGradient(
-            colors = listOf(
-                Color(0xFFF0F6FA), // 极净冰川浅冷白
-                Color(0xFFE6EFF7), // 柔和冰川浅蓝
-                Color(0xFFE0F2FE), // 通透浅冰蓝漫射
-                Color(0xFFF0F6FA)
-            ),
+            colors = listOf(Color.White, Color.White),
             start = Offset(0f, 0f),
             end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
         )
     } else {
         Brush.linearGradient(
             colors = listOf(
-                Color(0xFFFAF4F6), // 极净晨曦暖白
-                Color(0xFFF7EFF2), // 柔和微桃灰
-                Color(0xFFFBECEF), // 晨曦暖桃微漫射
-                Color(0xFFEEF4FF), // 冰川微蓝折射源
-                Color(0xFFFAF4F6)
+                surfaceColor,
+                surfaceColor,
+                primaryContainer.copy(alpha = 0.30f),
+                secondaryContainer.copy(alpha = 0.35f),
+                surfaceColor
             ),
             start = Offset(0f, 0f),
             end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
@@ -77,64 +74,57 @@ fun StudioAmbientBackground(
             .fillMaxSize()
             .background(bgBrush)
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
+        if (!isPureWhite || isDark) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
 
-            // 2. 右上方主环境光斑 (晨曦暖桃 或 深海湛蓝)
-            val primaryGlowColor = when {
-                isDark -> primaryColor.copy(alpha = 0.14f)
-                isDeepOceanLight -> Color(0x280284C7) // 深海湛蓝清澈漫射
-                else -> Color(0x22F43F5E)            // 珊瑚暖桃微漫射 (Toolbox 经典光感)
-            }
-
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        primaryGlowColor,
-                        primaryGlowColor.copy(alpha = primaryGlowColor.alpha * 0.35f),
-                        Color.Transparent
+                // 2. 右上方主环境光斑 (当前主题 Primary 强调色柔光漫射)
+                val primaryGlow = primaryColor.copy(alpha = if (isDark) 0.14f else 0.12f)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            primaryGlow,
+                            primaryGlow.copy(alpha = primaryGlow.alpha * 0.35f),
+                            Color.Transparent
+                        ),
+                        center = Offset(w * 0.92f, h * 0.08f),
+                        radius = (w * 0.55f).coerceAtLeast(460f)
                     ),
                     center = Offset(w * 0.92f, h * 0.08f),
                     radius = (w * 0.55f).coerceAtLeast(460f)
-                ),
-                center = Offset(w * 0.92f, h * 0.08f),
-                radius = (w * 0.55f).coerceAtLeast(460f)
-            )
+                )
 
-            // 3. 顶部中部次级折射微光
-            val topGlowColor = when {
-                isDark -> Color(0x1F7C3AED)
-                isDeepOceanLight -> Color(0x1F38BDF8) // 冰川天蓝高光
-                else -> Color(0x180284C7)             // 沉稳深海蓝微光
-            }
-
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        topGlowColor,
-                        Color.Transparent
+                // 3. 顶部中部次级折射微光 (Tertiary 色相微光)
+                val topGlow = tertiaryColor.copy(alpha = if (isDark) 0.10f else 0.08f)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            topGlow,
+                            Color.Transparent
+                        ),
+                        center = Offset(w * 0.40f, h * 0.05f),
+                        radius = (w * 0.42f).coerceAtLeast(360f)
                     ),
                     center = Offset(w * 0.40f, h * 0.05f),
                     radius = (w * 0.42f).coerceAtLeast(360f)
-                ),
-                center = Offset(w * 0.40f, h * 0.05f),
-                radius = (w * 0.42f).coerceAtLeast(360f)
-            )
+                )
 
-            // 4. 左下方微弱环境光
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        tertiaryColor.copy(alpha = if (isDark) 0.10f else 0.04f),
-                        Color.Transparent
+                // 4. 左下方微弱环境光
+                val bottomGlow = secondaryColor.copy(alpha = if (isDark) 0.08f else 0.04f)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            bottomGlow,
+                            Color.Transparent
+                        ),
+                        center = Offset(w * 0.06f, h * 0.92f),
+                        radius = (w * 0.38f).coerceAtLeast(320f)
                     ),
                     center = Offset(w * 0.06f, h * 0.92f),
                     radius = (w * 0.38f).coerceAtLeast(320f)
-                ),
-                center = Offset(w * 0.06f, h * 0.92f),
-                radius = (w * 0.38f).coerceAtLeast(320f)
-            )
+                )
+            }
         }
 
         content()

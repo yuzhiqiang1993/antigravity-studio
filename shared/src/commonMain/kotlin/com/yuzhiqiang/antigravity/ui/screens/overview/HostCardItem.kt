@@ -192,17 +192,11 @@ fun HostCardItem(
                 )
             }
 
-            // 2. 核心代理模式状态区 (通透双层磨砂 Sub-Glass 面板)
-            val panelBg = StudioGlassTokens.innerPanelBackgroundColor(isDark)
-            val panelBorder = StudioGlassTokens.innerPanelBorderColor(isDark)
-
+            // 2. 核心代理模式状态区 (与卡片本体完全融为一体，无内套小方盒)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(panelBg)
-                    .border(1.dp, panelBorder, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(vertical = 2.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(
