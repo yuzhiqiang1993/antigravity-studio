@@ -126,7 +126,7 @@ fun AppSidebar(
                     .padding(
                         start = if (isCollapsed) 8.dp else 12.dp,
                         end = if (isCollapsed) 8.dp else 12.dp,
-                        top = 20.dp,
+                        top = 36.dp,
                         bottom = 16.dp
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally
