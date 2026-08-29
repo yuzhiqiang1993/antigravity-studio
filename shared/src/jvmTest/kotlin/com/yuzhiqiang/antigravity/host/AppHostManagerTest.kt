@@ -37,7 +37,8 @@ class AppHostManagerTest {
     fun testInstallAndRestoreLanguageServerShim() {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
         val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
-        val origBinary = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+        val origBinary =
+            if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
         val shimFile = if (isWindows) File(binDir, "language_server.cmd") else lsBinary
 
         // 1. 模拟初始原生二进制
@@ -80,10 +81,39 @@ class AppHostManagerTest {
     }
 
     @Test
+    fun testCustomExecutablePathResolvesToAppRoot() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val appExecutable = if (isWindows) {
+            File(tempAppDir, "Antigravity.exe").apply { writeText("APP_BINARY") }
+        } else {
+            File(tempAppDir, "Contents/MacOS/Antigravity").apply {
+                parentFile.mkdirs()
+                writeText("APP_BINARY")
+            }
+        }
+        val expectedRoot = tempAppDir.absoluteFile.normalize().path
+
+        assertEquals(
+            expectedRoot,
+            AppHostManager.getCandidateInstallations(appExecutable.absolutePath).single().absoluteFile.normalize().path
+        )
+
+        val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+        val origBinary =
+            if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+        lsBinary.writeText("RAW_BINARY_CONTENT")
+
+        assertTrue(AppHostManager.installLanguageServerShim(8330, appExecutable.absolutePath))
+        assertTrue(origBinary.exists())
+        assertTrue(AppHostManager.isShimInstalled(appExecutable.absolutePath))
+    }
+
+    @Test
     fun testRestoreWhenOriginalExistsAndShimDeleted() {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
         val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
-        val origBinary = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+        val origBinary =
+            if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
 
         // 模拟异常状态：lsBinary 不存在，仅 origBinary 存在
         origBinary.writeText("RECOVERABLE_CONTENT")
@@ -104,7 +134,8 @@ class AppHostManagerTest {
     fun testShimDetectionWhenNativeBinaryExists() {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
         val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
-        val origBinary = if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+        val origBinary =
+            if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
 
         // 原生 Mach-O / PE 二进制文件内容，不含 shim 标记
         lsBinary.writeBytes(byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01))
@@ -117,5 +148,46 @@ class AppHostManagerTest {
         assertTrue(lsBinary.exists())
         assertFalse(origBinary.exists())
         assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
+    }
+
+    @Test
+    fun leftoverOriginalBackupIsNotProxyActive() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val origBinary =
+            if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+        origBinary.writeText("RECOVERABLE_CONTENT")
+
+        assertTrue(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
+        val status = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
+        assertFalse(status.isProxyActive)
+        assertTrue(status.needsUpdate)
+    }
+
+    @Test
+    fun diagnoseInstallOnRealAntigravityApp() {
+        if (System.getenv("ANTIGRAVITY_DIAGNOSE_REAL_APP") != "1") {
+            return
+        }
+        val appRoot = File("/Applications/Antigravity.app")
+        if (!appRoot.isDirectory) {
+            println("SKIP: /Applications/Antigravity.app 不存在")
+            return
+        }
+        val binDir = File(appRoot, "Contents/Resources/bin")
+        val lsFile = File(binDir, "language_server")
+        val origFile = File(binDir, "language_server.original")
+        println("BEFORE ls exists=${lsFile.exists()} size=${lsFile.length()} orig=${origFile.exists()} size=${origFile.length()}")
+        println("BEFORE candidates=${AppHostManager.getCandidateInstallations(appRoot.absolutePath)}")
+        println("BEFORE isShimInstalled=${AppHostManager.isShimInstalled(appRoot.absolutePath)}")
+        val ok = AppHostManager.installLanguageServerShim(8321, appRoot.absolutePath)
+        println("INSTALL ok=$ok")
+        println("AFTER ls exists=${lsFile.exists()} size=${lsFile.length()} orig=${origFile.exists()} size=${origFile.length()}")
+        println("AFTER isShimInstalled=${AppHostManager.isShimInstalled(appRoot.absolutePath)}")
+        val head = runCatching {
+            lsFile.inputStream().use { it.readNBytes(256).toString(Charsets.UTF_8) }
+        }.getOrElse { it.message }
+        println("AFTER head=$head")
+        val status = AppHostManager.inspect(8321, isProxyRunning = true, appRoot.absolutePath)
+        println("AFTER inspect active=${status.isProxyActive} needsUpdate=${status.needsUpdate} integration=${status.integrationState} config=${status.configurationState}")
     }
 }
