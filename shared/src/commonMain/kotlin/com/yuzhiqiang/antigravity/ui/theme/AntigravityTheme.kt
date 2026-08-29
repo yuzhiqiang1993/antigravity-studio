@@ -91,7 +91,7 @@ private val AppShapes = Shapes(
 @Composable
 fun AntigravityTheme(
     themeMode: String? = "system",
-    themePalette: String? = "white",
+    themePalette: String? = "dawn",
     content: @Composable () -> Unit
 ) {
     val isDark = when (themeMode) {

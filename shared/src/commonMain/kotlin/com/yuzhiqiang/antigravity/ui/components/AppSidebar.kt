@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +97,9 @@ fun AppSidebar(
         )
     )
 
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val outlineVariant = MaterialTheme.colorScheme.outlineVariant
+
     Box(
         modifier = modifier
             .width(sidebarWidth)
@@ -103,8 +107,17 @@ fun AppSidebar(
             .zIndex(10f)
     ) {
         PermanentDrawerSheet(
-            modifier = Modifier.fillMaxSize(),
-            drawerContainerColor = MaterialTheme.colorScheme.surface,
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    drawLine(
+                        color = outlineVariant.copy(alpha = if (isDark) 0.25f else 0.35f),
+                        start = Offset(size.width, 0f),
+                        end = Offset(size.width, size.height),
+                        strokeWidth = 1f
+                    )
+                },
+            drawerContainerColor = Color.Transparent,
             drawerShape = RoundedCornerShape(0.dp)
         ) {
             Column(

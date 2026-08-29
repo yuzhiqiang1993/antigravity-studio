@@ -157,6 +157,69 @@ fun GeneralSettingsSection(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
+                // 配色方案
+                SettingRow(
+                    icon = Icons.Outlined.Palette,
+                    title = s.settingsThemePalette,
+                    description = s.settingsThemePaletteDescription,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    val currentPalette = config.themePalette.ifBlank { "dawn" }
+                    Row(
+                        modifier = Modifier
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                shape = RoundedCornerShape(AppTokens.Radius.pill)
+                            )
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for (palette in ThemePalette.entries) {
+                            val paletteId = palette.id
+                            val paletteLabel = palette.labelProvider(s)
+                            val colorDot = palette.previewColor
+                            val selected = currentPalette == paletteId || (paletteId == "dawn" && currentPalette == "white")
+                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                            val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                    .background(bg)
+                                    .clickable { onUpdateThemePalette(paletteId) }
+                                    .padding(horizontal = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                        .background(if (selected) Color.White else colorDot)
+                                        .border(
+                                            width = if (paletteId == "dawn" && !selected) 1.dp else 0.5.dp,
+                                            color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                            shape = RoundedCornerShape(AppTokens.Radius.pill)
+                                        )
+                                )
+                                Text(
+                                    text = paletteLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = text
+                                )
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+
                 // 自动检查更新
                 SettingRow(
                     icon = Icons.Outlined.Sync,

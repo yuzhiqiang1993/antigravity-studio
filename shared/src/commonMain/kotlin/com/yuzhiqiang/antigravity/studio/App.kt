@@ -91,47 +91,48 @@ fun App(
                 modifier = Modifier.fillMaxSize(),
                 color = backgroundColor
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        AppSidebar(
-                            viewModel = viewModel,
-                            modifier = Modifier.fillMaxHeight()
-                        )
+                StudioAmbientBackground(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            AppSidebar(
+                                viewModel = viewModel,
+                                modifier = Modifier.fillMaxHeight()
+                            )
 
-                        StudioAmbientBackground(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                        ) {
-                            AnimatedContent(
-                                targetState = currentTab,
-                                transitionSpec = {
-                                    (fadeIn(animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.decelerateEasing)) +
-                                            slideInVertically(animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.decelerateEasing)) { 14 })
-                                        .togetherWith(
-                                            fadeOut(animationSpec = tween(AppTokens.Motion.durationShort, easing = AppTokens.Motion.accelerateEasing))
-                                        )
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            ) { tab ->
-                                when (tab) {
-                                    NavTab.OVERVIEW -> OverviewScreen(viewModel = viewModel)
-                                    NavTab.ACCOUNTS -> AccountsScreen(viewModel = viewModel)
-                                    NavTab.MODELS -> ModelsScreen(viewModel = viewModel)
-                                    NavTab.ACTIVITY -> ActivityScreen(viewModel = viewModel)
-                                    NavTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
-
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            ) {
+                                AnimatedContent(
+                                    targetState = currentTab,
+                                    transitionSpec = {
+                                        (fadeIn(animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.decelerateEasing)) +
+                                                slideInVertically(animationSpec = tween(AppTokens.Motion.durationMedium, easing = AppTokens.Motion.decelerateEasing)) { 14 })
+                                            .togetherWith(
+                                                fadeOut(animationSpec = tween(AppTokens.Motion.durationShort, easing = AppTokens.Motion.accelerateEasing))
+                                            )
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                ) { tab ->
+                                    when (tab) {
+                                        NavTab.OVERVIEW -> OverviewScreen(viewModel = viewModel)
+                                        NavTab.ACCOUNTS -> AccountsScreen(viewModel = viewModel)
+                                        NavTab.MODELS -> ModelsScreen(viewModel = viewModel)
+                                        NavTab.ACTIVITY -> ActivityScreen(viewModel = viewModel)
+                                        NavTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // 全局 Toast 通知
-                    AppSnackbarHost(
-                        notice = notice,
-                        onDismiss = { viewModel.dismissNotice() },
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    )
+                        // 全局 Toast 通知
+                        AppSnackbarHost(
+                            notice = notice,
+                            onDismiss = { viewModel.dismissNotice() },
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+                    }
                 }
 
                 // Doctor 对话框

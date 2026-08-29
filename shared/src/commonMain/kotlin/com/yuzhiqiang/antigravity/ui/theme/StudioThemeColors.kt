@@ -1,8 +1,11 @@
 package com.yuzhiqiang.antigravity.ui.theme
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.account.AccountTier
@@ -33,7 +36,7 @@ data class QuotaLevelColors(
     val critical: QuotaLevelStyle  // 告警 (<20%)
 )
 
-val LocalAppQuotaColors = compositionLocalOf { StudioThemeColors.lightQuotaColors }
+val LocalAppQuotaColors = compositionLocalOf<QuotaLevelColors> { StudioThemeColors.lightQuotaColors }
 
 /**
  * 暗色系强调色徽章样式 (Dark-Toned Accent Badge Style)
@@ -46,104 +49,61 @@ data class BadgeStyle(
 )
 
 /**
- * 统一徽章色彩工厂：提供沉稳、高级、富有质感的暗色系强调色
+ * 强调色徽章样式 (Accent Badge Style - 严格呼应当前主题的主色与辅助色)
  */
 object StudioBadgeColors {
     /**
      * 账号等级徽章 (Pro, Ultra, Enterprise, Free)
+     * 严格消费当前主题的强调色 (Primary / Tertiary / SurfaceVariant) 产生同频呼应
      */
-    fun tierBadge(tier: AccountTier, isDark: Boolean): BadgeStyle {
-        return if (isDark) {
-            when (tier) {
-                AccountTier.ULTRA -> BadgeStyle(
-                    bg = Color(0xFF3B0764),
-                    text = Color(0xFFE9D5FF),
-                    border = Color(0xFF7E22CE)
-                )
-                AccountTier.PRO -> BadgeStyle(
-                    bg = Color(0xFF172554),
-                    text = Color(0xFFBFDBFE),
-                    border = Color(0xFF2563EB)
-                )
-                AccountTier.ENTERPRISE -> BadgeStyle(
-                    bg = Color(0xFF082F49),
-                    text = Color(0xFFBAE6FD),
-                    border = Color(0xFF0284C7)
-                )
-                AccountTier.FREE -> BadgeStyle(
-                    bg = Color(0xFF1E293B),
-                    text = Color(0xFF94A3B8),
-                    border = Color(0xFF334155)
-                )
-            }
-        } else {
-            // 浅色模式下采用高质感暗色调背景 + 纯白高对比度文字
-            when (tier) {
-                AccountTier.ULTRA -> BadgeStyle(
-                    bg = Color(0xFF6B21A8),
-                    text = Color(0xFFFFFFFF),
-                    border = Color(0xFF581C87)
-                )
-                AccountTier.PRO -> BadgeStyle(
-                    bg = Color(0xFF1E40AF),
-                    text = Color(0xFFFFFFFF),
-                    border = Color(0xFF1E3A8A)
-                )
-                AccountTier.ENTERPRISE -> BadgeStyle(
-                    bg = Color(0xFF0369A1),
-                    text = Color(0xFFFFFFFF),
-                    border = Color(0xFF075985)
-                )
-                AccountTier.FREE -> BadgeStyle(
-                    bg = Color(0xFF475569),
-                    text = Color(0xFFFFFFFF),
-                    border = Color(0xFF334155)
-                )
-            }
+    @Composable
+    fun tierBadge(tier: AccountTier, isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f): BadgeStyle {
+        return when (tier) {
+            AccountTier.ULTRA -> BadgeStyle(
+                bg = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = if (isDark) 0.65f else 0.85f),
+                text = MaterialTheme.colorScheme.onTertiaryContainer,
+                border = MaterialTheme.colorScheme.tertiary.copy(alpha = if (isDark) 0.40f else 0.25f)
+            )
+            AccountTier.PRO -> BadgeStyle(
+                bg = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.65f else 0.85f),
+                text = MaterialTheme.colorScheme.onPrimaryContainer,
+                border = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.40f else 0.25f)
+            )
+            AccountTier.ENTERPRISE -> BadgeStyle(
+                bg = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.20f else 0.12f),
+                text = MaterialTheme.colorScheme.primary,
+                border = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.45f else 0.30f)
+            )
+            AccountTier.FREE -> BadgeStyle(
+                bg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.40f else 0.65f),
+                text = MaterialTheme.colorScheme.onSurfaceVariant,
+                border = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.40f)
+            )
         }
     }
 
     /**
-     * 宿主环境激活徽章 (IDE, App & CLI, CLI)
+     * 宿主环境激活徽章 (IDE, App & CLI, DualActive)
+     * 严格消费当前主题的强调色 (PrimaryContainer / TertiaryContainer)
      */
-    fun hostBadge(isDualActive: Boolean, isIdeActive: Boolean, isDark: Boolean): BadgeStyle {
-        return if (isDark) {
-            when {
-                isDualActive -> BadgeStyle(
-                    bg = Color(0xFF064E3B),
-                    text = Color(0xFFA7F3D0),
-                    border = Color(0xFF059669)
-                )
-                isIdeActive -> BadgeStyle(
-                    bg = Color(0xFF082F49),
-                    text = Color(0xFFBAE6FD),
-                    border = Color(0xFF0284C7)
-                )
-                else -> BadgeStyle(
-                    bg = Color(0xFF3B0764),
-                    text = Color(0xFFE9D5FF),
-                    border = Color(0xFF7E22CE)
-                )
-            }
-        } else {
-            // 浅色模式下采用沉稳暗色调背景 + 纯白高对比度文字
-            when {
-                isDualActive -> BadgeStyle(
-                    bg = Color(0xFF047857),
-                    text = Color(0xFFFFFFFF),
-                    border = Color(0xFF065F46)
-                )
-                isIdeActive -> BadgeStyle(
-                    bg = Color(0xFF0284C7),
-                    text = Color(0xFFFFFFFF),
-                    border = Color(0xFF0369A1)
-                )
-                else -> BadgeStyle(
-                    bg = Color(0xFF7C3AED),
-                    text = Color(0xFFFFFFFF),
-                    border = Color(0xFF6D28D9)
-                )
-            }
+    @Composable
+    fun hostBadge(isDualActive: Boolean, isIdeActive: Boolean, isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f): BadgeStyle {
+        return when {
+            isDualActive -> BadgeStyle(
+                bg = Color(0xFF047857).copy(alpha = if (isDark) 0.22f else 0.12f),
+                text = if (isDark) Color(0xFFA7F3D0) else Color(0xFF047857),
+                border = Color(0xFF047857).copy(alpha = if (isDark) 0.45f else 0.28f)
+            )
+            isIdeActive -> BadgeStyle(
+                bg = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.65f else 0.85f),
+                text = MaterialTheme.colorScheme.onPrimaryContainer,
+                border = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.40f else 0.25f)
+            )
+            else -> BadgeStyle(
+                bg = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = if (isDark) 0.65f else 0.85f),
+                text = MaterialTheme.colorScheme.onTertiaryContainer,
+                border = MaterialTheme.colorScheme.tertiary.copy(alpha = if (isDark) 0.40f else 0.25f)
+            )
         }
     }
 }
