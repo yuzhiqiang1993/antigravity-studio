@@ -19,7 +19,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -339,17 +341,19 @@ fun SectionLabel(
 }
 
 /**
- * 品牌 Icon 包装器 (纯透明底，无卡片白底，高清 88x88).
+ * 品牌 Icon 包装器 (纯透明底，支持根据当前主题 Primary 动态变色).
  */
 @Composable
 fun BrandMark(
     modifier: Modifier = Modifier,
-    size: Dp = 88.dp
+    size: Dp = 88.dp,
+    tint: Color? = MaterialTheme.colorScheme.primary
 ) {
     Image(
         painter = painterResource(Res.drawable.logo_transparent),
         contentDescription = "Antigravity Studio",
         contentScale = ContentScale.Fit,
+        colorFilter = tint?.let { ColorFilter.tint(it, BlendMode.SrcIn) },
         modifier = modifier.size(size)
     )
 }

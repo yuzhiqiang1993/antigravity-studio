@@ -8,7 +8,7 @@ import com.yuzhiqiang.antigravity.i18n.Strings
 
 /**
  * 现代核心主题调色板全集 (赤橙黄绿青蓝紫 + 极简纯白)
- * 严格遵循 Material Design 3 规范、暗色调（Dark-Toned）克制原则与现代纯白毛玻璃体系
+ * 严格遵循 Material Design 3 规范、暗色调（Dark-Toned）克制原则与现代 Tinted Tonal Surface（色调微浸润卡片）体系
  */
 enum class ThemePalette(
     val id: String,
@@ -17,7 +17,7 @@ enum class ThemePalette(
 ) {
     WHITE(
         id = "white",
-        previewColor = Color(0xFF18181B),
+        previewColor = Color(0xFF0284C7),
         labelProvider = { it.paletteWhite }
     ),
     RED(
@@ -154,7 +154,7 @@ object ThemePalettes {
                 onSurfaceVariant = Color(0xFF57534E),
                 surfaceContainerLowest = Color(0xFFFFFFFF),
                 surfaceContainerLow = Color(0xFFFBF4F5),
-                surfaceContainer = Color(0xFFFFFFFF),
+                surfaceContainer = Color(0xFFFAF2F4),      // 极淡初桃胭粉白卡片 (呼应赤红主题)
                 surfaceContainerHigh = Color(0xFFF7EBEF),
                 surfaceContainerHighest = Color(0xFFE5D5DA),
                 surfaceDim = Color(0xFFE5D5DA),
@@ -162,7 +162,7 @@ object ThemePalettes {
                 inverseSurface = Color(0xFF1C1917),
                 inverseOnSurface = Color(0xFFF8FAFC),
                 outline = Color(0xFFA8A29E),
-                outlineVariant = Color(0xFFE5D5DA),
+                outlineVariant = Color(0xFFF2DDE2),   // 柔和初桃轮廓
                 error = LightError,
                 onError = LightOnError,
                 errorContainer = LightErrorContainer,
@@ -190,7 +190,7 @@ object ThemePalettes {
                 onSurfaceVariant = Color(0xFF57534E),
                 surfaceContainerLowest = Color(0xFFFFFFFF),
                 surfaceContainerLow = Color(0xFFFAF5F0),
-                surfaceContainer = Color(0xFFFFFFFF),
+                surfaceContainer = Color(0xFFFAF4EE),      // 极淡落日暖杏白卡片 (呼应焦橙主题)
                 surfaceContainerHigh = Color(0xFFF5ECE4),
                 surfaceContainerHighest = Color(0xFFE5D8CD),
                 surfaceDim = Color(0xFFE5D8CD),
@@ -198,7 +198,7 @@ object ThemePalettes {
                 inverseSurface = Color(0xFF1C1917),
                 inverseOnSurface = Color(0xFFF8FAFC),
                 outline = Color(0xFFA8A29E),
-                outlineVariant = Color(0xFFE5D8CD),
+                outlineVariant = Color(0xFFF0E3D5),   // 柔和暖杏轮廓
                 error = LightError,
                 onError = LightOnError,
                 errorContainer = LightErrorContainer,
@@ -226,7 +226,7 @@ object ThemePalettes {
                 onSurfaceVariant = Color(0xFF57534E),
                 surfaceContainerLowest = Color(0xFFFFFFFF),
                 surfaceContainerLow = Color(0xFFFAF6F0),
-                surfaceContainer = Color(0xFFFFFFFF),
+                surfaceContainer = Color(0xFFFAF5EE),      // 极淡暮光金珀白卡片 (呼应金珀主题)
                 surfaceContainerHigh = Color(0xFFF5EEE3),
                 surfaceContainerHighest = Color(0xFFE5DACB),
                 surfaceDim = Color(0xFFE5DACB),
@@ -234,7 +234,7 @@ object ThemePalettes {
                 inverseSurface = Color(0xFF1C1917),
                 inverseOnSurface = Color(0xFFF8FAFC),
                 outline = Color(0xFFA8A29E),
-                outlineVariant = Color(0xFFE5DACB),
+                outlineVariant = Color(0xFFF0E5D5),   // 柔和金珀轮廓
                 error = LightError,
                 onError = LightOnError,
                 errorContainer = LightErrorContainer,
@@ -262,7 +262,7 @@ object ThemePalettes {
                 onSurfaceVariant = Color(0xFF335C4D),
                 surfaceContainerLowest = Color(0xFFFFFFFF),
                 surfaceContainerLow = Color(0xFFF2F8F5),
-                surfaceContainer = Color(0xFFFFFFFF),
+                surfaceContainer = Color(0xFFF2F9F5),      // 极淡初荷浅翠白卡片 (呼应翠绿主题)
                 surfaceContainerHigh = Color(0xFFE4F0EB),
                 surfaceContainerHighest = Color(0xFFCDDFD7),
                 surfaceDim = Color(0xFFCDDFD7),
@@ -270,7 +270,7 @@ object ThemePalettes {
                 inverseSurface = Color(0xFF064E3B),
                 inverseOnSurface = Color(0xFFF8FAFC),
                 outline = Color(0xFF6EE7B7).copy(alpha = 0.5f),
-                outlineVariant = Color(0xFFCDDFD7),
+                outlineVariant = Color(0xFFD6EAE0),   // 柔和薄荷轮廓
                 error = LightError,
                 onError = LightOnError,
                 errorContainer = LightErrorContainer,
@@ -298,7 +298,7 @@ object ThemePalettes {
                 onSurfaceVariant = Color(0xFF2D5755),
                 surfaceContainerLowest = Color(0xFFFFFFFF),
                 surfaceContainerLow = Color(0xFFF0F8F8),
-                surfaceContainer = Color(0xFFFFFFFF),
+                surfaceContainer = Color(0xFFF0F8F7),      // 极淡青瓷苍碧白卡片 (呼应苍青主题)
                 surfaceContainerHigh = Color(0xFFE1F0F0),
                 surfaceContainerHighest = Color(0xFFC7DFDF),
                 surfaceDim = Color(0xFFC7DFDF),
@@ -306,7 +306,7 @@ object ThemePalettes {
                 inverseSurface = Color(0xFF134E4A),
                 inverseOnSurface = Color(0xFFF8FAFC),
                 outline = Color(0xFF5EEAD4).copy(alpha = 0.5f),
-                outlineVariant = Color(0xFFC7DFDF),
+                outlineVariant = Color(0xFFD3EBEA),   // 柔和苍青轮廓
                 error = LightError,
                 onError = LightOnError,
                 errorContainer = LightErrorContainer,
@@ -334,7 +334,7 @@ object ThemePalettes {
                 onSurfaceVariant = Color(0xFF475569),
                 surfaceContainerLowest = Color(0xFFFFFFFF),
                 surfaceContainerLow = Color(0xFFF0F6FA),
-                surfaceContainer = Color(0xFFFFFFFF),
+                surfaceContainer = Color(0xFFF0F6FA),      // 极淡冰川湛蓝白卡片 (呼应海蓝主题)
                 surfaceContainerHigh = Color(0xFFE6EFF7),
                 surfaceContainerHighest = Color(0xFFCBD5E1),
                 surfaceDim = Color(0xFFE2E8F0),
@@ -342,7 +342,7 @@ object ThemePalettes {
                 inverseSurface = Color(0xFF0F172A),
                 inverseOnSurface = Color(0xFFF8FAFC),
                 outline = Color(0xFF94A3B8),
-                outlineVariant = Color(0xFFD8E4F0),
+                outlineVariant = Color(0xFFD4E5F2),   // 柔和冰川轮廓
                 error = LightError,
                 onError = LightOnError,
                 errorContainer = LightErrorContainer,
@@ -362,15 +362,15 @@ object ThemePalettes {
                 onTertiary = Color(0xFFFFFFFF),
                 tertiaryContainer = Color(0xFFFFE4E6),
                 onTertiaryContainer = Color(0xFF9F1239),
-                background = Color(0xFFFAF8F9),       // 晨曦暖白大底
+                background = Color(0xFFFAF4F6),       // 晨曦暖白大底
                 onBackground = Color(0xFF19191C),
-                surface = Color(0xFFFAF8F9),
+                surface = Color(0xFFFAF4F6),
                 onSurface = Color(0xFF19191C),
                 surfaceVariant = Color(0xFFF1F5F9),
                 onSurfaceVariant = Color(0xFF64748B),
                 surfaceContainerLowest = Color(0xFFFFFFFF),
-                surfaceContainerLow = Color(0xFFFAF8F9),
-                surfaceContainer = Color(0xFFFFFFFF),
+                surfaceContainerLow = Color(0xFFFAF4F6),
+                surfaceContainer = Color(0xFFF5F3FA),      // 极淡晨曦粉紫白卡片 (呼应粉紫主题)
                 surfaceContainerHigh = Color(0xFFF1F5F9),
                 surfaceContainerHighest = Color(0xFFE2E8F0),
                 surfaceDim = Color(0xFFE2E8F0),
@@ -378,7 +378,7 @@ object ThemePalettes {
                 inverseSurface = Color(0xFF19191C),
                 inverseOnSurface = Color(0xFFF8FAFC),
                 outline = Color(0xFF94A3B8),
-                outlineVariant = Color(0xFFE2E8F0),
+                outlineVariant = Color(0xFFE2DEF2),   // 柔和粉紫轮廓
                 error = LightError,
                 onError = LightOnError,
                 errorContainer = LightErrorContainer,
