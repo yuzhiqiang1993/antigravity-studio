@@ -5,7 +5,6 @@ import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
 import com.yuzhiqiang.antigravity.logging.AppLog
-import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -14,11 +13,16 @@ import kotlinx.coroutines.delay
  */
 internal class AccountSwitchSession(
     private val accountStore: AccountStore,
-    private val googleAuthService: GoogleAuthService = GoogleAuthService()
+    private val googleAuthService: GoogleAuthService = GoogleAuthService(),
+    private val systemCredentialStore: SystemCredentialStore = SystemCredentialInjector
 ) {
-    private val credentialApplier = AccountSwitchCredentialApplier(accountStore, googleAuthService)
+    private val credentialApplier = AccountSwitchCredentialApplier(
+        accountStore,
+        googleAuthService::refreshAccessToken,
+        systemCredentialStore
+    )
     private val verifier = AccountSwitchVerifier(accountStore)
-    private val rollbackHandler = AccountSwitchRollbackHandler(accountStore)
+    private val rollbackHandler = AccountSwitchRollbackHandler(accountStore, systemCredentialStore)
 
     private fun log(stage: String, message: String) {
         AppLog.i("Auth/Switch") { "[$stage] $message" }
@@ -41,10 +45,18 @@ internal class AccountSwitchSession(
             return Result.failure(IllegalArgumentException("至少选择一个账号生效目标"))
         }
 
-        val ideWasRunning = IdeHostManager.isRunning(request.ideInstallationPath)
-        val appWasRunning = AppHostManager.isRunning(request.appInstallationPath)
+        val preparedRequest = try {
+            request.copy(targetAccount = credentialApplier.prepareTargetAccount(request))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            return Result.failure(IllegalStateException("目标账号 Token 预处理失败", error))
+        }
+
+        val ideWasRunning = IdeHostManager.isRunning(preparedRequest.ideInstallationPath)
+        val appWasRunning = AppHostManager.isRunning(preparedRequest.appInstallationPath)
         val originalState = try {
-            credentialApplier.captureOriginalState(request)
+            credentialApplier.captureOriginalState(preparedRequest)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -52,12 +64,18 @@ internal class AccountSwitchSession(
         }
         val changes = AppliedChanges()
         return try {
-            stopRequestedHosts(request, ideWasRunning, appWasRunning, changes)
-            val updatedTargetAccount = credentialApplier.applyCredentials(request, ideWasRunning, appWasRunning, changes)
-            val activeRequest = if (updatedTargetAccount != request.targetAccount) {
-                request.copy(targetAccount = updatedTargetAccount)
+            stopRequestedHosts(preparedRequest, ideWasRunning, appWasRunning, changes)
+            val updatedTargetAccount = credentialApplier.applyCredentials(
+                request = preparedRequest,
+                ideWasRunning = ideWasRunning,
+                appWasRunning = appWasRunning,
+                changes = changes,
+                sharedCredentialsSnapshot = originalState.sharedCredentialsSnapshot
+            )
+            val activeRequest = if (updatedTargetAccount != preparedRequest.targetAccount) {
+                preparedRequest.copy(targetAccount = updatedTargetAccount)
             } else {
-                request
+                preparedRequest
             }
             launchRequestedHosts(activeRequest, changes)
             activeRequest.progressCallback?.invoke("4/4 正在确认 IDE 与 App & CLI 共享账号...")
@@ -65,11 +83,15 @@ internal class AccountSwitchSession(
             if (report.overallStatus == HotSwitchCoordinator.OverallStatus.ERROR) {
                 throw IllegalStateException(verifier.buildVerificationError(report))
             }
-            refreshOfficialCatalog(changes, activeRequest.targetAccount)
-            Result.success(report)
+            val appliedAccount = if (activeRequest.applyToAppCli) {
+                accountStore.commitSwitchedAccount(activeRequest.targetAccount).getOrThrow()
+            } else {
+                activeRequest.targetAccount
+            }
+            Result.success(report.copy(appliedAccount = appliedAccount))
         } catch (error: CancellationException) {
             val rollbackErrors = rollbackHandler.rollbackNonCancellable(
-                request,
+                preparedRequest,
                 originalState,
                 ideWasRunning,
                 appWasRunning,
@@ -83,7 +105,7 @@ internal class AccountSwitchSession(
             throw error
         } catch (error: Exception) {
             val rollbackErrors = rollbackHandler.rollbackNonCancellable(
-                request,
+                preparedRequest,
                 originalState,
                 ideWasRunning,
                 appWasRunning,
@@ -100,6 +122,8 @@ internal class AccountSwitchSession(
                     error
                 )
             )
+        } finally {
+            originalState.close()
         }
     }
 
@@ -184,15 +208,6 @@ internal class AccountSwitchSession(
         return isRunning()
     }
 
-    private suspend fun refreshOfficialCatalog(changes: AppliedChanges, targetAccount: AccountInfo) {
-        OfficialCatalogProbe.clearRawOfficialCatalog()
-        OfficialCatalogProbe.fetchOfficialModels(
-            account = targetAccount,
-            tokenRefreshCallback = { refreshToken ->
-                googleAuthService.refreshAccessToken(refreshToken).map { it.accessToken }
-            }
-        )
-    }
 
     private fun requireStep(isSuccess: Boolean, message: String) {
         if (!isSuccess) {

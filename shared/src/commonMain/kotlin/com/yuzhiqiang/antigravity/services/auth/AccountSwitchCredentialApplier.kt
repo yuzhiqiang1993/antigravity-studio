@@ -2,6 +2,7 @@ package com.yuzhiqiang.antigravity.services.auth
 
 import com.yuzhiqiang.antigravity.data.storage.AccountStore
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
+import com.yuzhiqiang.antigravity.domain.model.account.OAuthTokens
 import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
 import com.yuzhiqiang.antigravity.logging.AppLog
@@ -19,7 +20,8 @@ import java.util.TimeZone
  */
 internal class AccountSwitchCredentialApplier(
     private val accountStore: AccountStore,
-    private val googleAuthService: GoogleAuthService
+    private val tokenRefresher: suspend (String) -> Result<OAuthTokens>,
+    private val systemCredentialStore: SystemCredentialStore
 ) {
     private fun log(stage: String, message: String) {
         AppLog.i("Auth/Switch") { "[$stage] $message" }
@@ -37,61 +39,77 @@ internal class AccountSwitchCredentialApplier(
             null
         }
 
-        val sharedCredentialsSnapshot = if (request.applyToAppCli) {
-            accountStore.captureOfficialCredentialsSnapshot().getOrThrow()
-        } else {
-            null
+        var sharedCredentialsSnapshot: AccountStore.OfficialCredentialsSnapshot? = null
+        var jetskiTokenSnapshot: FileSnapshot? = null
+        return try {
+            if (request.applyToAppCli) {
+                sharedCredentialsSnapshot = accountStore.captureOfficialCredentialsSnapshot().getOrThrow()
+                jetskiTokenSnapshot = captureFileSnapshot(resolveJetskiStandaloneTokenFile())
+            }
+            val systemCredentialSnapshot = if (request.applyToAppCli) {
+                systemCredentialStore.capture().getOrThrow()
+            } else {
+                null
+            }
+            OriginalState(
+                ideSnapshot = ideSnapshot,
+                appDbSnapshot = appDbSnapshot,
+                sharedCredentialsSnapshot = sharedCredentialsSnapshot,
+                jetskiTokenSnapshot = jetskiTokenSnapshot,
+                systemCredentialSnapshot = systemCredentialSnapshot
+            )
+        } catch (error: Exception) {
+            sharedCredentialsSnapshot?.close()
+            jetskiTokenSnapshot?.close()
+            throw error
         }
-        val jetskiTokenSnapshot = if (request.applyToAppCli) {
-            captureFileSnapshot(resolveJetskiStandaloneTokenFile())
-        } else {
-            null
+    }
+
+    suspend fun prepareTargetAccount(request: AccountSwitchSession.Request): AccountInfo {
+        val storedTargetAccount = accountStore.currentAccounts().firstOrNull { account ->
+            account.id == request.targetAccount.id ||
+                    account.email.equals(request.targetAccount.email, ignoreCase = true)
+        } ?: request.targetAccount
+        if (!request.applyToAppCli || storedTargetAccount.tokens.refreshToken.isBlank()) {
+            return storedTargetAccount
         }
-        val appOauthFileSnapshot = if (request.applyToAppCli) {
-            captureFileSnapshot(resolveAppOauthCredentialsFile())
-        } else {
-            null
-        }
-        return OriginalState(
-            studioAccount = accountStore.currentActiveAccount(),
-            ideSnapshot = ideSnapshot,
-            appDbSnapshot = appDbSnapshot,
-            sharedCredentialsSnapshot = sharedCredentialsSnapshot,
-            jetskiTokenSnapshot = jetskiTokenSnapshot,
-            appOauthFileSnapshot = appOauthFileSnapshot
+
+        log("联网刷新Token", "正在向 Google 刷新 " + storedTargetAccount.email + " 的最新 Access/ID Token...")
+        val refreshResult = tokenRefresher(storedTargetAccount.tokens.refreshToken).getOrNull()
+            ?: return storedTargetAccount.also {
+                log("Token刷新失败", "使用当前缓存的 Token 继续切号")
+            }
+        val refreshedAccount = storedTargetAccount.copy(
+            tokens = storedTargetAccount.tokens.mergeRefreshResult(refreshResult)
         )
+        accountStore.updateTokens(
+            email = refreshedAccount.email,
+            tokens = refreshedAccount.tokens,
+            name = refreshedAccount.profile.name,
+            avatarUrl = refreshedAccount.profile.avatarUrl
+        ).getOrThrow()
+        log(
+            "Token刷新成功",
+            "已持久化最新 Token (idTokenLen=" + (refreshedAccount.tokens.idToken?.length ?: 0) + ")"
+        )
+        return accountStore.currentAccounts().firstOrNull { account -> account.id == refreshedAccount.id }
+            ?: refreshedAccount
     }
 
     suspend fun applyCredentials(
         request: AccountSwitchSession.Request,
         ideWasRunning: Boolean,
         appWasRunning: Boolean,
-        changes: AppliedChanges
+        changes: AppliedChanges,
+        sharedCredentialsSnapshot: AccountStore.OfficialCredentialsSnapshot?
     ): AccountInfo {
         request.progressCallback?.invoke("2/4 正在写入目标账号与 App & CLI 共享凭据...")
-        log("切号开始", "目标账号: " + request.targetAccount.email + ", applyToIde=" + request.applyToIde + ", applyToAppCli=" + request.applyToAppCli)
+        log(
+            "切号开始",
+            "目标账号: " + request.targetAccount.email + ", applyToIde=" + request.applyToIde + ", applyToAppCli=" + request.applyToAppCli
+        )
 
-        // 1. 若包含 App & CLI 目标且有 Refresh Token，先联网向 Google 刷新最新的 ID Token 与 Access Token (对齐 Cockpit 插件机制)
-        val targetAccount = if (request.applyToAppCli && request.targetAccount.tokens.refreshToken.isNotBlank()) {
-            log("联网刷新Token", "正在向 Google 刷新 " + request.targetAccount.email + " 的最新 Access/ID Token...")
-            val refreshResult = googleAuthService.refreshAccessToken(request.targetAccount.tokens.refreshToken).getOrNull()
-            if (refreshResult != null) {
-                log("Token刷新成功", "已获取最新 ID Token (len=" + (refreshResult.idToken?.length ?: 0) + ")")
-                val updated = request.targetAccount.copy(tokens = refreshResult)
-                accountStore.updateTokens(
-                    email = updated.email,
-                    tokens = updated.tokens,
-                    name = updated.profile.name,
-                    avatarUrl = updated.profile.avatarUrl
-                )
-                updated
-            } else {
-                log("Token刷新失败", "使用当前缓存的 Token 继续切号")
-                request.targetAccount
-            }
-        } else {
-            request.targetAccount
-        }
+        val targetAccount = request.targetAccount
 
         if (request.applyToIde && (!ideWasRunning || request.restartIde)) {
             val ideDbExists = StateDbInjector.resolveCandidateDbFiles(StateDbInjector.TargetHost.IDE)
@@ -113,16 +131,13 @@ internal class AccountSwitchCredentialApplier(
             return targetAccount
         }
 
-        requireStep(
-            accountStore.setActiveAccount(targetAccount.id).isSuccess,
-            "Studio 活跃账号更新失败"
-        )
-        changes.studioAccountChanged = true
-
         // 同步写入官方与镜像 OAuth 凭据文件
         log("凭据文件同步", "正在写入 ~/.gemini/oauth_creds.json 及镜像文件...")
+        val credentialSnapshot = sharedCredentialsSnapshot
+            ?: throw IllegalStateException("App & CLI 共享 OAuth 凭据快照缺失")
+        changes.sharedCredentialsWriteAttempted = true
         requireStep(
-            accountStore.syncToOfficialCredentials(targetAccount),
+            accountStore.syncToOfficialCredentials(targetAccount, credentialSnapshot),
             "App & CLI 共享 OAuth 凭据文件写入失败"
         )
         changes.sharedCredentialsWritten = true
@@ -130,7 +145,8 @@ internal class AccountSwitchCredentialApplier(
 
         // 核心突破：注入系统级安全存储 (macOS Keychain: service=gemini, account=antigravity)
         log("Keychain注入", "正在向系统钥匙串写入 Antigravity 认证凭据...")
-        val keychainResult = SystemCredentialInjector.inject(targetAccount)
+        changes.systemCredentialWriteAttempted = true
+        val keychainResult = systemCredentialStore.inject(targetAccount)
         requireStep(
             keychainResult.isSuccess,
             "系统钥匙串凭据注入失败: " + keychainResult.exceptionOrNull()?.message
@@ -149,12 +165,7 @@ internal class AccountSwitchCredentialApplier(
             "App 共享凭据兼容投影写入失败"
         )
         changes.jetskiTokenWritten = true
-        changes.appOauthFileWriteAttempted = true
-        requireStep(
-            writeAppOauthCredentials(targetAccount),
-            "App 共享 OAuth 兼容投影写入失败"
-        )
-        changes.appOauthFileWritten = true
+
         if (appDbExists) {
             requireStep(
                 StateDbInjector.inject(targetAccount, StateDbInjector.TargetHost.APP),
@@ -187,9 +198,6 @@ internal class AccountSwitchCredentialApplier(
             return File(dataDir, "jetski-standalone-oauth-token")
         }
 
-        fun resolveAppOauthCredentialsFile(): File {
-            return HostAccountDetector.resolvePlatformAppCredentialsFile()
-        }
 
         fun captureFileSnapshot(file: File): FileSnapshot {
             val existed = file.exists()
@@ -200,10 +208,7 @@ internal class AccountSwitchCredentialApplier(
         fun restoreFileSnapshot(snapshot: FileSnapshot): Boolean {
             return try {
                 if (snapshot.existed) {
-                    writeSensitiveTextAtomically(
-                        snapshot.file,
-                        snapshot.originalBytes.toString(Charsets.UTF_8)
-                    )
+                    writeSensitiveBytesAtomically(snapshot.file, snapshot.originalBytes)
                     true
                 } else {
                     !snapshot.file.exists() || (snapshot.file.isFile && snapshot.file.delete())
@@ -214,13 +219,21 @@ internal class AccountSwitchCredentialApplier(
         }
 
         fun writeSensitiveTextAtomically(file: File, content: String) {
+            writeSensitiveBytesAtomically(file, content.toByteArray(Charsets.UTF_8))
+        }
+
+        fun writeSensitiveBytesAtomically(file: File, content: ByteArray) {
             val parent = file.parentFile ?: throw IllegalStateException("凭据文件缺少父目录")
-            parent.mkdirs()
+            if (!parent.exists() && !parent.mkdirs()) {
+                throw IllegalStateException("无法创建凭据文件目录: ${parent.absolutePath}")
+            }
             val tempFile = File.createTempFile("." + file.name + ".", ".tmp", parent)
             try {
-                tempFile.writeText(content, Charsets.UTF_8)
+                tempFile.writeBytes(content)
+                val osName = System.getProperty("os.name", "").lowercase()
+                val isWindows = osName.contains("win") && !osName.contains("darwin")
                 // POSIX 文件权限操作在 Windows 上行为不一致且可能触发安全策略拦截，仅在类 Unix 系统执行
-                if (!System.getProperty("os.name", "").lowercase().contains("win")) {
+                if (!isWindows) {
                     tempFile.setReadable(false, false)
                     tempFile.setWritable(false, false)
                     tempFile.setExecutable(false, false)
@@ -273,32 +286,5 @@ internal class AccountSwitchCredentialApplier(
             }
         }
 
-        fun writeAppOauthCredentials(account: AccountInfo): Boolean {
-            return try {
-                val appCredsFile = resolveAppOauthCredentialsFile()
-                if (!appCredsFile.parentFile.exists()) {
-                    return true
-                }
-                val expiryTimestamp = account.tokens.expiryTimestamp
-                val idToken = account.tokens.idToken?.takeIf { it.isNotBlank() }
-                val payload = buildJsonObject {
-                    put("access_token", account.tokens.accessToken)
-                    put("refresh_token", account.tokens.refreshToken)
-                    put("email", account.email)
-                    put("name", account.profile.name ?: "")
-                    put("expiry_timestamp", expiryTimestamp)
-                    put("expiry_date", expiryTimestamp * 1000L)
-                    put("token_type", "Bearer")
-                    put("antigravity_cockpit_active_email", account.email)
-                    if (idToken != null) {
-                        put("id_token", idToken)
-                    }
-                }.toString()
-                writeSensitiveTextAtomically(appCredsFile, payload)
-                true
-            } catch (_: Exception) {
-                false
-            }
-        }
     }
 }

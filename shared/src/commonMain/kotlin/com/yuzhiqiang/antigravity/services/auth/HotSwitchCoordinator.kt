@@ -59,6 +59,7 @@ class HotSwitchCoordinator(
 
     data class SwitchResultReport(
         val targetEmail: String,
+        val appliedAccount: AccountInfo,
         val ide: TargetResult,
         val appCli: TargetResult,
         val ideWasRunning: Boolean,
@@ -120,8 +121,8 @@ class HotSwitchCoordinator(
                 AccountSwitchSession(accountStore).execute(request)
             }
             result.onSuccess { report ->
-                if (report.ide.isApplied) {
-                    _ideActiveAccount.value = targetAccount
+                if (report.ide.isConfirmed) {
+                    _ideActiveAccount.value = report.appliedAccount
                 }
             }
         } finally {

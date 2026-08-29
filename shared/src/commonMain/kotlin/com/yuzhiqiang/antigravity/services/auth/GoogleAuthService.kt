@@ -115,6 +115,7 @@ class GoogleAuthService {
                     ?.substringBefore("&")
                     ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
             }
+
             else -> trimmed
         }
 
@@ -133,7 +134,8 @@ class GoogleAuthService {
         currentOAuthDeferred = null
         try {
             currentOAuthServer?.stop(200, 500)
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
         currentOAuthServer = null
     }
 
@@ -312,7 +314,6 @@ class GoogleAuthService {
     }
 
 
-
     /**
      * 用 Authorization Code 换取 Access Token 和 Refresh Token
      */
@@ -408,6 +409,8 @@ class GoogleAuthService {
                     idToken = idToken
                 )
             )
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
         } catch (e: Exception) {
             Result.failure(IllegalStateException(e.message ?: "刷新 Token 失败", e))
         }
