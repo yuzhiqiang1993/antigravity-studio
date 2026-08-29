@@ -355,12 +355,28 @@ class AppViewModel(
     fun syncHostAccounts(): Job {
         return viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val appCliProfile = HostAccountDetector.detectAppCliActiveProfile()
-                val ideProfile = HostAccountDetector.detectIdeActiveProfile()
+                val customHostPaths = configStore.currentConfig.customHostPaths
+                val appCliProbes = HostAccountDetector.detectAppCliAccountProbes(
+                    credentialsFile = accountStore.officialCredentialsFile(),
+                    installationPath = customHostPaths["app"]
+                )
+                val ideProbes = HostAccountDetector.detectIdeAccountProbes(customHostPaths["ide"])
+                val appCliRuntimeProfile = appCliProbes.firstOrNull { probe ->
+                    probe.source == HostAccountDetector.AccountProbeSource.RUNTIME_API
+                }?.profile
+                val ideRuntimeProfile = ideProbes.firstOrNull { probe ->
+                    probe.source == HostAccountDetector.AccountProbeSource.RUNTIME_API
+                }?.profile
+                val appCliProfile = appCliRuntimeProfile ?: appCliProbes.firstOrNull { probe ->
+                    probe.source == HostAccountDetector.AccountProbeSource.SHARED_CREDENTIALS
+                }?.profile
+                val ideProfile = ideRuntimeProfile ?: ideProbes.firstOrNull { probe ->
+                    probe.source == HostAccountDetector.AccountProbeSource.STATE_DB
+                }?.profile
 
-                // 统一收敛为 IDE 宿主应用与 App & CLI 宿主应用
-                _appCliActiveEmail.value = appCliProfile?.email
-                _ideActiveEmail.value = ideProfile?.email
+                // 活跃账号标签只接受运行态证据；静态配置仍可用于账号资料导入。
+                _appCliActiveEmail.value = appCliRuntimeProfile?.email
+                _ideActiveEmail.value = ideRuntimeProfile?.email
 
                 // 1. 自动同步 IDE 宿主账号至 Studio 账号列表
                 if (ideProfile != null && ideProfile.email.isNotBlank()) {
@@ -390,7 +406,7 @@ class AppViewModel(
                                 refreshToken = rt,
                                 expiryTimestamp = System.currentTimeMillis() / 1000L + 3600L
                             ),
-                            isActive = true,
+                            isActive = ideRuntimeProfile != null,
                             status = AccountStatus.ACTIVE
                         )
                         accountStore.upsertAccount(newAccount)
@@ -444,7 +460,7 @@ class AppViewModel(
                                 refreshToken = rt,
                                 expiryTimestamp = System.currentTimeMillis() / 1000L + 3600L
                             ),
-                            isActive = true,
+                            isActive = appCliRuntimeProfile != null,
                             status = AccountStatus.ACTIVE
                         )
                         accountStore.upsertAccount(newAccount)
@@ -1345,8 +1361,11 @@ class AppViewModel(
                             HotSwitchCoordinator.OverallStatus.ERROR -> NoticeKind.ERROR
                         }
                         showNotice(s.noticeSwitchResult(summary), noticeKind)
-                        if (report.overallStatus == HotSwitchCoordinator.OverallStatus.SUCCESS) {
-                            quotaPoller.refreshSingle(targetAccount, true)
+                        if (report.appCli.isApplied ||
+                            report.appCli.status == HotSwitchCoordinator.TargetStatus.PENDING_RESTART
+                        ) {
+                            quotaPoller.refreshSingle(report.appliedAccount, true)
+                            fetchOfficialModels()
                         }
                     },
                     onFailure = { error ->

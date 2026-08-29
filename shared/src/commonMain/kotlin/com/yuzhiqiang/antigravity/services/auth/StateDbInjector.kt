@@ -28,6 +28,7 @@ object StateDbInjector {
     internal class DatabaseSnapshot(
         val file: File,
         val existed: Boolean,
+        val itemTableExisted: Boolean,
         val values: Map<String, StoredValue>
     )
 
@@ -45,6 +46,23 @@ object StateDbInjector {
             return false
         }
 
+        val updateEntries = buildUpdateEntries(account)
+
+        var allSucceeded = true
+        for (dbFile in dbFiles) {
+            if (!injectDatabase(dbFile, updateEntries)) {
+                allSucceeded = false
+            }
+        }
+
+        return allSucceeded
+    }
+
+    internal fun inject(account: AccountInfo, dbFile: File): Boolean {
+        return injectDatabase(dbFile, buildUpdateEntries(account))
+    }
+
+    private fun buildUpdateEntries(account: AccountInfo): List<Pair<String, String>> {
         val oauthPayload = ProtobufEncoder.createOAuthInfo(
             accessToken = account.tokens.accessToken,
             refreshToken = account.tokens.refreshToken,
@@ -59,7 +77,7 @@ object StateDbInjector {
             name = account.profile.name
         )
         val userStatusTopic = ProtobufEncoder.createUnifiedStateEntry("userStatusSentinelKey", userStatusPayload)
-        val updateEntries = listOf(
+        return listOf(
             "antigravityUnifiedStateSync.oauthToken" to oauthTopic,
             "antigravityUnifiedStateSync.userStatus" to userStatusTopic,
             "antigravityIdeUnifiedStateSync.oauthToken" to oauthTopic,
@@ -70,15 +88,6 @@ object StateDbInjector {
             "antigravityIde.userStatus" to userStatusTopic,
             "antigravityOnboarding" to "true"
         )
-
-        var allSucceeded = true
-        for (dbFile in dbFiles) {
-            if (!injectDatabase(dbFile, updateEntries)) {
-                allSucceeded = false
-            }
-        }
-
-        return allSucceeded
     }
 
     /**
@@ -89,7 +98,14 @@ object StateDbInjector {
             ?: return Result.failure(IllegalStateException("宿主 canonical 状态数据库路径不唯一"))
         if (!dbFile.exists()) {
             return Result.success(
-                Snapshot(DatabaseSnapshot(dbFile, existed = false, values = emptyMap()))
+                Snapshot(
+                    DatabaseSnapshot(
+                        file = dbFile,
+                        existed = false,
+                        itemTableExisted = false,
+                        values = emptyMap()
+                    )
+                )
             )
         }
         if (!dbFile.isFile) {
@@ -128,9 +144,11 @@ object StateDbInjector {
             os.contains("mac") -> {
                 File(userHome, "Library/Application Support/Antigravity IDE/User/globalStorage/state.vscdb")
             }
+
             os.contains("win") -> {
                 File(appData, "Antigravity IDE/User/globalStorage/state.vscdb")
             }
+
             else -> {
                 File(configHome, "Antigravity IDE/User/globalStorage/state.vscdb")
             }
@@ -140,9 +158,11 @@ object StateDbInjector {
             os.contains("mac") -> {
                 File(userHome, "Library/Application Support/Antigravity/User/globalStorage/state.vscdb")
             }
+
             os.contains("win") -> {
                 File(appData, "Antigravity/User/globalStorage/state.vscdb")
             }
+
             else -> {
                 File(configHome, "Antigravity/User/globalStorage/state.vscdb")
             }
@@ -200,13 +220,15 @@ object StateDbInjector {
         }
     }
 
-    private fun captureDatabase(dbFile: File): Result<DatabaseSnapshot> {
+    internal fun captureDatabase(dbFile: File): Result<DatabaseSnapshot> {
         return try {
+            var itemTableExisted = false
             val values = DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
                 configureConnection(connection)
                 connection.autoCommit = false
                 try {
-                    val capturedValues = readStoredValues(connection)
+                    itemTableExisted = hasItemTable(connection)
+                    val capturedValues = readStoredValues(connection, itemTableExisted)
                     connection.commit()
                     capturedValues
                 } catch (exception: Exception) {
@@ -214,20 +236,31 @@ object StateDbInjector {
                     throw exception
                 }
             }
-            Result.success(DatabaseSnapshot(dbFile, existed = true, values = values))
+            Result.success(
+                DatabaseSnapshot(
+                    file = dbFile,
+                    existed = true,
+                    itemTableExisted = itemTableExisted,
+                    values = values
+                )
+            )
         } catch (exception: Exception) {
             Result.failure(exception)
         }
     }
 
-    private fun readStoredValues(connection: Connection): Map<String, StoredValue> {
+    private fun readStoredValues(
+        connection: Connection,
+        itemTableExisted: Boolean
+    ): Map<String, StoredValue> {
         val values = TARGET_STATE_KEYS.associateWith { StoredValue(existed = false, value = null) }.toMutableMap()
-        if (!hasItemTable(connection)) {
+        if (!itemTableExisted) {
             return values
         }
 
+        val placeholders = TARGET_STATE_KEYS.joinToString(",") { "?" }
         connection.prepareStatement(
-            "SELECT key, value FROM ItemTable WHERE key IN (?, ?, ?)"
+            "SELECT key, value FROM ItemTable WHERE key IN ($placeholders)"
         ).use { statement ->
             TARGET_STATE_KEYS.forEachIndexed { index, key ->
                 statement.setString(index + 1, key)
@@ -242,13 +275,18 @@ object StateDbInjector {
         return values
     }
 
-    private fun restoreDatabase(snapshot: DatabaseSnapshot): Boolean {
+    internal fun restoreDatabase(snapshot: DatabaseSnapshot): Boolean {
         return try {
             DriverManager.getConnection("jdbc:sqlite:${snapshot.file.absolutePath}").use { connection ->
                 configureConnection(connection)
                 connection.autoCommit = false
                 try {
                     restoreStoredValues(connection, snapshot.values)
+                    if (!snapshot.itemTableExisted) {
+                        connection.createStatement().use { statement ->
+                            statement.executeUpdate("DROP TABLE IF EXISTS ItemTable")
+                        }
+                    }
                     connection.commit()
                 } catch (exception: Exception) {
                     rollback(connection, exception)
@@ -335,9 +373,15 @@ object StateDbInjector {
         }
     }
 
-    private val TARGET_STATE_KEYS = listOf(
+    internal val TARGET_STATE_KEYS = listOf(
         "antigravityUnifiedStateSync.oauthToken",
         "antigravityUnifiedStateSync.userStatus",
+        "antigravityIdeUnifiedStateSync.oauthToken",
+        "antigravityIdeUnifiedStateSync.userStatus",
+        "antigravity.oauthToken",
+        "antigravity.userStatus",
+        "antigravityIde.oauthToken",
+        "antigravityIde.userStatus",
         "antigravityOnboarding"
     )
     private const val BUSY_TIMEOUT_MILLIS = 3_000

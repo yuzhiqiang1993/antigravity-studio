@@ -27,6 +27,20 @@ data class OAuthTokens(
     val idToken: String? = null
 ) {
     /**
+     * 将刷新响应合并到当前凭据。
+     *
+     * OAuth refresh grant 可能不返回 `id_token` 或新的 `refresh_token`，
+     * 此时必须保留当前账号自己的旧值，避免跨认证载体产生不一致。
+     */
+    fun mergeRefreshResult(refreshed: OAuthTokens): OAuthTokens {
+        return refreshed.copy(
+            refreshToken = refreshed.refreshToken.takeIf { it.isNotBlank() } ?: refreshToken,
+            tokenType = refreshed.tokenType.takeIf { it.isNotBlank() } ?: tokenType,
+            idToken = refreshed.idToken?.takeIf { it.isNotBlank() } ?: idToken
+        )
+    }
+
+    /**
      * 距过期剩余时间（秒）
      */
     fun remainingSeconds(): Long {

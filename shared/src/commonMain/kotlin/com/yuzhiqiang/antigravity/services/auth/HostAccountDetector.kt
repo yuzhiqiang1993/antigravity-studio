@@ -40,6 +40,17 @@ object HostAccountDetector {
         val tokenType: String? = null
     )
 
+    internal enum class AccountProbeSource {
+        RUNTIME_API,
+        STATE_DB,
+        SHARED_CREDENTIALS
+    }
+
+    internal data class AccountProbeResult(
+        val profile: IdeAccountProfile,
+        val source: AccountProbeSource
+    )
+
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -313,6 +324,48 @@ object HostAccountDetector {
                 .lineSequence()
                 .toList()
                 .takeLast(maxLines)
+        }
+    }
+
+    /**
+     * 独立采集 IDE 运行态与数据库配置，不使用 winner fallback 抹平来源。
+     */
+    internal suspend fun detectIdeAccountProbes(
+        installationPath: String? = null
+    ): List<AccountProbeResult> = withContext(Dispatchers.IO) {
+        buildList {
+            if (IdeHostManager.isRunning(installationPath)) {
+                RuntimeIdeAccountProbe.detectProfile().getOrNull()?.let { profile ->
+                    add(AccountProbeResult(profile, AccountProbeSource.RUNTIME_API))
+                }
+            }
+            detectProfileFromCanonicalStateDb(StateDbInjector.TargetHost.IDE)?.let { profile ->
+                add(AccountProbeResult(profile, AccountProbeSource.STATE_DB))
+            }
+        }
+    }
+
+    /**
+     * 独立采集 App 运行态与严格共享凭据文件，不使用日志作为配置证据。
+     */
+    internal suspend fun detectAppCliAccountProbes(
+        credentialsFile: File? = null,
+        installationPath: String? = null
+    ): List<AccountProbeResult> = withContext(Dispatchers.IO) {
+        buildList {
+            if (AppHostManager.isRunning(installationPath)) {
+                RuntimeAppAccountProbe.detectProfile().getOrNull()?.let { profile ->
+                    add(AccountProbeResult(profile, AccountProbeSource.RUNTIME_API))
+                }
+            }
+            detectStaticCliAppProfile(credentialsFile)?.first?.let { profile ->
+                add(
+                    AccountProbeResult(
+                        profile = IdeAccountProfile(email = profile.email, name = profile.name),
+                        source = AccountProbeSource.SHARED_CREDENTIALS
+                    )
+                )
+            }
         }
     }
 

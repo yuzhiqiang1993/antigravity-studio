@@ -37,18 +37,24 @@ data class AccountStoreData(
 class AccountStore(
     private val customRootDir: File? = null
 ) {
-    /**
-     * 官方 OAuth 凭据文件在切换前的物理快照。
-     *
-     * @property file 快照对应的官方凭据文件
-     * @property existed 捕获快照时文件是否存在
-     * @property originalBytes 捕获到的原始字节
-     */
+    /** App 与 CLI 共享 OAuth 凭据写入计划的完整物理快照。 */
     internal data class OfficialCredentialsSnapshot(
+        val files: List<CredentialFileSnapshot>
+    ) : AutoCloseable {
+        override fun close() {
+            files.forEach(CredentialFileSnapshot::close)
+        }
+    }
+
+    internal data class CredentialFileSnapshot(
         val file: File,
         val existed: Boolean,
         val originalBytes: ByteArray
-    )
+    ) : AutoCloseable {
+        override fun close() {
+            originalBytes.fill(0)
+        }
+    }
 
     private val json = Json {
         prettyPrint = true
@@ -241,7 +247,7 @@ class AccountStore(
             )
             val updatedAccount = old.copy(
                 profile = updatedProfile,
-                tokens = tokens,
+                tokens = old.tokens.mergeRefreshResult(tokens),
                 status = AccountStatus.ACTIVE,
                 lastRefreshedAt = System.currentTimeMillis(),
                 lastErrorMessage = null
@@ -257,6 +263,41 @@ class AccountStore(
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * 在外部凭据与宿主验证全部成功后，一次性提交目标账号 Token 与活跃状态。
+     */
+    internal suspend fun commitSwitchedAccount(account: AccountInfo): Result<AccountInfo> = mutex.withLock {
+        try {
+            val current = _accountsState.value.toMutableList()
+            val index = current.indexOfFirst { stored ->
+                stored.id == account.id || stored.email.equals(account.email, ignoreCase = true)
+            }
+            if (index < 0) {
+                return Result.failure(IllegalArgumentException("账号不存在: ${account.email}"))
+            }
+
+            val old = current[index]
+            val committed = old.copy(
+                profile = account.profile,
+                tokens = old.tokens.mergeRefreshResult(account.tokens),
+                isActive = true,
+                status = AccountStatus.ACTIVE,
+                lastRefreshedAt = System.currentTimeMillis(),
+                lastErrorMessage = null
+            )
+            val updatedAccounts = current.mapIndexed { itemIndex, stored ->
+                if (itemIndex == index) committed else stored.copy(isActive = false)
+            }
+
+            saveAccountsInternal(updatedAccounts, committed.id)
+            _accountsState.value = updatedAccounts
+            _activeAccountState.value = committed
+            Result.success(committed)
+        } catch (error: Exception) {
+            Result.failure(error)
         }
     }
 
@@ -424,7 +465,10 @@ class AccountStore(
     /**
      * 同步当前激活账号至 App 与 CLI 共用的官方 OAuth 凭据文件。
      */
-    fun syncToOfficialCredentials(account: AccountInfo): Boolean {
+    internal fun syncToOfficialCredentials(
+        account: AccountInfo,
+        snapshot: OfficialCredentialsSnapshot
+    ): Boolean {
         return try {
             val file = officialCredentialsFile()
             val fields = readOfficialCredentialFields(file)
@@ -445,32 +489,14 @@ class AccountStore(
             val idToken = account.tokens.idToken?.takeIf { it.isNotBlank() }
             if (idToken != null) {
                 fields["id_token"] = JsonPrimitive(idToken)
+            } else {
+                fields.remove("id_token")
             }
-            // idToken 为空时保留旧文件中已有的 id_token，不做 remove，
-            // 防止刷新未返回 id_token 时误删已有的有效值
 
             val content = json.encodeToString(JsonObject.serializer(), JsonObject(fields))
-            writeTextAtomically(file, content)
-
-            // 同步覆盖所有可能被 Go language_server 优先读取的镜像凭据文件，杜绝旧账号残留
-            val userHome = System.getProperty("user.home")
-            val targetFiles = listOf(
-                File(userHome, ".gemini/oauth_creds.json"),
-                File(userHome, ".gemini/oauth_credentials.json"),
-                File(userHome, ".gemini/antigravity/oauth_credentials.json"),
-                HostAccountDetector.resolvePlatformAppCredentialsFile()
-            ).distinct()
-
-            for (targetFile in targetFiles) {
-                if (targetFile.absolutePath != file.absolutePath) {
-                    try {
-                        if (targetFile.exists() || targetFile.parentFile.exists()) {
-                            writeTextAtomically(targetFile, content)
-                        }
-                    } catch (_: Exception) {}
-                }
+            snapshot.files.forEach { target ->
+                writeTextAtomically(target.file, content)
             }
-
             true
         } catch (_: Exception) {
             false
@@ -480,24 +506,26 @@ class AccountStore(
     /**
      * 捕获官方 OAuth 凭据文件的原始字节，供切换失败时回滚。
      */
-    internal fun captureOfficialCredentialsSnapshot(): Result<OfficialCredentialsSnapshot> {
-        val file = officialCredentialsFile()
+    internal fun captureOfficialCredentialsSnapshot(
+        targetFiles: List<File>? = null
+    ): Result<OfficialCredentialsSnapshot> {
         return try {
-            val existed = file.exists()
-            val originalBytes = if (existed) {
-                file.readBytes()
-            } else {
-                byteArrayOf()
+            val seenPaths = mutableSetOf<String>()
+            val plannedFiles = (targetFiles ?: resolveCredentialTargetFiles()).filter { file ->
+                val canonicalPath = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }
+                seenPaths.add(canonicalPath)
             }
-            Result.success(
-                OfficialCredentialsSnapshot(
+            val snapshots = plannedFiles.map { file ->
+                val existed = file.exists()
+                CredentialFileSnapshot(
                     file = file,
                     existed = existed,
-                    originalBytes = originalBytes
+                    originalBytes = if (existed) file.readBytes() else byteArrayOf()
                 )
-            )
-        } catch (e: Exception) {
-            Result.failure(e)
+            }
+            Result.success(OfficialCredentialsSnapshot(snapshots))
+        } catch (error: Exception) {
+            Result.failure(error)
         }
     }
 
@@ -505,20 +533,41 @@ class AccountStore(
      * 恢复官方 OAuth 凭据文件快照。
      */
     internal fun restoreOfficialCredentialsSnapshot(snapshot: OfficialCredentialsSnapshot): Boolean {
-        return try {
-            val officialFile = officialCredentialsFile()
-            if (snapshot.file.canonicalFile != officialFile.canonicalFile) {
-                return false
+        var restored = true
+        snapshot.files.asReversed().forEach { fileSnapshot ->
+            val fileRestored = try {
+                if (fileSnapshot.existed) {
+                    writeBytesAtomically(fileSnapshot.file, fileSnapshot.originalBytes)
+                    true
+                } else {
+                    !fileSnapshot.file.exists() || (fileSnapshot.file.isFile && fileSnapshot.file.delete())
+                }
+            } catch (_: Exception) {
+                false
             }
+            restored = restored && fileRestored
+        }
+        return restored
+    }
 
-            if (snapshot.existed) {
-                writeBytesAtomically(officialFile, snapshot.originalBytes)
-                true
-            } else {
-                !officialFile.exists() || (officialFile.isFile && officialFile.delete())
-            }
-        } catch (_: Exception) {
-            false
+    private fun resolveCredentialTargetFiles(): List<File> {
+        val officialFile = officialCredentialsFile()
+        if (customRootDir != null) {
+            return listOf(officialFile)
+        }
+        val userHome = System.getProperty("user.home")
+        val candidates = listOf(
+            officialFile,
+            File(userHome, ".gemini/oauth_creds.json"),
+            File(userHome, ".gemini/oauth_credentials.json"),
+            File(userHome, ".gemini/antigravity/oauth_credentials.json"),
+            HostAccountDetector.resolvePlatformAppCredentialsFile()
+        )
+        val seenPaths = mutableSetOf<String>()
+        return candidates.filter { file ->
+            val canonicalPath = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }
+            val shouldWrite = file == officialFile || file.exists() || file.parentFile?.exists() == true
+            shouldWrite && seenPaths.add(canonicalPath)
         }
     }
 

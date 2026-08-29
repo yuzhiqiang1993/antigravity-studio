@@ -166,6 +166,171 @@ class AccountStoreTest {
     }
 
     @Test
+    fun testRefreshResultPreservesMissingIdentityTokens() {
+        val current = OAuthTokens(
+            accessToken = "old-access",
+            refreshToken = "old-refresh",
+            expiryTimestamp = 1_000L,
+            idToken = "old-id"
+        )
+        val refreshed = OAuthTokens(
+            accessToken = "new-access",
+            refreshToken = "",
+            expiryTimestamp = 2_000L,
+            idToken = null
+        )
+
+        val merged = current.mergeRefreshResult(refreshed)
+
+        assertEquals("new-access", merged.accessToken)
+        assertEquals("old-refresh", merged.refreshToken)
+        assertEquals("old-id", merged.idToken)
+        assertEquals(2_000L, merged.expiryTimestamp)
+    }
+
+    @Test
+    fun testUpdateTokensUsesRefreshMergeRules() = runBlocking {
+        val account = AccountInfo(
+            id = "acc_update_tokens",
+            profile = AccountProfile("update@example.com"),
+            tokens = OAuthTokens(
+                accessToken = "old-access",
+                refreshToken = "old-refresh",
+                expiryTimestamp = 1_000L,
+                idToken = "old-id"
+            ),
+            isActive = true
+        )
+        accountStore.upsertAccount(account).getOrThrow()
+
+        accountStore.updateTokens(
+            email = account.email,
+            tokens = OAuthTokens(
+                accessToken = "new-access",
+                refreshToken = "",
+                expiryTimestamp = 2_000L,
+                tokenType = "",
+                idToken = ""
+            )
+        ).getOrThrow()
+
+        val updated = accountStore.currentActiveAccount()!!
+        assertEquals("new-access", updated.tokens.accessToken)
+        assertEquals("old-refresh", updated.tokens.refreshToken)
+        assertEquals("Bearer", updated.tokens.tokenType)
+        assertEquals("old-id", updated.tokens.idToken)
+    }
+
+    @Test
+    fun testCommitSwitchedAccountUpdatesTokensAndActiveStateOnce() = runBlocking {
+        val first = AccountInfo(
+            id = "acc_first",
+            profile = AccountProfile("first@example.com"),
+            tokens = OAuthTokens("first-access", "first-refresh", 1_000L),
+            isActive = true
+        )
+        val target = AccountInfo(
+            id = "acc_target",
+            profile = AccountProfile("target@example.com", name = "Target"),
+            tokens = OAuthTokens("old-access", "old-refresh", 1_000L, idToken = "old-id"),
+            isPinned = true,
+            customNote = "保留备注"
+        )
+        accountStore.upsertAccount(first).getOrThrow()
+        accountStore.upsertAccount(target).getOrThrow()
+
+        val refreshedTarget = target.copy(
+            tokens = OAuthTokens(
+                accessToken = "new-access",
+                refreshToken = "",
+                expiryTimestamp = 2_000L,
+                idToken = null
+            )
+        )
+        val committed = accountStore.commitSwitchedAccount(refreshedTarget).getOrThrow()
+
+        assertEquals("acc_target", accountStore.currentActiveAccount()?.id)
+        assertEquals("new-access", committed.tokens.accessToken)
+        assertEquals("old-refresh", committed.tokens.refreshToken)
+        assertEquals("old-id", committed.tokens.idToken)
+        assertTrue(committed.isPinned)
+        assertEquals("保留备注", committed.customNote)
+        assertEquals(1, accountStore.currentAccounts().count { it.isActive })
+
+        val reloaded = AccountStore(customRootDir = tempDir)
+        assertEquals("acc_target", reloaded.currentActiveAccount()?.id)
+        assertEquals("new-access", reloaded.currentActiveAccount()?.tokens?.accessToken)
+    }
+
+    @Test
+    fun testOfficialCredentialSnapshotRestoresExactBytes() {
+        val credentialFile = accountStore.officialCredentialsFile()
+        val originalBytes = byteArrayOf(0x7B, 0x0A, 0x20, 0x7D)
+        credentialFile.parentFile.mkdirs()
+        credentialFile.writeBytes(originalBytes)
+        val snapshot = accountStore.captureOfficialCredentialsSnapshot().getOrThrow()
+        val account = AccountInfo(
+            id = "acc_credentials",
+            profile = AccountProfile("credentials@example.com"),
+            tokens = OAuthTokens("access", "refresh", 3_000L, idToken = "id-token")
+        )
+
+        assertTrue(accountStore.syncToOfficialCredentials(account, snapshot))
+        assertTrue(credentialFile.readText().contains("credentials@example.com"))
+        assertTrue(accountStore.restoreOfficialCredentialsSnapshot(snapshot))
+        assertContentEquals(originalBytes, credentialFile.readBytes())
+    }
+
+    @Test
+    fun testOfficialCredentialSnapshotRestoresCompleteWritePlan() {
+        val officialFile = accountStore.officialCredentialsFile()
+        val mirrorDirectory = File(tempDir, "mirrors").apply { mkdirs() }
+        val existingMirror = File(mirrorDirectory, "existing.json").apply {
+            writeBytes(byteArrayOf(1, 2, 3, 4))
+        }
+        val newMirror = File(mirrorDirectory, "new.json")
+        officialFile.writeText("{\"marker\":\"official\"}")
+        val officialBytes = officialFile.readBytes()
+        val mirrorBytes = existingMirror.readBytes()
+        val snapshot = accountStore.captureOfficialCredentialsSnapshot(
+            listOf(officialFile, existingMirror, newMirror, File(existingMirror.absolutePath))
+        ).getOrThrow()
+        val account = AccountInfo(
+            id = "acc_credentials",
+            profile = AccountProfile("credentials@example.com"),
+            tokens = OAuthTokens("access", "refresh", 3_000L, idToken = "id-token")
+        )
+
+        assertEquals(3, snapshot.files.size)
+        assertTrue(accountStore.syncToOfficialCredentials(account, snapshot))
+        snapshot.files.forEach { fileSnapshot ->
+            assertTrue(fileSnapshot.file.readText().contains("credentials@example.com"))
+        }
+        assertTrue(accountStore.restoreOfficialCredentialsSnapshot(snapshot))
+        assertContentEquals(officialBytes, officialFile.readBytes())
+        assertContentEquals(mirrorBytes, existingMirror.readBytes())
+        assertFalse(newMirror.exists())
+        snapshot.close()
+    }
+
+    @Test
+    fun testOfficialCredentialSnapshotDeletesNewFileOnRollback() {
+        val credentialFile = accountStore.officialCredentialsFile()
+        assertFalse(credentialFile.exists())
+        val snapshot = accountStore.captureOfficialCredentialsSnapshot().getOrThrow()
+        val account = AccountInfo(
+            id = "acc_credentials",
+            profile = AccountProfile("credentials@example.com"),
+            tokens = OAuthTokens("access", "refresh", 3_000L)
+        )
+
+        assertTrue(accountStore.syncToOfficialCredentials(account, snapshot))
+        assertTrue(credentialFile.exists())
+        assertTrue(accountStore.restoreOfficialCredentialsSnapshot(snapshot))
+        assertFalse(credentialFile.exists())
+    }
+
+    @Test
     fun testCleanInvalidAccountsAndExport() = runBlocking {
         val now = System.currentTimeMillis() / 1000L
         val activeAcc = AccountInfo(
@@ -209,5 +374,3 @@ class AccountStoreTest {
         assertEquals("active@gmail.com", accountStore.currentAccounts().first().email)
     }
 }
-
-

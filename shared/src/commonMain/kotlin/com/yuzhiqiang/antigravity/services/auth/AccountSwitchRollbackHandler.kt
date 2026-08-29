@@ -11,7 +11,8 @@ import kotlinx.coroutines.withContext
  * 负责账号切换异常或取消时的回滚与宿主状态恢复。
  */
 internal class AccountSwitchRollbackHandler(
-    private val accountStore: AccountStore
+    private val accountStore: AccountStore,
+    private val systemCredentialStore: SystemCredentialStore
 ) {
     suspend fun rollbackNonCancellable(
         request: AccountSwitchSession.Request,
@@ -42,7 +43,8 @@ internal class AccountSwitchRollbackHandler(
         if (canRestoreApp) {
             restoreApp(originalState, changes, errors)
         }
-        restoreSharedCredentialsAndStudio(originalState, changes, errors)
+        restoreSystemCredential(originalState, changes, errors)
+        restoreSharedCredentials(originalState, changes, errors)
 
         ensureOriginalHostsRunning(request, ideWasRunning, appWasRunning, errors)
         return errors
@@ -110,30 +112,35 @@ internal class AccountSwitchRollbackHandler(
                 errors.add("App 原 jetski 凭据文件恢复失败")
             }
         }
-        if (changes.appOauthFileWriteAttempted) {
-            val snapshot = originalState.appOauthFileSnapshot
-            if (snapshot == null || !AccountSwitchCredentialApplier.restoreFileSnapshot(snapshot)) {
-                errors.add("App 原 OAuth 凭据文件恢复失败")
-            }
-        }
+
     }
 
-    private suspend fun restoreSharedCredentialsAndStudio(
+    private fun restoreSystemCredential(
         originalState: OriginalState,
         changes: AppliedChanges,
         errors: MutableList<String>
     ) {
-        if (changes.sharedCredentialsWritten) {
+        if (!changes.systemCredentialWriteAttempted) {
+            return
+        }
+        val snapshot = originalState.systemCredentialSnapshot
+        if (snapshot == null || systemCredentialStore.restore(snapshot).isFailure) {
+            errors.add("系统安全凭据恢复失败")
+        }
+    }
+
+    private fun restoreSharedCredentials(
+        originalState: OriginalState,
+        changes: AppliedChanges,
+        errors: MutableList<String>
+    ) {
+        if (changes.sharedCredentialsWriteAttempted) {
             val snapshot = originalState.sharedCredentialsSnapshot
             if (snapshot == null || !accountStore.restoreOfficialCredentialsSnapshot(snapshot)) {
                 errors.add("App & CLI 共享凭据恢复失败")
             }
         }
-        if (changes.studioAccountChanged && originalState.studioAccount != null &&
-            accountStore.setActiveAccount(originalState.studioAccount.id).isFailure
-        ) {
-            errors.add("Studio 活跃账号恢复失败")
-        }
+
     }
 
     private suspend fun ensureOriginalHostsRunning(
