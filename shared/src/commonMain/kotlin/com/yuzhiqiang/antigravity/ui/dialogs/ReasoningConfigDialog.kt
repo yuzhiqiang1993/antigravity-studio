@@ -253,12 +253,12 @@ fun ReasoningConfigDialog(
                             .clickable { enabled = !enabled },
                         shape = RoundedCornerShape(10.dp),
                         color = if (enabled)
-                            (if (isDark) Color(0xFF1E3A8A).copy(alpha = 0.25f) else Color(0xFFEFF6FF))
-                        else (if (isDark) Color(0xFF1E293B).copy(alpha = 0.4f) else Color(0xFFF8FAFC)),
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.55f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.25f else 0.45f),
                         border = BorderStroke(
                             1.dp,
-                            if (enabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            if (enabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.40f)
+                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.50f)
                         )
                     ) {
                         Row(
@@ -517,17 +517,17 @@ private fun ReasoningLevelOptionRow(
     val isHovered by interaction.collectIsHoveredAsState()
 
     val bg = when {
-        isSelected -> if (isDark) Color(0xFF1E3A8A).copy(alpha = 0.5f) else Color(0xFFDBEAFE)
-        isHovered -> if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
-        else -> if (isDark) Color(0xFF0F172A).copy(alpha = 0.6f) else Color(0xFFF8FAFC)
+        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.65f else 0.85f)
+        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.50f else 0.70f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.25f else 0.40f)
     }
     val borderCol = when {
         isSelected -> MaterialTheme.colorScheme.primary
-        isHovered -> if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
-        else -> if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
+        isHovered -> MaterialTheme.colorScheme.outline
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     }
     val textCol = when {
-        isSelected -> if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
+        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
 
@@ -630,13 +630,13 @@ private fun StudioDialogInputField(
 
     val borderCol = when {
         isFocused -> MaterialTheme.colorScheme.primary
-        isHovered -> if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
-        else -> if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
+        isHovered -> MaterialTheme.colorScheme.outline
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.50f)
     }
     val bgCol = when {
-        isFocused -> MaterialTheme.colorScheme.surface
-        isHovered -> if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
-        else -> if (isDark) Color(0xFF0F172A).copy(alpha = 0.6f) else Color(0xFFF8FAFC)
+        isFocused -> if (isDark) MaterialTheme.colorScheme.surfaceContainerLow else Color.White
+        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.50f else 0.70f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.25f else 0.40f)
     }
 
     BasicTextField(

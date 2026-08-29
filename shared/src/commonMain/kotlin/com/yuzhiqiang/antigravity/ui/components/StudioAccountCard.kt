@@ -94,17 +94,12 @@ fun StudioAccountCard(
     val isAnyActive = isIdeActive || effectiveAppCliActive
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    // 1. 卡片整体背景 (遵循纯白毛玻璃半透明规范)
-    val targetCardBg = if (isAnyActive) {
-        if (isDark) MaterialTheme.colorScheme.surface.copy(alpha = StudioGlassTokens.activeCardAlphaDark)
-        else Color.White.copy(alpha = StudioGlassTokens.activeCardAlphaLight)
-    } else {
-        StudioGlassTokens.cardBackgroundColor(isDark)
-    }
+    // 1. 卡片整体背景 (与全局所有页面卡片严格保持一致)
+    val targetCardBg = StudioGlassTokens.cardBackgroundColor(isDark)
 
     val animatedCardBg by androidx.compose.animation.animateColorAsState(
         targetValue = targetCardBg,
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 300)
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 200)
     )
 
     val cardInteractionSource = remember { MutableInteractionSource() }
@@ -173,13 +168,13 @@ fun StudioAccountCard(
                                     copyToClipboard(account.email)
                                     onCopyEmail?.invoke()
                                 }
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .padding(start = 0.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
                         ) {
                             Text(
                                 text = displayEmail,
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = if (isAnyActive) FontWeight.Bold else FontWeight.SemiBold,
-                                    fontSize = 13.5.sp,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
                                     letterSpacing = (-0.2).sp
                                 ),
                                 color = if (isEmailHovered) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -382,16 +377,10 @@ private fun RingQuotaMatrixBlock(
     isRefreshing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val innerBg = StudioGlassTokens.innerPanelBackgroundColor(isDark)
-    val innerBorderColor = StudioGlassTokens.innerPanelBorderColor(isDark)
-
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(StudioDesignTokens.CornerRadius.md))
-            .background(innerBg)
-            .border(1.dp, innerBorderColor, RoundedCornerShape(StudioDesignTokens.CornerRadius.md))
-            .padding(horizontal = StudioDesignTokens.Padding.innerBlock, vertical = 10.dp)
+            .padding(vertical = 2.dp)
     ) {
         StudioCrossfade(
             targetState = groups.isNotEmpty(),
@@ -569,12 +558,12 @@ private fun RingFamilySection(
         ?: group.buckets.getOrNull(1)
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        // 模型族标题
+        // 模型族标题 (核心模块主体：采用主色调 onSurface 饱满粗体)
         Text(
             text = s.accountsModelFamily(group.label),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.Bold,
-                fontSize = StudioDesignTokens.TextSize.body
+                fontSize = 13.5.sp
             ),
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -670,11 +659,11 @@ private fun RingQuotaRow(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = StudioDesignTokens.TextSize.label,
-                    fontWeight = FontWeight.SemiBold
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
                 ),
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Text(

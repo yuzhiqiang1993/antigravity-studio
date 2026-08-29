@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -265,39 +266,43 @@ fun PolicyEditorDialog(
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // 公式限制说明卡片
+                    // 公式限制说明卡片 (消费当前主题的 primaryContainer 与 onPrimaryContainer)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFEFF6FF))
-                            .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.45f))
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.35f else 0.25f),
+                                RoundedCornerShape(10.dp)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.Top,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.ErrorOutline,
                                 contentDescription = null,
-                                tint = Color(0xFF2563EB),
-                                modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(17.dp).padding(top = 2.dp)
                             )
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
                                     text = s.policyFormulaHint,
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 12.sp,
+                                        fontSize = 12.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1E40AF)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 )
                                 Text(
                                     text = s.policyFormulaHintDesc,
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF3B82F6)
+                                        fontSize = 11.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 )
                             }
@@ -695,11 +700,13 @@ private fun ByokMetricCard(
     badgeText: String,
     modifier: Modifier = Modifier
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF8FAFC),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.35f else 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.30f else 0.50f))
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -710,7 +717,7 @@ private fun ByokMetricCard(
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF64748B)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
             Row(
@@ -723,13 +730,13 @@ private fun ByokMetricCard(
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xFFEFF6FF))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
@@ -737,7 +744,7 @@ private fun ByokMetricCard(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2563EB)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     )
                 }
@@ -761,11 +768,13 @@ private fun ByokCustomFieldCard(
     percentContent: @Composable () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFF8FAFC),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.35f else 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.30f else 0.50f))
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -782,13 +791,13 @@ private fun ByokCustomFieldCard(
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xFFEFF6FF))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
@@ -796,7 +805,7 @@ private fun ByokCustomFieldCard(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2563EB)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     )
                 }
@@ -806,8 +815,8 @@ private fun ByokCustomFieldCard(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(6.dp),
-                color = Color.White,
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                color = if (isDark) MaterialTheme.colorScheme.surfaceContainerLow else Color.White,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
                 Row(
                     modifier = Modifier
@@ -820,7 +829,7 @@ private fun ByokCustomFieldCard(
                             .weight(1f)
                             .height(23.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (isPercentMode) Color(0xFFEFF6FF) else Color.Transparent)
+                            .background(if (isPercentMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                             .clickable { onModeChange(true) },
                         contentAlignment = Alignment.Center
                     ) {
@@ -829,7 +838,7 @@ private fun ByokCustomFieldCard(
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (isPercentMode) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isPercentMode) Color(0xFF2563EB) else Color(0xFF64748B)
+                                color = if (isPercentMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                     }
@@ -839,7 +848,7 @@ private fun ByokCustomFieldCard(
                             .weight(1f)
                             .height(23.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (!isPercentMode) Color(0xFFEFF6FF) else Color.Transparent)
+                            .background(if (!isPercentMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                             .clickable { onModeChange(false) },
                         contentAlignment = Alignment.Center
                     ) {
@@ -848,7 +857,7 @@ private fun ByokCustomFieldCard(
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 11.sp,
                                 fontWeight = if (!isPercentMode) FontWeight.Bold else FontWeight.Medium,
-                                color = if (!isPercentMode) Color(0xFF2563EB) else Color(0xFF64748B)
+                                color = if (!isPercentMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                     }
@@ -983,9 +992,10 @@ private fun ByokPercentagePill(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val bg = if (isSelected) Color(0xFFEFF6FF) else Color.White
-    val borderCol = if (isSelected) Color(0xFF2563EB) else Color(0xFFE2E8F0)
-    val textCol = if (isSelected) Color(0xFF2563EB) else Color(0xFF64748B)
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val bg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else if (isDark) MaterialTheme.colorScheme.surfaceContainerLow else Color.White
+    val borderCol = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val textCol = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
 
     Box(
         modifier = modifier
@@ -1016,6 +1026,7 @@ private fun ByokInputWrapper(
     value: String,
     onValueChange: (String) -> Unit
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     var isFocused by remember { mutableStateOf(false) }
 
     BasicTextField(
@@ -1026,9 +1037,9 @@ private fun ByokInputWrapper(
         textStyle = MaterialTheme.typography.bodyMedium.copy(
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF0F172A)
+            color = MaterialTheme.colorScheme.onSurface
         ),
-        cursorBrush = SolidColor(Color(0xFF2563EB)),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         modifier = Modifier
             .fillMaxWidth()
             .onFocusChanged { isFocused = it.isFocused },
@@ -1038,10 +1049,10 @@ private fun ByokInputWrapper(
                     .fillMaxWidth()
                     .height(36.dp)
                     .clip(RoundedCornerShape(7.dp))
-                    .background(Color.White)
+                    .background(if (isDark) MaterialTheme.colorScheme.surfaceContainerLow else Color.White)
                     .border(
                         1.dp,
-                        if (isFocused) Color(0xFF2563EB) else Color(0xFFE2E8F0),
+                        if (isFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                         RoundedCornerShape(7.dp)
                     )
                     .padding(horizontal = 10.dp),
@@ -1056,7 +1067,7 @@ private fun ByokInputWrapper(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF64748B)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }

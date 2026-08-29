@@ -146,15 +146,15 @@ fun ProviderPresetStep(
                                 .background(
                                     Brush.linearGradient(
                                         listOf(
-                                            Color(0xFF9333EA).copy(alpha = 0.08f),
-                                            Color(0xFF6366F1).copy(alpha = 0.08f)
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f)
                                         )
                                     ),
                                     shape
                                 )
                                 .dashedBorder(
                                     width = 1.3.dp,
-                                    color = Color(0xFF9333EA).copy(alpha = 0.85f),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
                                     cornerRadius = 10.dp,
                                     dashLength = 4.5.dp,
                                     gapLength = 3.5.dp

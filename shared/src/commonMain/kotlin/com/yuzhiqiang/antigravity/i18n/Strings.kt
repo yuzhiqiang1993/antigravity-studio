@@ -561,15 +561,23 @@ interface Strings {
     val settingsThemeDark: String
     val settingsThemePalette: String
     val settingsThemePaletteDescription: String
+    // Theme Palette (赤橙黄绿青蓝紫 + 白)
     val paletteWhite: String
+    val paletteRed: String
+    val paletteOrange: String
+    val paletteAmber: String
+    val paletteGreen: String
+    val paletteTeal: String
+    val paletteBlue: String
+    val palettePurple: String
     val paletteDawn: String
     val paletteDeepOcean: String
+    val paletteEmerald: String
+    val paletteRose: String
+    val paletteSlate: String
     val paletteIndigo: String
     val paletteOcean: String
-    val paletteEmerald: String
     val paletteViolet: String
-    val paletteRose: String
-    val paletteAmber: String
     val settingsPort: String
     val settingsPortDescription: String
     val settingsPortInvalid: String
@@ -1609,15 +1617,22 @@ object StringsZh : Strings {
     override val settingsThemeDark = "深色模式"
     override val settingsThemePalette = "配色方案"
     override val settingsThemePaletteDescription = "选择应用核心主题色系 (Material Design 3)"
-    override val paletteWhite = "晨曦粉紫"
-    override val paletteDawn = "晨曦粉紫"
-    override val paletteDeepOcean = "清冽海蓝"
+    override val paletteWhite = "白曜极简"
+    override val paletteRed = "赤霞绯红"
+    override val paletteOrange = "橙光落日"
+    override val paletteAmber = "黄昏金珀"
+    override val paletteGreen = "绿岚翡翠"
+    override val paletteTeal = "青碧苍黛"
+    override val paletteBlue = "蓝海清冽"
+    override val palettePurple = "紫霞晨光"
+    override val paletteDawn = "紫霞晨光"
+    override val paletteDeepOcean = "蓝海清冽"
+    override val paletteEmerald = "青岚翠绿"
+    override val paletteRose = "赤霞绯红"
+    override val paletteSlate = "远山苍灰"
     override val paletteIndigo = "极光靛蓝"
     override val paletteOcean = "深海青蓝"
-    override val paletteEmerald = "自然翠绿"
     override val paletteViolet = "幻境紫罗兰"
-    override val paletteRose = "活力珊瑚"
-    override val paletteAmber = "晨曦金珀"
     override val settingsPort = "Studio 本地监听端口"
     override val settingsPortDescription = "IDE、App 和 CLI 连接 Studio 使用的端口；修改后会重启本地代理服务"
     override val settingsPortInvalid = "端口必须在 1024 到 65535 之间"
@@ -2733,15 +2748,22 @@ object StringsEn : Strings {
     override val settingsThemeDark = "Dark Theme"
     override val settingsThemePalette = "Color Palette"
     override val settingsThemePaletteDescription = "Choose core theme color scheme (Material Design 3)"
-    override val paletteWhite = "Dawn Lilac"
-    override val paletteDawn = "Dawn Lilac"
-    override val paletteDeepOcean = "Crisp Ocean"
+    override val paletteWhite = "Pure White"
+    override val paletteRed = "Crimson Red"
+    override val paletteOrange = "Sunset Orange"
+    override val paletteAmber = "Amber Gold"
+    override val paletteGreen = "Emerald Green"
+    override val paletteTeal = "Teal Cyan"
+    override val paletteBlue = "Ocean Blue"
+    override val palettePurple = "Dawn Purple"
+    override val paletteDawn = "Dawn Purple"
+    override val paletteDeepOcean = "Ocean Blue"
+    override val paletteEmerald = "Emerald Green"
+    override val paletteRose = "Crimson Red"
+    override val paletteSlate = "Mountain Slate"
     override val paletteIndigo = "Aurora Indigo"
     override val paletteOcean = "Ocean Teal"
-    override val paletteEmerald = "Natural Emerald"
     override val paletteViolet = "Mystic Violet"
-    override val paletteRose = "Vibrant Coral"
-    override val paletteAmber = "Dawn Amber"
     override val settingsPort = "Studio Local Listening Port"
     override val settingsPortDescription =
         "Used by IDE, App and CLI to connect to Studio; saving restarts the local proxy service"

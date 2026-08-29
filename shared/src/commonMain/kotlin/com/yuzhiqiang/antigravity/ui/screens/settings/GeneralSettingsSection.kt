@@ -34,6 +34,7 @@ import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.ThemePalette
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun GeneralSettingsSection(
     config: AppConfig,
@@ -157,42 +158,40 @@ fun GeneralSettingsSection(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
-                // 配色方案
+                // 配色方案 (赤橙黄绿青蓝紫 + 极简纯白)
                 SettingRow(
                     icon = Icons.Outlined.Palette,
                     title = s.settingsThemePalette,
                     description = s.settingsThemePaletteDescription,
                     modifier = Modifier.padding(vertical = 4.dp)
                 ) {
-                    val currentPalette = config.themePalette.ifBlank { "dawn" }
-                    Row(
-                        modifier = Modifier
-                            .height(32.dp)
-                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                                shape = RoundedCornerShape(AppTokens.Radius.pill)
-                            )
-                            .padding(3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    val currentPalette = config.themePalette.ifBlank { "white" }
+                    FlowRow(
+                        modifier = Modifier.widthIn(max = 520.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         for (palette in ThemePalette.entries) {
                             val paletteId = palette.id
                             val paletteLabel = palette.labelProvider(s)
                             val colorDot = palette.previewColor
-                            val selected = currentPalette == paletteId || (paletteId == "dawn" && currentPalette == "white")
-                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                            val selected = currentPalette == paletteId ||
+                                    (paletteId == "purple" && currentPalette == "dawn") ||
+                                    (paletteId == "blue" && currentPalette == "deep_ocean") ||
+                                    (paletteId == "white" && currentPalette.isBlank())
+
+                            val bg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
                             val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+
                             Row(
                                 modifier = Modifier
-                                    .fillMaxHeight()
+                                    .height(30.dp)
                                     .clip(RoundedCornerShape(AppTokens.Radius.pill))
                                     .background(bg)
+                                    .border(1.dp, border, RoundedCornerShape(AppTokens.Radius.pill))
                                     .clickable { onUpdateThemePalette(paletteId) }
-                                    .padding(horizontal = 10.dp),
+                                    .padding(horizontal = 9.dp),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -200,16 +199,16 @@ fun GeneralSettingsSection(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                        .background(if (selected) Color.White else colorDot)
+                                        .background(if (selected && paletteId != "white") Color.White else colorDot)
                                         .border(
-                                            width = if (paletteId == "dawn" && !selected) 1.dp else 0.5.dp,
+                                            width = if (paletteId == "white" && !selected) 1.dp else 0.5.dp,
                                             color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                                             shape = RoundedCornerShape(AppTokens.Radius.pill)
                                         )
                                 )
                                 Text(
                                     text = paletteLabel,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                     color = text
                                 )
