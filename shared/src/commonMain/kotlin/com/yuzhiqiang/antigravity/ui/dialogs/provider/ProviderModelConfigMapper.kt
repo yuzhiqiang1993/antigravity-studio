@@ -12,11 +12,22 @@ internal object ProviderModelConfigMapper {
     fun toCatalogModelConfig(model: UpstreamModel): CatalogModelConfig {
         val isImageGen =
             ModelRole.IMAGE_GENERATION in model.capabilities.roles && ModelRole.AGENT !in model.capabilities.roles
+        val (inputTokenLimit, inputTokenLimitSource) = when {
+            model.tokenLimits.contextWindow != null -> {
+                model.tokenLimits.contextWindow to model.tokenLimits.contextWindowSource
+            }
+
+            model.tokenLimits.inputTokenLimit != null -> {
+                model.tokenLimits.inputTokenLimit to model.tokenLimits.inputTokenLimitSource
+            }
+
+            else -> null to TokenLimitSource.UNKNOWN
+        }
         return CatalogModelConfig(
             id = model.upstreamModelId,
             name = model.displayName ?: model.name,
-            inputTokenLimit = model.tokenLimits.contextWindow ?: model.tokenLimits.inputTokenLimit,
-            inputTokenLimitSource = model.tokenLimits.contextWindowSource,
+            inputTokenLimit = inputTokenLimit,
+            inputTokenLimitSource = inputTokenLimitSource,
             outputTokenLimit = model.tokenLimits.outputTokenLimit,
             outputTokenLimitSource = model.tokenLimits.outputTokenLimitSource,
             isVision = model.capabilities.supportsVision,
@@ -35,48 +46,10 @@ internal object ProviderModelConfigMapper {
 
     fun createManualCatalogConfigs(initialModels: List<UpstreamModel>): List<CatalogModelConfig> {
         val existingMap = initialModels.associateBy { it.upstreamModelId }
-        val modelIds = initialModels.map { it.upstreamModelId }.distinct()
-
-        return modelIds.map { mName ->
-            val existing = existingMap[mName]
-            val inputLimit = existing?.tokenLimits?.contextWindow
-                ?: existing?.tokenLimits?.inputTokenLimit
-                ?: 131_072L
-            val outputLimit = existing?.tokenLimits?.outputTokenLimit ?: 4_096L
-            val isVision = existing?.capabilities?.supportsVision ?: true
-            val isTools = existing?.capabilities?.tools ?: true
-            val reasoningDraft = existing?.let { ReasoningConfigDraft.fromCapabilities(it.capabilities) }
-                ?: ReasoningConfigDraft(
-                    enabled = false,
-                    levels = emptySet(),
-                    customValue = null,
-                    thinkingBudget = null,
-                    minThinkingBudget = null,
-                    mappings = emptyMap()
-                )
-
-            CatalogModelConfig(
-                id = mName,
-                name = existing?.displayName ?: mName,
-                vendor = null,
-                inputTokenLimit = inputLimit,
-                inputTokenLimitSource = if (existing != null) existing.tokenLimits.contextWindowSource else TokenLimitSource.CONFIGURED,
-                outputTokenLimit = outputLimit,
-                outputTokenLimitSource = if (existing != null) existing.tokenLimits.outputTokenLimitSource else TokenLimitSource.CONFIGURED,
-                isVision = isVision,
-                inputModalities = setOf(ModelModality.TEXT).let { if (isVision) it + ModelModality.IMAGE else it },
-                outputModalities = setOf(ModelModality.TEXT),
-                inputMimeTypes = if (isVision) listOf("image/png", "image/jpeg", "image/webp") else emptyList(),
-                roles = emptySet(),
-                isImageGeneration = false,
-                compressionPolicy = existing?.compressionPolicy,
-                reasoningMappings = emptyMap(),
-                isReasoning = reasoningDraft.enabled,
-                reasoningDraft = reasoningDraft,
-                isTools = isTools,
-                isUnavailable = false
-            )
-        }
+        return initialModels
+            .map { it.upstreamModelId }
+            .distinct()
+            .map { modelId -> toCatalogModelConfig(existingMap.getValue(modelId)) }
     }
 
     fun mergeDiscoveredCatalogConfigs(
@@ -206,33 +179,62 @@ internal object ProviderModelConfigMapper {
                     model.upstreamModelId == config.id
                 }
                 val modelId = existing?.id ?: "$providerId-$cleanId"
+                val useDefaultImageCapabilities = config.isImageGeneration && existing == null
                 val tokenLimits = ModelTokenLimits(
-                    contextWindow = config.inputTokenLimit.takeUnless { config.isImageGeneration },
-                    contextWindowSource = if (config.isImageGeneration) TokenLimitSource.UNKNOWN else config.inputTokenLimitSource,
-                    inputTokenLimit = config.inputTokenLimit.takeUnless { config.isImageGeneration },
-                    inputTokenLimitSource = if (config.isImageGeneration) TokenLimitSource.UNKNOWN else config.inputTokenLimitSource,
-                    outputTokenLimit = config.outputTokenLimit.takeUnless { config.isImageGeneration },
-                    outputTokenLimitSource = if (config.isImageGeneration) TokenLimitSource.UNKNOWN else config.outputTokenLimitSource
+                    contextWindow = config.inputTokenLimit.takeUnless { useDefaultImageCapabilities },
+                    contextWindowSource = if (useDefaultImageCapabilities) {
+                        TokenLimitSource.UNKNOWN
+                    } else {
+                        config.inputTokenLimitSource
+                    },
+                    inputTokenLimit = config.inputTokenLimit.takeUnless { useDefaultImageCapabilities },
+                    inputTokenLimitSource = if (useDefaultImageCapabilities) {
+                        TokenLimitSource.UNKNOWN
+                    } else {
+                        config.inputTokenLimitSource
+                    },
+                    outputTokenLimit = config.outputTokenLimit.takeUnless { useDefaultImageCapabilities },
+                    outputTokenLimitSource = if (useDefaultImageCapabilities) {
+                        TokenLimitSource.UNKNOWN
+                    } else {
+                        config.outputTokenLimitSource
+                    }
                 )
                 val capabilities = ModelCapabilities(
-                    roles = if (config.isImageGeneration) listOf(ModelRole.IMAGE_GENERATION) else config.roles.ifEmpty {
-                        setOf(
-                            ModelRole.AGENT
+                    roles = if (useDefaultImageCapabilities) {
+                        listOf(ModelRole.IMAGE_GENERATION)
+                    } else {
+                        config.roles.ifEmpty {
+                            setOf(
+                                if (config.isImageGeneration) ModelRole.IMAGE_GENERATION else ModelRole.AGENT
+                            )
+                        }.toList()
+                    },
+                    inputModalities = if (useDefaultImageCapabilities) {
+                        listOf(ModelModality.TEXT)
+                    } else {
+                        inputModalities.toList()
+                    },
+                    outputModalities = if (useDefaultImageCapabilities) {
+                        listOf(ModelModality.IMAGE)
+                    } else {
+                        config.outputModalities.ifEmpty {
+                            setOf(
+                                if (config.isImageGeneration) ModelModality.IMAGE else ModelModality.TEXT
+                            )
+                        }.toList()
+                    },
+                    tools = if (useDefaultImageCapabilities) false else config.isTools,
+                    inputMimeTypes = if (useDefaultImageCapabilities) emptyList() else config.inputMimeTypes,
+                    reasoning = if (useDefaultImageCapabilities) {
+                        ReasoningCapability(supported = false)
+                    } else {
+                        config.reasoningDraft.toCapability(
+                            protocol = protocol,
+                            outputTokenLimit = config.outputTokenLimit
                         )
-                    }.toList(),
-                    inputModalities = if (config.isImageGeneration) listOf(ModelModality.TEXT) else inputModalities.toList(),
-                    outputModalities = if (config.isImageGeneration) listOf(ModelModality.IMAGE) else config.outputModalities.ifEmpty {
-                        setOf(
-                            ModelModality.TEXT
-                        )
-                    }.toList(),
-                    tools = if (config.isImageGeneration) false else config.isTools,
-                    inputMimeTypes = if (config.isImageGeneration) emptyList() else config.inputMimeTypes,
-                    reasoning = if (config.isImageGeneration) ReasoningCapability(supported = false) else config.reasoningDraft.toCapability(
-                        protocol = protocol,
-                        outputTokenLimit = config.outputTokenLimit
-                    ),
-                    vision = if (config.isImageGeneration) false else config.isVision
+                    },
+                    vision = if (useDefaultImageCapabilities) false else config.isVision
                 )
                 (existing ?: UpstreamModel(
                     id = modelId,
@@ -247,7 +249,7 @@ internal object ProviderModelConfigMapper {
                     upstreamModelId = config.id,
                     tokenLimits = tokenLimits,
                     capabilities = capabilities,
-                    compressionPolicy = if (config.isImageGeneration) null else config.compressionPolicy
+                    compressionPolicy = if (useDefaultImageCapabilities) null else config.compressionPolicy
                         ?: existing?.compressionPolicy
                 )
             }
