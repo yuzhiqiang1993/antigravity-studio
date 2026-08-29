@@ -33,7 +33,7 @@ data class ReasoningConfigDraft(
             )
         }
         val effectiveMappings = mappings
-            .filterKeys { level -> level in levels }
+            .filterKeys { level -> level == ReasoningLevel.OFF || level in levels }
             .toMutableMap()
         levels.forEach { level ->
             val mapping = ReasoningMappingSupport.resolveMapping(
@@ -47,7 +47,16 @@ data class ReasoningConfigDraft(
         val customMapping = customValue
             ?.takeIf { it.isNotBlank() }
             ?.let { value -> ReasoningMappingSupport.customMapping(protocol, value, outputTokenLimit) }
-        if (customMapping != null) effectiveMappings[ReasoningLevel.AUTO] = customMapping
+        when {
+            customMapping != null -> effectiveMappings[ReasoningLevel.AUTO] = customMapping
+            customValue == null && mappings[ReasoningLevel.AUTO]?.value == null -> {
+                mappings[ReasoningLevel.AUTO]?.let { mapping ->
+                    effectiveMappings[ReasoningLevel.AUTO] = mapping
+                }
+            }
+
+            else -> effectiveMappings.remove(ReasoningLevel.AUTO)
+        }
         return ReasoningCapability(
             supported = true,
             thinkingBudget = thinkingBudget.takeIf { protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT },
