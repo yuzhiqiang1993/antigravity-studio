@@ -31,6 +31,7 @@ import com.yuzhiqiang.antigravity.ui.screens.models.*
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import kotlinx.coroutines.launch
 
 @Composable
@@ -196,10 +197,10 @@ fun ModelsScreen(
                     towards = direction,
                     animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
                 ) + fadeIn(animationSpec = tween(200)) togetherWith
-                slideOutOfContainer(
-                    towards = direction,
-                    animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
-                ) + fadeOut(animationSpec = tween(160))
+                        slideOutOfContainer(
+                            towards = direction,
+                            animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+                        ) + fadeOut(animationSpec = tween(160))
             },
             modifier = Modifier.fillMaxWidth()
         ) { currentTabId ->
@@ -295,7 +296,10 @@ fun ModelsScreen(
                             viewModel.showConfirmDialog(
                                 AppViewModel.ConfirmDialogState(
                                     title = s.modelsDeleteProviderConfirmTitle,
-                                    message = s.modelsDeleteProviderConfirmMessage(currentProvider.name, providerModels.size),
+                                    message = s.modelsDeleteProviderConfirmMessage(
+                                        currentProvider.name,
+                                        providerModels.size
+                                    ),
                                     confirmLabel = s.commonDelete,
                                     isDestructive = true,
                                     onConfirm = {
@@ -317,7 +321,9 @@ fun ModelsScreen(
                             viewModel.showConfirmDialog(
                                 AppViewModel.ConfirmDialogState(
                                     title = s.modelsDeleteModelConfirmTitle,
-                                    message = s.modelsDeleteModelConfirmMessage(model.displayName ?: model.upstreamModelId),
+                                    message = s.modelsDeleteModelConfirmMessage(
+                                        model.displayName ?: model.upstreamModelId
+                                    ),
                                     confirmLabel = s.commonDelete,
                                     isDestructive = true,
                                     onConfirm = {
@@ -349,7 +355,7 @@ fun ModelsScreen(
         }
     }
 
-   if (showAddProviderDialog) {
+    if (showAddProviderDialog) {
         val currentModels = editingProvider?.let { provider ->
             config.upstreamModels.filter { model -> model.providerId == provider.id }
         }.orEmpty()
@@ -415,17 +421,18 @@ fun ModelsScreen(
         )
     }
 
-   debugDialogJson?.let { jsonContent ->
-       OfficialCatalogDebugDialog(
-           title = debugDialogTitle ?: s.modelsJsonData,
-           jsonContent = jsonContent,
-           onDismiss = {
-               debugDialogJson = null
-               debugDialogTitle = null
-           },
-           onCopy = {
-               copyTextToClipboard(jsonContent)
-                viewModel.showNotice(s.modelsCopiedJson)
+    debugDialogJson?.let { jsonContent ->
+        OfficialCatalogDebugDialog(
+            title = debugDialogTitle ?: s.modelsJsonData,
+            jsonContent = jsonContent,
+            onDismiss = {
+                debugDialogJson = null
+                debugDialogTitle = null
+            },
+            onCopy = {
+                if (copyToClipboard(jsonContent)) {
+                    viewModel.showNotice(s.modelsCopiedJson)
+                }
             }
         )
     }
@@ -446,14 +453,14 @@ fun ModelsScreen(
         )
     }
 
-   activeModelMetaInfo?.let { meta ->
-       ModelInfoDialog(
-           modelName = meta.name,
-           modelId = meta.id,
+    activeModelMetaInfo?.let { meta ->
+        ModelInfoDialog(
+            modelName = meta.name,
+            modelId = meta.id,
             contextLimit = meta.contextLimit,
             outputLimit = meta.outputLimit,
-           roles = meta.roles,
-           onDismiss = { activeModelMetaInfo = null }
-       )
-   }
+            roles = meta.roles,
+            onDismiss = { activeModelMetaInfo = null }
+        )
+    }
 }

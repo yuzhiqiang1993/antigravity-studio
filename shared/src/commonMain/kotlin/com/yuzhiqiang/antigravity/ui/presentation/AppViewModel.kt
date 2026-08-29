@@ -18,6 +18,7 @@ import com.yuzhiqiang.antigravity.proxy.routing.RouteResolver
 import com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer
 import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.components.NoticeState
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import com.yuzhiqiang.antigravity.update.engine.UpdateChecker
 import com.yuzhiqiang.antigravity.update.model.AppUpdateDownloadState
 import com.yuzhiqiang.antigravity.update.model.AppVersion
@@ -1256,11 +1257,7 @@ class AppViewModel(
             if (!url.isNullOrBlank()) {
                 if (openBrowserDirectly) {
                     googleAuthService.openBrowser(url)
-                } else {
-                    java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                        java.awt.datatransfer.StringSelection(url),
-                        null
-                    )
+                } else if (copyToClipboard(url)) {
                     showNotice(s.noticeAuthLinkCopied, NoticeKind.SUCCESS)
                 }
             }
@@ -1272,11 +1269,7 @@ class AppViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val result = googleAuthService.startOAuthFlow(openBrowserDirectly = openBrowserDirectly) { authUrl ->
                 _oauthAuthUrl.value = authUrl
-                if (!openBrowserDirectly) {
-                    java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                        java.awt.datatransfer.StringSelection(authUrl),
-                        null
-                    )
+                if (!openBrowserDirectly && copyToClipboard(authUrl)) {
                     showNotice(s.noticeAuthLinkCopiedBrowser, NoticeKind.SUCCESS)
                 }
             }

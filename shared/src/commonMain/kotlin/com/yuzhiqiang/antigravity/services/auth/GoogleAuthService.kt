@@ -38,9 +38,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import java.awt.Desktop
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 import java.net.ServerSocket
-import java.net.URI
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -474,19 +473,7 @@ class GoogleAuthService {
     }
 
     fun openBrowser(url: String) {
-        try {
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                Desktop.getDesktop().browse(URI(url))
-            } else {
-                val os = System.getProperty("os.name").lowercase()
-                when {
-                    os.contains("mac") -> Runtime.getRuntime().exec(arrayOf("open", url))
-                    os.contains("win") -> Runtime.getRuntime().exec(arrayOf("rundll32", "url.dll,FileProtocolHandler", url))
-                    else -> Runtime.getRuntime().exec(arrayOf("xdg-open", url))
-                }
-            }
-        } catch (_: Exception) {
-        }
+        DesktopPlatformService.openBrowser(url)
     }
 
     private fun buildCallbackHtml(success: Boolean, message: String): String {

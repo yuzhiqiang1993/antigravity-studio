@@ -20,11 +20,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import java.io.File
-import java.nio.file.AtomicMoveNotSupportedException
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption.ATOMIC_MOVE
-import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 @Serializable
 data class AccountStoreData(
@@ -600,34 +597,10 @@ class AccountStore(
     }
 
     private fun writeTextAtomically(file: File, content: String) {
-        writeBytesAtomically(file, content.toByteArray(Charsets.UTF_8))
+        AtomicFileWriter.writeText(file, content).getOrThrow()
     }
 
     private fun writeBytesAtomically(file: File, content: ByteArray) {
-        val parent = file.parentFile
-        if (parent != null && !parent.exists()) {
-            parent.mkdirs()
-        }
-        val temp = File.createTempFile("${file.name}-", ".tmp", parent)
-        try {
-            temp.writeBytes(content)
-            val moved = try {
-                try {
-                    Files.move(temp.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
-                } catch (_: AtomicMoveNotSupportedException) {
-                    Files.move(temp.toPath(), file.toPath(), REPLACE_EXISTING)
-                }
-                true
-            } catch (_: Exception) {
-                false
-            }
-            if (!moved) {
-                file.writeBytes(content)
-            }
-        } finally {
-            if (temp.exists()) {
-                temp.delete()
-            }
-        }
+        AtomicFileWriter.writeBytes(file, content).getOrThrow()
     }
 }

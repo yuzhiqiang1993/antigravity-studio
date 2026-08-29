@@ -1,0 +1,63 @@
+package com.yuzhiqiang.antigravity.ui.dialogs.activity
+
+import com.yuzhiqiang.antigravity.domain.model.ActivityLog
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import java.text.SimpleDateFormat
+import java.util.Date
+
+/**
+ * 格式化完整时间戳
+ */
+fun formatFullTime(timestamp: Long): String {
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+        sdf.format(Date(timestamp))
+    } catch (_: Exception) {
+        "--"
+    }
+}
+
+/**
+ * 将 ActivityLog 转换为结构化 JSON 字符串
+ */
+fun ActivityLog.toJsonString(): String {
+    val log = this
+    return buildJsonObject {
+        put("id", log.id)
+        put("timestamp", log.timestamp)
+        put("timeFormatted", formatFullTime(log.timestamp))
+        put("method", log.method)
+        put("path", log.path)
+        put("statusCode", log.statusCode)
+        put("durationMs", log.durationMs)
+        put("isPending", log.isPending)
+        if (log.retryCount > 0) put("retryCount", log.retryCount)
+        log.firstTokenMs?.let { put("firstTokenMs", it) }
+        put("clientSource", log.clientSource)
+        put("isOfficialPassthrough", log.isOfficialPassthrough)
+        put("modelId", log.modelId)
+        put("requestedModelId", log.requestedModelId)
+        put("providerName", log.providerName)
+        put("inputTokens", log.inputTokens)
+        put("outputTokens", log.outputTokens)
+        put("cacheReadTokens", log.cacheReadTokens)
+        put("cacheWriteTokens", log.cacheWriteTokens)
+        put("reasoningTokens", log.reasoningTokens)
+        put("totalTokens", log.totalTokens)
+        put("errorMessage", log.errorMessage)
+        put("errorSource", log.errorSource)
+        log.requestHeaders?.let { headers ->
+            put("requestHeaders", buildJsonObject {
+                headers.forEach { (k, v) -> put(k, v) }
+            })
+        }
+        log.requestBody?.let { put("requestBody", it) }
+        log.responseHeaders?.let { headers ->
+            put("responseHeaders", buildJsonObject {
+                headers.forEach { (k, v) -> put(k, v) }
+            })
+        }
+        log.responseBody?.let { put("responseBody", it) }
+    }.toString()
+}

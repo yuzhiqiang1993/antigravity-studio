@@ -37,36 +37,15 @@ import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
+import com.yuzhiqiang.antigravity.ui.utils.readFromClipboard
 import java.awt.FileDialog
 import java.awt.Frame
-import java.awt.Toolkit
-import java.awt.datatransfer.DataFlavor
-import java.awt.datatransfer.StringSelection
 import java.io.File
 
 private enum class AddAccountMode {
     BROWSER_OAUTH,
     MANUAL_TOKEN
-}
-
-private fun copyToClipboard(text: String) {
-    try {
-        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
-    } catch (_: Exception) {}
-}
-
-private fun readFromClipboard(): String? {
-    return try {
-        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-        val contents = clipboard.getContents(null)
-        if (contents != null && contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
-            contents.getTransferData(DataFlavor.stringFlavor) as? String
-        } else {
-            null
-        }
-    } catch (_: Exception) {
-        null
-    }
 }
 
 private fun pickJsonFile(s: com.yuzhiqiang.antigravity.i18n.Strings = com.yuzhiqiang.antigravity.i18n.currentStrings()): String? {

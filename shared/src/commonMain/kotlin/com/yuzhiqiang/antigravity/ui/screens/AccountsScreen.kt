@@ -38,11 +38,10 @@ import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 
 import java.awt.FileDialog
 import java.awt.Frame
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import java.io.File
 
 private enum class AccountsViewMode {
@@ -317,7 +316,12 @@ fun AccountsScreen(
                             }
 
                             // 配额自动刷新设置
-                            StudioTooltip(text = s.accountsAutoRefreshTooltip(config.quotaActiveIntervalSeconds, config.quotaBackgroundIntervalSeconds / 60)) {
+                            StudioTooltip(
+                                text = s.accountsAutoRefreshTooltip(
+                                    config.quotaActiveIntervalSeconds,
+                                    config.quotaBackgroundIntervalSeconds / 60
+                                )
+                            ) {
                                 IconButton(
                                     onClick = { showQuotaRefreshConfigDialog = true },
                                     modifier = Modifier.size(StudioDesignTokens.Sizes.topIconButtonSize)
@@ -382,14 +386,12 @@ fun AccountsScreen(
                                             val count =
                                                 viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
                                             val exportedJson = viewModel.exportAccountsJson()
-                                            Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                                StringSelection(exportedJson),
-                                                null
-                                            )
-                                            viewModel.showNotice(
-                                                s.accountsExportCopiedNotice(count),
-                                                NoticeKind.SUCCESS
-                                            )
+                                            if (copyToClipboard(exportedJson)) {
+                                                viewModel.showNotice(
+                                                    s.accountsExportCopiedNotice(count),
+                                                    NoticeKind.SUCCESS
+                                                )
+                                            }
                                         }
                                     )
                                     StudioDropdownMenuItem(
@@ -523,11 +525,9 @@ fun AccountsScreen(
                                                     viewModel.showNotice(s.accountsCopiedEmail, NoticeKind.SUCCESS)
                                                 },
                                                 onCopyToken = {
-                                                    Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                                        StringSelection(acc.tokens.refreshToken),
-                                                        null
-                                                    )
-                                                    viewModel.showNotice(s.accountsCopyToken, NoticeKind.SUCCESS)
+                                                    if (copyToClipboard(acc.tokens.refreshToken)) {
+                                                        viewModel.showNotice(s.accountsCopyToken, NoticeKind.SUCCESS)
+                                                    }
                                                 },
                                                 onDelete = { accountToDelete = acc }
                                             )
@@ -655,7 +655,10 @@ private fun EmptyAccountsCard(onAddClick: () -> Unit) {
     }
 }
 
-private fun exportAccountsToFile(viewModel: AppViewModel, s: com.yuzhiqiang.antigravity.i18n.Strings = com.yuzhiqiang.antigravity.i18n.currentStrings()) {
+private fun exportAccountsToFile(
+    viewModel: AppViewModel,
+    s: com.yuzhiqiang.antigravity.i18n.Strings = com.yuzhiqiang.antigravity.i18n.currentStrings()
+) {
     try {
         val fileDialog = FileDialog(null as Frame?, s.accountsExportDialogTitle, FileDialog.SAVE)
         fileDialog.file = "antigravity_accounts.json"

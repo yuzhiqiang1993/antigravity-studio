@@ -36,10 +36,9 @@ import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioMarkdownViewer
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 import org.jetbrains.compose.resources.painterResource
-import java.awt.Desktop
 import java.io.File
-import java.net.URI
 
 @Composable
 fun UpdateDialog(
@@ -651,10 +650,5 @@ private fun formatSpeed(bytesPerSec: Long): String {
 }
 
 private fun openBrowserUrl(url: String) {
-    try {
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-            Desktop.getDesktop().browse(URI(url))
-        }
-    } catch (_: Exception) {}
+    DesktopPlatformService.openBrowser(url)
 }
-

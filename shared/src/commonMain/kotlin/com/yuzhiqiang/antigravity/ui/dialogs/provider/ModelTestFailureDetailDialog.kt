@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.yuzhiqiang.antigravity.i18n.strings
-import com.yuzhiqiang.antigravity.ui.screens.models.copyTextToClipboard
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -241,11 +241,12 @@ fun ModelTestFailureDetailDialog(
                                 config.testStatusCode?.let { appendLine("Status Code: $it") }
                                 appendLine("Error: $rawError")
                             }
-                            copyTextToClipboard(copyPayload)
-                            isCopied = true
-                            coroutineScope.launch {
-                                delay(2000)
-                                isCopied = false
+                            if (copyToClipboard(copyPayload)) {
+                                isCopied = true
+                                coroutineScope.launch {
+                                    delay(2000)
+                                    isCopied = false
+                                }
                             }
                         },
                         shape = RoundedCornerShape(8.dp),
