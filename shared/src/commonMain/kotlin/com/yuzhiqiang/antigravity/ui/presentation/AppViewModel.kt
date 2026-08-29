@@ -2,45 +2,35 @@ package com.yuzhiqiang.antigravity.ui.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.yuzhiqiang.antigravity.data.storage.AccountStore
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
 import com.yuzhiqiang.antigravity.doctor.engine.DoctorEngine
-import com.yuzhiqiang.antigravity.doctor.model.DoctorReport
 import com.yuzhiqiang.antigravity.doctor.model.DoctorFixAction
+import com.yuzhiqiang.antigravity.doctor.model.DoctorReport
 import com.yuzhiqiang.antigravity.domain.model.*
-import com.yuzhiqiang.antigravity.host.app.AppHostManager
+import com.yuzhiqiang.antigravity.domain.model.account.*
+import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.network.ConnectionTester
 import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
-import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
-import com.yuzhiqiang.antigravity.proxy.routing.RouteResolver
 import com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer
+import com.yuzhiqiang.antigravity.services.auth.GoogleAuthService
+import com.yuzhiqiang.antigravity.services.auth.HotSwitchCoordinator
+import com.yuzhiqiang.antigravity.services.auth.SmartSwitchCoordinator
+import com.yuzhiqiang.antigravity.services.auth.TokenRenewalManager
+import com.yuzhiqiang.antigravity.services.quota.QuotaFetchService
+import com.yuzhiqiang.antigravity.services.quota.QuotaPoller
 import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.components.NoticeState
-import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
-import com.yuzhiqiang.antigravity.update.engine.UpdateChecker
 import com.yuzhiqiang.antigravity.update.model.AppUpdateDownloadState
-import com.yuzhiqiang.antigravity.update.model.AppVersion
 import com.yuzhiqiang.antigravity.update.model.ReleaseInfo
 import com.yuzhiqiang.antigravity.update.model.UpdateState
 import kotlinx.coroutines.Job
-import com.yuzhiqiang.antigravity.data.storage.AccountStore
-import com.yuzhiqiang.antigravity.domain.model.account.*
-import com.yuzhiqiang.antigravity.services.auth.GoogleAuthService
-import com.yuzhiqiang.antigravity.services.auth.TokenRenewalManager
 import kotlinx.coroutines.flow.*
-import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
-import com.yuzhiqiang.antigravity.services.quota.QuotaFetchService
-import com.yuzhiqiang.antigravity.services.quota.QuotaPoller
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
-import com.yuzhiqiang.antigravity.services.auth.HostAccountDetector
-import com.yuzhiqiang.antigravity.services.auth.HotSwitchCoordinator
-import com.yuzhiqiang.antigravity.services.auth.SmartSwitchCoordinator
-import kotlinx.coroutines.isActive
-import java.util.concurrent.atomic.AtomicBoolean
+
 
 class AppViewModel(
 
@@ -98,7 +88,6 @@ class AppViewModel(
 
     val cliActiveAccount: StateFlow<AccountInfo?> = accountStore.activeAccountState
     val ideActiveAccount: StateFlow<AccountInfo?> = hotSwitchCoordinator.ideActiveAccount
-    private val accountSwitchRequestActive = AtomicBoolean(false)
     private val _isAccountSwitching = MutableStateFlow(false)
     val isAccountSwitching: StateFlow<Boolean> = _isAccountSwitching.asStateFlow()
 
@@ -251,6 +240,20 @@ class AppViewModel(
     private val _providerTestingIds = MutableStateFlow<Set<String>>(emptySet())
     val providerTestingIds: StateFlow<Set<String>> = _providerTestingIds.asStateFlow()
 
+    private val providerModelDelegate = ProviderModelDelegate(
+        scope = viewModelScope,
+        configStore = configStore,
+        accountStore = accountStore,
+        googleAuthService = googleAuthService,
+        configFlow = config,
+        officialModelsFlow = _officialModels,
+        isFetchingOfficialModelsFlow = _isFetchingOfficialModels,
+        officialModelsErrorFlow = _officialModelsError,
+        modelTestStatusesFlow = _modelTestStatuses,
+        providerTestingIdsFlow = _providerTestingIds,
+        showNotice = ::showNotice
+    )
+
     private val hostDelegate = HostLifecycleDelegate(
         scope = viewModelScope,
         configStore = configStore,
@@ -288,7 +291,15 @@ class AppViewModel(
 
     private val _downloadState = MutableStateFlow<AppUpdateDownloadState>(AppUpdateDownloadState.Idle)
     val downloadState: StateFlow<AppUpdateDownloadState> = _downloadState.asStateFlow()
-    private var downloadJob: kotlinx.coroutines.Job? = null
+    private val updateDelegate = UpdateDelegate(
+        scope = viewModelScope,
+        configStore = configStore,
+        updateStateFlow = _updateState,
+        showUpdateDialogFlow = _showUpdateDialog,
+        activeReleaseFlow = _activeRelease,
+        downloadStateFlow = _downloadState,
+        showNotice = ::showNotice
+    )
 
     private val s get() = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
 
@@ -307,6 +318,24 @@ class AppViewModel(
             openNetworkSettings()
         },
         onRefreshHostStatus = ::refreshHostStatus
+    )
+
+    private val accountDelegate = AccountDelegate(
+        scope = viewModelScope,
+        configStore = configStore,
+        accountStore = accountStore,
+        googleAuthService = googleAuthService,
+        hotSwitchCoordinator = hotSwitchCoordinator,
+        tokenRenewalManager = tokenRenewalManager,
+        quotaPoller = quotaPoller,
+        appCliActiveEmailFlow = _appCliActiveEmail,
+        ideActiveEmailFlow = _ideActiveEmail,
+        isAccountSwitchingFlow = _isAccountSwitching,
+        isOAuthAuthorizingFlow = _isOAuthAuthorizing,
+        oauthAuthUrlFlow = _oauthAuthUrl,
+        showNotice = ::showNotice,
+        onRefreshHostStatus = ::refreshHostStatus,
+        onFetchOfficialModels = providerModelDelegate::fetchOfficialModels
     )
 
     init {
@@ -352,210 +381,21 @@ class AppViewModel(
         }
     }
 
-    fun syncHostAccounts(): Job {
-        return viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val customHostPaths = configStore.currentConfig.customHostPaths
-                val appCliProbes = HostAccountDetector.detectAppCliAccountProbes(
-                    credentialsFile = accountStore.officialCredentialsFile(),
-                    installationPath = customHostPaths["app"]
-                )
-                val ideProbes = HostAccountDetector.detectIdeAccountProbes(customHostPaths["ide"])
-                val appCliRuntimeProfile = appCliProbes.firstOrNull { probe ->
-                    probe.source == HostAccountDetector.AccountProbeSource.RUNTIME_API
-                }?.profile
-                val ideRuntimeProfile = ideProbes.firstOrNull { probe ->
-                    probe.source == HostAccountDetector.AccountProbeSource.RUNTIME_API
-                }?.profile
-                val appCliProfile = appCliRuntimeProfile ?: appCliProbes.firstOrNull { probe ->
-                    probe.source == HostAccountDetector.AccountProbeSource.SHARED_CREDENTIALS
-                }?.profile
-                val ideProfile = ideRuntimeProfile ?: ideProbes.firstOrNull { probe ->
-                    probe.source == HostAccountDetector.AccountProbeSource.STATE_DB
-                }?.profile
-
-                // 活跃账号标签只接受运行态证据；静态配置仍可用于账号资料导入。
-                _appCliActiveEmail.value = appCliRuntimeProfile?.email
-                _ideActiveEmail.value = ideRuntimeProfile?.email
-
-                // 1. 自动同步 IDE 宿主账号至 Studio 账号列表
-                if (ideProfile != null && ideProfile.email.isNotBlank()) {
-                    val currentList = accountStore.currentAccounts()
-                    val existing = currentList.firstOrNull { it.email.equals(ideProfile.email, ignoreCase = true) }
-                    val tier = when {
-                        ideProfile.tierText?.contains("ultra", ignoreCase = true) == true -> AccountTier.ULTRA
-                        ideProfile.tierText?.contains("pro", ignoreCase = true) == true -> AccountTier.PRO
-                        ideProfile.tierText?.contains("enterprise", ignoreCase = true) == true -> AccountTier.ENTERPRISE
-                        else -> existing?.profile?.tier ?: AccountTier.FREE
-                    }
-                    val rt = existing?.tokens?.refreshToken?.takeIf { it.isNotBlank() }
-                        ?: HostAccountDetector.findAvailableRefreshToken(ideProfile.email)
-                        ?: ""
-
-                    if (existing == null) {
-                        val newAccount = AccountInfo(
-                            id = "acc_${ideProfile.email.hashCode().toUInt().toString(16)}",
-                            profile = AccountProfile(
-                                email = ideProfile.email,
-                                name = ideProfile.name,
-                                avatarUrl = ideProfile.avatarUrl,
-                                tier = tier
-                            ),
-                            tokens = OAuthTokens(
-                                accessToken = "",
-                                refreshToken = rt,
-                                expiryTimestamp = System.currentTimeMillis() / 1000L + 3600L
-                            ),
-                            isActive = ideRuntimeProfile != null,
-                            status = AccountStatus.ACTIVE
-                        )
-                        accountStore.upsertAccount(newAccount)
-                        if (rt.isNotBlank()) {
-                            refreshSingleAccountQuota(newAccount.id)
-                        }
-                    } else {
-                        val needsUpdate = (existing.profile.name != ideProfile.name && ideProfile.name != null) ||
-                                (existing.profile.avatarUrl != ideProfile.avatarUrl && ideProfile.avatarUrl != null) ||
-                                (existing.tokens.refreshToken.isBlank() && rt.isNotBlank())
-                        if (needsUpdate) {
-                            val updated = existing.copy(
-                                profile = existing.profile.copy(
-                                    name = ideProfile.name ?: existing.profile.name,
-                                    avatarUrl = ideProfile.avatarUrl ?: existing.profile.avatarUrl,
-                                    tier = tier
-                                ),
-                                tokens = if (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) {
-                                    existing.tokens.copy(refreshToken = rt)
-                                } else existing.tokens
-                            )
-                            accountStore.upsertAccount(updated)
-                            if (rt.isNotBlank()) {
-                                refreshSingleAccountQuota(updated.id)
-                            }
-                        }
-                    }
-                }
-
-                // 2. 自动同步 App & CLI 宿主账号至 Studio 账号列表
-                if (appCliProfile != null && appCliProfile.email.isNotBlank()) {
-                    val currentList = accountStore.currentAccounts()
-                    val existing = currentList.firstOrNull {
-                        it.email.equals(appCliProfile.email, ignoreCase = true)
-                    }
-                    val rt = existing?.tokens?.refreshToken?.takeIf { it.isNotBlank() }
-                        ?: HostAccountDetector.findAvailableRefreshToken(appCliProfile.email)
-                        ?: ""
-
-                    if (existing == null) {
-                        val newAccount = AccountInfo(
-                            id = "acc_${appCliProfile.email.hashCode().toUInt().toString(16)}",
-                            profile = AccountProfile(
-                                email = appCliProfile.email,
-                                name = appCliProfile.name,
-                                avatarUrl = appCliProfile.avatarUrl,
-                                tier = AccountTier.PRO
-                            ),
-                            tokens = OAuthTokens(
-                                accessToken = "",
-                                refreshToken = rt,
-                                expiryTimestamp = System.currentTimeMillis() / 1000L + 3600L
-                            ),
-                            isActive = appCliRuntimeProfile != null,
-                            status = AccountStatus.ACTIVE
-                        )
-                        accountStore.upsertAccount(newAccount)
-                        if (rt.isNotBlank()) {
-                            refreshSingleAccountQuota(newAccount.id)
-                        }
-                    } else {
-                        val needsUpdate = (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) ||
-                                (existing.profile.name != appCliProfile.name && appCliProfile.name != null)
-                        if (needsUpdate) {
-                            val updated = existing.copy(
-                                profile = existing.profile.copy(
-                                    name = appCliProfile.name ?: existing.profile.name,
-                                    avatarUrl = appCliProfile.avatarUrl ?: existing.profile.avatarUrl
-                                ),
-                                tokens = if (existing.tokens.refreshToken.isBlank() && rt.isNotBlank()) {
-                                    existing.tokens.copy(refreshToken = rt)
-                                } else existing.tokens
-                            )
-                            accountStore.upsertAccount(updated)
-                            if (rt.isNotBlank()) {
-                                refreshSingleAccountQuota(updated.id)
-                            }
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-            }
-        }
-    }
+    fun syncHostAccounts(): Job = accountDelegate.syncHostAccounts()
 
     private fun startHostAccountDetectionLoop() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            while (this.isActive) {
-                try {
-                    syncHostAccounts().join()
-                    refreshHostStatus()
-                } catch (_: Exception) {
-                }
-                // 启动事件无法跨平台可靠订阅，保留 10 秒心跳补齐外部启动发现。
-                kotlinx.coroutines.delay(10000)
-            }
-        }
+        accountDelegate.startHostAccountDetectionLoop()
     }
 
     /**
      * 窗口获得焦点时由 UI 层调用，立即刷新宿主账号与运行状态。
-     *
-     * 用户从其他应用切换回 Studio 时（例如在 App/IDE 中完成了切号操作），
-     * 此方法确保 Studio 能立即感知到最新的运行态账号，而不必等待 10 秒心跳轮询。
      */
     fun onWindowFocusGained() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                syncHostAccounts().join()
-                refreshHostStatus()
-            } catch (_: Exception) {
-            }
-        }
+        accountDelegate.onWindowFocusGained()
     }
 
 
-    fun fetchOfficialModels(): Job {
-        return viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            _isFetchingOfficialModels.value = true
-            _officialModelsError.value = null
-            try {
-                val currentAccount = accountStore.currentActiveAccount()
-                    ?: accountStore.currentAccounts().firstOrNull()
-
-                val excludedCustomIds = configStore.currentConfig.upstreamModels
-                    .map(UpstreamModel::id)
-                    .toSet()
-                val result = OfficialCatalogProbe.fetchOfficialModels(
-                    account = currentAccount,
-                    tokenRefreshCallback = { refreshToken ->
-                        googleAuthService.refreshAccessToken(refreshToken).map { it.accessToken }
-                    },
-                    excludedModelIds = excludedCustomIds
-                )
-                result.fold(
-                    onSuccess = { models -> _officialModels.value = models },
-                    onFailure = { error ->
-                        _officialModelsError.value = error.message ?: s.modelsOfficialSyncFailed(s.commonUnknown)
-                    }
-                )
-            } catch (error: kotlinx.coroutines.CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                _officialModelsError.value = error.message ?: s.modelsOfficialSyncFailed(s.commonUnknown)
-            } finally {
-                _isFetchingOfficialModels.value = false
-            }
-        }
-    }
+    fun fetchOfficialModels(): Job = providerModelDelegate.fetchOfficialModels()
 
     fun selectTab(tab: NavTab) {
         _currentTab.value = tab
@@ -784,179 +624,25 @@ class AppViewModel(
         }
     }
 
-    fun toggleOfficialModel(modelId: String) {
-        val current = configStore.currentConfig
-        val list = current.disabledOfficialModels.toMutableList()
-        if (list.contains(modelId)) list.remove(modelId) else list.add(modelId)
-        configStore.saveConfig(current.copy(disabledOfficialModels = list))
-    }
+    fun toggleOfficialModel(modelId: String) = providerModelDelegate.toggleOfficialModel(modelId)
 
-    fun toggleOfficialModelGroup(modelIds: Set<String>, enable: Boolean) {
-        val current = configStore.currentConfig
-        val set = current.disabledOfficialModels.toMutableSet()
-        if (enable) set.removeAll(modelIds) else set.addAll(modelIds)
-        configStore.saveConfig(current.copy(disabledOfficialModels = set.toList()))
-    }
+    fun toggleOfficialModelGroup(modelIds: Set<String>, enable: Boolean) =
+        providerModelDelegate.toggleOfficialModelGroup(modelIds, enable)
 
-    fun toggleCustomModel(modelId: String) {
-        val current = configStore.currentConfig
-        val updated = current.upstreamModels.map {
-            if (it.id == modelId) it.copy(enabled = !it.enabled) else it
-        }
-        val affectedUpstream = updated.find { it.id == modelId }
-        val updatedVirtuals = if (affectedUpstream != null) {
-            current.virtualModels.map { virtual ->
-                if (virtual.upstreamModelId == modelId) virtual.copy(enabled = affectedUpstream.enabled) else virtual
-            }
-        } else {
-            current.virtualModels
-        }
-        configStore.saveConfig(current.copy(upstreamModels = updated, virtualModels = updatedVirtuals))
-    }
+    fun toggleCustomModel(modelId: String) = providerModelDelegate.toggleCustomModel(modelId)
 
-    fun saveProvider(provider: Provider, models: List<UpstreamModel>): Boolean {
-        return try {
-            val syncResult = ProviderModelSynchronizer.synchronize(
-                config = configStore.currentConfig,
-                provider = provider,
-                selectedModels = models
-            ).getOrThrow()
+    fun saveProvider(provider: Provider, models: List<UpstreamModel>): Boolean =
+        providerModelDelegate.saveProvider(provider, models)
 
-            configStore.updateConfig { current ->
-                val updatedProviders = current.providers.filterNot { it.id == provider.id } + provider
-                current.copy(
-                    providers = updatedProviders,
-                    upstreamModels = syncResult.upstreamModels,
-                    virtualModels = syncResult.virtualModels
-                )
-            }
-            showNotice(s.modelsProviderSaved(provider.name), NoticeKind.SUCCESS)
-            true
-        } catch (e: Exception) {
-            showNotice(s.modelsProviderSaveFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
-            false
-        }
-    }
+    fun deleteProvider(providerId: String) = providerModelDelegate.deleteProvider(providerId)
 
-    fun deleteProvider(providerId: String) {
-        val current = configStore.currentConfig
-        val targetProvider = current.providers.find { it.id == providerId } ?: return
-        val removedUpstreams = current.upstreamModels.filter { it.providerId == providerId }
-        val removedVirtualModels = current.virtualModels.filter {
-            it.upstreamModelId in removedUpstreams.map(UpstreamModel::id).toSet()
-        }
-        try {
-            configStore.saveConfig(
-                current.copy(
-                    providers = current.providers.filterNot { it.id == providerId },
-                    upstreamModels = current.upstreamModels.filterNot { it.providerId == providerId },
-                    virtualModels = current.virtualModels.filterNot { virtual ->
-                        virtual.upstreamModelId in removedUpstreams.map(UpstreamModel::id).toSet()
-                    },
-                    modelCompressionPolicies = current.modelCompressionPolicies.filterKeys { key ->
-                        key !in removedUpstreams.map(UpstreamModel::id) &&
-                                key !in removedVirtualModels.map(VirtualModel::id)
-                    }
-                )
-            )
-            showNotice(s.modelsProviderDeleted(targetProvider.name), NoticeKind.SUCCESS)
-        } catch (e: Exception) {
-            showNotice(s.modelsProviderDeleteFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
-        }
-    }
+    fun deleteSingleModel(modelId: String) = providerModelDelegate.deleteSingleModel(modelId)
 
-    fun deleteSingleModel(modelId: String) {
-        val current = configStore.currentConfig
-        val targetModel = current.upstreamModels.find { it.id == modelId } ?: return
-        try {
-            configStore.saveConfig(
-                current.copy(
-                    upstreamModels = current.upstreamModels.filterNot { it.id == modelId },
-                    virtualModels = current.virtualModels.filterNot { it.upstreamModelId == modelId },
-                    modelCompressionPolicies = current.modelCompressionPolicies - modelId
-                )
-            )
-            showNotice(s.modelsModelDeleted(targetModel.displayName ?: targetModel.name), NoticeKind.SUCCESS)
-        } catch (e: Exception) {
-            showNotice(s.modelsModelDeleteFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
-        }
-    }
+    fun updateSingleModel(updatedModel: UpstreamModel): Boolean =
+        providerModelDelegate.updateSingleModel(updatedModel)
 
-    fun updateSingleModel(updatedModel: UpstreamModel): Boolean {
-        return try {
-            configStore.updateConfig { current ->
-                val provider = current.providers.firstOrNull { item -> item.id == updatedModel.providerId }
-                    ?: throw IllegalArgumentException(s.modelsProviderNotFound)
-                val providerModels = current.upstreamModels.map { model ->
-                    if (model.id == updatedModel.id) updatedModel else model
-                }.filter { model -> model.providerId == provider.id }
-                val synchronized = ProviderModelSynchronizer.synchronize(
-                    config = current,
-                    provider = provider,
-                    selectedModels = providerModels
-                ).getOrThrow()
-                current.copy(
-                    upstreamModels = synchronized.upstreamModels,
-                    virtualModels = synchronized.virtualModels
-                )
-            }
-            showNotice(s.modelsModelUpdated(updatedModel.displayName ?: updatedModel.name), NoticeKind.SUCCESS)
-            true
-        } catch (e: Exception) {
-            showNotice(s.modelsModelUpdateFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
-            false
-        }
-    }
-
-    fun saveCompressionPolicy(modelId: String, policy: ModelCompressionPolicy?) {
-        configStore.updateConfig { current ->
-            val updatedPolicies = current.modelCompressionPolicies.toMutableMap()
-            var updatedUpstreams = current.upstreamModels
-            val currentOfficial = _officialModels.value
-            val matchedOfficial = currentOfficial.find { it.id == modelId }
-            if (matchedOfficial != null) {
-                val regex = Regex("""^(.*?)(?:\s*\((.*?)\))?$""")
-                val targetBaseName = regex.find(matchedOfficial.displayName.ifBlank { matchedOfficial.id })
-                    ?.groupValues?.getOrNull(1)?.trim() ?: matchedOfficial.id
-
-                val relatedIds = currentOfficial.filter { m ->
-                    val mBase = regex.find(m.displayName.ifBlank { m.id })?.groupValues?.getOrNull(1)?.trim() ?: m.id
-                    mBase.equals(targetBaseName, ignoreCase = true) ||
-                            m.replacementModelId == modelId || matchedOfficial.replacementModelId == m.id
-                }.map { it.id }.toMutableSet()
-                relatedIds.add(modelId)
-
-                // 补充模型族基础 ID 与 -tiered 父条目 ID，确保全量覆盖
-                val baseSlug = modelId.removeSuffix("-high")
-                    .removeSuffix("-medium")
-                    .removeSuffix("-low")
-                    .removeSuffix("-tiered")
-                relatedIds.add(baseSlug)
-                relatedIds.add("$baseSlug-tiered")
-
-                relatedIds.forEach { id ->
-                    if (policy != null) updatedPolicies[id] = policy else updatedPolicies.remove(id)
-                }
-            } else {
-                if (policy != null) updatedPolicies[modelId] = policy else updatedPolicies.remove(modelId)
-                // 同步更新 UpstreamModel 实体内部的 compressionPolicy 字段，确保双向一致
-                updatedUpstreams = current.upstreamModels.map { upstream ->
-                    val isDirectMatch = upstream.id == modelId || upstream.upstreamModelId == modelId
-                    val isVirtualMatch =
-                        current.virtualModels.any { it.id == modelId && it.upstreamModelId == upstream.id }
-                    if (isDirectMatch || isVirtualMatch) {
-                        upstream.copy(compressionPolicy = policy)
-                    } else {
-                        upstream
-                    }
-                }
-            }
-            current.copy(
-                upstreamModels = updatedUpstreams,
-                modelCompressionPolicies = updatedPolicies
-            )
-        }
-    }
+    fun saveCompressionPolicy(modelId: String, policy: ModelCompressionPolicy?) =
+        providerModelDelegate.saveCompressionPolicy(modelId, policy)
 
     fun clearActivityLogs() {
         ActivityRecorder.clear()
@@ -966,97 +652,10 @@ class AppViewModel(
         configStore.updateConfig { it.copy(activityAutoScroll = enabled) }
     }
 
-    fun testSingleModel(model: UpstreamModel, provider: Provider) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val updatedMap = _modelTestStatuses.value.toMutableMap()
-            updatedMap[model.id] = ModelTestStatus(ModelTestStatusKind.PENDING)
-            _modelTestStatuses.value = updatedMap
+    fun testSingleModel(model: UpstreamModel, provider: Provider) =
+        providerModelDelegate.testSingleModel(model, provider)
 
-            val result = ConnectionTester.testProvider(provider, model)
-            val finalMap = _modelTestStatuses.value.toMutableMap()
-            if (result.success) {
-                finalMap[model.id] = ModelTestStatus(
-                    status = ModelTestStatusKind.SUCCESS,
-                    latencyMs = result.latencyMs
-                )
-                showNotice(
-                    s.modelsModelTestSuccess(model.displayName ?: model.upstreamModelId, result.latencyMs),
-                    NoticeKind.SUCCESS
-                )
-            } else {
-                finalMap[model.id] = ModelTestStatus(
-                    status = ModelTestStatusKind.ERROR,
-                    error = result.error ?: "HTTP ${result.statusCode}"
-                )
-                showNotice(
-                    s.modelsModelTestFailed(
-                        model.displayName ?: model.upstreamModelId,
-                        result.error ?: result.statusCode.toString()
-                    ),
-                    NoticeKind.ERROR
-                )
-            }
-            _modelTestStatuses.value = finalMap
-        }
-    }
-
-    fun testProviderModels(providerId: String) {
-        val current = config.value
-        val provider = current.providers.find { it.id == providerId } ?: return
-        val models = current.upstreamModels.filter { it.providerId == providerId }
-        if (models.isEmpty()) return
-
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            _providerTestingIds.value = _providerTestingIds.value + providerId
-            val pendingMap = _modelTestStatuses.value.toMutableMap()
-            models.forEach {
-                pendingMap[it.id] = ModelTestStatus(ModelTestStatusKind.PENDING)
-            }
-            _modelTestStatuses.value = pendingMap
-
-            var successCount = 0
-            val updatedMap = _modelTestStatuses.value.toMutableMap()
-            val semaphore = kotlinx.coroutines.sync.Semaphore(3)
-            val testMutex = Mutex()
-            val jobs = models.map { model ->
-                launch {
-                    semaphore.acquire()
-                    try {
-                        val result = ConnectionTester.testProvider(provider, model)
-                        testMutex.withLock {
-                            if (result.success) {
-                                successCount++
-                                updatedMap[model.id] = ModelTestStatus(
-                                    status = ModelTestStatusKind.SUCCESS,
-                                    latencyMs = result.latencyMs
-                                )
-                            } else {
-                                updatedMap[model.id] = ModelTestStatus(
-                                    status = ModelTestStatusKind.ERROR,
-                                    error = result.error ?: "HTTP ${result.statusCode}"
-                                )
-                            }
-                            _modelTestStatuses.value = updatedMap.toMap()
-                        }
-                    } finally {
-                        semaphore.release()
-                    }
-                }
-            }
-            jobs.forEach { it.join() }
-            _providerTestingIds.value = _providerTestingIds.value - providerId
-
-            val total = models.size
-            if (successCount == total) {
-                showNotice(s.modelsBatchTestSuccess(successCount, total), NoticeKind.SUCCESS)
-            } else {
-                showNotice(
-                    s.modelsBatchTestPartial(successCount, total, total - successCount),
-                    NoticeKind.ERROR
-                )
-            }
-        }
-    }
+    fun testProviderModels(providerId: String) = providerModelDelegate.testProviderModels(providerId)
 
     fun updateLanguage(lang: AppLanguage) {
         I18nManager.currentLanguage = lang
@@ -1095,152 +694,28 @@ class AppViewModel(
         }
     }
 
-    fun checkForUpdates(isManual: Boolean = true) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            _updateState.value = UpdateState.Checking(isManual)
-            val result = UpdateChecker.checkUpdate(currentVersion = AppVersion.CURRENT)
-            val now = System.currentTimeMillis()
-            configStore.updateConfig { it.copy(lastCheckUpdateTimestamp = now) }
+    fun checkForUpdates(isManual: Boolean = true) = updateDelegate.checkForUpdates(isManual)
 
-            result.fold(
-                onSuccess = { release ->
-                    if (release != null) {
-                        _updateState.value = UpdateState.Available(
-                            release = release,
-                            currentVersion = AppVersion.CURRENT,
-                            isManual = isManual
-                        )
-                        _activeRelease.value = release
-                        val isIgnored =
-                            configStore.currentConfig.ignoredVersion.equals(release.cleanVersion, ignoreCase = true)
-                        if (isManual || !isIgnored) {
-                            _showUpdateDialog.value = true
-                        }
-                        if (isManual) {
-                            showNotice(s.updateAvailableTitle + ": v${release.cleanVersion}", NoticeKind.SUCCESS)
-                        }
-                    } else {
-                        _updateState.value = UpdateState.UpToDate(
-                            currentVersion = AppVersion.CURRENT,
-                            lastCheckedTimestamp = now,
-                            isManual = isManual
-                        )
-                        if (isManual) {
-                            showNotice(s.updateUpToDate, NoticeKind.SUCCESS)
-                        }
-                    }
-                },
-                onFailure = { error ->
-                    val msg = error.message ?: s.commonUnknown
-                    _updateState.value = UpdateState.Error(msg, isManual)
-                    if (isManual) {
-                        showNotice(s.updateCheckFailed(msg), NoticeKind.ERROR)
-                    }
-                }
-            )
-        }
-    }
+    fun dismissUpdateDialog() = updateDelegate.dismissUpdateDialog()
 
-    fun dismissUpdateDialog() {
-        _showUpdateDialog.value = false
-    }
+    fun openUpdateDialog() = updateDelegate.openUpdateDialog()
 
-    fun openUpdateDialog() {
-        if (_activeRelease.value != null) {
-            _showUpdateDialog.value = true
-        } else {
-            checkForUpdates(isManual = true)
-        }
-    }
+    fun startDownloadUpdate(release: ReleaseInfo) = updateDelegate.startDownloadUpdate(release)
 
-    fun startDownloadUpdate(release: ReleaseInfo) {
-        val downloadUrl = release.resolvePlatformDownloadUrl()
-        val filename = downloadUrl.substringAfterLast("/").takeIf { it.isNotBlank() && it.contains(".") }
-            ?: "Antigravity-Studio-${release.cleanVersion}.dmg"
-        val targetFile = com.yuzhiqiang.antigravity.update.engine.AppUpdateDownloader.resolveTargetFile(filename)
+    fun cancelDownloadUpdate() = updateDelegate.cancelDownloadUpdate()
 
-        downloadJob?.cancel()
-        downloadJob = viewModelScope.launch {
-            _downloadState.value = AppUpdateDownloadState.Downloading(
-                bytesDownloaded = 0L,
-                totalBytes = -1L,
-                progressRatio = 0f,
-                speedBytesPerSec = 0L
-            )
-            try {
-                com.yuzhiqiang.antigravity.update.engine.AppUpdateDownloader.download(downloadUrl, targetFile)
-                    .collect { progress ->
-                        when (progress) {
-                            is com.yuzhiqiang.antigravity.update.engine.DownloadProgress.Progress -> {
-                                _downloadState.value = AppUpdateDownloadState.Downloading(
-                                    bytesDownloaded = progress.bytesDownloaded,
-                                    totalBytes = progress.totalBytes,
-                                    progressRatio = progress.progressRatio,
-                                    speedBytesPerSec = progress.speedBytesPerSec
-                                )
-                            }
+    fun installUpdate(file: java.io.File, exitCurrentApp: Boolean = true) =
+        updateDelegate.installUpdate(file, exitCurrentApp)
 
-                            is com.yuzhiqiang.antigravity.update.engine.DownloadProgress.Completed -> {
-                                _downloadState.value = AppUpdateDownloadState.Completed(progress.targetFile)
-                                showNotice(s.updateDownloadCompleted, NoticeKind.SUCCESS)
-                                // 下载完成自动预览挂载/打开，不强杀当前进程
-                                installUpdate(progress.targetFile, exitCurrentApp = false)
-                            }
-                        }
-                    }
-            } catch (ce: kotlinx.coroutines.CancellationException) {
-                _downloadState.value = AppUpdateDownloadState.Idle
-            } catch (e: Exception) {
-                val errMsg = e.message ?: s.commonUnknown
-                _downloadState.value = AppUpdateDownloadState.Failed(errMsg)
-                showNotice(s.updateDownloadFailed(errMsg), NoticeKind.ERROR)
-            }
-        }
-    }
+    fun showDownloadedFileInFolder(file: java.io.File) = updateDelegate.showDownloadedFileInFolder(file)
 
-    fun cancelDownloadUpdate() {
-        downloadJob?.cancel()
-        downloadJob = null
-        _downloadState.value = AppUpdateDownloadState.Idle
-    }
+    fun resetDownloadState() = updateDelegate.resetDownloadState()
 
-    fun installUpdate(file: java.io.File, exitCurrentApp: Boolean = true) {
-        viewModelScope.launch {
-            val result = com.yuzhiqiang.antigravity.update.engine.AppUpdateInstaller.launchInstaller(
-                file = file,
-                exitCurrentApp = exitCurrentApp
-            )
-            result.onFailure { error ->
-                showNotice(s.updateDownloadFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
-            }
-        }
-    }
+    fun ignoreUpdateVersion(version: String) = updateDelegate.ignoreUpdateVersion(version)
 
-    fun showDownloadedFileInFolder(file: java.io.File) {
-        viewModelScope.launch {
-            com.yuzhiqiang.antigravity.update.engine.AppUpdateInstaller.showInFolder(file)
-        }
-    }
+    fun updateAutoCheckUpdate(enabled: Boolean) = updateDelegate.updateAutoCheckUpdate(enabled)
 
-    fun resetDownloadState() {
-        downloadJob?.cancel()
-        downloadJob = null
-        _downloadState.value = AppUpdateDownloadState.Idle
-    }
-
-    fun ignoreUpdateVersion(version: String) {
-        configStore.updateConfig { it.copy(ignoredVersion = version) }
-        _showUpdateDialog.value = false
-        showNotice(s.updateIgnoredNotice, NoticeKind.INFO)
-    }
-
-    fun updateAutoCheckUpdate(enabled: Boolean) {
-        configStore.updateConfig { it.copy(autoCheckUpdate = enabled) }
-    }
-
-    fun updateIncludePrerelease(enabled: Boolean) {
-        configStore.updateConfig { it.copy(includePrerelease = enabled) }
-    }
+    fun updateIncludePrerelease(enabled: Boolean) = updateDelegate.updateIncludePrerelease(enabled)
 
     fun updateDeveloperMode(enabled: Boolean) {
         configStore.updateConfig { it.copy(developerMode = enabled) }
@@ -1254,74 +729,18 @@ class AppViewModel(
 
     // --- 账号管理与 OAuth 交互方法 ---
 
-    fun submitManualOAuthCallback(callbackUrl: String): Boolean {
-        return googleAuthService.submitManualCallback(callbackUrl)
-    }
+    fun submitManualOAuthCallback(callbackUrl: String): Boolean =
+        accountDelegate.submitManualOAuthCallback(callbackUrl)
 
-    fun cancelOAuthFlow() {
-        googleAuthService.cancelOAuthFlow()
-        _isOAuthAuthorizing.value = false
-        _oauthAuthUrl.value = null
-    }
+    fun cancelOAuthFlow() = accountDelegate.cancelOAuthFlow()
 
     fun startGoogleOAuthFlow(
         openBrowserDirectly: Boolean = true,
         onFinished: ((Boolean) -> Unit)? = null
-    ) {
-        if (_isOAuthAuthorizing.value) {
-            val url = _oauthAuthUrl.value
-            if (!url.isNullOrBlank()) {
-                if (openBrowserDirectly) {
-                    googleAuthService.openBrowser(url)
-                } else if (copyToClipboard(url)) {
-                    showNotice(s.noticeAuthLinkCopied, NoticeKind.SUCCESS)
-                }
-            }
-            return
-        }
-        _isOAuthAuthorizing.value = true
-        _oauthAuthUrl.value = null
+    ) = accountDelegate.startGoogleOAuthFlow(openBrowserDirectly, onFinished)
 
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val result = googleAuthService.startOAuthFlow(openBrowserDirectly = openBrowserDirectly) { authUrl ->
-                _oauthAuthUrl.value = authUrl
-                if (!openBrowserDirectly && copyToClipboard(authUrl)) {
-                    showNotice(s.noticeAuthLinkCopiedBrowser, NoticeKind.SUCCESS)
-                }
-            }
-            _isOAuthAuthorizing.value = false
-            _oauthAuthUrl.value = null
-
-            result.fold(
-                onSuccess = { account ->
-                    accountStore.upsertAccount(account)
-                    showNotice(s.accountsAuthSuccess, NoticeKind.SUCCESS)
-                    onFinished?.invoke(true)
-                },
-                onFailure = { error ->
-                    showNotice("${s.accountsAuthFailed}: ${error.message ?: s.commonUnknown}", NoticeKind.ERROR)
-                    onFinished?.invoke(false)
-                }
-            )
-        }
-    }
-
-    fun importAccountViaRefreshToken(token: String, onFinished: ((Boolean) -> Unit)? = null) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val result = googleAuthService.importViaRefreshToken(token)
-            result.fold(
-                onSuccess = { account ->
-                    accountStore.upsertAccount(account)
-                    showNotice(s.accountsAuthSuccess, NoticeKind.SUCCESS)
-                    onFinished?.invoke(true)
-                },
-                onFailure = { error ->
-                    showNotice("${s.accountsAuthFailed}: ${error.message ?: s.commonUnknown}", NoticeKind.ERROR)
-                    onFinished?.invoke(false)
-                }
-            )
-        }
-    }
+    fun importAccountViaRefreshToken(token: String, onFinished: ((Boolean) -> Unit)? = null) =
+        accountDelegate.importAccountViaRefreshToken(token, onFinished)
 
     fun switchAccount(
         targetAccount: AccountInfo,
@@ -1329,114 +748,16 @@ class AppViewModel(
         applyToAppCli: Boolean = true,
         restartIde: Boolean = true,
         restartApp: Boolean = true
-    ) {
-        if (!accountSwitchRequestActive.compareAndSet(false, true)) {
-            showNotice(s.noticeSwitchAlreadyRunning, NoticeKind.WARNING)
-            return
-        }
-        _isAccountSwitching.value = true
+    ) = accountDelegate.switchAccount(targetAccount, applyToIde, applyToAppCli, restartIde, restartApp)
 
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val result = hotSwitchCoordinator.switchAccountWithRestart(
-                    targetAccount = targetAccount,
-                    applyToIde = applyToIde,
-                    applyToAppCli = applyToAppCli,
-                    restartIde = restartIde,
-                    restartApp = restartApp
-                )
-                result.fold(
-                    onSuccess = { report ->
-                        syncHostAccounts().join()
-                        refreshHostStatus()
+    fun setActiveAccount(idOrEmail: String) = accountDelegate.setActiveAccount(idOrEmail)
 
-                        val statuses = listOfNotNull(
-                            formatSwitchTarget("IDE", report.ide),
-                            formatSwitchTarget("App & CLI", report.appCli)
-                        )
-                        val summary = statuses.joinToString("，")
-                        val noticeKind = when (report.overallStatus) {
-                            HotSwitchCoordinator.OverallStatus.SUCCESS -> NoticeKind.SUCCESS
-                            HotSwitchCoordinator.OverallStatus.WARNING -> NoticeKind.WARNING
-                            HotSwitchCoordinator.OverallStatus.ERROR -> NoticeKind.ERROR
-                        }
-                        showNotice(s.noticeSwitchResult(summary), noticeKind)
-                        if (report.appCli.isApplied ||
-                            report.appCli.status == HotSwitchCoordinator.TargetStatus.PENDING_RESTART
-                        ) {
-                            quotaPoller.refreshSingle(report.appliedAccount, true)
-                            fetchOfficialModels()
-                        }
-                    },
-                    onFailure = { error ->
-                        syncHostAccounts().join()
-                        refreshHostStatus()
-                        showNotice(s.noticeSwitchFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
-                    }
-                )
-            } finally {
-                _isAccountSwitching.value = false
-                accountSwitchRequestActive.set(false)
-            }
-        }
-    }
+    fun updateQuotaRefreshConfig(enabled: Boolean, activeIntervalSec: Int, backgroundIntervalSec: Int) =
+        accountDelegate.updateQuotaRefreshConfig(enabled, activeIntervalSec, backgroundIntervalSec)
 
-    private fun formatSwitchTarget(
-        label: String,
-        result: HotSwitchCoordinator.TargetResult
-    ): String? {
-        return when (result.status) {
-            HotSwitchCoordinator.TargetStatus.NOT_REQUESTED -> null
-            HotSwitchCoordinator.TargetStatus.NOT_AVAILABLE -> result.message ?: s.switchStatusNotAvailable(label)
-            HotSwitchCoordinator.TargetStatus.CONFIGURED -> result.message ?: s.switchStatusConfigured(label)
-            HotSwitchCoordinator.TargetStatus.CONFIRMED -> result.message ?: s.switchStatusConfirmed(label)
-            HotSwitchCoordinator.TargetStatus.PENDING_RESTART -> s.switchStatusPendingRestart(label)
-            HotSwitchCoordinator.TargetStatus.FAILED -> result.message ?: s.switchStatusFailed(label)
-        }
-    }
+    fun removeAccount(idOrEmail: String) = accountDelegate.removeAccount(idOrEmail)
 
-    fun setActiveAccount(idOrEmail: String) {
-        val target = accountStore.currentAccounts()
-            .firstOrNull { it.id == idOrEmail || it.email.equals(idOrEmail, ignoreCase = true) }
-        if (target == null) {
-            showNotice(s.noticeAccountNotFound(idOrEmail), NoticeKind.ERROR)
-            return
-        }
-        switchAccount(
-            target,
-            restartIde = true,
-            restartApp = true
-        )
-    }
-
-    fun updateQuotaRefreshConfig(enabled: Boolean, activeIntervalSec: Int, backgroundIntervalSec: Int) {
-        configStore.updateConfig {
-            it.copy(
-                quotaAutoRefreshEnabled = enabled,
-                quotaActiveIntervalSeconds = activeIntervalSec,
-                quotaBackgroundIntervalSeconds = backgroundIntervalSec
-            )
-        }
-        showNotice(if (enabled) s.noticeQuotaAutoRefreshEnabled else s.noticeQuotaAutoRefreshDisabled, NoticeKind.INFO)
-    }
-
-
-    fun removeAccount(idOrEmail: String) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            accountStore.removeAccount(idOrEmail)
-            showNotice(s.noticeAccountRemoved, NoticeKind.INFO)
-        }
-    }
-
-    fun refreshAccountTokens(email: String) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val result = tokenRenewalManager.refreshAccount(email)
-            result.fold(
-                onSuccess = { showNotice(s.noticeTokenRefreshed, NoticeKind.SUCCESS) },
-                onFailure = { showNotice(s.noticeTokenRefreshFailed(it.message ?: s.commonUnknown), NoticeKind.ERROR) }
-            )
-        }
-    }
+    fun refreshAccountTokens(email: String) = accountDelegate.refreshAccountTokens(email)
 
     private val _isPrivacyMode = MutableStateFlow(false)
     val isPrivacyMode: StateFlow<Boolean> = _isPrivacyMode.asStateFlow()
@@ -1445,95 +766,22 @@ class AppViewModel(
         _isPrivacyMode.value = !_isPrivacyMode.value
     }
 
-    fun updateAccountNote(id: String, note: String?) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            accountStore.updateAccountNote(id, note)
-            showNotice(s.noticeRemarkUpdated, NoticeKind.SUCCESS)
-        }
-    }
+    fun updateAccountNote(id: String, note: String?) = accountDelegate.updateAccountNote(id, note)
 
-    fun togglePinAccount(id: String) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            accountStore.togglePinAccount(id)
-        }
-    }
+    fun togglePinAccount(id: String) = accountDelegate.togglePinAccount(id)
 
-    fun cleanInvalidAccounts() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val result = accountStore.cleanInvalidAccounts()
-            result.fold(
-                onSuccess = { count -> showNotice(s.noticeCleanAccountsSuccess(count), NoticeKind.SUCCESS) },
-                onFailure = { showNotice(s.noticeCleanAccountsFailed(it.message ?: s.commonUnknown), NoticeKind.ERROR) }
-            )
-        }
-    }
+    fun cleanInvalidAccounts() = accountDelegate.cleanInvalidAccounts()
 
-    fun exportAccountsJson(): String {
-        return accountStore.exportAccountsJson()
-    }
+    fun exportAccountsJson(): String = accountDelegate.exportAccountsJson()
 
-    fun importAccountsBatch(rawText: String, onFinished: ((successCount: Int, failedCount: Int) -> Unit)? = null) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val results = googleAuthService.importBatch(rawText)
-            var successCount = 0
-            var failedCount = 0
-            for (res in results) {
-                res.fold(
-                    onSuccess = { acc ->
-                        accountStore.upsertAccount(acc)
-                        successCount++
-                    },
-                    onFailure = {
-                        failedCount++
-                    }
-                )
-            }
-            if (successCount > 0 && failedCount == 0) {
-                showNotice(s.noticeBatchImportSuccess(successCount), NoticeKind.SUCCESS)
-                quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
-            } else if (successCount > 0 && failedCount > 0) {
-                showNotice(s.noticeBatchImportPartial(successCount, failedCount), NoticeKind.SUCCESS)
-                quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
-            } else if (failedCount > 0) {
-                showNotice(s.noticeBatchImportFailedAll(failedCount), NoticeKind.ERROR)
-            }
-            onFinished?.invoke(successCount, failedCount)
-        }
-    }
+    fun importAccountsBatch(
+        rawText: String,
+        onFinished: ((successCount: Int, failedCount: Int) -> Unit)? = null
+    ) = accountDelegate.importAccountsBatch(rawText, onFinished)
 
+    fun refreshAllQuotas() = accountDelegate.refreshAllQuotas()
 
-    fun refreshAllQuotas() {
-
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val result = quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
-            result.fold(
-                onSuccess = { showNotice(s.noticeQuotasUpdatedAll, NoticeKind.SUCCESS) },
-                onFailure = {
-                    showNotice(
-                        s.noticeQuotasUpdateFailedAll(it.message ?: s.commonUnknown),
-                        NoticeKind.ERROR
-                    )
-                }
-            )
-        }
-    }
-
-    fun refreshSingleAccountQuota(accountId: String) {
-        val account = accountStore.currentAccounts().firstOrNull { it.id == accountId } ?: return
-        val isActive = account.id == accountStore.currentActiveAccount()?.id
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val result = quotaPoller.refreshSingle(account, isActive)
-            result.fold(
-                onSuccess = { showNotice(s.noticeQuotaRefreshedSingle, NoticeKind.SUCCESS) },
-                onFailure = {
-                    showNotice(
-                        s.noticeQuotaRefreshFailedSingle(it.message ?: s.commonError),
-                        NoticeKind.ERROR
-                    )
-                }
-            )
-        }
-    }
+    fun refreshSingleAccountQuota(accountId: String) = accountDelegate.refreshSingleAccountQuota(accountId)
 
     override fun onCleared() {
         tokenRenewalManager.stop()

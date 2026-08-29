@@ -22,6 +22,8 @@ enum class DefaultSwitchTarget(val value: String) {
 
 @Serializable
 data class AppConfig(
+    @SerialName("schema_version")
+    val schemaVersion: Int = CURRENT_SCHEMA_VERSION,
     @SerialName("proxy_port")
     val proxyPort: Int = 8321,
     @SerialName("outbound_proxy")
@@ -74,4 +76,8 @@ data class AppConfig(
 
     val isDebugMode: Boolean
         get() = developerMode
+
+    companion object {
+        const val CURRENT_SCHEMA_VERSION = 1
+    }
 }

@@ -6,8 +6,7 @@ import kotlinx.serialization.Serializable
 /**
  * 与 agy-byok 保持一致的 Checkpointer 策略。
  *
- * 宿主会把这组字段作为模型目录中的实验配置读取。Studio 旧版本只保存了
- * 三个 Token 字段，因此保留只读别名，并在 ConfigStore 解码时完成旧字段迁移。
+ * 宿主会把这组字段作为模型目录中的实验配置读取。
  */
 @Serializable
 data class ModelCompressionPolicy(
@@ -46,21 +45,6 @@ data class ModelCompressionPolicy(
     @SerialName("max_output_tokens")
     val maxOutputTokens: Long = 16_384L
 ) {
-    /** Studio 旧 UI 的兼容别名；新配置统一使用 byok 字段。 */
-    val triggerThresholdTokens: Long
-        get() = tokenThreshold
-
-    /** Studio 旧 UI 的兼容别名；新配置统一使用 byok 字段。 */
-    val maxCheckpointTokens: Long
-        get() = maxTokenLimit
-
-    /** Studio 旧 UI 的兼容别名；新配置统一使用 byok 字段。 */
-    val reserveOutputTokens: Long
-        get() = maxOutputTokens
-
-    /** 旧 Studio 的 target_context_tokens 不是 byok 契约字段，仅保留读取语义。 */
-    val targetContextTokens: Long
-        get() = tokenThreshold
 
     fun resolveEffective(
         capacity: Long? = null,

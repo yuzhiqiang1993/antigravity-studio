@@ -646,10 +646,20 @@ class AccountStore(
     }
 
     private fun writeTextAtomically(file: File, content: String) {
-        AtomicFileWriter.writeText(file, content).getOrThrow()
+        AtomicFileWriter.writeText(
+            target = file,
+            content = content,
+            permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
+            disallowSymlinks = true
+        ).getOrThrow()
     }
 
     private fun writeBytesAtomically(file: File, content: ByteArray) {
-        AtomicFileWriter.writeBytes(file, content).getOrThrow()
+        AtomicFileWriter.writeBytes(
+            target = file,
+            content = content,
+            permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
+            disallowSymlinks = true
+        ).getOrThrow()
     }
 }

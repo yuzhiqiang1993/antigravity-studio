@@ -3,6 +3,7 @@ package com.yuzhiqiang.antigravity.domain.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 enum class ReasoningLevel {
@@ -100,10 +101,7 @@ data class ReasoningCapability(
     @SerialName("supported") val supported: Boolean? = null,
     @SerialName("thinking_budget") val thinkingBudget: Int? = null,
     @SerialName("min_thinking_budget") val minThinkingBudget: Int? = null,
-    /** 兼容 agy 对象映射、Studio 历史数组及 null。 */
-    @SerialName("levels") val levels: JsonElement? = null,
-    /** Studio 历史字段，agy 以 levels/mappings 表达档位。 */
-    @SerialName("default_level") val defaultLevel: ReasoningLevel? = null,
+    @SerialName("levels") val levels: JsonObject? = null,
     @SerialName("type") val type: String? = null
 ) {
     val supportsReasoning: Boolean
@@ -124,12 +122,10 @@ data class ModelCapabilities(
     @SerialName("output_modalities") val outputModalities: List<ModelModality> = listOf(ModelModality.TEXT),
     @SerialName("tools") val tools: Boolean = false,
     @SerialName("input_mime_types") val inputMimeTypes: List<String> = emptyList(),
-    @SerialName("reasoning") val reasoning: ReasoningCapability = ReasoningCapability(),
-    /** Studio 旧配置兼容字段；新目录应使用 input_modalities。 */
-    @SerialName("vision") val vision: Boolean = false
+    @SerialName("reasoning") val reasoning: ReasoningCapability = ReasoningCapability()
 ) {
     val supportsVision: Boolean
-        get() = vision || ModelModality.IMAGE in inputModalities
+        get() = ModelModality.IMAGE in inputModalities
 }
 
 @Serializable
@@ -157,11 +153,6 @@ data class ModelTokenLimits(
     @SerialName("output_token_limit_source") val outputTokenLimitSource: TokenLimitSource = TokenLimitSource.UNKNOWN
 )
 
-/** Studio 旧调用方的类型别名；JSON 结构以 agy ModelTokenLimits 为准。 */
-typealias TokenLimits = ModelTokenLimits
-
-/** 允许 agy tokenizer 对象、Studio 历史字符串或 null 先以 JSON 保真承接。 */
-typealias TokenizerConfig = JsonElement
 
 @Serializable
 data class UpstreamModel(
@@ -175,9 +166,7 @@ data class UpstreamModel(
     @SerialName("compression_policy") val compressionPolicy: ModelCompressionPolicy? = null,
     @SerialName("context_length") val contextLength: Long? = null,
     @SerialName("max_output_tokens") val maxOutputTokens: Long? = null,
-    @SerialName("tokenizer") val tokenizer: TokenizerConfig? = null,
-    /** 旧 Studio 配置兼容；agy 的稳定 host id 由 VirtualModel 提供。 */
-    @SerialName("host_model_id") val hostModelId: String? = null,
+    @SerialName("tokenizer") val tokenizer: JsonObject? = null,
     @SerialName("parameter_overrides") val parameterOverrides: ParameterOverrides = ParameterOverrides(),
     @SerialName("enabled") val enabled: Boolean = true
 ) {
@@ -195,7 +184,7 @@ data class VirtualModel(
     @SerialName("name") val name: String = "",
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("upstream_model_id") val upstreamModelId: String,
-    @SerialName("host_model_id") val hostModelId: String? = null,
+    @SerialName("host_model_id") val hostModelId: String,
     @SerialName("capabilities") val capabilities: ModelCapabilities = ModelCapabilities(),
     @SerialName("parameter_overrides") val parameterOverrides: ParameterOverrides? = null,
     @SerialName("default_reasoning_level") val defaultReasoningLevel: ReasoningLevel? = null,

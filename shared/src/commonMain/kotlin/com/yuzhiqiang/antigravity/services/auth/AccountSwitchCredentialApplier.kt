@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.services.auth
 
+import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import com.yuzhiqiang.antigravity.data.storage.AccountStore
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.OAuthTokens
@@ -223,42 +224,12 @@ internal class AccountSwitchCredentialApplier(
         }
 
         fun writeSensitiveBytesAtomically(file: File, content: ByteArray) {
-            val parent = file.parentFile ?: throw IllegalStateException("凭据文件缺少父目录")
-            if (!parent.exists() && !parent.mkdirs()) {
-                throw IllegalStateException("无法创建凭据文件目录: ${parent.absolutePath}")
-            }
-            val tempFile = File.createTempFile("." + file.name + ".", ".tmp", parent)
-            try {
-                tempFile.writeBytes(content)
-                val osName = System.getProperty("os.name", "").lowercase()
-                val isWindows = osName.contains("win") && !osName.contains("darwin")
-                // POSIX 文件权限操作在 Windows 上行为不一致且可能触发安全策略拦截，仅在类 Unix 系统执行
-                if (!isWindows) {
-                    tempFile.setReadable(false, false)
-                    tempFile.setWritable(false, false)
-                    tempFile.setExecutable(false, false)
-                    tempFile.setReadable(true, true)
-                    tempFile.setWritable(true, true)
-                }
-                try {
-                    java.nio.file.Files.move(
-                        tempFile.toPath(),
-                        file.toPath(),
-                        java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
-                    )
-                } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
-                    java.nio.file.Files.move(
-                        tempFile.toPath(),
-                        file.toPath(),
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
-                    )
-                }
-            } finally {
-                if (tempFile.exists()) {
-                    tempFile.delete()
-                }
-            }
+            AtomicFileWriter.writeBytes(
+                target = file,
+                content = content,
+                permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
+                disallowSymlinks = true
+            ).getOrThrow()
         }
 
         fun writeJetskiStandaloneToken(account: AccountInfo): Boolean {
@@ -278,7 +249,6 @@ internal class AccountSwitchCredentialApplier(
                     put("auth_method", "consumer")
                 }.toString()
 
-                tokenFile.parentFile?.mkdirs()
                 writeSensitiveTextAtomically(tokenFile, payload)
                 true
             } catch (_: Exception) {

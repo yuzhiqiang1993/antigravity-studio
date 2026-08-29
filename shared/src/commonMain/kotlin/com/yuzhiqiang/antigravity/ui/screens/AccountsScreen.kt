@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.AccountStatus
 import com.yuzhiqiang.antigravity.i18n.strings
@@ -675,7 +676,12 @@ private fun exportAccountsToFile(
             }
             val count = viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
             val exportedJson = viewModel.exportAccountsJson()
-            targetFile.writeText(exportedJson, Charsets.UTF_8)
+            AtomicFileWriter.writeText(
+                target = targetFile,
+                content = exportedJson,
+                permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
+                disallowSymlinks = true
+            ).getOrThrow()
             viewModel.showNotice(s.accountsExportSuccessNotice(count, targetFile.name), NoticeKind.SUCCESS)
         }
     } catch (e: Exception) {
