@@ -17,7 +17,8 @@ import kotlinx.coroutines.withContext
 class HotSwitchCoordinator(
     private val accountStore: AccountStore,
     private val customHostPathsProvider: () -> Map<String, String?> = { emptyMap() },
-    private val proxyPortProvider: () -> Int? = { null }
+    private val proxyPortProvider: () -> Int? = { null },
+    private val googleAuthService: GoogleAuthService = GoogleAuthService()
 ) {
     private val switchMutex = Mutex()
 
@@ -118,7 +119,10 @@ class HotSwitchCoordinator(
                 progressCallback = progressCallback
             )
             val result = withContext(Dispatchers.IO) {
-                AccountSwitchSession(accountStore).execute(request)
+                AccountSwitchSession(
+                    accountStore = accountStore,
+                    googleAuthService = googleAuthService
+                ).execute(request)
             }
             result.onSuccess { report ->
                 if (report.ide.isConfirmed) {

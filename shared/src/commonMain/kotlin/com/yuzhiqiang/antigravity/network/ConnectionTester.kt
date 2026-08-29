@@ -360,13 +360,15 @@ object ConnectionTester {
                 }
             }
 
-            val responseCode = connection!!.responseCode
+            val responseConnection = connection
+                ?: throw IllegalStateException("未创建 Provider 连接")
+            val responseCode = responseConnection.responseCode
             val latency = System.currentTimeMillis() - startTime
             val isSuccess = responseCode in 200..299
 
             val errorDetail = if (!isSuccess) {
                 try {
-                    val stream = connection.errorStream ?: connection.inputStream
+                    val stream = responseConnection.errorStream ?: responseConnection.inputStream
                     val errorBody = stream?.use { input ->
                         val bytes = input.readNBytes(4 * 1024 * 1024 + 1)
                         bytes.toString(Charsets.UTF_8).let { body ->
@@ -383,7 +385,7 @@ object ConnectionTester {
                 }
             } else {
                 val body = try {
-                    connection.inputStream.use { stream ->
+                    responseConnection.inputStream.use { stream ->
                         val bytes = stream.readBytes()
                         bytes.toString(Charsets.UTF_8)
                     }
