@@ -110,11 +110,12 @@ fun AppSidebar(
             modifier = Modifier
                 .fillMaxSize()
                 .drawBehind {
+                    val strokeW = 1.dp.toPx()
                     drawLine(
-                        color = outlineVariant.copy(alpha = if (isDark) 0.25f else 0.35f),
-                        start = Offset(size.width, 0f),
-                        end = Offset(size.width, size.height),
-                        strokeWidth = 1f
+                        color = outlineVariant.copy(alpha = if (isDark) 0.55f else 0.85f),
+                        start = Offset(size.width - strokeW / 2, 0f),
+                        end = Offset(size.width - strokeW / 2, size.height),
+                        strokeWidth = strokeW
                     )
                 },
             drawerContainerColor = Color.Transparent,
