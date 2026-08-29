@@ -77,12 +77,13 @@ object HostProcessManager {
         }
 
         val gracefulRequestSent = requestGracefulExit(bundleId, rootPids)
-        if (!gracefulRequestSent) return false
-        if (waitUntilStopped(ownedPids, GRACEFUL_EXIT_TIMEOUT_MILLIS)) {
+        if (gracefulRequestSent && waitUntilStopped(ownedPids, GRACEFUL_EXIT_TIMEOUT_MILLIS)) {
             return areProcessesStopped(matchPatterns + scopedServerPatterns, excludePatterns)
         }
         if (!force) return false
 
+        // 优雅退出请求可能因宿主 GUI 无响应或权限问题失败；force=true 时仍只对
+        // 本次快照中已确认归属的 PID 执行强制终止，不能提前返回而留下文件占用。
         forceStopOwnedProcesses(ownedPids, snapshots)
         val stopped = waitUntilStopped(ownedPids, FORCE_EXIT_TIMEOUT_MILLIS)
         return stopped && areProcessesStopped(matchPatterns + scopedServerPatterns, excludePatterns)

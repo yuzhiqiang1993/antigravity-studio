@@ -21,13 +21,31 @@ class HostLifecycleDelegate(
     private val configStore: ConfigStore,
     private val proxyServer: LocalProxyServer,
     private val ideDetailedStatusFlow: MutableStateFlow<HostDetailedStatus> = MutableStateFlow(
-        HostDetailedStatus(HostType.IDE, isInstalled = false, isRunning = false, integrationState = ClientIntegrationState.UNAVAILABLE, configurationState = ClientConfigurationState.UNAVAILABLE)
+        HostDetailedStatus(
+            HostType.IDE,
+            isInstalled = false,
+            isRunning = false,
+            integrationState = ClientIntegrationState.UNAVAILABLE,
+            configurationState = ClientConfigurationState.UNAVAILABLE
+        )
     ),
     private val appDetailedStatusFlow: MutableStateFlow<HostDetailedStatus> = MutableStateFlow(
-        HostDetailedStatus(HostType.APP, isInstalled = false, isRunning = false, integrationState = ClientIntegrationState.UNAVAILABLE, configurationState = ClientConfigurationState.UNAVAILABLE)
+        HostDetailedStatus(
+            HostType.APP,
+            isInstalled = false,
+            isRunning = false,
+            integrationState = ClientIntegrationState.UNAVAILABLE,
+            configurationState = ClientConfigurationState.UNAVAILABLE
+        )
     ),
     private val cliDetailedStatusFlow: MutableStateFlow<HostDetailedStatus> = MutableStateFlow(
-        HostDetailedStatus(HostType.CLI, isInstalled = false, isRunning = false, integrationState = ClientIntegrationState.UNAVAILABLE, configurationState = ClientConfigurationState.UNAVAILABLE)
+        HostDetailedStatus(
+            HostType.CLI,
+            isInstalled = false,
+            isRunning = false,
+            integrationState = ClientIntegrationState.UNAVAILABLE,
+            configurationState = ClientConfigurationState.UNAVAILABLE
+        )
     ),
     private val isIdeHostActiveFlow: MutableStateFlow<Boolean>,
     private val isIdeInstalledFlow: MutableStateFlow<Boolean>,
@@ -259,15 +277,27 @@ class HostLifecycleDelegate(
             try {
                 val customInstallation = configStore.currentConfig.customHostPaths["app"]
                 val isCurrentlyRunning = wasRunning || AppHostManager.isRunning(customInstallation)
-                if (isCurrentlyRunning) {
-                    AppHostManager.terminate(customInstallation, force = true)
+                com.yuzhiqiang.antigravity.logging.AppLog.w("Host/App") {
+                    "enableAppHostInternal：wasRunning=$wasRunning isCurrentlyRunning=$isCurrentlyRunning custom=${customInstallation ?: "<auto>"} port=$actualPort"
                 }
-                val operationSucceeded = AppHostManager.enable(actualPort, customInstallation)
-                val restartSucceeded = if (isCurrentlyRunning) AppHostManager.launch(customInstallation, actualPort) else true
+                AppHostManager.terminate(customInstallation, force = true)
+                val stoppedSuccessfully = !AppHostManager.isRunning(customInstallation)
+                com.yuzhiqiang.antigravity.logging.AppLog.w("Host/App") {
+                    "enableAppHostInternal：stoppedSuccessfully=$stoppedSuccessfully"
+                }
+                val operationSucceeded = stoppedSuccessfully && AppHostManager.enable(actualPort, customInstallation)
+                com.yuzhiqiang.antigravity.logging.AppLog.w("Host/App") {
+                    "enableAppHostInternal：operationSucceeded=$operationSucceeded"
+                }
+                val restartSucceeded = if (operationSucceeded && isCurrentlyRunning) {
+                    AppHostManager.launch(customInstallation, actualPort)
+                } else {
+                    !isCurrentlyRunning
+                }
                 val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
                 appDetailedStatusFlow.value = newStatus
                 isAppHostActiveFlow.value = newStatus.isProxyActive
-                val succeeded = operationSucceeded && restartSucceeded && newStatus.isProxyActive
+                val succeeded = operationSucceeded && restartSucceeded
                 showNotice(
                     when {
                         succeeded && isCurrentlyRunning && isUpdate -> s.hostAppUpdatedAndRestarted
@@ -426,6 +456,7 @@ class HostLifecycleDelegate(
                         }
                         showNotice(s.hostForceResetSuccess(s.hostIdeTitle), NoticeKind.SUCCESS)
                     }
+
                     "app" -> {
                         val customPath = configStore.currentConfig.customHostPaths["app"]
                         val isRunning = AppHostManager.isRunning(customPath)
@@ -438,6 +469,7 @@ class HostLifecycleDelegate(
                         }
                         showNotice(s.hostForceResetSuccess(s.hostAppTitle), NoticeKind.SUCCESS)
                     }
+
                     "cli" -> {
                         CliHostManager.forceReset()
                         showNotice(s.hostForceResetSuccess(s.hostCliTitle), NoticeKind.SUCCESS)
