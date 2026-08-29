@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.data.storage
 
 import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
+import com.yuzhiqiang.antigravity.core.platform.AppDataPaths
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
 import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,16 +16,10 @@ class ConfigStore(
 ) {
     private val persistence = ConfigStorePersistence()
 
-    private val canonicalConfigFile: File by lazy { resolveCanonicalConfigFile() }
+    private val canonicalConfigFile: File by lazy { AppDataPaths.configFile(customRootDir) }
 
     private val configuredPathError: String? by lazy {
-        val configured = (System.getenv("ANTIGRAVITY_STUDIO_CONFIG_PATH")
-            ?: System.getenv("AGY_STUDIO_CONFIG_PATH"))?.trim().orEmpty()
-        if (configured.isNotEmpty() && !File(configured).isAbsolute) {
-            "ANTIGRAVITY_STUDIO_CONFIG_PATH 必须是绝对路径"
-        } else {
-            null
-        }
+        AppDataPaths.configPathError().takeUnless { customRootDir != null }
     }
 
 
@@ -76,36 +71,6 @@ class ConfigStore(
         val defaultConfig = normalizeConfig(AppConfig())
         writeConfigFile(defaultConfig).onFailure { error -> recordLoadFailure(error) }
         return defaultConfig
-    }
-
-    private fun resolveCanonicalConfigFile(): File {
-        customRootDir?.let { return File(it, "config.v1.json") }
-        val configuredPath = (System.getenv("ANTIGRAVITY_STUDIO_CONFIG_PATH")
-            ?: System.getenv("AGY_STUDIO_CONFIG_PATH"))
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?.let(::File)
-            ?.takeIf { it.isAbsolute }
-        if (configuredPath != null) return configuredPath
-
-        val userHome = System.getProperty("user.home")
-        val osName = System.getProperty("os.name").lowercase()
-        return when {
-            osName.contains("mac") -> File(userHome, "Library/Application Support/Antigravity Studio/config.v1.json")
-            osName.contains("win") -> {
-                val appData = System.getenv("APPDATA")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: File(userHome, "AppData/Roaming").absolutePath
-                File(appData, "Antigravity Studio/config.v1.json")
-            }
-
-            else -> {
-                val configHome = System.getenv("XDG_CONFIG_HOME")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: File(userHome, ".config").absolutePath
-                File(configHome, "Antigravity Studio/config.v1.json")
-            }
-        }
     }
 
 

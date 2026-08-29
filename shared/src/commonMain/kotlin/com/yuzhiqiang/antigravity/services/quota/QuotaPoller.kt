@@ -20,7 +20,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
 import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
-import com.yuzhiqiang.antigravity.data.storage.AccountStore
+import com.yuzhiqiang.antigravity.core.platform.AppDataPaths
 import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -50,7 +50,7 @@ class QuotaPoller(
     }
 
     private val quotasFile: File by lazy {
-        File(AccountStore.resolveDefaultRootDir(), "quotas.v1.json")
+        AppDataPaths.resolve(AppDataPaths.QUOTAS_FILE_NAME)
     }
 
     private var pollerJob: Job? = null

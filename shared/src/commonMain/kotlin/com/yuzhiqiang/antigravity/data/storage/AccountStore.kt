@@ -1,10 +1,10 @@
 package com.yuzhiqiang.antigravity.data.storage
 
+import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
+import com.yuzhiqiang.antigravity.core.platform.AppDataPaths
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
-import com.yuzhiqiang.antigravity.domain.model.account.AccountProfile
 import com.yuzhiqiang.antigravity.domain.model.account.AccountStatus
 import com.yuzhiqiang.antigravity.domain.model.account.OAuthTokens
-import com.yuzhiqiang.antigravity.services.auth.HostAccountDetector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,14 +13,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
-import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import java.io.File
 
 @Serializable
@@ -31,30 +25,13 @@ data class AccountStoreData(
 )
 
 /**
- * 账号与凭据持久化存储器。
- * 支持多账号安全持久化存储，并双向兼容官方 OAuth 凭据文件。
+ * Studio 账号状态持久化存储器。
+ * 官方 OAuth 凭据文件由 [OfficialCredentialsStore] 独立管理，本类只提供事务门面。
  */
 class AccountStore(
     private val customRootDir: File? = null
 ) {
-    /** App 与 CLI 共享 OAuth 凭据写入计划的完整物理快照。 */
-    internal data class OfficialCredentialsSnapshot(
-        val files: List<CredentialFileSnapshot>
-    ) : AutoCloseable {
-        override fun close() {
-            files.forEach(CredentialFileSnapshot::close)
-        }
-    }
-
-    internal data class CredentialFileSnapshot(
-        val file: File,
-        val existed: Boolean,
-        val originalBytes: ByteArray
-    ) : AutoCloseable {
-        override fun close() {
-            originalBytes.fill(0)
-        }
-    }
+    private val officialCredentialsStore = OfficialCredentialsStore(customRootDir)
 
     private val json = Json {
         prettyPrint = true
@@ -66,11 +43,11 @@ class AccountStore(
     private val mutex = Mutex()
 
     private val rootDir: File by lazy {
-        customRootDir ?: resolveDefaultRootDir()
+        customRootDir ?: AppDataPaths.rootDir()
     }
 
     private val accountsFile: File by lazy {
-        File(rootDir, "accounts.v1.json")
+        File(rootDir, AppDataPaths.ACCOUNTS_FILE_NAME)
     }
 
     private val _accountsState = MutableStateFlow<List<AccountInfo>>(emptyList())
@@ -425,225 +402,30 @@ class AccountStore(
     /**
      * 尝试从官方 OAuth 凭据文件导入激活账号。
      */
-    fun importOfficialCredentials(): AccountInfo? {
-        val file = officialCredentialsFile()
-        if (!file.exists()) return null
-        return try {
-            val text = file.readText(Charsets.UTF_8)
-            val element = json.parseToJsonElement(text) as? JsonObject ?: return null
-            val accessToken = element["access_token"]?.jsonPrimitive?.contentOrNull ?: return null
-            val refreshToken = element["refresh_token"]?.jsonPrimitive?.contentOrNull ?: ""
-            val email = element["email"]?.jsonPrimitive?.contentOrNull
-                ?: element["user_email"]?.jsonPrimitive?.contentOrNull
-                ?: "default-user@antigravity"
-            val name = element["name"]?.jsonPrimitive?.contentOrNull
-            val expiryTimestamp = resolveExpiryTimestamp(element)
-            val tokenType = element["token_type"]?.jsonPrimitive?.contentOrNull ?: "Bearer"
-            val idToken = element["id_token"]?.jsonPrimitive?.contentOrNull
-
-            AccountInfo(
-                id = "acc_${email.hashCode().toUInt().toString(16)}",
-                profile = AccountProfile(
-                    email = email,
-                    name = name
-                ),
-                tokens = OAuthTokens(
-                    accessToken = accessToken,
-                    refreshToken = refreshToken,
-                    expiryTimestamp = expiryTimestamp,
-                    tokenType = tokenType,
-                    idToken = idToken
-                ),
-                isActive = true,
-                status = AccountStatus.ACTIVE
-            )
-        } catch (_: Exception) {
-            null
-        }
-    }
+    fun importOfficialCredentials(): AccountInfo? = officialCredentialsStore.importAccount()
 
     /**
      * 同步当前激活账号至 App 与 CLI 共用的官方 OAuth 凭据文件。
      */
     internal fun syncToOfficialCredentials(
         account: AccountInfo,
-        snapshot: OfficialCredentialsSnapshot
-    ): Boolean {
-        return try {
-            val file = officialCredentialsFile()
-            val fields = readOfficialCredentialFields(file)
-            val expiryTimestamp = normalizeEpochSeconds(account.tokens.expiryTimestamp)
-
-            fields["access_token"] = JsonPrimitive(account.tokens.accessToken)
-            fields["refresh_token"] = JsonPrimitive(account.tokens.refreshToken)
-            fields["email"] = JsonPrimitive(account.email)
-            fields["name"] = JsonPrimitive(account.profile.name ?: "")
-            fields["expiry_timestamp"] = JsonPrimitive(expiryTimestamp)
-            fields["expiry_date"] = JsonPrimitive(expiryTimestamp * MILLIS_PER_SECOND)
-            fields["token_type"] = JsonPrimitive(account.tokens.tokenType)
-            if ("user_email" in fields) {
-                fields["user_email"] = JsonPrimitive(account.email)
-            }
-            fields["antigravity_cockpit_active_email"] = JsonPrimitive(account.email)
-
-            val idToken = account.tokens.idToken?.takeIf { it.isNotBlank() }
-            if (idToken != null) {
-                fields["id_token"] = JsonPrimitive(idToken)
-            } else {
-                fields.remove("id_token")
-            }
-
-            val content = json.encodeToString(JsonObject.serializer(), JsonObject(fields))
-            snapshot.files.forEach { target ->
-                writeTextAtomically(target.file, content)
-            }
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
+        snapshot: OfficialCredentialsStore.Snapshot
+    ): Boolean = officialCredentialsStore.sync(account, snapshot)
 
     /**
      * 捕获官方 OAuth 凭据文件的原始字节，供切换失败时回滚。
      */
     internal fun captureOfficialCredentialsSnapshot(
         targetFiles: List<File>? = null
-    ): Result<OfficialCredentialsSnapshot> {
-        return try {
-            val seenPaths = mutableSetOf<String>()
-            val plannedFiles = (targetFiles ?: resolveCredentialTargetFiles()).filter { file ->
-                val canonicalPath = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }
-                seenPaths.add(canonicalPath)
-            }
-            val snapshots = plannedFiles.map { file ->
-                val existed = file.exists()
-                CredentialFileSnapshot(
-                    file = file,
-                    existed = existed,
-                    originalBytes = if (existed) file.readBytes() else byteArrayOf()
-                )
-            }
-            Result.success(OfficialCredentialsSnapshot(snapshots))
-        } catch (error: Exception) {
-            Result.failure(error)
-        }
-    }
+    ): Result<OfficialCredentialsStore.Snapshot> = officialCredentialsStore.captureSnapshot(targetFiles)
 
     /**
      * 恢复官方 OAuth 凭据文件快照。
      */
-    internal fun restoreOfficialCredentialsSnapshot(snapshot: OfficialCredentialsSnapshot): Boolean {
-        var restored = true
-        snapshot.files.asReversed().forEach { fileSnapshot ->
-            val fileRestored = try {
-                if (fileSnapshot.existed) {
-                    writeBytesAtomically(fileSnapshot.file, fileSnapshot.originalBytes)
-                    true
-                } else {
-                    !fileSnapshot.file.exists() || (fileSnapshot.file.isFile && fileSnapshot.file.delete())
-                }
-            } catch (_: Exception) {
-                false
-            }
-            restored = restored && fileRestored
-        }
-        return restored
-    }
+    internal fun restoreOfficialCredentialsSnapshot(snapshot: OfficialCredentialsStore.Snapshot): Boolean =
+        officialCredentialsStore.restoreSnapshot(snapshot)
 
-    private fun resolveCredentialTargetFiles(): List<File> {
-        val officialFile = officialCredentialsFile()
-        if (customRootDir != null) {
-            return listOf(officialFile)
-        }
-        val userHome = System.getProperty("user.home")
-        val candidates = listOf(
-            officialFile,
-            File(userHome, ".gemini/oauth_creds.json"),
-            File(userHome, ".gemini/oauth_credentials.json"),
-            File(userHome, ".gemini/antigravity/oauth_credentials.json"),
-            HostAccountDetector.resolvePlatformAppCredentialsFile()
-        )
-        val seenPaths = mutableSetOf<String>()
-        return candidates.filter { file ->
-            val canonicalPath = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }
-            val shouldWrite = file == officialFile || file.exists() || file.parentFile?.exists() == true
-            shouldWrite && seenPaths.add(canonicalPath)
-        }
-    }
-
-    fun officialCredentialsFile(): File {
-        if (customRootDir != null) {
-            return File(customRootDir, "oauth_credentials.json")
-        }
-        val customDataDir = System.getenv("ANTIGRAVITY_DATA_DIR")
-            ?: System.getenv("GEMINI_DATA_DIR")
-        if (!customDataDir.isNullOrBlank()) {
-            return File(customDataDir, "oauth_credentials.json")
-        }
-        val userHome = System.getProperty("user.home")
-        return File(userHome, ".gemini/oauth_creds.json")
-    }
-
-    private fun resolveExpiryTimestamp(element: JsonObject): Long {
-        val rawTimestamp = element["expiry_timestamp"]?.jsonPrimitive?.longOrNull
-            ?: element["expiry_date"]?.jsonPrimitive?.longOrNull
-            ?: (System.currentTimeMillis() / MILLIS_PER_SECOND + DEFAULT_TOKEN_LIFETIME_SECONDS)
-        return normalizeEpochSeconds(rawTimestamp)
-    }
-
-    private fun normalizeEpochSeconds(timestamp: Long): Long {
-        return if (timestamp >= EPOCH_MILLIS_THRESHOLD) {
-            timestamp / MILLIS_PER_SECOND
-        } else {
-            timestamp
-        }
-    }
-
-    private fun readOfficialCredentialFields(file: File): MutableMap<String, JsonElement> {
-        if (!file.exists()) {
-            return mutableMapOf()
-        }
-
-        return try {
-            val existing = json.parseToJsonElement(file.readText(Charsets.UTF_8)) as? JsonObject
-            existing?.toMutableMap() ?: mutableMapOf()
-        } catch (_: Exception) {
-            mutableMapOf()
-        }
-    }
-
-
-    companion object {
-        private const val MILLIS_PER_SECOND = 1_000L
-        private const val EPOCH_MILLIS_THRESHOLD = 10_000_000_000L
-        private const val DEFAULT_TOKEN_LIFETIME_SECONDS = 3_600L
-
-        fun resolveDefaultRootDir(): File {
-            val studioHome = System.getenv("ANTIGRAVITY_STUDIO_HOME")
-            if (!studioHome.isNullOrBlank()) {
-                return File(studioHome)
-            }
-
-            val userHome = System.getProperty("user.home")
-            val osName = System.getProperty("os.name", "").lowercase()
-            return when {
-                osName.contains("mac") -> File(userHome, "Library/Application Support/Antigravity Studio")
-                osName.contains("win") -> {
-                    val appData = System.getenv("APPDATA")
-                        ?.takeIf { it.isNotBlank() }
-                        ?: File(userHome, "AppData/Roaming").absolutePath
-                    File(appData, "Antigravity Studio")
-                }
-
-                else -> {
-                    val configHome = System.getenv("XDG_CONFIG_HOME")
-                        ?.takeIf { it.isNotBlank() }
-                        ?: File(userHome, ".config").absolutePath
-                    File(configHome, "Antigravity Studio")
-                }
-            }
-        }
-    }
+    fun officialCredentialsFile(): File = officialCredentialsStore.primaryFile()
 
     private fun writeTextAtomically(file: File, content: String) {
         AtomicFileWriter.writeText(
@@ -654,12 +436,5 @@ class AccountStore(
         ).getOrThrow()
     }
 
-    private fun writeBytesAtomically(file: File, content: ByteArray) {
-        AtomicFileWriter.writeBytes(
-            target = file,
-            content = content,
-            permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
-            disallowSymlinks = true
-        ).getOrThrow()
-    }
+
 }

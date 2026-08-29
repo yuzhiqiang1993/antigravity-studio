@@ -1,6 +1,6 @@
 package com.yuzhiqiang.antigravity.services.auth
 
-import com.yuzhiqiang.antigravity.data.storage.AccountStore
+import com.yuzhiqiang.antigravity.data.storage.OfficialCredentialsStore
 
 import java.io.File
 
@@ -10,7 +10,7 @@ import java.io.File
 internal data class OriginalState(
     val ideSnapshot: StateDbInjector.Snapshot?,
     val appDbSnapshot: StateDbInjector.Snapshot?,
-    val sharedCredentialsSnapshot: AccountStore.OfficialCredentialsSnapshot?,
+    val sharedCredentialsSnapshot: OfficialCredentialsStore.Snapshot?,
     val jetskiTokenSnapshot: FileSnapshot?,
     val systemCredentialSnapshot: SystemCredentialSnapshot?
 ) : AutoCloseable {
