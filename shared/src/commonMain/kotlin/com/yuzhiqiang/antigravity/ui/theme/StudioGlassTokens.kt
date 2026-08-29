@@ -38,32 +38,25 @@ object StudioGlassTokens {
     val cardElevationHovered: Dp = 0.dp
     val topBarElevation: Dp = 0.dp
 
-    // 3. 智能微轮廓 (纯白大底下输出清晰 1px outlineVariant，彩色大底下输出高光纯白)
+    // 3. 智能微轮廓 (未悬停使用主题专属 outlineVariant，悬停使用 Primary 主色高光)
     @Composable
     fun cleanBorderColor(isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f, isHovered: Boolean = false): Color {
-        val isPureWhite = !isDark && MaterialTheme.colorScheme.surface == Color.White
         return if (isDark) {
             if (isHovered) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.70f)
             else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-        } else if (isPureWhite) {
-            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
-            else MaterialTheme.colorScheme.outlineVariant
         } else {
-            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.50f)
-            else Color.White.copy(alpha = 0.85f)
+            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.60f)
+            else MaterialTheme.colorScheme.outlineVariant
         }
     }
 
     // 4. 次级内嵌面板细微轮廓
     @Composable
     fun innerPanelBorderColor(isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f): Color {
-        val isPureWhite = !isDark && MaterialTheme.colorScheme.surface == Color.White
         return if (isDark) {
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.30f)
-        } else if (isPureWhite) {
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.60f)
         } else {
-            Color.White.copy(alpha = 0.60f)
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.50f)
         }
     }
 
@@ -78,40 +71,31 @@ object StudioGlassTokens {
         )
     }
 
-    // 6. 快捷获取当前主题下的卡片底色 (纯白大底下输出微灰浮岛，彩色大底下输出纯白磨砂)
+    // 6. 快捷获取当前主题下的卡片底色 (消费当前主题的 surfaceContainer 色调映射底色)
     @Composable
     fun cardBackgroundColor(isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f): Color {
-        val isPureWhite = !isDark && MaterialTheme.colorScheme.surface == Color.White
         return if (isDark) {
             MaterialTheme.colorScheme.surfaceContainer.copy(alpha = surfaceAlphaDark)
-        } else if (isPureWhite) {
-            MaterialTheme.colorScheme.surfaceContainer
         } else {
-            Color.White.copy(alpha = surfaceAlphaLight)
+            MaterialTheme.colorScheme.surfaceContainer
         }
     }
 
     @Composable
     fun topBarBackgroundColor(isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f): Color {
-        val isPureWhite = !isDark && MaterialTheme.colorScheme.surface == Color.White
         return if (isDark) {
             MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = topBarAlphaDark)
-        } else if (isPureWhite) {
-            MaterialTheme.colorScheme.surfaceContainerLow
         } else {
-            Color.White.copy(alpha = topBarAlphaLight)
+            MaterialTheme.colorScheme.surfaceContainerLow
         }
     }
 
     @Composable
     fun innerPanelBackgroundColor(isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f): Color {
-        val isPureWhite = !isDark && MaterialTheme.colorScheme.surface == Color.White
         return if (isDark) {
             MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = innerPanelAlphaDark)
-        } else if (isPureWhite) {
-            MaterialTheme.colorScheme.surfaceContainerHigh
         } else {
-            Color(0xFFF1F5F9).copy(alpha = innerPanelAlphaLight)
+            MaterialTheme.colorScheme.surfaceContainerHigh
         }
     }
 }
