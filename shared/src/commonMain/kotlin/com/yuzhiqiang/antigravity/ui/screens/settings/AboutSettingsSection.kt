@@ -1,7 +1,13 @@
 package com.yuzhiqiang.antigravity.ui.screens.settings
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -12,12 +18,18 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.BrandMark
@@ -27,13 +39,8 @@ import com.yuzhiqiang.antigravity.update.model.AppVersion
 import com.yuzhiqiang.antigravity.update.model.UpdateState
 import java.awt.Desktop
 import java.net.URI
-
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.runtime.*
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 
 @Composable
 fun AboutSettingsSection(
@@ -364,9 +371,52 @@ private fun AboutActionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    val containerColor by animateColorAsState(
+        targetValue = if (isHovered) {
+            if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        animationSpec = tween(150)
+    )
+
+    val borderColor by animateColorAsState(
+        targetValue = if (isHovered) {
+            MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.55f else 0.45f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.55f)
+        },
+        animationSpec = tween(150)
+    )
+
+    val iconBgColor by animateColorAsState(
+        targetValue = if (isHovered) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.6f else 0.75f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        animationSpec = tween(150)
+    )
+
+    val shape = RoundedCornerShape(AppTokens.Radius.large)
+
     OutlinedCard(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(AppTokens.Radius.large)
+        modifier = modifier
+            .clip(shape)
+            .hoverable(interactionSource = interactionSource)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        shape = shape,
+        colors = CardDefaults.outlinedCardColors(containerColor = containerColor),
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Row(
             modifier = Modifier
@@ -379,7 +429,7 @@ private fun AboutActionCard(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(AppTokens.Radius.medium))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(iconBgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
