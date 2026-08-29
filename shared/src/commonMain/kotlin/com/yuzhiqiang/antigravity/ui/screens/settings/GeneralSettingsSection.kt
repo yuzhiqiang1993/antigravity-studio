@@ -299,7 +299,7 @@ fun GeneralSettingsSection(
                 if (onConfigureHostPath != null) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
 
-                    // 宿主路径配置
+                    // 宿主路径配置 (与上方语言/主题/切号分段器 100% 保持完全统一的设计语言)
                     SettingRow(
                         icon = Icons.Outlined.Computer,
                         title = s.settingsHostPathsTitle,
@@ -307,7 +307,17 @@ fun GeneralSettingsSection(
                         modifier = Modifier.padding(vertical = 4.dp)
                     ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.sm),
+                            modifier = Modifier
+                                .height(28.dp)
+                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(AppTokens.Radius.pill)
+                                )
+                                .padding(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             listOf(
@@ -316,29 +326,23 @@ fun GeneralSettingsSection(
                                 Triple("cli", "CLI", config.customHostPaths["cli"])
                             ).forEach { (key, title, customPath) ->
                                 val hasCustom = !customPath.isNullOrBlank()
-                                val bg = if (hasCustom) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                                val borderColor = if (hasCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
-                                val textColor = if (hasCustom) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                val bg = if (hasCustom) MaterialTheme.colorScheme.primary else Color.Transparent
+                                val text = if (hasCustom) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
 
                                 Box(
                                     modifier = Modifier
-                                        .height(26.dp)
+                                        .fillMaxHeight()
                                         .clip(RoundedCornerShape(AppTokens.Radius.pill))
                                         .background(bg)
-                                        .border(
-                                            width = 1.dp,
-                                            color = borderColor,
-                                            shape = RoundedCornerShape(AppTokens.Radius.pill)
-                                        )
                                         .clickable { onConfigureHostPath(key, "Antigravity $title") }
-                                        .padding(horizontal = 10.dp),
+                                        .padding(horizontal = 9.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = if (hasCustom) s.settingsHostPathCustom(title) else s.settingsHostPathAuto(title),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = if (hasCustom) FontWeight.SemiBold else FontWeight.Medium,
-                                        color = textColor
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                                        fontWeight = if (hasCustom) FontWeight.SemiBold else FontWeight.Normal,
+                                        color = text
                                     )
                                 }
                             }
