@@ -12,76 +12,43 @@ internal object CustomCatalogBuilder {
         checkpointWorkers: Collection<String> = emptySet(),
         defaultCheckpointWorker: String? = null
     ): List<JsonObject> {
-        val entries = if (config.virtualModels.isEmpty()) {
-            config.upstreamModels
-                .mapNotNull { upstream ->
-                    if (!upstream.enabled) return@mapNotNull null
-                    val provider = config.providers.firstOrNull { item ->
-                        item.id == upstream.providerId && item.enabled
-                    } ?: return@mapNotNull null
-                    val displayName = ModelIdentity.configuredModelDisplayName(
-                        modelName = upstream.effectiveName,
-                        reasoningLevel = null,
-                        providerName = provider.name,
-                        supportsReasoning = upstream.capabilities.reasoning.supportsReasoning
-                    )
-                    buildCatalogEntry(
-                        upstream = upstream,
-                        provider = provider,
-                        modelName = ModelIdentity.effectiveUpstreamHostModelId(upstream),
-                        displayName = displayName,
-                        hostModelId = ModelIdentity.effectiveUpstreamHostModelId(upstream),
-                        catalogKey = ModelIdentity.effectiveUpstreamHostModelId(upstream),
-                        reasoningLevel = null,
-                        entryId = upstream.id,
-                        policy = CatalogCompressionApplier.healCheckpointPolicy(
-                            upstream.compressionPolicy ?: config.modelCompressionPolicies[upstream.id],
-                            checkpointWorkers,
-                            defaultCheckpointWorker
-                        )
-                    )
-                }
-        } else {
-            val routableVirtuals = config.virtualModels.filter { virtual ->
-                RouteResolver.isRoutableVirtualModel(config, virtual)
-            }
-            routableVirtuals.mapNotNull { virtual ->
-                val upstream = config.upstreamModels.firstOrNull {
-                    it.id == virtual.upstreamModelId ||
-                            it.upstreamModelId == virtual.upstreamModelId ||
-                            it.hostModelId == virtual.upstreamModelId
-                } ?: return@mapNotNull null
-                val provider = config.providers.firstOrNull { item -> item.id == upstream.providerId && item.enabled }
-                    ?: return@mapNotNull null
-                val rawDisplayName = virtual.displayName?.takeIf { it.isNotBlank() }
-                    ?: virtual.name.takeIf { it.isNotBlank() }
-                    ?: upstream.displayName?.takeIf { it.isNotBlank() }
-                    ?: upstream.name.takeIf { it.isNotBlank() }
-                    ?: virtual.id
-                val displayName = ModelIdentity.configuredModelDisplayName(
-                    modelName = rawDisplayName,
-                    reasoningLevel = virtual.defaultReasoningLevel,
-                    providerName = provider.name,
-                    supportsReasoning = upstream.capabilities.reasoning.supportsReasoning
+        val routableVirtuals = config.virtualModels.filter { virtual ->
+            RouteResolver.isRoutableVirtualModel(config, virtual)
+        }
+        val entries = routableVirtuals.mapNotNull { virtual ->
+            val upstream = config.upstreamModels.firstOrNull { model ->
+                model.id == virtual.upstreamModelId
+            } ?: return@mapNotNull null
+            val provider = config.providers.firstOrNull { item -> item.id == upstream.providerId && item.enabled }
+                ?: return@mapNotNull null
+            val rawDisplayName = virtual.displayName?.takeIf { it.isNotBlank() }
+                ?: virtual.name.takeIf { it.isNotBlank() }
+                ?: upstream.displayName?.takeIf { it.isNotBlank() }
+                ?: upstream.name.takeIf { it.isNotBlank() }
+                ?: virtual.id
+            val displayName = ModelIdentity.configuredModelDisplayName(
+                modelName = rawDisplayName,
+                reasoningLevel = virtual.defaultReasoningLevel,
+                providerName = provider.name,
+                supportsReasoning = upstream.capabilities.reasoning.supportsReasoning
+            )
+            buildCatalogEntry(
+                upstream = upstream,
+                provider = provider,
+                modelName = RouteResolver.catalogKey(virtual),
+                displayName = displayName,
+                hostModelId = RouteResolver.effectiveHostModelId(virtual),
+                catalogKey = RouteResolver.catalogKey(virtual),
+                reasoningLevel = virtual.defaultReasoningLevel,
+                entryId = virtual.id,
+                policy = CatalogCompressionApplier.healCheckpointPolicy(
+                    config.modelCompressionPolicies[virtual.id]
+                        ?: config.modelCompressionPolicies[upstream.id]
+                        ?: upstream.compressionPolicy,
+                    checkpointWorkers,
+                    defaultCheckpointWorker
                 )
-                buildCatalogEntry(
-                    upstream = upstream,
-                    provider = provider,
-                    modelName = RouteResolver.catalogKey(virtual),
-                    displayName = displayName,
-                    hostModelId = RouteResolver.effectiveHostModelId(virtual),
-                    catalogKey = RouteResolver.catalogKey(virtual),
-                    reasoningLevel = virtual.defaultReasoningLevel,
-                    entryId = virtual.id,
-                    policy = CatalogCompressionApplier.healCheckpointPolicy(
-                        config.modelCompressionPolicies[virtual.id]
-                            ?: config.modelCompressionPolicies[upstream.id]
-                            ?: upstream.compressionPolicy,
-                        checkpointWorkers,
-                        defaultCheckpointWorker
-                    )
-                )
-            }
+            )
         }
         return if (includeTiered) entries + buildTieredCatalogEntries(
             config,
@@ -101,7 +68,7 @@ internal object CustomCatalogBuilder {
             .filter { RouteResolver.isRoutableVirtualModel(config, it) }
             .mapNotNull { virtual ->
                 val upstream = config.upstreamModels.firstOrNull {
-                    (it.id == virtual.upstreamModelId || it.upstreamModelId == virtual.upstreamModelId || it.hostModelId == virtual.upstreamModelId) && it.enabled
+                    it.id == virtual.upstreamModelId && it.enabled
                 } ?: return@mapNotNull null
                 if (!upstream.capabilities.reasoning.supportsReasoning) return@mapNotNull null
                 val provider = config.providers.firstOrNull { it.id == upstream.providerId && it.enabled }

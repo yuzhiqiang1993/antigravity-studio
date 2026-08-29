@@ -1,7 +1,5 @@
 package com.yuzhiqiang.antigravity.domain.model
 
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -12,37 +10,33 @@ import kotlinx.serialization.json.put
 /**
  * 统一承载 agy reasoning mapping 的读取、默认映射与协议校验。
  *
- * levels 在历史 Studio 配置中可能是字符串数组，新配置则使用
- * { "low": { "kind": "effort", "value": "low" } } 形式；读取时兼容两种形状，
- * 保存时始终输出对象，避免把协议映射压缩成 Boolean 或丢失预算信息。
+ * levels 严格使用 { "low": { "kind": "effort", "value": "low" } } 形式。
  */
 object ReasoningMappingSupport {
-    fun configuredLevels(levels: JsonElement?): List<ReasoningLevel> {
-        val values = when (levels) {
-            is JsonObject -> levels.keys.toList()
-            is JsonArray -> levels.mapNotNull { item -> item.jsonPrimitive.contentOrNull }
-            else -> emptyList()
-        }
-        return values.mapNotNull(::parseLevel).distinct()
+    fun configuredLevels(levels: JsonObject?): List<ReasoningLevel> {
+        return parse(levels).keys.toList()
     }
 
-    fun hasConfiguredLevels(levels: JsonElement?): Boolean {
-        return when (levels) {
-            is JsonObject -> levels.isNotEmpty()
-            is JsonArray -> levels.isNotEmpty()
-            else -> false
-        }
+    fun hasConfiguredLevels(levels: JsonObject?): Boolean {
+        return !levels.isNullOrEmpty()
     }
 
-    fun parse(levels: JsonElement?): Map<ReasoningLevel, ReasoningMapping> {
-        val objectLevels = levels as? JsonObject ?: return emptyMap()
-        return objectLevels.mapNotNull { (rawLevel, rawMapping) ->
-            val level = parseLevel(rawLevel) ?: return@mapNotNull null
+    fun parse(levels: JsonObject?): Map<ReasoningLevel, ReasoningMapping> {
+        return levels.orEmpty().map { (rawLevel, rawMapping) ->
+            val level = ReasoningLevel.entries.firstOrNull { candidate -> levelKey(candidate) == rawLevel }
+                ?: throw IllegalArgumentException("未知 reasoning level：$rawLevel")
             val mappingObject = rawMapping as? JsonObject
-            val kind = mappingObject?.get("kind")?.jsonPrimitive?.contentOrNull
-                ?: return@mapNotNull null
+                ?: throw IllegalArgumentException("reasoning level $rawLevel 必须是对象")
+            require(mappingObject.keys.all { key -> key == "kind" || key == "value" }) {
+                "reasoning level $rawLevel 包含未知字段"
+            }
+            val kindElement = mappingObject["kind"] as? JsonPrimitive
+                ?: throw IllegalArgumentException("reasoning level $rawLevel 缺少 kind")
+            require(kindElement.isString && kindElement.content.isNotBlank()) {
+                "reasoning level $rawLevel 的 kind 必须是非空字符串"
+            }
             level to ReasoningMapping(
-                kind = kind,
+                kind = kindElement.content,
                 value = mappingObject["value"]
             )
         }.toMap()

@@ -78,7 +78,6 @@ class ProviderModelConfigMapperTest {
                     thinkingBudget = 4_096,
                     minThinkingBudget = 512,
                     levels = ReasoningMappingSupport.encode(reasoningMappings),
-                    defaultLevel = ReasoningLevel.HIGH,
                     type = "budget"
                 )
             ),
@@ -116,7 +115,6 @@ class ProviderModelConfigMapperTest {
         assertEquals(reasoningMappings, ReasoningMappingSupport.parse(saved.capabilities.reasoning.levels))
         assertEquals(4_096, saved.capabilities.reasoning.thinkingBudget)
         assertEquals(512, saved.capabilities.reasoning.minThinkingBudget)
-        assertEquals(ReasoningLevel.HIGH, saved.capabilities.reasoning.defaultLevel)
         assertEquals("budget", saved.capabilities.reasoning.type)
         assertEquals(TokenLimitSource.CONFIGURED, saved.tokenLimits.contextWindowSource)
         assertEquals(TokenLimitSource.CONFIGURED, saved.tokenLimits.inputTokenLimitSource)
@@ -155,7 +153,6 @@ class ProviderModelConfigMapperTest {
         assertEquals(listOf(ModelModality.TEXT), saved.capabilities.inputModalities)
         assertEquals(listOf(ModelModality.IMAGE), saved.capabilities.outputModalities)
         assertFalse(saved.capabilities.tools)
-        assertFalse(saved.capabilities.vision)
         assertFalse(saved.capabilities.reasoning.supportsReasoning)
         assertTrue(saved.capabilities.inputMimeTypes.isEmpty())
         assertEquals(ModelTokenLimits(), saved.tokenLimits)

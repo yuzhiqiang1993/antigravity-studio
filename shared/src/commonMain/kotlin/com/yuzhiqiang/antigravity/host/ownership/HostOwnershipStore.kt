@@ -6,8 +6,14 @@ import com.yuzhiqiang.antigravity.host.windows.WindowsHostManager
 import java.io.File
 import java.net.URI
 import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.serializer
 
 /**
  * 统一维护宿主接入的 ownership receipt。
@@ -36,7 +42,7 @@ object HostOwnershipStore {
 
     @Serializable
     private data class EnvironmentReceipt(
-        val schemaVersion: Int = RECEIPT_SCHEMA_VERSION,
+        @SerialName("schema_version") val schemaVersion: Int,
         val managedEndpoint: String,
         val originalEndpoint: String? = null,
         val appOwner: Boolean = false,
@@ -63,7 +69,7 @@ object HostOwnershipStore {
 
     @Serializable
     private data class IdeReceipt(
-        val schemaVersion: Int = RECEIPT_SCHEMA_VERSION,
+        @SerialName("schema_version") val schemaVersion: Int,
         val settingsPath: String,
         val managedEndpoint: String,
         val originalContent: String
@@ -138,36 +144,31 @@ object HostOwnershipStore {
 
     /** 强制重置 IDE 代理配置至官方直连（无视 receipt 记录，直接剔除配置并清理 receipt）。 */
     fun forceResetIde(settingsFile: File): Result<Unit> {
-        removeReceipt(ideReceiptFile())
-        removeReceipt(integrationRoot().resolve("ide-receipt.json"))
-        removeReceipt(integrationRoot().resolve("ide-setting-ownership.json"))
-        removeReceipt(integrationRoot().resolve("ide-settings-ownership.json"))
-        val candidateFiles = (com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getCandidateSettingsFiles() + listOf(settingsFile)).distinct()
+        val candidateFiles =
+            (com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getCandidateSettingsFiles() + listOf(settingsFile)).distinct()
         for (file in candidateFiles) {
             if (!file.exists()) continue
-            val content = readText(file).getOrNull() ?: continue
+            val content = readText(file).getOrElse { error -> return Result.failure(error) }
             val updated = removeIdeEndpoint(content)
             if (updated != null && updated != content) {
-                writeTextAtomically(file, updated)
+                writeTextAtomically(file, updated).getOrElse { error -> return Result.failure(error) }
             }
         }
-        return Result.success(Unit)
+        return removeIdeReceipts()
     }
 
     /** 强制重置共享环境变量至官方模式（彻底清除 launchctl/注册表环境变量与 receipt）。 */
     fun forceResetEnvironment(): Result<Unit> {
-        removeReceipt(environmentReceiptFile())
-        removeReceipt(integrationRoot().resolve("environment-receipt.json"))
-        removeReceipt(integrationRoot().resolve("environment-ownership.json"))
-        unsetEnvironmentEndpoint()
-        return Result.success(Unit)
+        if (!unsetEnvironmentEndpoint()) {
+            return Result.failure(IllegalStateException("清除 $ENVIRONMENT_KEY 失败"))
+        }
+        return removeEnvironmentReceipts()
     }
 
     /** 强制重置所有宿主接入状态至干净的官方模式。 */
     fun forceResetAll(): Result<Unit> {
-        forceResetEnvironment()
-        forceResetIde(com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getSettingsFile())
-        return Result.success(Unit)
+        forceResetEnvironment().getOrElse { error -> return Result.failure(error) }
+        return forceResetIde(com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getSettingsFile())
     }
 
     /** 判断指定代理端口当前是否已经写入宿主环境变量。 */
@@ -199,17 +200,17 @@ object HostOwnershipStore {
         return enableEnvironment(owner, localEndpoint(proxyPort))
     }
 
-   /** 以指定 owner 身份接管共享环境变量。 */
-   fun enableEnvironment(owner: EnvironmentOwner, endpoint: String): Result<Unit> {
-       if (!isLocalEndpoint(endpoint)) {
-           return Result.failure(IllegalArgumentException("宿主代理地址必须是本机回环地址"))
-       }
-       val currentEndpoint = readEnvironmentEndpoint().getOrElse { error ->
-           return Result.failure(error)
-       }
-       val previousReceipt = readEnvironmentReceipt().getOrElse { error ->
-           return Result.failure(error)
-       }
+    /** 以指定 owner 身份接管共享环境变量。 */
+    fun enableEnvironment(owner: EnvironmentOwner, endpoint: String): Result<Unit> {
+        if (!isLocalEndpoint(endpoint)) {
+            return Result.failure(IllegalArgumentException("宿主代理地址必须是本机回环地址"))
+        }
+        val currentEndpoint = readEnvironmentEndpoint().getOrElse { error ->
+            return Result.failure(error)
+        }
+        val previousReceipt = readEnvironmentReceipt().getOrElse { error ->
+            return Result.failure(error)
+        }
         val originalEndpoint = if (currentEndpoint != null && !isLocalEndpoint(currentEndpoint)) {
             currentEndpoint
         } else {
@@ -222,49 +223,44 @@ object HostOwnershipStore {
             appOwner = owner == EnvironmentOwner.APP || previousReceipt?.appOwner == true,
             cliOwner = owner == EnvironmentOwner.CLI || previousReceipt?.cliOwner == true
         )
-       val writeReceiptResult = writeReceipt(environmentReceiptFile(), receipt)
-       if (writeReceiptResult.isFailure) {
-           return writeReceiptResult
-       }
-       if (setEnvironmentEndpoint(endpoint)) {
-           return Result.success(Unit)
-       }
-       restoreEnvironmentReceipt(previousReceipt)
-       return Result.failure(IllegalStateException("写入 $ENVIRONMENT_KEY 失败"))
-   }
+        val writeReceiptResult = writeReceipt(environmentReceiptFile(), receipt)
+        if (writeReceiptResult.isFailure) {
+            return writeReceiptResult
+        }
+        if (setEnvironmentEndpoint(endpoint)) {
+            return Result.success(Unit)
+        }
+        restoreEnvironmentReceipt(previousReceipt)
+        return Result.failure(IllegalStateException("写入 $ENVIRONMENT_KEY 失败"))
+    }
 
-  /** 释放指定 owner；仅最后一个 owner 停用时恢复接管前的环境值。 */
-  fun disableEnvironment(owner: EnvironmentOwner): Result<Unit> {
-      val previousReceipt = readEnvironmentReceipt().getOrElse { null }
-      if (previousReceipt != null) {
-          val updatedReceipt = previousReceipt.withOwner(owner, enabled = false)
-          if (!updatedReceipt.hasNoOwner()) {
-              // 仍有其他 owner 处于开启状态，保存更新后的 receipt 并保留当前环境
-              writeReceipt(environmentReceiptFile(), updatedReceipt)
-              return Result.success(Unit)
-          }
-      }
-      // 没有任何 owner 了，彻底清理所有相关 receipt
-      removeReceipt(environmentReceiptFile())
-      removeReceipt(integrationRoot().resolve("environment-receipt.json"))
-      removeReceipt(integrationRoot().resolve("environment-ownership.json"))
-      val original = previousReceipt?.originalEndpoint?.trim()
-      val shouldRestoreOriginal = !original.isNullOrBlank() &&
-              !isLocalEndpoint(original) &&
-              !original.contains("127.0.0.1") &&
-              !original.contains("localhost")
-      val restoreResult = if (shouldRestoreOriginal) {
-          setEnvironmentEndpoint(original!!)
-      } else {
-         unsetEnvironmentEndpoint()
-     }
-     if (!restoreResult) {
-         return Result.failure(IllegalStateException("恢复 $ENVIRONMENT_KEY 原始值失败"))
-     }
-     return Result.success(Unit)
-  }
+    /** 释放指定 owner；仅最后一个 owner 停用时恢复接管前的环境值。 */
+    fun disableEnvironment(owner: EnvironmentOwner): Result<Unit> {
+        val previousReceipt = readEnvironmentReceipt().getOrElse { error -> return Result.failure(error) }
+        if (previousReceipt != null) {
+            val updatedReceipt = previousReceipt.withOwner(owner, enabled = false)
+            if (!updatedReceipt.hasNoOwner()) {
+                // 仍有其他 owner 处于开启状态，保存更新后的 receipt 并保留当前环境
+                return writeReceipt(environmentReceiptFile(), updatedReceipt)
+            }
+        }
+        val original = previousReceipt?.originalEndpoint?.trim()
+        val shouldRestoreOriginal = !original.isNullOrBlank() &&
+                !isLocalEndpoint(original) &&
+                !original.contains("127.0.0.1") &&
+                !original.contains("localhost")
+        val restoreResult = if (shouldRestoreOriginal) {
+            setEnvironmentEndpoint(original!!)
+        } else {
+            unsetEnvironmentEndpoint()
+        }
+        if (!restoreResult) {
+            return Result.failure(IllegalStateException("恢复 $ENVIRONMENT_KEY 原始值失败"))
+        }
+        return removeEnvironmentReceipts()
+    }
 
-   /** 接管 IDE settings，并保留接管前的完整文件内容。 */
+    /** 接管 IDE settings，并保留接管前的完整文件内容。 */
     fun enableIde(settingsFile: File, proxyPort: Int): Result<Unit> {
         val endpoint = localEndpoint(proxyPort)
         val currentContent = readText(settingsFile).getOrElse { error ->
@@ -288,6 +284,7 @@ object HostOwnershipStore {
             currentContent
         }
         val receipt = IdeReceipt(
+            schemaVersion = RECEIPT_SCHEMA_VERSION,
             settingsPath = settingsPath,
             managedEndpoint = endpoint,
             originalContent = originalContent
@@ -309,32 +306,30 @@ object HostOwnershipStore {
         return writeSettingsResult
     }
 
-  /** 释放 IDE 接入；优先恢复 receipt 保存的完整原始内容。 */
-  fun disableIde(settingsFile: File, proxyPort: Int): Result<Unit> {
-      val previousReceipt = readIdeReceipt().getOrElse { null }
-      removeReceipt(ideReceiptFile())
-      removeReceipt(integrationRoot().resolve("ide-receipt.json"))
-      removeReceipt(integrationRoot().resolve("ide-setting-ownership.json"))
-      removeReceipt(integrationRoot().resolve("ide-settings-ownership.json"))
-      val candidateFiles = (com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getCandidateSettingsFiles() + listOf(settingsFile)).distinct()
-      for (file in candidateFiles) {
-          if (!file.exists()) continue
-          val content = readText(file).getOrNull() ?: continue
-          val settingsPath = file.absoluteFile.normalize().path
-          if (previousReceipt?.settingsPath == settingsPath &&
-              !previousReceipt.originalContent.contains("127.0.0.1") &&
-              extractIdeEndpoint(previousReceipt.originalContent) == null
-          ) {
-              writeTextAtomically(file, previousReceipt.originalContent)
-              continue
-          }
-          val updated = removeIdeEndpoint(content)
-          if (updated != null && updated != content) {
-              writeTextAtomically(file, updated)
-          }
-      }
-      return Result.success(Unit)
-  }
+    /** 释放 IDE 接入；优先恢复 receipt 保存的完整原始内容。 */
+    fun disableIde(settingsFile: File, proxyPort: Int): Result<Unit> {
+        val previousReceipt = readIdeReceipt().getOrElse { error -> return Result.failure(error) }
+        val candidateFiles =
+            (com.yuzhiqiang.antigravity.host.ide.IdeHostManager.getCandidateSettingsFiles() + listOf(settingsFile)).distinct()
+        for (file in candidateFiles) {
+            if (!file.exists()) continue
+            val content = readText(file).getOrElse { error -> return Result.failure(error) }
+            val settingsPath = file.absoluteFile.normalize().path
+            if (previousReceipt?.settingsPath == settingsPath &&
+                !previousReceipt.originalContent.contains("127.0.0.1") &&
+                extractIdeEndpoint(previousReceipt.originalContent) == null
+            ) {
+                writeTextAtomically(file, previousReceipt.originalContent)
+                    .getOrElse { error -> return Result.failure(error) }
+                continue
+            }
+            val updated = removeIdeEndpoint(content)
+            if (updated != null && updated != content) {
+                writeTextAtomically(file, updated).getOrElse { error -> return Result.failure(error) }
+            }
+        }
+        return removeIdeReceipts()
+    }
 
     private fun buildEnvironmentReceipt(
         previousReceipt: EnvironmentReceipt?,
@@ -348,6 +343,7 @@ object HostOwnershipStore {
             previousReceipt.copy(managedEndpoint = targetEndpoint)
         } else {
             EnvironmentReceipt(
+                schemaVersion = RECEIPT_SCHEMA_VERSION,
                 managedEndpoint = targetEndpoint,
                 originalEndpoint = currentEndpoint
             )
@@ -495,23 +491,45 @@ object HostOwnershipStore {
     }
 
     private inline fun <reified T> readReceipt(file: File): Result<T?> {
-        if (!file.exists()) {
+        val path = file.toPath()
+        if (!Files.exists(path, NOFOLLOW_LINKS)) {
             return Result.success(null)
         }
-        return try {
-            val receipt = json.decodeFromString<T>(file.readText(Charsets.UTF_8))
-            Result.success(receipt)
+        if (Files.isSymbolicLink(path)) {
+            return removeReceipt(file).map { null }
+        }
+        AtomicFileWriter.setOwnerOnlyPermissions(file).getOrElse { error ->
+            return Result.failure(error)
+        }
+        val content = try {
+            file.readText(Charsets.UTF_8)
         } catch (error: Exception) {
-            Result.failure(IllegalStateException("接入 receipt 解析失败：${error.message ?: "内容无效"}", error))
+            return Result.failure(IllegalStateException("接入 receipt 读取失败：${error.message ?: "未知错误"}", error))
+        }
+        return try {
+            val raw = json.parseToJsonElement(content).jsonObject
+            val schemaVersion = raw["schema_version"]?.jsonPrimitive?.intOrNull
+            require(schemaVersion == RECEIPT_SCHEMA_VERSION) {
+                "不支持的 receipt schema_version：${schemaVersion ?: "缺失"}"
+            }
+            Result.success(json.decodeFromJsonElement(serializer<T>(), raw))
+        } catch (_: Exception) {
+            removeReceipt(file).map { null }
         }
     }
 
     private inline fun <reified T> writeReceipt(file: File, receipt: T): Result<Unit> {
-        return try {
-            writeTextAtomically(file, json.encodeToString(receipt))
-        } catch (error: Exception) {
-            Result.failure(IllegalStateException("接入 receipt 写入失败：${error.message ?: "未知错误"}", error))
-        }
+        return AtomicFileWriter.writeText(
+            target = file,
+            content = json.encodeToString(receipt),
+            permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
+            disallowSymlinks = true
+        ).fold(
+            onSuccess = { Result.success(Unit) },
+            onFailure = { error ->
+                Result.failure(IllegalStateException("接入 receipt 写入失败：${error.message ?: "未知错误"}", error))
+            }
+        )
     }
 
     private fun restoreEnvironmentReceipt(previousReceipt: EnvironmentReceipt?): Result<Unit> {
@@ -530,11 +548,37 @@ object HostOwnershipStore {
         }
     }
 
+    private fun removeIdeReceipts(): Result<Unit> {
+        return removeReceipts(
+            listOf(
+                integrationRoot().resolve("ide-receipt.json"),
+                integrationRoot().resolve("ide-setting-ownership.json"),
+                integrationRoot().resolve("ide-settings-ownership.json"),
+                ideReceiptFile()
+            )
+        )
+    }
+
+    private fun removeEnvironmentReceipts(): Result<Unit> {
+        return removeReceipts(
+            listOf(
+                integrationRoot().resolve("environment-receipt.json"),
+                integrationRoot().resolve("environment-ownership.json"),
+                environmentReceiptFile()
+            )
+        )
+    }
+
+    private fun removeReceipts(files: List<File>): Result<Unit> {
+        files.forEach { file ->
+            removeReceipt(file).getOrElse { error -> return Result.failure(error) }
+        }
+        return Result.success(Unit)
+    }
+
     private fun removeReceipt(file: File): Result<Unit> {
         return try {
-            if (file.exists()) {
-                Files.delete(file.toPath())
-            }
+            Files.deleteIfExists(file.toPath())
             Result.success(Unit)
         } catch (error: Exception) {
             Result.failure(IllegalStateException("接入 receipt 删除失败：${error.message ?: "未知错误"}", error))
@@ -557,7 +601,7 @@ object HostOwnershipStore {
         return AtomicFileWriter.writeText(
             target = file,
             content = content,
-            preservePermissions = true,
+            permissionPolicy = AtomicFileWriter.PermissionPolicy.PRESERVE_EXISTING,
             disallowSymlinks = true
         ).fold(
             onSuccess = { Result.success(Unit) },

@@ -12,10 +12,10 @@ object ModelIdentity {
     const val CUSTOM_HOST_MODEL_ID_START = 400
     const val CUSTOM_HOST_MODEL_ID_END = 600
 
-   private const val CUSTOM_HOST_MODEL_SLOT_PREFIX = "MODEL_PLACEHOLDER_"
-   private const val CUSTOM_MODEL_PREFIX = "custom-"
-   private const val CUSTOM_BYOK_MODEL_PREFIX = "custom-byok-"
-   private const val MODEL_NAMESPACE_PREFIX = "models/"
+    private const val CUSTOM_HOST_MODEL_SLOT_PREFIX = "MODEL_PLACEHOLDER_"
+    private const val CUSTOM_MODEL_PREFIX = "custom-"
+    private const val CUSTOM_BYOK_MODEL_PREFIX = "custom-byok-"
+    private const val MODEL_NAMESPACE_PREFIX = "models/"
 
     val REASONING_LEVEL_PRIORITY = listOf(
         ReasoningLevel.HIGH,
@@ -28,19 +28,8 @@ object ModelIdentity {
         ReasoningLevel.OFF
     )
 
-   /** 返回虚拟模型对宿主生效的稳定 Host Model ID。 */
-    fun effectiveHostModelId(model: VirtualModel): String {
-        val configured = model.hostModelId?.trim()
-        return configured.takeUnless { it.isNullOrEmpty() }
-            ?: hashedHostModelId(model.id)
-    }
-
-    /** 返回没有 VirtualModel 的旧配置所使用的稳定 Host Model ID。 */
-    fun effectiveUpstreamHostModelId(model: UpstreamModel): String {
-        val configured = model.hostModelId?.trim()
-        return configured.takeUnless { it.isNullOrEmpty() }
-            ?: hashedHostModelId(model.id.ifBlank { model.upstreamModelId })
-    }
+    /** 返回虚拟模型对宿主生效的稳定 Host Model ID。 */
+    fun effectiveHostModelId(model: VirtualModel): String = model.hostModelId.trim()
 
     /** 返回宿主目录中使用的自定义虚拟模型 ID。 */
     fun catalogKey(model: VirtualModel): String {
@@ -53,11 +42,11 @@ object ModelIdentity {
             return prefixedId
         }
 
-       val slot = effectiveHostModelId(model)
-           .removePrefix(CUSTOM_HOST_MODEL_SLOT_PREFIX)
-           .lowercase()
-       return "$CUSTOM_BYOK_MODEL_PREFIX$slot"
-   }
+        val slot = effectiveHostModelId(model)
+            .removePrefix(CUSTOM_HOST_MODEL_SLOT_PREFIX)
+            .lowercase()
+        return "$CUSTOM_BYOK_MODEL_PREFIX$slot"
+    }
 
     /**
      * 对齐 byok configured_model_display_name：
@@ -106,11 +95,12 @@ object ModelIdentity {
 
     /** 去掉 displayName 末尾的档位后缀（如 ` (High)` / ` (Max)`）。 */
     fun stripDisplayLevelSuffix(displayName: String): String {
-        val pattern = Regex("(?i)\\s*(?:\\(|\\s)(?:adaptive|x-high|x_high|medium|auto|custom|default|high|max|low|off)\\)?$")
+        val pattern =
+            Regex("(?i)\\s*(?:\\(|\\s)(?:adaptive|x-high|x_high|medium|auto|custom|default|high|max|low|off)\\)?$")
         return displayName.replace(pattern, "").trim()
     }
 
-   /** 返回虚拟模型可被宿主请求接受的全部别名。 */
+    /** 返回虚拟模型可被宿主请求接受的全部别名。 */
     fun acceptedIds(model: VirtualModel): List<String> {
         return listOf(
             normalizeModelId(model.id),
@@ -136,13 +126,13 @@ object ModelIdentity {
         return stripReasoningLevelSuffix(value).removeSuffix("-tiered")
     }
 
-   fun matchesFamilyBase(model: VirtualModel, familyBase: String): Boolean {
-       val normalizedBase = normalizeModelId(familyBase)
-       return modelFamilyBase(model.id) == normalizedBase ||
-               modelFamilyBase(catalogKey(model)) == normalizedBase ||
+    fun matchesFamilyBase(model: VirtualModel, familyBase: String): Boolean {
+        val normalizedBase = normalizeModelId(familyBase)
+        return modelFamilyBase(model.id) == normalizedBase ||
+                modelFamilyBase(catalogKey(model)) == normalizedBase ||
                 modelFamilyBase(catalogFamilyBase(model)) == normalizedBase ||
-               modelFamilyBase(effectiveHostModelId(model)) == normalizedBase
-   }
+                modelFamilyBase(effectiveHostModelId(model)) == normalizedBase
+    }
 
     /** 返回虚拟模型的族 base ID（用于母条目 key 构建）。 */
     fun catalogFamilyBase(model: VirtualModel): String {
@@ -159,7 +149,7 @@ object ModelIdentity {
         return key
     }
 
-   /** 为模型保留显式或确定性 Host Model ID，发生冲突时再分配空闲槽位。 */
+    /** 为模型保留显式或确定性 Host Model ID，发生冲突时再分配空闲槽位。 */
     fun resolveHostModelId(
         seed: String,
         configuredId: String?,

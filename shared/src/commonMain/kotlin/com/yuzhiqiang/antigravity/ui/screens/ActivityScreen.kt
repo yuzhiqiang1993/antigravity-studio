@@ -1,11 +1,6 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,31 +12,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
-import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.*
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
-import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
-import androidx.compose.ui.graphics.luminance
-import com.yuzhiqiang.antigravity.ui.utils.LatencyTier
-import com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate
-import com.yuzhiqiang.antigravity.ui.utils.formatDuration
-import com.yuzhiqiang.antigravity.ui.utils.formatHitRate
-import com.yuzhiqiang.antigravity.ui.utils.formatTokens
-import com.yuzhiqiang.antigravity.ui.utils.getCacheHitRateColor
-import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
-import com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier
-import com.yuzhiqiang.antigravity.ui.utils.toColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,53 +46,20 @@ fun ActivityScreen(
         filterResetKey++
     }
 
-    val clientCounts = remember(logs) {
-        ActivityClientKind.values().associateWith { kind -> logs.count { it.clientKind() == kind } }
-    }
-    val endpointCounts = remember(logs) {
-        logs.groupingBy(ActivityLog::path)
-            .eachCount()
-            .toList()
-            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
-    }
-    val routeCounts = remember(logs) {
-        logs.groupingBy(ActivityLog::routeKey)
-            .eachCount()
-            .toList()
-            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
-    }
-    val statusCounts = remember(logs) {
-        ActivityStatusKind.values().associateWith { status -> logs.count(status::matches) }
-    }
-    val displayedLogs = remember(logs, normalizedQuery, activityFilter, s) {
-        filterActivityLogs(logs, normalizedQuery, activityFilter) { log ->
-            buildList {
-                add(if (log.isOfficialPassthrough) s.activityPassthrough else s.activityRouted)
-                if (log.retryCount > 0) add(s.activityRetryBadge(log.retryCount))
-                add(activityClientLabel(log.clientKind(), s))
-            }
-        }
-    }
+    val filterCounts = rememberActivityFilterCounts(logs)
+    val displayedLogs = rememberActivityDisplayedLogs(
+        logs = logs,
+        normalizedQuery = normalizedQuery,
+        activityFilter = activityFilter,
+        s = s
+    )
 
     LaunchedEffect(displayedLogs.firstOrNull()?.id, autoScroll) {
         if (autoScroll && displayedLogs.isNotEmpty()) {
             listState.animateScrollToItem(0)
         }
     }
-    val failedCount = remember(logs) { logs.count { !it.isPending && it.statusCode >= 400 } }
-    val averageDuration = remember(logs) {
-        logs.filter { !it.isPending && it.statusCode > 0 }
-            .takeIf { it.isNotEmpty() }
-            ?.map { it.durationMs }
-            ?.average()
-            ?.toLong() ?: 0L
-    }
-    val totalInputTokens = remember(logs) { logs.mapNotNull { it.inputTokens }.sum() }
-    val totalCacheReadTokens = remember(logs) { logs.mapNotNull { it.cacheReadTokens }.sum() }
-    val totalCacheWriteTokens = remember(logs) { logs.mapNotNull { it.cacheWriteTokens }.sum() }
-    val overallCacheHitRate = remember(totalInputTokens, totalCacheReadTokens, totalCacheWriteTokens) {
-        calculateCacheHitRate(totalCacheReadTokens, totalInputTokens, totalCacheWriteTokens)
-    }
+    val statistics = rememberActivityStatistics(logs)
 
     Column(
         modifier = modifier
@@ -157,10 +104,10 @@ fun ActivityScreen(
                         ActivityFilterDropdown(
                             totalCount = logs.size,
                             matchingCount = displayedLogs.size,
-                            clientCounts = clientCounts,
-                            endpointCounts = endpointCounts,
-                            routeCounts = routeCounts,
-                            statusCounts = statusCounts,
+                            clientCounts = filterCounts.clientCounts,
+                            endpointCounts = filterCounts.endpointCounts,
+                            routeCounts = filterCounts.routeCounts,
+                            statusCounts = filterCounts.statusCounts,
                             filter = activityFilter,
                             resetKey = filterResetKey,
                             onFilterChange = { activityFilter = it },
@@ -256,41 +203,15 @@ fun ActivityScreen(
                 Spacer(Modifier.height(14.dp))
 
                 // 指标卡片（前两项支持点击快速切换筛选）
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    ActivityMetricCard(
-                        label = s.activityTotal,
-                        value = logs.size.toString(),
-                        selected = activityFilter.statuses.isEmpty(),
-                        onClick = { activityFilter = activityFilter.copy(statuses = emptySet()) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    ActivityMetricCard(
-                        label = s.activityFailedTotal,
-                        value = failedCount.toString(),
-                        isWarning = failedCount > 0,
-                        selected = activityFilter.statuses == setOf(ActivityStatusKind.FAILED),
-                        onClick = {
-                            activityFilter = activityFilter.copy(statuses = setOf(ActivityStatusKind.FAILED))
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    val avgTier = getDurationLatencyTier(averageDuration)
-                    ActivityMetricCard(
-                        label = s.activityAverage,
-                        value = formatDuration(averageDuration),
-                        customValueColor = if (averageDuration > 0) avgTier.toColor() else null,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ActivityMetricCard(
-                        label = s.activityCacheHitRate,
-                        value = formatHitRate(overallCacheHitRate),
-                        customValueColor = getCacheHitRateColor(overallCacheHitRate),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                ActivityMetricsRow(
+                    totalCount = logs.size,
+                    failedCount = statistics.failedCount,
+                    averageDuration = statistics.averageDuration,
+                    overallCacheHitRate = statistics.overallCacheHitRate,
+                    filter = activityFilter,
+                    onFilterChange = { activityFilter = it },
+                    s = s
+                )
 
                 Spacer(Modifier.height(14.dp))
 
@@ -333,461 +254,4 @@ fun ActivityScreen(
         )
     }
 
-}
-
-@Composable
-private fun ActivityMetricCard(
-    label: String,
-    value: String,
-    isWarning: Boolean = false,
-    selected: Boolean = false,
-    customValueColor: Color? = null,
-    onClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-
-    val isClickable = onClick != null
-    val containerColor = when {
-        selected && isWarning -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
-        selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-        isHovered && isWarning -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
-        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-        isWarning -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f)
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-    }
-
-    val borderColor = when {
-        selected && isWarning -> MaterialTheme.colorScheme.error
-        selected -> MaterialTheme.colorScheme.primary
-        isHovered && isWarning -> MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-        isHovered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-        isWarning -> MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
-        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    }
-
-    val borderWidth = if (selected) 1.5.dp else 1.dp
-
-    val labelColor = when {
-        selected && isWarning -> MaterialTheme.colorScheme.error
-        selected -> MaterialTheme.colorScheme.primary
-        isWarning -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    val valueColor = when {
-        selected && isWarning -> MaterialTheme.colorScheme.error
-        selected -> MaterialTheme.colorScheme.primary
-        customValueColor != null -> customValueColor
-        isWarning -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.onSurface
-    }
-
-    val cardModifier = modifier
-        .then(
-            if (isClickable) {
-                Modifier
-                    .pointerHoverIcon(PointerIcon.Hand)
-                    .hoverable(interactionSource = interactionSource)
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = onClick
-                    )
-            } else {
-                Modifier
-            }
-        )
-
-    OutlinedCard(
-        modifier = cardModifier,
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.outlinedCardColors(containerColor = containerColor),
-        border = BorderStroke(borderWidth, borderColor)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 11.5.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-                ),
-                color = labelColor
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                ),
-                color = valueColor
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActivityLogRow(
-    log: ActivityLog,
-    s: Strings,
-    searchQuery: String,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-
-    val statusColors = AppStatusColors
-    val isSuccess = log.statusCode in 200..399
-    val statusColor = when {
-        log.isPending -> MaterialTheme.colorScheme.primary
-        isSuccess -> statusColors.success
-        else -> statusColors.error
-    }
-    val statusTone = when {
-        log.isPending -> BadgeTone.INFO
-        log.statusCode in 200..299 -> BadgeTone.SUCCESS
-        log.statusCode in 300..499 -> BadgeTone.WARNING
-        else -> BadgeTone.ERROR
-    }
-    val statusText = if (log.isPending) s.activityPending else "${log.statusCode}"
-    val time = formatLogTime(log.timestamp)
-
-    OutlinedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .hoverable(interactionSource = interactionSource)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(
-            1.dp,
-            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(
-                alpha = 0.5f
-            )
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(3.5.dp)
-                    .fillMaxHeight()
-                    .background(statusColor)
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(5.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
-                        ) {
-                            Text(
-                                text = log.method.uppercase(),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-
-                        if (log.retryCount > 0) {
-                            Surface(
-                                shape = RoundedCornerShape(5.dp),
-                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.85f)
-                            ) {
-                                Text(
-                                    text = s.activityRetryBadge(log.retryCount),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-
-                        HighlightedText(
-                            text = log.path,
-                            query = searchQuery,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.5.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
-                        )
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = time,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (log.isPending) {
-                            if (log.firstTokenMs != null) {
-                                val ttftTier = getFirstTokenLatencyTier(log.firstTokenMs)
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Text(
-                                        text = s.activityFirstTokenLabel,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                    )
-                                    Text(
-                                        text = formatDuration(log.firstTokenMs),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
-                                        color = ttftTier.toColor()
-                                    )
-                                }
-                            }
-                            Text(
-                                text = s.activityProcessing,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 11.5.sp
-                                ),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        } else {
-                            if (log.firstTokenMs != null) {
-                                val ttftTier = getFirstTokenLatencyTier(log.firstTokenMs)
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Text(
-                                        text = s.activityFirstTokenLabel,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                    )
-                                    Text(
-                                        text = formatDuration(log.firstTokenMs),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
-                                        color = ttftTier.toColor()
-                                    )
-                                }
-                            }
-                            val durationTier = getDurationLatencyTier(log.durationMs)
-                            Text(
-                                text = formatDuration(log.durationMs),
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp
-                                ),
-                                color = durationTier.toColor(defaultColor = MaterialTheme.colorScheme.primary)
-                            )
-                        }
-                        StatusBadge(
-                            text = statusText,
-                            tone = statusTone,
-                            showDot = log.isPending,
-                            pulse = log.isPending
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val subtitleText = when {
-                        log.modelId != null && !log.isOfficialPassthrough -> "${log.providerName ?: s.activityUnknownProvider} / ${log.modelId}"
-                        log.modelId != null -> log.modelId
-                        log.isOfficialPassthrough -> s.activityPassthrough
-                        else -> log.providerName.orEmpty()
-                    }
-
-                    Row(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        log.clientSource?.takeIf { it.isNotBlank() }?.let { client ->
-                            ClientSourceBadge(client)
-                        }
-                        if (subtitleText.isNotEmpty()) {
-                            HighlightedText(
-                                text = subtitleText,
-                                query = searchQuery,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val hasDetailedTokens = log.inputTokens != null || log.outputTokens != null
-                        val hasAnyTokens = log.totalTokens != null || hasDetailedTokens
-
-                        if (hasAnyTokens) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
-                            ) {
-                                if (log.inputTokens != null && log.inputTokens > 0) {
-                                    Text(
-                                        text = "${s.activityTokenInput} ${formatTokens(log.inputTokens)}",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                    )
-                                    Text(
-                                        text = "·",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-                                    )
-                                }
-                                if (log.outputTokens != null && log.outputTokens > 0) {
-                                    Text(
-                                        text = "${s.activityTokenOutput} ${formatTokens(log.outputTokens)}",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                    )
-                                    Text(
-                                        text = "·",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-                                    )
-                                }
-                                if (log.cacheReadTokens != null && log.cacheReadTokens > 0) {
-                                    val hitRate = calculateCacheHitRate(
-                                        log.cacheReadTokens,
-                                        log.inputTokens,
-                                        log.cacheWriteTokens
-                                    )
-                                    val hitRateText = if (hitRate != null) " (${formatHitRate(hitRate)})" else ""
-                                    Text(
-                                        text = "${s.activityTokenCache} ${formatTokens(log.cacheReadTokens)}$hitRateText",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = getCacheHitRateColor(
-                                            hitRate,
-                                            defaultColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.9f)
-                                        )
-                                    )
-                                    Text(
-                                        text = "·",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-                                    )
-                                }
-                                val total = log.totalTokens ?: ((log.inputTokens ?: 0L) + (log.outputTokens
-                                    ?: 0L)).takeIf { it > 0 }
-                                if (total != null && total > 0) {
-                                    Text(
-                                        text = "${s.activityTokenTotal} ${formatTokens(total)}",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (!log.errorMessage.isNullOrBlank()) {
-                    HighlightedText(
-                        text = log.errorMessage,
-                        query = searchQuery,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.5.sp
-                        ),
-                        color = MaterialTheme.colorScheme.error,
-                        maxLines = 3
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun formatLogTime(timestampMs: Long): String {
-    return try {
-        val sdf = java.text.SimpleDateFormat("HH:mm:ss.SSS")
-        sdf.format(java.util.Date(timestampMs))
-    } catch (_: Exception) {
-        "-"
-    }
-}
-
-@Composable
-private fun ClientSourceBadge(
-    clientSource: String,
-    modifier: Modifier = Modifier
-) {
-    val isPlugin = "Plugin" in clientSource || "Cockpit" in clientSource
-    val isIde = "IDE" in clientSource
-    val isApp = "App" in clientSource
-    val isCli = "CLI" in clientSource || "agy" in clientSource.lowercase()
-
-    val (bg, textColor) = when {
-        isPlugin -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.75f) to MaterialTheme.colorScheme.onTertiaryContainer
-        isIde -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onPrimaryContainer
-        isApp -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f) to MaterialTheme.colorScheme.onSecondaryContainer
-        isCli -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) to MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f) to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-
-    Surface(
-        color = bg,
-        shape = RoundedCornerShape(AppTokens.Radius.pill),
-        modifier = modifier
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Text(
-                text = clientSource,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-                fontWeight = FontWeight.SemiBold,
-                color = textColor
-            )
-        }
-    }
 }

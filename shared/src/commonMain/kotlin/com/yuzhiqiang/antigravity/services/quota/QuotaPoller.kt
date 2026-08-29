@@ -19,14 +19,12 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
+import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import com.yuzhiqiang.antigravity.data.storage.AccountStore
+import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.nio.file.AtomicMoveNotSupportedException
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption.ATOMIC_MOVE
-import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 @Serializable
 data class QuotaStoreData(
@@ -89,28 +87,20 @@ class QuotaPoller(
     private fun persistSnapshots(snapshots: Map<String, AccountQuotaSnapshot>) {
         coroutineScope.launch {
             try {
-                val parent = quotasFile.parentFile
-                if (parent != null && !parent.exists()) {
-                    parent.mkdirs()
-                }
                 val content = json.encodeToString(
                     QuotaStoreData.serializer(),
                     QuotaStoreData(snapshots = snapshots)
                 )
-                val temp = File.createTempFile("${quotasFile.name}-", ".tmp", parent)
-                try {
-                    temp.writeText(content, Charsets.UTF_8)
-                    try {
-                        Files.move(temp.toPath(), quotasFile.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
-                    } catch (_: AtomicMoveNotSupportedException) {
-                        Files.move(temp.toPath(), quotasFile.toPath(), REPLACE_EXISTING)
-                    }
-                } finally {
-                    if (temp.exists()) {
-                        temp.delete()
-                    }
+                AtomicFileWriter.writeText(
+                    target = quotasFile,
+                    content = content,
+                    permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
+                    disallowSymlinks = true
+                ).getOrThrow()
+            } catch (error: Exception) {
+                AppLog.w("Quota/Poller", error) {
+                    "配额快照持久化失败：${error.message ?: "未知错误"}"
                 }
-            } catch (_: Exception) {
             }
         }
     }
@@ -164,7 +154,13 @@ class QuotaPoller(
                                 val backgroundAccounts = accounts.filter { it.id != active?.id }
                                 val bgSemaphore = Semaphore(calculateConcurrency(backgroundAccounts.size))
                                 backgroundAccounts.forEach { bgAccount ->
-                                    launch { refreshSingleInternal(bgAccount, isActiveAccount = false, customSemaphore = bgSemaphore) }
+                                    launch {
+                                        refreshSingleInternal(
+                                            bgAccount,
+                                            isActiveAccount = false,
+                                            customSemaphore = bgSemaphore
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -279,7 +275,3 @@ class QuotaPoller(
         }
     }
 }
-
-
-
-

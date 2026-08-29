@@ -152,6 +152,39 @@ class TieredModelRoutingTest {
     }
 
     @Test
+    fun upstreamModelCannotBeRoutedWithoutVirtualModel() {
+        val config = AppConfig(
+            providers = listOf(
+                Provider(
+                    id = "p-1",
+                    name = "OpenRouter",
+                    protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+                    baseUrl = "https://openrouter.ai/api/v1"
+                )
+            ),
+            upstreamModels = listOf(
+                UpstreamModel(
+                    id = "um-1",
+                    providerId = "p-1",
+                    upstreamModelId = "stealth/ox-alpha"
+                )
+            )
+        )
+        val request = AntigravityRequestParser.parse(
+            """
+            {
+              "model": "um-1",
+              "contents": [{"role": "user", "parts": [{"text": "hi"}]}]
+            }
+            """.trimIndent()
+        ).getOrThrow()
+
+        val result = RouteResolver.resolve(config, request)
+
+        assertTrue(result.isFailure)
+    }
+
+    @Test
     fun tieredParentResolvesToPreferredVariant() {
         val config = AppConfig(
             providers = listOf(

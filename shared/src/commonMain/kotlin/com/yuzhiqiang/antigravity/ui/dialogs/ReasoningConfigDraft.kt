@@ -16,7 +16,6 @@ data class ReasoningConfigDraft(
     val minThinkingBudget: Int?,
     val mappings: Map<ReasoningLevel, ReasoningMapping>,
     val configuredSupported: Boolean? = null,
-    val defaultLevel: ReasoningLevel? = null,
     val type: String? = null
 ) {
     fun toCapability(
@@ -28,7 +27,6 @@ data class ReasoningConfigDraft(
                     thinkingBudget != null || minThinkingBudget != null || configuredSupported != null
             return ReasoningCapability(
                 supported = if (hasExplicitConfiguration) false else null,
-                defaultLevel = defaultLevel,
                 type = type
             )
         }
@@ -62,7 +60,6 @@ data class ReasoningConfigDraft(
             thinkingBudget = thinkingBudget.takeIf { protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT },
             minThinkingBudget = minThinkingBudget.takeIf { protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT },
             levels = ReasoningMappingSupport.encode(effectiveMappings).takeIf { it.isNotEmpty() },
-            defaultLevel = defaultLevel,
             type = type
         )
     }
@@ -87,7 +84,6 @@ data class ReasoningConfigDraft(
                 minThinkingBudget = reasoning.minThinkingBudget,
                 mappings = mappings,
                 configuredSupported = reasoning.supported,
-                defaultLevel = reasoning.defaultLevel,
                 type = reasoning.type
             )
         }

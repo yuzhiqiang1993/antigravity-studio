@@ -4,9 +4,8 @@ package com.yuzhiqiang.antigravity.domain.model
 /**
  * 将 Provider 编辑器选中的上游模型同步为可被宿主发现的模型图。
  *
- * 旧项目的 Provider 保存同时维护 UpstreamModel 与 VirtualModel；这里保留同样的
- * 语义，确保新增模型拥有稳定 Host Model ID，已有模型和 reasoning variant 不因
- * UI 再次保存而被无故替换。
+ * Provider 保存同时维护 UpstreamModel 与 VirtualModel，确保新增模型拥有稳定
+ * Host Model ID，已有模型和 reasoning variant 不因 UI 再次保存而被无故替换。
  */
 object ProviderModelSynchronizer {
     data class SyncResult(
@@ -27,7 +26,7 @@ object ProviderModelSynchronizer {
         val retainedVirtuals = config.virtualModels.filterNot { virtual ->
             virtual.upstreamModelId in currentUpstreamIds
         }
-        val occupiedHostIds = collectOccupiedHostIds(config, provider.id, currentUpstreamIds)
+        val occupiedHostIds = collectOccupiedHostIds(config, currentUpstreamIds)
         val occupiedVirtualIds = config.virtualModels.map { virtual -> virtual.id }.toMutableSet()
         val selectedByUpstreamId = selectedModels.distinctBy { model -> model.upstreamModelId }
         reserveSelectedExistingIds(
@@ -46,31 +45,32 @@ object ProviderModelSynchronizer {
             val existingVirtuals = existingUpstream?.let { upstream ->
                 config.virtualModels.filter { virtual -> virtual.upstreamModelId == upstream.id }
             }.orEmpty()
-            releaseExistingHostIds(existingUpstream, existingVirtuals, occupiedHostIds)
-            val preferredHostId = existingVirtuals.firstOrNull()
-                ?.let(ModelIdentity::effectiveHostModelId)
-                ?: existingUpstream?.let(ModelIdentity::effectiveUpstreamHostModelId)
-                ?: selectedModel.hostModelId
-            val hostIdResult = ModelIdentity.resolveHostModelId(
-                seed = "${provider.id}:${selectedModel.upstreamModelId}",
-                configuredId = preferredHostId,
-                occupiedIds = occupiedHostIds
-            )
-            if (hostIdResult.isFailure) {
-                return Result.failure(
-                    hostIdResult.exceptionOrNull() ?: IllegalStateException("无法分配模型 Host Model ID")
+            releaseExistingHostIds(existingVirtuals, occupiedHostIds)
+            val primaryHostId = if (existingVirtuals.isEmpty()) {
+                val hostIdResult = ModelIdentity.resolveHostModelId(
+                    seed = "${provider.id}:${selectedModel.upstreamModelId}",
+                    configuredId = null,
+                    occupiedIds = occupiedHostIds
                 )
+                if (hostIdResult.isFailure) {
+                    return Result.failure(
+                        hostIdResult.exceptionOrNull() ?: IllegalStateException("无法分配模型 Host Model ID")
+                    )
+                }
+                hostIdResult.getOrThrow()
+            } else {
+                null
             }
             val synchronizedUpstream = selectedModel.copy(
                 id = existingUpstream?.id ?: selectedModel.id,
-                providerId = provider.id,
-                hostModelId = hostIdResult.getOrThrow()
+                providerId = provider.id
             )
             synchronizedUpstreams += synchronizedUpstream
             synchronizedVirtuals += synchronizeVirtuals(
                 provider = provider,
                 upstream = synchronizedUpstream,
                 existingVirtuals = existingVirtuals,
+                primaryHostId = primaryHostId,
                 occupiedVirtualIds = occupiedVirtualIds,
                 occupiedHostIds = occupiedHostIds
             )
@@ -87,24 +87,18 @@ object ProviderModelSynchronizer {
 
     private fun collectOccupiedHostIds(
         config: AppConfig,
-        providerId: String,
         currentUpstreamIds: Set<String>
     ): MutableSet<String> {
-        val occupied = mutableSetOf<String>()
-        config.virtualModels
+        return config.virtualModels
             .filterNot { virtual -> virtual.upstreamModelId in currentUpstreamIds }
-            .mapTo(occupied) { virtual -> ModelIdentity.effectiveHostModelId(virtual) }
-        config.upstreamModels
-            .filterNot { upstream -> upstream.providerId == providerId }
-            .filterNot { upstream -> upstream.id in currentUpstreamIds }
-            .mapTo(occupied) { upstream -> ModelIdentity.effectiveUpstreamHostModelId(upstream) }
-        return occupied
+            .mapTo(mutableSetOf(), ModelIdentity::effectiveHostModelId)
     }
 
     private fun synchronizeVirtuals(
         provider: Provider,
         upstream: UpstreamModel,
         existingVirtuals: List<VirtualModel>,
+        primaryHostId: String?,
         occupiedVirtualIds: MutableSet<String>,
         occupiedHostIds: MutableSet<String>
     ): List<VirtualModel> {
@@ -125,7 +119,7 @@ object ProviderModelSynchronizer {
                 reasoningLevel = level,
                 occupiedVirtualIds = occupiedVirtualIds,
                 occupiedHostIds = occupiedHostIds,
-                preferredHostId = if (index == 0) upstream.hostModelId else null
+                preferredHostId = if (index == 0) requireNotNull(primaryHostId) else null
             )
         }
     }
@@ -141,18 +135,12 @@ object ProviderModelSynchronizer {
         val retainedVirtuals = existingVirtuals.filter { virtual ->
             virtual.defaultReasoningLevel in desiredLevelSet
         }
-        val synchronized = retainedVirtuals.mapIndexed { index, virtual ->
-            val configuredHostId = virtual.hostModelId?.trim().takeUnless { it.isNullOrEmpty() }
-            val preferredHostId = configuredHostId ?: if (index == 0) upstream.hostModelId else null
-            val hostId = if (index == 0 && preferredHostId == upstream.hostModelId) {
-                preferredHostId ?: ModelIdentity.allocateHostModelId(occupiedHostIds).getOrThrow()
-            } else {
-                ModelIdentity.resolveHostModelId(
-                    seed = "${upstream.id}:${virtual.id}",
-                    configuredId = preferredHostId ?: ModelIdentity.effectiveHostModelId(virtual),
-                    occupiedIds = occupiedHostIds
-                ).getOrThrow()
-            }
+        val synchronized = retainedVirtuals.map { virtual ->
+            val hostId = ModelIdentity.resolveHostModelId(
+                seed = "${upstream.id}:${virtual.id}",
+                configuredId = ModelIdentity.effectiveHostModelId(virtual),
+                occupiedIds = occupiedHostIds
+            ).getOrThrow()
             occupiedHostIds += hostId
             virtual.copy(
                 upstreamModelId = upstream.id,
@@ -184,11 +172,7 @@ object ProviderModelSynchronizer {
     ): VirtualModel {
         val virtualId = ModelIdentity.createVirtualModelId(upstream, occupiedVirtualIds, reasoningLevel)
         val hostId = preferredHostId?.takeUnless { it.isBlank() }
-            ?: if (reasoningLevel == null && upstream.hostModelId != null) {
-                upstream.hostModelId
-            } else {
-                ModelIdentity.allocateHostModelId(occupiedHostIds).getOrThrow()
-            }
+            ?: ModelIdentity.allocateHostModelId(occupiedHostIds).getOrThrow()
         occupiedHostIds += hostId
         return VirtualModel(
             id = virtualId,
@@ -251,7 +235,6 @@ object ProviderModelSynchronizer {
         currentUpstreams
             .filter { upstream -> upstream.upstreamModelId in selectedUpstreamIds }
             .forEach { upstream ->
-                occupiedHostIds += ModelIdentity.effectiveUpstreamHostModelId(upstream)
                 config.virtualModels
                     .filter { virtual -> virtual.upstreamModelId == upstream.id }
                     .mapTo(occupiedHostIds, ModelIdentity::effectiveHostModelId)
@@ -259,11 +242,9 @@ object ProviderModelSynchronizer {
     }
 
     private fun releaseExistingHostIds(
-        upstream: UpstreamModel?,
         virtuals: List<VirtualModel>,
         occupiedHostIds: MutableSet<String>
     ) {
-        upstream?.let { occupiedHostIds.remove(ModelIdentity.effectiveUpstreamHostModelId(it)) }
         virtuals.forEach { virtual -> occupiedHostIds.remove(ModelIdentity.effectiveHostModelId(virtual)) }
     }
 }

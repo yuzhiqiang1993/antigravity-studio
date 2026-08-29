@@ -168,18 +168,33 @@ internal object ProviderModelConfigMapper {
             .filter { it.id in selectedModelIds }
             .map { config ->
                 val cleanId = config.id.replace('/', '-').replace(':', '-')
-                val inputModalities = config.inputModalities
-                    .ifEmpty {
-                        if (config.isVision) setOf(
-                            ModelModality.TEXT,
-                            ModelModality.IMAGE
-                        ) else setOf(ModelModality.TEXT)
-                    }
                 val existing = initialModels.firstOrNull { model ->
                     model.upstreamModelId == config.id
                 }
                 val modelId = existing?.id ?: "$providerId-$cleanId"
                 val useDefaultImageCapabilities = config.isImageGeneration && existing == null
+                val inputModalities = if (useDefaultImageCapabilities) {
+                    setOf(ModelModality.TEXT)
+                } else {
+                    config.inputModalities
+                        .ifEmpty { setOf(ModelModality.TEXT) }
+                        .toMutableSet()
+                        .apply {
+                            if (config.isVision) add(ModelModality.IMAGE) else remove(ModelModality.IMAGE)
+                        }
+                }
+                val inputMimeTypes = if (useDefaultImageCapabilities) {
+                    emptyList()
+                } else if (config.isVision) {
+                    val configuredMimeTypes = config.inputMimeTypes
+                    if (configuredMimeTypes.any { mime -> mime.startsWith("image/", ignoreCase = true) }) {
+                        configuredMimeTypes
+                    } else {
+                        configuredMimeTypes + listOf("image/png", "image/jpeg", "image/webp")
+                    }
+                } else {
+                    config.inputMimeTypes.filterNot { mime -> mime.startsWith("image/", ignoreCase = true) }
+                }
                 val tokenLimits = ModelTokenLimits(
                     contextWindow = config.inputTokenLimit.takeUnless { useDefaultImageCapabilities },
                     contextWindowSource = if (useDefaultImageCapabilities) {
@@ -210,11 +225,7 @@ internal object ProviderModelConfigMapper {
                             )
                         }.toList()
                     },
-                    inputModalities = if (useDefaultImageCapabilities) {
-                        listOf(ModelModality.TEXT)
-                    } else {
-                        inputModalities.toList()
-                    },
+                    inputModalities = inputModalities.toList(),
                     outputModalities = if (useDefaultImageCapabilities) {
                         listOf(ModelModality.IMAGE)
                     } else {
@@ -225,7 +236,7 @@ internal object ProviderModelConfigMapper {
                         }.toList()
                     },
                     tools = if (useDefaultImageCapabilities) false else config.isTools,
-                    inputMimeTypes = if (useDefaultImageCapabilities) emptyList() else config.inputMimeTypes,
+                    inputMimeTypes = inputMimeTypes,
                     reasoning = if (useDefaultImageCapabilities) {
                         ReasoningCapability(supported = false)
                     } else {
@@ -233,8 +244,7 @@ internal object ProviderModelConfigMapper {
                             protocol = protocol,
                             outputTokenLimit = config.outputTokenLimit
                         )
-                    },
-                    vision = if (useDefaultImageCapabilities) false else config.isVision
+                    }
                 )
                 (existing ?: UpstreamModel(
                     id = modelId,

@@ -72,17 +72,13 @@ object RouteResolver {
             return buildResolvedRoute(config, requestedModelId, imageVirtual, upstream, request)
         }
 
-        // Studio 旧配置没有对应 virtual_models 时，继续允许按 upstream 模型直连。
-        val directUpstream = findUpstream(config, requestedModelId)
-            ?: return failure(404, "Model is not configured: $requestedModelId")
-        return buildResolvedRoute(config, requestedModelId, null, directUpstream, request)
+        return failure(404, "Virtual model is not configured: $requestedModelId")
     }
 
 
     fun isPotentialCustomModelId(config: AppConfig, modelId: String): Boolean {
         val normalized = normalizeModelId(modelId)
         return config.virtualModels.any { it.accepts(normalized) } ||
-                config.upstreamModels.any { it.accepts(normalized) } ||
                 resolveTieredVirtualModel(config, normalized) != null ||
                 (isOfficialImageModelId(normalized) && findActiveCustomImageModel(config) != null) ||
                 normalized.startsWith("byok-") ||
@@ -166,7 +162,7 @@ object RouteResolver {
             ?: reasoningMapping?.let(ReasoningMappingSupport::mappingValueAsInt)
         val effectiveMaxTokens = finalParameters.maxTokens ?: if (
             provider.protocol == ProviderProtocol.ANTHROPIC_MESSAGES &&
-                reasoningMapping?.kind.equals("budget_tokens", ignoreCase = true)
+            reasoningMapping?.kind.equals("budget_tokens", ignoreCase = true)
         ) {
             val budget = (effectiveReasoningBudget ?: 0).toLong()
             val generated = (budget + 4_096L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
@@ -249,7 +245,11 @@ object RouteResolver {
             if (mapping == null && reasoningLevel != ReasoningLevel.OFF && reasoningLevel != ReasoningLevel.AUTO) {
                 return Result.failure(IllegalArgumentException("${provider.protocol.displayName} 不支持推理档位 ${reasoningLevel.label}"))
             }
-            val finalMapping = if (mapping?.kind.equals("budget_tokens", ignoreCase = true) && requestedBudget != null && requestedBudget > 0) {
+            val finalMapping = if (mapping?.kind.equals(
+                    "budget_tokens",
+                    ignoreCase = true
+                ) && requestedBudget != null && requestedBudget > 0
+            ) {
                 ReasoningMapping("budget_tokens", JsonPrimitive(requestedBudget))
             } else {
                 mapping
@@ -277,32 +277,19 @@ object RouteResolver {
 
     private fun findUpstream(config: AppConfig, modelId: String): UpstreamModel? {
         val normalized = normalizeModelId(modelId)
-        val strippedByok = normalized.removePrefix("byok-")
         return config.upstreamModels.firstOrNull { upstream ->
-            val accepted = setOf(
-                normalizeModelId(upstream.id),
-                normalizeModelId(upstream.upstreamModelId),
-                ModelIdentity.effectiveUpstreamHostModelId(upstream).let(::normalizeModelId)
-            )
-            normalized in accepted || strippedByok in accepted
+            upstream.enabled && normalizeModelId(upstream.id) == normalized
         }
-    }
-
-    private fun UpstreamModel.accepts(modelId: String): Boolean {
-        val normalized = normalizeModelId(modelId)
-        return normalized == normalizeModelId(id) ||
-                normalized == normalizeModelId(upstreamModelId) ||
-                normalized == ModelIdentity.effectiveUpstreamHostModelId(this).let(::normalizeModelId)
     }
 
     private fun VirtualModel.accepts(modelId: String): Boolean {
         return normalizeModelId(modelId) in acceptedIds(this)
     }
 
-   private fun resolveTieredVirtualModel(config: AppConfig, requestedModelId: String): VirtualModel? {
-       val cleanId = normalizeModelId(requestedModelId)
-       if (config.virtualModels.any { it.accepts(cleanId) }) return null
-       val isTieredParent = cleanId.endsWith("-tiered")
+    private fun resolveTieredVirtualModel(config: AppConfig, requestedModelId: String): VirtualModel? {
+        val cleanId = normalizeModelId(requestedModelId)
+        if (config.virtualModels.any { it.accepts(cleanId) }) return null
+        val isTieredParent = cleanId.endsWith("-tiered")
         val baseId = if (isTieredParent) {
             cleanId.removeSuffix("-tiered")
         } else {
@@ -318,16 +305,16 @@ object RouteResolver {
         } else {
             emptyList()
         }
-       val candidates = config.virtualModels.filter { virtual ->
-           isRoutableVirtualModel(config, virtual) &&
+        val candidates = config.virtualModels.filter { virtual ->
+            isRoutableVirtualModel(config, virtual) &&
                     (ModelIdentity.matchesFamilyBase(virtual, baseId) ||
                             (isTieredParent && tieredFamilyBases.any { ModelIdentity.catalogFamilyBase(virtual) == it }))
-       }
-       if (candidates.isEmpty()) return null
+        }
+        if (candidates.isEmpty()) return null
         return ModelIdentity.REASONING_LEVEL_PRIORITY.firstNotNullOfOrNull { level ->
-           candidates.firstOrNull { it.defaultReasoningLevel == level }
-       } ?: candidates.first()
-   }
+            candidates.firstOrNull { it.defaultReasoningLevel == level }
+        } ?: candidates.first()
+    }
 
     private fun resolveImageGenerationVirtualModel(
         config: AppConfig,
@@ -342,7 +329,7 @@ object RouteResolver {
 
     private fun findActiveCustomImageModel(config: AppConfig): VirtualModel? {
         return config.virtualModels.firstOrNull { virtual ->
-                    isRoutableVirtualModel(config, virtual) &&
+            isRoutableVirtualModel(config, virtual) &&
                     config.upstreamModels.firstOrNull { it.id == virtual.upstreamModelId }
                         ?.capabilities
                         ?.let { capabilities ->
@@ -393,7 +380,7 @@ object RouteResolver {
         if (upstream.tokenLimits.inputTokenLimitSource != com.yuzhiqiang.antigravity.domain.model.TokenLimitSource.CATALOG &&
             upstream.tokenLimits.inputTokenLimitSource != com.yuzhiqiang.antigravity.domain.model.TokenLimitSource.CONFIGURED
         ) return Result.success(Unit)
-        val tokenizer = upstream.tokenizer as? JsonObject ?: return Result.success(Unit)
+        val tokenizer = upstream.tokenizer ?: return Result.success(Unit)
         val encoding = tokenizer["encoding"]?.jsonPrimitive?.contentOrNull?.lowercase()
         if (encoding !in setOf("cl100k_base", "o200k_base")) return Result.success(Unit)
         if (request.messages.any { message ->
@@ -413,7 +400,11 @@ object RouteResolver {
                     } else {
                         8L + estimate(content.text)
                     }
-                    is NeutralContent.ToolCall -> 8L + estimate(content.id) + estimate(content.functionName) + estimate(content.argumentsJson)
+
+                    is NeutralContent.ToolCall -> 8L + estimate(content.id) + estimate(content.functionName) + estimate(
+                        content.argumentsJson
+                    )
+
                     is NeutralContent.ToolResult -> 8L + estimate(content.toolCallId) + estimate(content.content)
                     is NeutralContent.Image -> 0L
                 }
