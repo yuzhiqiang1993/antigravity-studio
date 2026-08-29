@@ -51,10 +51,9 @@ class AppViewModel(
     val hotSwitchCoordinator = HotSwitchCoordinator(
         accountStore = accountStore,
         customHostPathsProvider = { configStore.currentConfig.customHostPaths },
-        proxyPortProvider = { actualProxyPort.value }
+        proxyPortProvider = { actualProxyPort.value },
+        googleAuthService = googleAuthService
     )
-    val smartSwitchCoordinator =
-        SmartSwitchCoordinator(accountStore, configStore, hotSwitchCoordinator) { quotaPoller.quotaSnapshots.value }
     val tokenRenewalManager = TokenRenewalManager(accountStore, googleAuthService, viewModelScope)
     val quotaPoller = QuotaPoller(quotaFetchService, viewModelScope) { snapshot ->
         val acc = accountStore.currentAccounts().firstOrNull { it.id == snapshot.accountId }
@@ -65,6 +64,8 @@ class AppViewModel(
             }
         }
     }
+    val smartSwitchCoordinator =
+        SmartSwitchCoordinator(accountStore, configStore, hotSwitchCoordinator) { quotaPoller.quotaSnapshots.value }
 
 
     val config: StateFlow<AppConfig> = configStore.configState
@@ -79,7 +80,7 @@ class AppViewModel(
     private val _appCliActiveEmail = MutableStateFlow<String?>(null)
     val appCliActiveEmail: StateFlow<String?> = _appCliActiveEmail.asStateFlow()
 
-    // 兼容历史属性：统一指向 App & CLI 共享激活邮箱
+    // App 与 CLI 共用同一运行态账号来源，保留现有公开访问入口。
     val appActiveEmail: StateFlow<String?> get() = appCliActiveEmail
     val cliActiveEmail: StateFlow<String?> get() = appCliActiveEmail
 

@@ -250,7 +250,7 @@ object HostOwnershipStore {
                 !original.contains("127.0.0.1") &&
                 !original.contains("localhost")
         val restoreResult = if (shouldRestoreOriginal) {
-            setEnvironmentEndpoint(original!!)
+            original?.let(::setEnvironmentEndpoint) ?: false
         } else {
             unsetEnvironmentEndpoint()
         }

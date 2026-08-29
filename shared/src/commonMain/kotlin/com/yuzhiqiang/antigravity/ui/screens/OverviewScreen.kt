@@ -202,16 +202,18 @@ fun OverviewScreen(
             }.toMutableList()
 
             // 若未检测到任何客户端账号，则回退展示 Studio 当前生效账号
-            if (result.isEmpty() && activeAccount != null) {
-                result.add(
-                    HostActiveAccountDisplay(
-                        activeAccount!!,
-                        s.overviewActiveAccountBadge,
-                        isIde = false,
-                        isApp = false,
-                        isCli = false
+            if (result.isEmpty()) {
+                activeAccount?.let { account ->
+                    result.add(
+                        HostActiveAccountDisplay(
+                            account,
+                            s.overviewActiveAccountBadge,
+                            isIde = false,
+                            isApp = false,
+                            isCli = false
+                        )
                     )
-                )
+                }
             }
             result
         }
