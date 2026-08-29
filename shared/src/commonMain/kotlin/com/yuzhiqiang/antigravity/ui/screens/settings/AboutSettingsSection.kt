@@ -37,8 +37,7 @@ import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.update.model.AppVersion
 import com.yuzhiqiang.antigravity.update.model.UpdateState
-import java.awt.Desktop
-import java.net.URI
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 
@@ -456,9 +455,5 @@ private fun AboutActionCard(
 }
 
 private fun openWebUrl(url: String) {
-    try {
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-            Desktop.getDesktop().browse(URI(url))
-        }
-    } catch (_: Exception) {}
+    DesktopPlatformService.openBrowser(url)
 }

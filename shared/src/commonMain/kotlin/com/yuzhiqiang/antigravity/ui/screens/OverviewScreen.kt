@@ -153,8 +153,9 @@ fun OverviewScreen(
             onStart = { viewModel.startProxy() },
             onStop = { viewModel.stopProxy() },
             onCopyAddress = {
-                copyToClipboard("http://$address")
-                viewModel.showNotice(s.overviewCopiedProxyAddress)
+                if (copyToClipboard("http://$address")) {
+                    viewModel.showNotice(s.overviewCopiedProxyAddress)
+                }
             },
             onDiagnostics = { viewModel.openDoctorDialog() }
         )
@@ -518,8 +519,9 @@ private fun ActiveAccountQuotaCard(
                             interactionSource = emailInteractionSource,
                             indication = null
                         ) {
-                            copyToClipboard(acc.email)
-                            onCopyEmail?.invoke(acc.email)
+                            if (copyToClipboard(acc.email)) {
+                                onCopyEmail?.invoke(acc.email)
+                            }
                         }
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {

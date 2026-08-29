@@ -1,14 +1,11 @@
 package com.yuzhiqiang.antigravity.host.ownership
 
+import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import com.yuzhiqiang.antigravity.host.macos.MacHostManager
 import com.yuzhiqiang.antigravity.host.windows.WindowsHostManager
 import java.io.File
 import java.net.URI
-import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
-import java.nio.file.attribute.PosixFilePermission
-import java.nio.file.StandardCopyOption.ATOMIC_MOVE
-import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -557,58 +554,17 @@ object HostOwnershipStore {
     }
 
     private fun writeTextAtomically(file: File, content: String): Result<Unit> {
-        return try {
-            if (Files.isSymbolicLink(file.toPath())) {
-                return Result.failure(IllegalStateException("宿主配置目标不能是符号链接：${file.absolutePath}"))
+        return AtomicFileWriter.writeText(
+            target = file,
+            content = content,
+            preservePermissions = true,
+            disallowSymlinks = true
+        ).fold(
+            onSuccess = { Result.success(Unit) },
+            onFailure = { error ->
+                Result.failure(IllegalStateException("写入宿主配置失败：${error.message ?: "未知错误"}", error))
             }
-            val parent = file.parentFile
-            if (parent != null && !parent.exists() && !parent.mkdirs()) {
-                return Result.failure(IllegalStateException("无法创建宿主配置目录：${parent.absolutePath}"))
-            }
-            // POSIX 文件权限操作在 Windows 上不受支持，仅在类 Unix 系统保留和恢复权限
-            val isPosix = !System.getProperty("os.name", "").lowercase().contains("win")
-            val originalPermissions = if (isPosix) {
-                runCatching {
-                    if (file.exists() && !Files.isSymbolicLink(file.toPath())) {
-                        Files.getPosixFilePermissions(file.toPath())
-                    } else {
-                        null
-                    }
-                }.getOrNull()
-            } else {
-                null
-            }
-            val temp = File.createTempFile("${file.name}-", ".tmp", parent)
-            try {
-                temp.writeText(content, Charsets.UTF_8)
-                val moved = try {
-                    try {
-                        Files.move(temp.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
-                    } catch (_: AtomicMoveNotSupportedException) {
-                        Files.move(temp.toPath(), file.toPath(), REPLACE_EXISTING)
-                    }
-                    true
-                } catch (_: Exception) {
-                    // Windows 下当目标文件被 IDE/进程占用时，Files.move 可能会报错；回退为直接写入
-                    false
-                }
-                if (!moved) {
-                    file.writeText(content, Charsets.UTF_8)
-                }
-                if (isPosix) {
-                    originalPermissions?.let { permissions: Set<PosixFilePermission> ->
-                        runCatching { Files.setPosixFilePermissions(file.toPath(), permissions) }
-                    }
-                }
-            } finally {
-                if (temp.exists()) {
-                    temp.delete()
-                }
-            }
-            Result.success(Unit)
-        } catch (error: Exception) {
-            Result.failure(IllegalStateException("写入宿主配置失败：${error.message ?: "未知错误"}", error))
-        }
+        )
     }
 
     private val IDE_ENDPOINT_REGEX = Regex(
@@ -618,4 +574,3 @@ object HostOwnershipStore {
         "(?m)^[ \\t]*\\\"$IDE_SETTING_KEY\\\"\\s*:\\s*\\\"[^\\\"]*\\\"\\s*,?[ \\t]*\\r?\\n?"
     )
 }
-

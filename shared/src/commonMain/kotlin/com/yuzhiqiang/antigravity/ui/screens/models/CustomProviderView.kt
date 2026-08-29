@@ -25,6 +25,7 @@ import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import androidx.compose.ui.graphics.luminance
 
 @Composable
@@ -119,8 +120,9 @@ fun CustomProviderView(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
                                     .clickable {
-                                        copyTextToClipboard(provider.effectiveBaseUrl)
-                                        onCopyNotice(s.modelsCopiedProviderUrl)
+                                        if (copyToClipboard(provider.effectiveBaseUrl)) {
+                                            onCopyNotice(s.modelsCopiedProviderUrl)
+                                        }
                                     }
                             ) {
                                 Row(
@@ -195,7 +197,9 @@ fun CustomProviderView(
 
                     ModernToolButton(
                         icon = Icons.Outlined.Sensors,
-                        text = if (isProviderTesting) s.providerTesting else if (failedCount > 0) s.modelsRetryFailed(failedCount) else s.modelsBatchTest,
+                        text = if (isProviderTesting) s.providerTesting else if (failedCount > 0) s.modelsRetryFailed(
+                            failedCount
+                        ) else s.modelsBatchTest,
                         onClick = onTestProvider,
                         enabled = !isProviderTesting && models.isNotEmpty()
                     )
@@ -254,41 +258,42 @@ fun CustomProviderView(
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         models.forEach { model ->
                             key(model.id) {
-                            UniversalModelCard(
-                                state = createCustomCardState(
-                                    model = model,
-                                    testStatus = modelTestStatuses[model.id],
-                                    hasPolicy = compressionPolicies.containsKey(model.id),
-                                    policy = compressionPolicies[model.id],
-                                    onEditModel = { onEditSingleModel(model) },
-                                    onDeleteModel = { onDeleteSingleModel(model) },
-                                    onTestModel = { onTestSingleModel(model) },
-                                    onToggleEnabled = { onToggleModelEnabled(model) },
-                                    onEditPolicy = { onEditPolicy(model.id) },
-                                    onOpenVisionDetail = {
-                                        onOpenVisionDetail(
-                                            model.displayName ?: model.upstreamModelId,
-                                            model.capabilities.supportsVision
-                                        )
-                                    },
-                                    onOpenReasoningDetail = {
-                                        onOpenReasoningDetail(
-                                            model.displayName ?: model.upstreamModelId,
-                                            listOf("Thinking / Reasoning")
-                                        )
-                                    },
-                                    onOpenInfoDetail = {
-                                        onOpenInfoDetail(
-                                            ModelMetaInfo(
-                                                name = model.displayName ?: model.upstreamModelId,
-                                                id = model.upstreamModelId,
-                                                contextLimit = model.effectiveContextWindow,
-                                                outputLimit = model.tokenLimits.outputTokenLimit ?: model.maxOutputTokens
+                                UniversalModelCard(
+                                    state = createCustomCardState(
+                                        model = model,
+                                        testStatus = modelTestStatuses[model.id],
+                                        hasPolicy = compressionPolicies.containsKey(model.id),
+                                        policy = compressionPolicies[model.id],
+                                        onEditModel = { onEditSingleModel(model) },
+                                        onDeleteModel = { onDeleteSingleModel(model) },
+                                        onTestModel = { onTestSingleModel(model) },
+                                        onToggleEnabled = { onToggleModelEnabled(model) },
+                                        onEditPolicy = { onEditPolicy(model.id) },
+                                        onOpenVisionDetail = {
+                                            onOpenVisionDetail(
+                                                model.displayName ?: model.upstreamModelId,
+                                                model.capabilities.supportsVision
                                             )
-                                        )
-                                    }
+                                        },
+                                        onOpenReasoningDetail = {
+                                            onOpenReasoningDetail(
+                                                model.displayName ?: model.upstreamModelId,
+                                                listOf("Thinking / Reasoning")
+                                            )
+                                        },
+                                        onOpenInfoDetail = {
+                                            onOpenInfoDetail(
+                                                ModelMetaInfo(
+                                                    name = model.displayName ?: model.upstreamModelId,
+                                                    id = model.upstreamModelId,
+                                                    contextLimit = model.effectiveContextWindow,
+                                                    outputLimit = model.tokenLimits.outputTokenLimit
+                                                        ?: model.maxOutputTokens
+                                                )
+                                            )
+                                        }
+                                    )
                                 )
-                            )
                             }
                         }
                     }
@@ -301,43 +306,43 @@ fun CustomProviderView(
                             ) {
                                 rowModels.forEach { model ->
                                     key(model.id) {
-                                    UniversalModelCard(
-                                        state = createCustomCardState(
-                                            model = model,
-                                            testStatus = modelTestStatuses[model.id],
-                                            hasPolicy = compressionPolicies.containsKey(model.id),
-                                            policy = compressionPolicies[model.id],
-                                            onEditModel = { onEditSingleModel(model) },
-                                            onDeleteModel = { onDeleteSingleModel(model) },
-                                            onTestModel = { onTestSingleModel(model) },
-                                            onToggleEnabled = { onToggleModelEnabled(model) },
-                                            onEditPolicy = { onEditPolicy(model.id) },
-                                            onOpenVisionDetail = {
-                                                onOpenVisionDetail(
-                                                    model.displayName ?: model.upstreamModelId,
-                                                    model.capabilities.supportsVision
-                                                )
-                                            },
-                                            onOpenReasoningDetail = {
-                                                onOpenReasoningDetail(
-                                                    model.displayName ?: model.upstreamModelId,
-                                                    listOf("Thinking / Reasoning")
-                                                )
-                                            },
-                                            onOpenInfoDetail = {
-                                                onOpenInfoDetail(
-                                                    ModelMetaInfo(
-                                                        name = model.displayName ?: model.upstreamModelId,
-                                                        id = model.upstreamModelId,
-                                                        contextLimit = model.effectiveContextWindow,
-                                                        outputLimit = model.tokenLimits.outputTokenLimit
-                                                            ?: model.maxOutputTokens
+                                        UniversalModelCard(
+                                            state = createCustomCardState(
+                                                model = model,
+                                                testStatus = modelTestStatuses[model.id],
+                                                hasPolicy = compressionPolicies.containsKey(model.id),
+                                                policy = compressionPolicies[model.id],
+                                                onEditModel = { onEditSingleModel(model) },
+                                                onDeleteModel = { onDeleteSingleModel(model) },
+                                                onTestModel = { onTestSingleModel(model) },
+                                                onToggleEnabled = { onToggleModelEnabled(model) },
+                                                onEditPolicy = { onEditPolicy(model.id) },
+                                                onOpenVisionDetail = {
+                                                    onOpenVisionDetail(
+                                                        model.displayName ?: model.upstreamModelId,
+                                                        model.capabilities.supportsVision
                                                     )
-                                                )
-                                            }
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                                },
+                                                onOpenReasoningDetail = {
+                                                    onOpenReasoningDetail(
+                                                        model.displayName ?: model.upstreamModelId,
+                                                        listOf("Thinking / Reasoning")
+                                                    )
+                                                },
+                                                onOpenInfoDetail = {
+                                                    onOpenInfoDetail(
+                                                        ModelMetaInfo(
+                                                            name = model.displayName ?: model.upstreamModelId,
+                                                            id = model.upstreamModelId,
+                                                            contextLimit = model.effectiveContextWindow,
+                                                            outputLimit = model.tokenLimits.outputTokenLimit
+                                                                ?: model.maxOutputTokens
+                                                        )
+                                                    )
+                                                }
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                                 val emptySlots = columnCount - rowModels.size

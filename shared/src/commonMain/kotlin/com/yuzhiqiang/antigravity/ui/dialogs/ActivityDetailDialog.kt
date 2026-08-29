@@ -9,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.DataObject
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material3.*
@@ -17,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,9 +25,10 @@ import com.yuzhiqiang.antigravity.domain.model.ActivityLog
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.BadgeTone
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
-import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
+import com.yuzhiqiang.antigravity.ui.dialogs.activity.*
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate
+import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
 import com.yuzhiqiang.antigravity.ui.utils.formatHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatTokens
@@ -37,10 +36,6 @@ import com.yuzhiqiang.antigravity.ui.utils.getCacheHitRateColor
 import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
 import com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier
 import com.yuzhiqiang.antigravity.ui.utils.toColor
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 
 @Composable
 fun ActivityDetailDialog(
@@ -51,7 +46,6 @@ fun ActivityDetailDialog(
     isDebugMode: Boolean = false
 ) {
     val s = strings()
-    val isSuccess = log.statusCode in 200..399
     val statusTone = when {
         log.isPending -> BadgeTone.INFO
         log.statusCode in 200..299 -> BadgeTone.SUCCESS
@@ -59,7 +53,8 @@ fun ActivityDetailDialog(
         else -> BadgeTone.ERROR
     }
     val statusBadgeText = if (log.isPending) s.activityPending else "HTTP ${log.statusCode}"
-    val hasDebugData = isDebugMode || log.requestHeaders != null || log.requestBody != null || log.responseHeaders != null || log.responseBody != null
+    val hasDebugData =
+        isDebugMode || log.requestHeaders != null || log.requestBody != null || log.responseHeaders != null || log.responseBody != null
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -314,11 +309,9 @@ fun ActivityDetailDialog(
                                     title = s.activityDetailRequestBody,
                                     payload = log.requestBody,
                                     onCopy = {
-                                        Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                            StringSelection(log.requestBody),
-                                            null
-                                        )
-                                        onCopyNotice(s.commonCopied)
+                                        if (copyToClipboard(log.requestBody)) {
+                                            onCopyNotice(s.commonCopied)
+                                        }
                                     },
                                     s = s
                                 )
@@ -342,11 +335,9 @@ fun ActivityDetailDialog(
                                     title = s.activityDetailResponseBody,
                                     payload = log.responseBody,
                                     onCopy = {
-                                        Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                            StringSelection(log.responseBody),
-                                            null
-                                        )
-                                        onCopyNotice(s.commonCopied)
+                                        if (copyToClipboard(log.responseBody)) {
+                                            onCopyNotice(s.commonCopied)
+                                        }
                                     },
                                     s = s
                                 )
@@ -379,48 +370,10 @@ fun ActivityDetailDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {
-                                val jsonString = buildJsonObject {
-                                    put("id", log.id)
-                                    put("timestamp", log.timestamp)
-                                    put("timeFormatted", formatFullTime(log.timestamp))
-                                    put("method", log.method)
-                                    put("path", log.path)
-                                    put("statusCode", log.statusCode)
-                                    put("durationMs", log.durationMs)
-                                    put("isPending", log.isPending)
-                                    if (log.retryCount > 0) put("retryCount", log.retryCount)
-                                    log.firstTokenMs?.let { put("firstTokenMs", it) }
-                                    put("clientSource", log.clientSource)
-                                    put("isOfficialPassthrough", log.isOfficialPassthrough)
-                                    put("modelId", log.modelId)
-                                    put("requestedModelId", log.requestedModelId)
-                                    put("providerName", log.providerName)
-                                    put("inputTokens", log.inputTokens)
-                                    put("outputTokens", log.outputTokens)
-                                    put("cacheReadTokens", log.cacheReadTokens)
-                                    put("cacheWriteTokens", log.cacheWriteTokens)
-                                    put("reasoningTokens", log.reasoningTokens)
-                                    put("totalTokens", log.totalTokens)
-                                    put("errorMessage", log.errorMessage)
-                                    put("errorSource", log.errorSource)
-                                    log.requestHeaders?.let { headers ->
-                                        put("requestHeaders", buildJsonObject {
-                                            headers.forEach { (k, v) -> put(k, v) }
-                                        })
-                                    }
-                                    log.requestBody?.let { put("requestBody", it) }
-                                    log.responseHeaders?.let { headers ->
-                                        put("responseHeaders", buildJsonObject {
-                                            headers.forEach { (k, v) -> put(k, v) }
-                                        })
-                                    }
-                                    log.responseBody?.let { put("responseBody", it) }
-                                }.toString()
-                                Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                    StringSelection(jsonString),
-                                    null
-                                )
-                                onCopyNotice(s.commonCopied)
+                                val jsonString = log.toJsonString()
+                                if (copyToClipboard(jsonString)) {
+                                    onCopyNotice(s.commonCopied)
+                                }
                             },
                             modifier = Modifier.height(32.dp),
                             shape = RoundedCornerShape(8.dp),
@@ -441,11 +394,9 @@ fun ActivityDetailDialog(
                         if (!log.errorMessage.isNullOrBlank()) {
                             OutlinedButton(
                                 onClick = {
-                                    Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                                        StringSelection(log.errorMessage),
-                                        null
-                                    )
-                                    onCopyNotice(s.commonCopied)
+                                    if (copyToClipboard(log.errorMessage)) {
+                                        onCopyNotice(s.commonCopied)
+                                    }
                                 },
                                 modifier = Modifier.height(32.dp),
                                 shape = RoundedCornerShape(8.dp),
@@ -508,316 +459,3 @@ fun ActivityDetailDialog(
         }
     }
 }
-
-@Composable
-private fun HeadersDisplayBlock(
-    title: String,
-    headers: Map<String, String>,
-    onCopy: () -> Unit,
-    s: com.yuzhiqiang.antigravity.i18n.Strings
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "$title (${headers.size})",
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            TextButton(
-                onClick = onCopy,
-                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                modifier = Modifier.height(24.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.ContentCopy,
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = s.activityDetailCopyHeaders,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                .padding(8.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                headers.forEach { (key, value) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            text = "$key:",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.widthIn(min = 120.dp, max = 220.dp)
-                        )
-                        Text(
-                            text = value,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.5.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PayloadDisplayBlock(
-    title: String,
-    payload: String,
-    onCopy: () -> Unit,
-    s: com.yuzhiqiang.antigravity.i18n.Strings
-) {
-    var isFormatted by remember { mutableStateOf(true) }
-    val isJsonLikely = remember(payload) {
-        val trimmed = payload.trim()
-        (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))
-    }
-    val displayedText = remember(payload, isFormatted) {
-        if (isFormatted && isJsonLikely) {
-            formatJsonIfPossible(payload)
-        } else {
-            payload
-        }
-    }
-
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isJsonLikely) {
-                    TextButton(
-                        onClick = { isFormatted = !isFormatted },
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                        modifier = Modifier.height(24.dp)
-                    ) {
-                        Text(
-                            text = if (isFormatted) s.activityDetailRawText else s.activityDetailFormatJson,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
-                        )
-                    }
-                }
-                TextButton(
-                    onClick = onCopy,
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                    modifier = Modifier.height(24.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.ContentCopy,
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = s.activityDetailCopyBody,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
-                    )
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 280.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                .padding(10.dp)
-        ) {
-            Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                Text(
-                    text = displayedText,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.5.sp,
-                        lineHeight = 16.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-    }
-}
-
-private fun copyHeadersToClipboard(
-    headers: Map<String, String>,
-    onCopyNotice: (String) -> Unit,
-    s: com.yuzhiqiang.antigravity.i18n.Strings
-) {
-    val text = headers.entries.joinToString("\n") { "${it.key}: ${it.value}" }
-    Toolkit.getDefaultToolkit().systemClipboard.setContents(
-        StringSelection(text),
-        null
-    )
-    onCopyNotice(s.commonCopied)
-}
-
-private val prettyJsonInstance = kotlinx.serialization.json.Json {
-    prettyPrint = true
-    isLenient = true
-    ignoreUnknownKeys = true
-}
-
-private fun formatJsonIfPossible(raw: String): String {
-    return try {
-        val element = prettyJsonInstance.parseToJsonElement(raw)
-        prettyJsonInstance.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), element)
-    } catch (_: Exception) {
-        raw
-    }
-}
-
-@Composable
-private fun DetailSectionCard(
-    title: String,
-    headerColor: Color = MaterialTheme.colorScheme.onSurface,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp
-                ),
-                color = headerColor
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            content()
-        }
-    }
-}
-
-@Composable
-private fun DetailItemRow(
-    label: String,
-    value: String,
-    isMonospace: Boolean = false,
-    highlightColor: Color? = null
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = if (isMonospace) FontFamily.Monospace else FontFamily.Default,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 12.5.sp
-            ),
-            color = highlightColor ?: MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
-
-@Composable
-private fun TokenMetricBadge(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    isTotal: Boolean = false,
-    customValueColor: Color? = null
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (isTotal) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                ),
-                color = when {
-                    customValueColor != null -> customValueColor
-                    isTotal -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.onSurface
-                }
-            )
-        }
-    }
-}
-
-private fun formatFullTime(timestamp: Long): String {
-    return try {
-        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
-        sdf.format(java.util.Date(timestamp))
-    } catch (_: Exception) {
-        "--"
-    }
-}
-

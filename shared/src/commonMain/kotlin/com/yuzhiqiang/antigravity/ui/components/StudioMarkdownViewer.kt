@@ -25,8 +25,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
-import java.awt.Desktop
-import java.net.URI
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 
 /**
  * 结构化的 Markdown 块级元素
@@ -228,11 +227,7 @@ private fun RenderInlineText(
         onClick = { offset ->
             annotatedText.getStringAnnotations(tag = "URL", start = offset, end = offset)
                 .firstOrNull()?.let { annotation ->
-                    try {
-                        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                            Desktop.getDesktop().browse(URI(annotation.item))
-                        }
-                    } catch (_: Exception) {}
+                    DesktopPlatformService.openBrowser(annotation.item)
                 }
         }
     )

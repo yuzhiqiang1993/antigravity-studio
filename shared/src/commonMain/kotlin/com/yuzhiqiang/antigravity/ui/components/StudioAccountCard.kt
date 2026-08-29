@@ -165,8 +165,9 @@ fun StudioAccountCard(
                                     interactionSource = emailInteractionSource,
                                     indication = null
                                 ) {
-                                    copyToClipboard(account.email)
-                                    onCopyEmail?.invoke()
+                                    if (copyToClipboard(account.email)) {
+                                        onCopyEmail?.invoke()
+                                    }
                                 }
                                 .padding(start = 0.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
                         ) {
@@ -205,7 +206,10 @@ fun StudioAccountCard(
                         Surface(
                             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
                             color = hostBadgeStyle.bg,
-                            border = if (hostBadgeStyle.border != Color.Transparent) BorderStroke(1.dp, hostBadgeStyle.border) else null
+                            border = if (hostBadgeStyle.border != Color.Transparent) BorderStroke(
+                                1.dp,
+                                hostBadgeStyle.border
+                            ) else null
                         ) {
                             Text(
                                 text = activeHostLabel,
@@ -245,7 +249,10 @@ fun StudioAccountCard(
                     Surface(
                         shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
                         color = tierBadgeStyle.bg,
-                        border = if (tierBadgeStyle.border != Color.Transparent) BorderStroke(1.dp, tierBadgeStyle.border) else null
+                        border = if (tierBadgeStyle.border != Color.Transparent) BorderStroke(
+                            1.dp,
+                            tierBadgeStyle.border
+                        ) else null
                     ) {
                         Text(
                             text = badgeLabel,
@@ -388,7 +395,11 @@ private fun RingQuotaMatrixBlock(
         ) { hasData ->
             if (!hasData) {
                 // 骨架屏仪表盘：保持高度与正常卡片 100% 严格一致，流光呼吸加载
-                QuotaDashboardSkeleton(borderClr = if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), isDark = isDark, isRefreshing = isRefreshing)
+                QuotaDashboardSkeleton(
+                    borderClr = if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.primary.copy(
+                        alpha = 0.15f
+                    ), isDark = isDark, isRefreshing = isRefreshing
+                )
             } else {
                 val geminiGroup = groups.firstOrNull { it.family == "gemini" } ?: groups.first()
                 val claudeGroup = groups.firstOrNull { it.family == "claude" } ?: groups.getOrNull(1) ?: groups.first()
@@ -398,7 +409,9 @@ private fun RingQuotaMatrixBlock(
                     RingFamilySection(group = geminiGroup, isDark = isDark)
 
                     HorizontalDivider(
-                        color = if (isDark) Color.White.copy(alpha = 0.08f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                        color = if (isDark) Color.White.copy(alpha = 0.08f) else MaterialTheme.colorScheme.outlineVariant.copy(
+                            alpha = 0.4f
+                        ),
                         thickness = 0.5.dp
                     )
 

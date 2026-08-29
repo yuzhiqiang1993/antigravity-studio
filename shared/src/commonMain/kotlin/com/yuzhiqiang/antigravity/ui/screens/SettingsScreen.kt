@@ -22,7 +22,7 @@ import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.settings.*
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
-import java.awt.Desktop
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 import java.io.File
 
 @Composable
@@ -227,33 +227,7 @@ private fun openConfigDirectory(viewModel: AppViewModel): String? {
     return try {
         val dir = viewModel.configStore.configFile.parentFile ?: File(System.getProperty("user.home"))
         if (!dir.exists()) dir.mkdirs()
-        var opened = false
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-            try {
-                Desktop.getDesktop().open(dir)
-                opened = true
-            } catch (_: Exception) {
-            }
-        }
-        if (!opened) {
-            val osName = System.getProperty("os.name", "").lowercase()
-            when {
-                osName.contains("win") -> {
-                    ProcessBuilder("explorer.exe", dir.absolutePath).start()
-                    opened = true
-                }
-
-                osName.contains("mac") -> {
-                    ProcessBuilder("/usr/bin/open", dir.absolutePath).start()
-                    opened = true
-                }
-
-                else -> {
-                    ProcessBuilder("xdg-open", dir.absolutePath).start()
-                    opened = true
-                }
-            }
-        }
+        val opened = DesktopPlatformService.openDirectory(dir)
         if (opened) null else s.settingsUnsupportedPlatform
     } catch (e: Exception) {
         s.settingsOpenDirFailed(e.message ?: s.commonUnknown)
