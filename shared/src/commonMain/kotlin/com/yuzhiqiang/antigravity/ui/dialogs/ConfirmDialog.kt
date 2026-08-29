@@ -24,10 +24,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
 /**
- * 通用确认对话框（遵循 Material Design 3 标准弹窗规范）。
+ * 通用确认对话框（遵循 Material Design 3 纯白毛玻璃弹窗规范）。
  */
 @Composable
 fun ConfirmDialog(
@@ -41,11 +42,9 @@ fun ConfirmDialog(
 ) {
     val s = strings()
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        StudioDialogSurface(
             modifier = Modifier.width(420.dp),
-            shape = RoundedCornerShape(AppTokens.Radius.large),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = AppTokens.Elevation.dialog
+            shape = RoundedCornerShape(20.dp)
         ) {
             Column(
                 modifier = Modifier.padding(AppTokens.Spacing.card),

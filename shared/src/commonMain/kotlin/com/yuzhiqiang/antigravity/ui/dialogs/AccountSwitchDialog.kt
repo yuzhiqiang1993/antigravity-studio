@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +62,7 @@ import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCheckbox
 import com.yuzhiqiang.antigravity.ui.icons.StudioIcons
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioBadgeColors
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 
 /**
@@ -133,17 +135,11 @@ fun AccountSwitchDialog(
         },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
+        StudioDialogSurface(
             modifier = Modifier
                 .widthIn(min = 500.dp, max = 560.dp)
                 .padding(16.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = AppTokens.Elevation.dialog,
-            border = BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.55f)
-            )
+            shape = RoundedCornerShape(20.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth()
@@ -280,18 +276,8 @@ fun AccountSwitchDialog(
 
                             // 账号等级徽章
                             val tier = targetAccount.profile.tier
-                            val tierBadgeBg = when (tier) {
-                                AccountTier.ULTRA -> MaterialTheme.colorScheme.tertiaryContainer
-                                AccountTier.PRO -> MaterialTheme.colorScheme.primaryContainer
-                                AccountTier.ENTERPRISE -> MaterialTheme.colorScheme.secondaryContainer
-                                AccountTier.FREE -> MaterialTheme.colorScheme.surfaceVariant
-                            }
-                            val tierBadgeText = when (tier) {
-                                AccountTier.ULTRA -> MaterialTheme.colorScheme.onTertiaryContainer
-                                AccountTier.PRO -> MaterialTheme.colorScheme.onPrimaryContainer
-                                AccountTier.ENTERPRISE -> MaterialTheme.colorScheme.onSecondaryContainer
-                                AccountTier.FREE -> MaterialTheme.colorScheme.onSurfaceVariant
-                            }
+                            val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+                            val tierBadgeStyle = StudioBadgeColors.tierBadge(tier, isDark)
                             val tierLabel = when (tier) {
                                 AccountTier.ULTRA -> "Ultra"
                                 AccountTier.PRO -> "Pro"
@@ -300,13 +286,14 @@ fun AccountSwitchDialog(
                             }
                             Surface(
                                 shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                                color = tierBadgeBg
+                                color = tierBadgeStyle.bg,
+                                border = if (tierBadgeStyle.border != Color.Transparent) BorderStroke(1.dp, tierBadgeStyle.border) else null
                             ) {
                                 Text(
                                     text = tierLabel,
                                     fontSize = StudioDesignTokens.TextSize.badge,
                                     fontWeight = FontWeight.Bold,
-                                    color = tierBadgeText,
+                                    color = tierBadgeStyle.text,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }

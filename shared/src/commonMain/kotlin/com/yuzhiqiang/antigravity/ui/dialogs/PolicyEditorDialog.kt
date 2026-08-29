@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -184,15 +185,12 @@ fun PolicyEditorDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
+        StudioDialogSurface(
             modifier = Modifier
                 .widthIn(min = 680.dp, max = 800.dp)
                 .fillMaxWidth(0.92f)
                 .wrapContentHeight(),
-            shape = RoundedCornerShape(12.dp),
-            color = Color.White,
-            border = BorderStroke(1.dp, byokBorder),
-            shadowElevation = 16.dp
+            shape = RoundedCornerShape(20.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 // 1. Header 顶栏 (.policy-modal-header)

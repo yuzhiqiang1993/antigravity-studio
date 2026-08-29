@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -32,10 +33,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
+import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
+import com.yuzhiqiang.antigravity.ui.components.StudioMenuDivider
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppFeatureColors
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
+import androidx.compose.ui.graphics.luminance
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -44,6 +50,7 @@ fun UniversalModelCard(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val featureColors = AppFeatureColors
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -53,31 +60,31 @@ fun UniversalModelCard(
         animationSpec = tween(AppTokens.Motion.durationMedium)
     )
 
-    val cardElevation by animateDpAsState(
-        targetValue = if (isHovered && state.isEnabled) 2.5.dp else 0.dp,
-        animationSpec = tween(150)
-    )
-
-    val borderColor by animateColorAsState(
+    val borderColor by androidx.compose.animation.animateColorAsState(
         targetValue = when {
             !state.isEnabled -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
             isHovered -> state.brand.colors.accent.copy(alpha = 0.45f)
-            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+            else -> StudioGlassTokens.cleanBorderColor(isDark, isHovered)
         },
         animationSpec = tween(150)
     )
 
-    OutlinedCard(
+    val cardBg = StudioGlassTokens.cardBackgroundColor(isDark)
+
+    Surface(
         modifier = modifier
             .fillMaxWidth()
             .alpha(cardAlpha)
-            .shadow(elevation = cardElevation, shape = RoundedCornerShape(14.dp))
+            .border(
+                width = StudioGlassTokens.borderWidth,
+                color = borderColor,
+                shape = RoundedCornerShape(StudioGlassTokens.cardCornerRadius)
+            )
             .hoverable(interactionSource),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(1.dp, borderColor)
+        shape = RoundedCornerShape(StudioGlassTokens.cardCornerRadius),
+        color = cardBg,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp
     ) {
         Column(
             modifier = Modifier
@@ -98,16 +105,16 @@ fun UniversalModelCard(
                 ) {
                     // 品牌微胶囊图标
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = state.brand.colors.accent.copy(alpha = 0.12f),
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = state.brand.iconVector,
                                 contentDescription = state.brand.brandName,
                                 tint = state.brand.colors.accent,
-                                modifier = Modifier.size(17.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
                     }
@@ -121,7 +128,7 @@ fun UniversalModelCard(
                                 text = state.title,
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 15.5.sp
+                                    fontSize = 15.sp
                                 ),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
@@ -156,7 +163,7 @@ fun UniversalModelCard(
                     }
                 }
 
-                // 右侧操作栏（测速、信息、编辑、删除、启用切换）
+                // 右侧操作栏 (Toolbox 风格收敛：测速 + 显隐切换 + 更多菜单 ⋮)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -205,35 +212,6 @@ fun UniversalModelCard(
                         )
                     }
 
-                    if (state.onOpenInfoDetail != null) {
-                        ActionSquareIcon(
-                            icon = Icons.Outlined.Info,
-                            contentDescription = s.modelsSpecsDesc,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            onClick = state.onOpenInfoDetail
-                        )
-                    }
-
-                    if (state.onEdit != null) {
-                        ActionSquareIcon(
-                            icon = Icons.Outlined.Edit,
-                            contentDescription = s.modelsEditModel,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            onClick = state.onEdit
-                        )
-                    }
-
-                    if (state.onDelete != null) {
-                        ActionSquareIcon(
-                            icon = Icons.Outlined.Delete,
-                            contentDescription = s.modelsDeleteModel,
-                            tint = MaterialTheme.colorScheme.error,
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
-                            borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f),
-                            onClick = state.onDelete
-                        )
-                    }
-
                     // 启用/停用切换
                     ActionSquareIcon(
                         icon = if (state.isEnabled) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
@@ -243,6 +221,82 @@ fun UniversalModelCard(
                         borderColor = if (state.isEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                         onClick = state.onToggleEnabled
                     )
+
+                    // 更多操作下拉菜单 ⋮ (详情/编辑/删除)
+                    var showMoreMenu by remember { mutableStateOf(false) }
+                    val hasMoreActions = state.onOpenInfoDetail != null || state.onEdit != null || state.onDelete != null
+
+                    if (hasMoreActions) {
+                        Box {
+                            ActionSquareIcon(
+                                icon = Icons.Outlined.MoreVert,
+                                contentDescription = s.modelsSpecsDesc,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                onClick = { showMoreMenu = true }
+                            )
+
+                            StudioDropdownMenu(
+                                expanded = showMoreMenu,
+                                onDismissRequest = { showMoreMenu = false }
+                            ) {
+                                if (state.onOpenInfoDetail != null) {
+                                    StudioDropdownMenuItem(
+                                        text = s.modelsSpecsDesc,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Info,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            state.onOpenInfoDetail.invoke()
+                                        }
+                                    )
+                                }
+
+                                if (state.onEdit != null) {
+                                    StudioDropdownMenuItem(
+                                        text = s.modelsEditModel,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Edit,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            state.onEdit.invoke()
+                                        }
+                                    )
+                                }
+
+                                if (state.onDelete != null) {
+                                    StudioMenuDivider()
+                                    StudioDropdownMenuItem(
+                                        text = s.modelsDeleteModel,
+                                        isDestructive = true,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Delete,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp),
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            state.onDelete.invoke()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

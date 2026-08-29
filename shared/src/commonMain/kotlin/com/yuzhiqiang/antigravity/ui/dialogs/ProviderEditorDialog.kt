@@ -25,6 +25,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.domain.model.*
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.proxy.adapters.AdapterFactory
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.dialogs.provider.*
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -244,14 +245,11 @@ fun ProviderEditorDialog(
         onDismissRequest = { requestDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
+        StudioDialogSurface(
             modifier = Modifier
                 .width(AppTokens.Size.dialogWidth)
                 .height(if (isSingleModelMode) AppTokens.Size.singleModelDialogHeight else AppTokens.Size.dialogHeight),
-            shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-            shadowElevation = 24.dp
+            shape = RoundedCornerShape(20.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(

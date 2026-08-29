@@ -1,26 +1,223 @@
 package com.yuzhiqiang.antigravity.ui.theme
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yuzhiqiang.antigravity.domain.model.account.AccountTier
+
+/**
+ * 独立的配额进度条暗色调色彩体系 (Independent Dark-Toned Quota Palette)
+ * 严格按照高质感、沉稳不刺眼的暗色调设计：
+ * - 额度健康 (>= 50%) -> 沉稳森林绿 / 暗翡翠绿 (Dark Forest Green)
+ * - 额度紧张 (20% ~ 49%) -> 沉稳暗琥珀 / 焦糖金 (Dark Amber / Muted Gold)
+ * - 额度即将用尽 (< 20%) -> 沉稳深绯红 / 暗酒红 (Dark Crimson / Muted Red)
+ */
+@Immutable
+data class QuotaLevelStyle(
+    val main: Color,           // 进度条/圆环主色 (沉稳暗色调)
+    val onMain: Color,         // 主色上的文字
+    val container: Color,      // 徽章与底槽容器色
+    val onContainer: Color     // 容器文本与图标
+)
+
+/**
+ * 完整配额健康度色彩集
+ */
+@Immutable
+data class QuotaLevelColors(
+    val full: QuotaLevelStyle,     // 健康 (>=50%)
+    val good: QuotaLevelStyle,     // 良好 (>=50% 兼容别名)
+    val warning: QuotaLevelStyle,  // 紧张提示 (20%~49%)
+    val critical: QuotaLevelStyle  // 告警 (<20%)
+)
+
+val LocalAppQuotaColors = compositionLocalOf { StudioThemeColors.lightQuotaColors }
+
+/**
+ * 暗色系强调色徽章样式 (Dark-Toned Accent Badge Style)
+ */
+@Immutable
+data class BadgeStyle(
+    val bg: Color,
+    val text: Color,
+    val border: Color = Color.Transparent
+)
+
+/**
+ * 统一徽章色彩工厂：提供沉稳、高级、富有质感的暗色系强调色
+ */
+object StudioBadgeColors {
+    /**
+     * 账号等级徽章 (Pro, Ultra, Enterprise, Free)
+     */
+    fun tierBadge(tier: AccountTier, isDark: Boolean): BadgeStyle {
+        return if (isDark) {
+            when (tier) {
+                AccountTier.ULTRA -> BadgeStyle(
+                    bg = Color(0xFF3B0764),
+                    text = Color(0xFFE9D5FF),
+                    border = Color(0xFF7E22CE)
+                )
+                AccountTier.PRO -> BadgeStyle(
+                    bg = Color(0xFF172554),
+                    text = Color(0xFFBFDBFE),
+                    border = Color(0xFF2563EB)
+                )
+                AccountTier.ENTERPRISE -> BadgeStyle(
+                    bg = Color(0xFF082F49),
+                    text = Color(0xFFBAE6FD),
+                    border = Color(0xFF0284C7)
+                )
+                AccountTier.FREE -> BadgeStyle(
+                    bg = Color(0xFF1E293B),
+                    text = Color(0xFF94A3B8),
+                    border = Color(0xFF334155)
+                )
+            }
+        } else {
+            // 浅色模式下采用高质感暗色调背景 + 纯白高对比度文字
+            when (tier) {
+                AccountTier.ULTRA -> BadgeStyle(
+                    bg = Color(0xFF6B21A8),
+                    text = Color(0xFFFFFFFF),
+                    border = Color(0xFF581C87)
+                )
+                AccountTier.PRO -> BadgeStyle(
+                    bg = Color(0xFF1E40AF),
+                    text = Color(0xFFFFFFFF),
+                    border = Color(0xFF1E3A8A)
+                )
+                AccountTier.ENTERPRISE -> BadgeStyle(
+                    bg = Color(0xFF0369A1),
+                    text = Color(0xFFFFFFFF),
+                    border = Color(0xFF075985)
+                )
+                AccountTier.FREE -> BadgeStyle(
+                    bg = Color(0xFF475569),
+                    text = Color(0xFFFFFFFF),
+                    border = Color(0xFF334155)
+                )
+            }
+        }
+    }
+
+    /**
+     * 宿主环境激活徽章 (IDE, App & CLI, CLI)
+     */
+    fun hostBadge(isDualActive: Boolean, isIdeActive: Boolean, isDark: Boolean): BadgeStyle {
+        return if (isDark) {
+            when {
+                isDualActive -> BadgeStyle(
+                    bg = Color(0xFF064E3B),
+                    text = Color(0xFFA7F3D0),
+                    border = Color(0xFF059669)
+                )
+                isIdeActive -> BadgeStyle(
+                    bg = Color(0xFF082F49),
+                    text = Color(0xFFBAE6FD),
+                    border = Color(0xFF0284C7)
+                )
+                else -> BadgeStyle(
+                    bg = Color(0xFF3B0764),
+                    text = Color(0xFFE9D5FF),
+                    border = Color(0xFF7E22CE)
+                )
+            }
+        } else {
+            // 浅色模式下采用沉稳暗色调背景 + 纯白高对比度文字
+            when {
+                isDualActive -> BadgeStyle(
+                    bg = Color(0xFF047857),
+                    text = Color(0xFFFFFFFF),
+                    border = Color(0xFF065F46)
+                )
+                isIdeActive -> BadgeStyle(
+                    bg = Color(0xFF0284C7),
+                    text = Color(0xFFFFFFFF),
+                    border = Color(0xFF0369A1)
+                )
+                else -> BadgeStyle(
+                    bg = Color(0xFF7C3AED),
+                    text = Color(0xFFFFFFFF),
+                    border = Color(0xFF6D28D9)
+                )
+            }
+        }
+    }
+}
 
 /**
  * Antigravity Studio 原生设计系统的色彩规范 (StudioThemeColors)
- * 严格符合 Material Design 3 高对比度与 WCAG AA 标准
+ * 进度条与徽章拥有独立的暗色调色彩体系，不随主题主色干扰
  */
 object StudioThemeColors {
-    // 1. 配额水位四级动态健康度色彩 (沉稳深色护眼色系，高对比度且绝不刺眼)
-    // 浅色模式 (Light)
-    val QuotaLevelFullLight = Color(0xFF047857)     // 沉稳森林深绿 (Emerald-700, >=80%)
-    val QuotaLevelGoodLight = Color(0xFF0F766E)     // 沉稳暗青绿 (Teal-700, 50%~79%)
-    val QuotaLevelWarningLight = Color(0xFFB45309)  // 沉稳暗琥珀 (Amber-800, 20%~49%)
-    val QuotaLevelCriticalLight = Color(0xFF991B1B) // 沉稳深绯红 (Red-800, <20%)
 
-    // 深色模式 (Dark) - 柔和高亮，在深灰/黑底上对比度优异且绝不刺眼
-    val QuotaLevelFullDark = Color(0xFF34D399)     // 清晰翠绿 (Emerald-400, >=80%)
-    val QuotaLevelGoodDark = Color(0xFF2DD4BF)     // 清晰青绿 (Teal-400, 50%~79%)
-    val QuotaLevelWarningDark = Color(0xFFFBBF24)  // 清晰金琥珀 (Amber-400, 20%~49%)
-    val QuotaLevelCriticalDark = Color(0xFFF87171) // 清晰绯红 (Red-400, <20%)
+    // =========================================================================
+    // 1. 独立配额健康度暗色调色彩体系 (沉稳高级、绝对不刺眼、高对比度)
+    // =========================================================================
+
+    val lightQuotaColors = run {
+        val healthGreen = QuotaLevelStyle(
+            main = Color(0xFF047857),        // Emerald-700 (沉稳深森林绿，>=50%)
+            onMain = Color(0xFFFFFFFF),
+            container = Color(0xFFDCFCE7),   // Emerald-100
+            onContainer = Color(0xFF064E3B)  // Emerald-900
+        )
+        QuotaLevelColors(
+            full = healthGreen,
+            good = healthGreen,
+            warning = QuotaLevelStyle(
+                main = Color(0xFFB45309),        // Amber-700 (沉稳暗琥珀，20%~49%)
+                onMain = Color(0xFFFFFFFF),
+                container = Color(0xFFFEF3C7),   // Amber-100
+                onContainer = Color(0xFF78350F)  // Amber-900
+            ),
+            critical = QuotaLevelStyle(
+                main = Color(0xFFB91C1C),        // Red-700 (沉稳深绯红，<20%)
+                onMain = Color(0xFFFFFFFF),
+                container = Color(0xFFFEE2E2),   // Red-100
+                onContainer = Color(0xFF7F1D1D)  // Red-900
+            )
+        )
+    }
+
+    val darkQuotaColors = run {
+        val healthGreen = QuotaLevelStyle(
+            main = Color(0xFF10B981),        // Emerald-500 (沉稳质感暗绿，>=50%)
+            onMain = Color(0xFF022C22),
+            container = Color(0xFF064E3B),   // Emerald-900
+            onContainer = Color(0xFFA7F3D0)
+        )
+        QuotaLevelColors(
+            full = healthGreen,
+            good = healthGreen,
+            warning = QuotaLevelStyle(
+                main = Color(0xFFF59E0B),        // Amber-500 (沉稳暗金黄，20%~49%)
+                onMain = Color(0xFF451A03),
+                container = Color(0xFF78350F),   // Amber-900
+                onContainer = Color(0xFFFDE68A)
+            ),
+            critical = QuotaLevelStyle(
+                main = Color(0xFFEF4444),        // Red-500 (沉稳暗绯红，<20%)
+                onMain = Color(0xFF450A0A),
+                container = Color(0xFF7F1D1D),   // Red-900
+                onContainer = Color(0xFFFECACA)
+            )
+        )
+    }
+
+    // 兼容旧代码的便捷别名
+    val QuotaLevelFullLight = lightQuotaColors.full.main
+    val QuotaLevelGoodLight = lightQuotaColors.good.main
+    val QuotaLevelWarningLight = lightQuotaColors.warning.main
+    val QuotaLevelCriticalLight = lightQuotaColors.critical.main
+
+    val QuotaLevelFullDark = darkQuotaColors.full.main
+    val QuotaLevelGoodDark = darkQuotaColors.good.main
+    val QuotaLevelWarningDark = darkQuotaColors.warning.main
+    val QuotaLevelCriticalDark = darkQuotaColors.critical.main
 
     val QuotaLevelFull = QuotaLevelFullLight
     val QuotaLevelGood = QuotaLevelGoodLight
@@ -31,72 +228,71 @@ object StudioThemeColors {
     val QuotaWarning = QuotaLevelWarningLight
     val QuotaCritical = QuotaLevelCriticalLight
 
-    // 2. 进度条底槽与内嵌面板
-    val TrackLight = Color(0xFFE2E8F0) // 浅色底槽 (Slate-200)
-    val TrackDark = Color(0xFF334155)  // 深色底槽 (Slate-700)
+    // =========================================================================
+    // 2. 底槽、面板与边框色
+    // =========================================================================
+    val TrackLight = Color(0xFFE2E8F0)
+    val TrackDark = Color(0xFF334155)
 
-    val InnerCardLight = Color(0xFFF8FAFC) // 浅色内嵌面板微底 (Slate-50)
-    val InnerCardDark = Color(0xFF1E293B)  // 内嵌面板深色背景 (Slate-800)
+    val InnerCardLight = Color(0xFFF8FAFC)
+    val InnerCardDark = Color(0xFF1E293B)
 
-    val BorderCardLight = Color(0xFFE2E8F0) // 普通卡片外边框 (Slate-200)
-    val BorderSubtleLight = Color(0xFFEEF2F6) // 内嵌面板极细微边框
+    val BorderCardLight = Color(0xFFE2E8F0)
+    val BorderSubtleLight = Color(0xFFEEF2F6)
 
-    // 3. 激活高亮边框色彩 (沉稳精致细边框)
-    val ActiveBorder = Color(0xFF0284C7) // 沉稳天蓝 (Sky-600)
-    val ActiveBgLight = Color(0xFFFFFFFF) // 纯白底色
+    val ActiveBorder = Color(0xFF0284C7)
+    val ActiveBgLight = Color(0xFFFFFFFF)
 
-    // IDE 专属活跃沉稳细边框
-    val CardIdeActiveBorder = Color(0xFF0284C7)    // Sky-600 (沉稳科技天蓝细边框)
+    val CardIdeActiveBorder = Color(0xFF1976D2)
+    val CardCliActiveBorder = Color(0xFF5E35B1)
+    val CardDualActiveBorder = Color(0xFF00796B)
 
-    // App/CLI 专属活跃沉稳细边框
-    val CardCliActiveBorder = Color(0xFF7E22CE)    // Purple-700 (沉稳极客深紫细边框)
+    // 徽章旧兼容色
+    val BadgeUltraBg = Color(0xFF6B21A8)
+    val BadgeUltraText = Color(0xFFFFFFFF)
+    val BadgeProBg = Color(0xFF1E40AF)
+    val BadgeProText = Color(0xFFFFFFFF)
+    val BadgeEnterpriseBg = Color(0xFF0369A1)
+    val BadgeEnterpriseText = Color(0xFFFFFFFF)
+    val BadgeActiveBg = Color(0xFF047857)
+    val BadgeActiveText = Color(0xFFFFFFFF)
+    val BadgeIdeBg = Color(0xFF0284C7)
+    val BadgeIdeText = Color(0xFFFFFFFF)
+    val BadgeCliBg = Color(0xFF7C3AED)
+    val BadgeCliText = Color(0xFFFFFFFF)
+    val BadgeFreeBg = Color(0xFF475569)
+    val BadgeFreeText = Color(0xFFFFFFFF)
 
-    // 双端共同活跃沉稳细边框
-    val CardDualActiveBorder = Color(0xFF047857)   // Emerald-700 (沉稳森林深绿细边框)
+    // 文字色彩
+    val TextPrimary = Color(0xFF1A1B21)
+    val TextSecondary = Color(0xFF46464F)
+    val TextMuted = Color(0xFF777680)
+    val TextPlaceholder = Color(0xFF90909A)
 
-    // 4. 徽章胶囊 (高对比度深字浅底 / 兼容旧代码)
-    val BadgeUltraBg = Color(0xFFF3E8FF)
-    val BadgeUltraText = Color(0xFF6B21A8)
-    val BadgeProBg = Color(0xFFDBEAFE)
-    val BadgeProText = Color(0xFF1E40AF)
-    val BadgeEnterpriseBg = Color(0xFFE0F2FE)
-    val BadgeEnterpriseText = Color(0xFF0369A1)
-    val BadgeActiveBg = Color(0xFFDCFCE7)
-    val BadgeActiveText = Color(0xFF166534)
-    val BadgeIdeBg = Color(0xFFE0F2FE)
-    val BadgeIdeText = Color(0xFF0369A1)
-    val BadgeCliBg = Color(0xFFF3E8FF)
-    val BadgeCliText = Color(0xFF6B21A8)
-    val BadgeFreeBg = Color(0xFFE2E8F0)
-    val BadgeFreeText = Color(0xFF1E293B)
-
-    // 5. 核心文字色彩 (推荐优先使用 MaterialTheme.colorScheme.onSurface / onSurfaceVariant)
-    val TextPrimary = Color(0xFF0F172A)
-    val TextSecondary = Color(0xFF475569)
-    val TextMuted = Color(0xFF64748B)
-    val TextPlaceholder = Color(0xFF94A3B8)
-
-    val ActionIconDefault = Color(0xFF475569)
-    val ActionIconDelete = Color(0xFFDC2626)
+    val ActionIconDefault = Color(0xFF46464F)
+    val ActionIconDelete = Color(0xFFBA1A1A)
 
     /**
-     * 根据百分比与当前主题明暗模式计算健康的配额颜色
+     * 根据百分比与明暗模式计算健康的配额颜色 (独立暗色调体系)
      */
     fun quotaColor(percentage: Int, isDark: Boolean = false): Color {
-        return if (isDark) {
-            when {
-                percentage >= 80 -> QuotaLevelFullDark
-                percentage >= 50 -> QuotaLevelGoodDark
-                percentage >= 20 -> QuotaLevelWarningDark
-                else             -> QuotaLevelCriticalDark
-            }
-        } else {
-            when {
-                percentage >= 80 -> QuotaLevelFullLight
-                percentage >= 50 -> QuotaLevelGoodLight
-                percentage >= 20 -> QuotaLevelWarningLight
-                else             -> QuotaLevelCriticalLight
-            }
+        val scheme = if (isDark) darkQuotaColors else lightQuotaColors
+        return when {
+            percentage >= 50 -> scheme.full.main
+            percentage >= 20 -> scheme.warning.main
+            else             -> scheme.critical.main
+        }
+    }
+
+    /**
+     * 获取指定配额水位对应的完整 MD3 四元样式
+     */
+    fun quotaStyle(percentage: Int, isDark: Boolean = false): QuotaLevelStyle {
+        val scheme = if (isDark) darkQuotaColors else lightQuotaColors
+        return when {
+            percentage >= 50 -> scheme.full
+            percentage >= 20 -> scheme.warning
+            else             -> scheme.critical
         }
     }
 }

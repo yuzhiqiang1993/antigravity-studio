@@ -7,8 +7,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.yuzhiqiang.antigravity.ui.components.StudioSlidingTabLayout
 import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
+import com.yuzhiqiang.antigravity.ui.components.StudioUnderlineTabLayout
 
 data class ProviderTabItem(
     val id: String,
@@ -17,6 +17,12 @@ data class ProviderTabItem(
     val count: Int
 )
 
+/**
+ * 模型服务商 Tab 导航栏 (对标 JetBrains Toolbox 经典下划线导航模式)：
+ * - 极简通透无实心底槽
+ * - 纯正深海蓝 2.5dp 弹性滑动高光指示横线
+ * - 舒适的左右留白与呼吸感
+ */
 @Composable
 fun ProviderTabLayout(
     items: List<ProviderTabItem>,
@@ -41,12 +47,12 @@ fun ProviderTabLayout(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        StudioSlidingTabLayout(
+        StudioUnderlineTabLayout(
             items = tabItems,
             selectedKey = selectedId,
             onSelect = onSelect,
             modifier = Modifier.weight(1f, fill = false),
-            tabHeight = 40.dp
+            tabHeight = 42.dp
         )
 
         if (trailingAction != null) {

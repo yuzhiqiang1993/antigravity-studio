@@ -24,8 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
@@ -107,23 +109,25 @@ fun StatusBadge(
         androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(1f) }
     }
 
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(AppTokens.Radius.pill))
-            .background(bgColor)
+            .background(if (isDark) bgColor.copy(alpha = 0.55f) else bgColor.copy(alpha = 0.65f))
             .border(
                 1.dp,
-                dotColor.copy(alpha = 0.25f),
+                dotColor.copy(alpha = if (isDark) 0.22f else 0.18f),
                 RoundedCornerShape(AppTokens.Radius.pill)
             )
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 2.5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         if (showDot) {
             Box(
                 modifier = Modifier
-                    .size(6.dp)
+                    .size(5.dp)
                     .clip(CircleShape)
                     .alpha(pulseAlpha)
                     .background(dotColor)
@@ -131,8 +135,11 @@ fun StatusBadge(
         }
         Text(
             text = text,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.1.sp
+            ),
             color = textColor,
             maxLines = 1,
             softWrap = false

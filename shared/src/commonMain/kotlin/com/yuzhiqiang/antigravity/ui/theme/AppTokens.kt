@@ -1,5 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.theme
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -23,7 +25,6 @@ object AppTokens {
         val accelerateEasing = androidx.compose.animation.core.CubicBezierEasing(0.3f, 0.0f, 1.0f, 1.0f)
         val fastOutSlowIn = androidx.compose.animation.core.FastOutSlowInEasing
     }
-
 
     object Spacing {
         val none = 0.dp
@@ -99,10 +100,14 @@ object AppTokens {
         val level4 = 8.dp
         val level5 = 12.dp
 
-        val card = 1.dp
-        val floating = 4.dp
-        val dialog = 16.dp
+        val card = 0.dp
+        val floating = 2.dp
+        val dialog = 6.dp
     }
+
+    // =========================================================================
+    // MD3 状态语义四元组 (Tone 40/80, 100/20, 90/30, 10/90)
+    // =========================================================================
 
     @Immutable
     data class StatusColors(
@@ -125,42 +130,47 @@ object AppTokens {
     )
 
     val lightStatusColors = StatusColors(
-        success = Color(0xFF16A34A),
+        success = Color(0xFF047857),        // 沉稳森林深绿
         onSuccess = Color.White,
         successContainer = Color(0xFFDCFCE7),
-        onSuccessContainer = Color(0xFF14532D),
-        warning = Color(0xFFD97706),
+        onSuccessContainer = Color(0xFF064E3B),
+        warning = Color(0xFFB45309),        // 沉稳暗琥珀
         onWarning = Color.White,
         warningContainer = Color(0xFFFEF3C7),
         onWarningContainer = Color(0xFF78350F),
-        info = Color(0xFF2563EB),
+        info = Color(0xFF0369A1),           // 沉稳深海蓝
         onInfo = Color.White,
-        infoContainer = Color(0xFFEFF6FF),
-        onInfoContainer = Color(0xFF1E40AF),
-        error = Color(0xFFDC2626),
+        infoContainer = Color(0xFFE0F2FE),
+        onInfoContainer = Color(0xFF075985),
+        error = Color(0xFFB91C1C),          // 沉稳深绯红
         onError = Color.White,
         errorContainer = Color(0xFFFEE2E2),
         onErrorContainer = Color(0xFF7F1D1D)
     )
 
     val darkStatusColors = StatusColors(
-        success = Color(0xFF4ADE80),
-        onSuccess = Color(0xFF052E16),
-        successContainer = Color(0x3322C55E),
-        onSuccessContainer = Color(0xFF86EFAC),
-        warning = Color(0xFFFBBF24),
+        success = Color(0xFF10B981),        // 沉稳暗质感绿
+        onSuccess = Color(0xFF022C22),
+        successContainer = Color(0xFF064E3B),
+        onSuccessContainer = Color(0xFFA7F3D0),
+        warning = Color(0xFFF59E0B),        // 柔和暗金黄
         onWarning = Color(0xFF451A03),
-        warningContainer = Color(0x33F59E0B),
+        warningContainer = Color(0xFF78350F),
         onWarningContainer = Color(0xFFFDE68A),
-        info = Color(0xFF60A5FA),
-        onInfo = Color(0xFF172554),
-        infoContainer = Color(0x333B82F6),
-        onInfoContainer = Color(0xFFBFDBFE),
-        error = Color(0xFFF87171),
+        info = Color(0xFF38BDF8),           // 柔和天蓝
+        onInfo = Color(0xFF082F49),
+        infoContainer = Color(0xFF0C4A6E),
+        onInfoContainer = Color(0xFFBAE6FD),
+        error = Color(0xFFEF4444),          // 沉稳暗红宝石
         onError = Color(0xFF450A0A),
-        errorContainer = Color(0x33EF4444),
+        errorContainer = Color(0xFF7F1D1D),
         onErrorContainer = Color(0xFFFECACA)
     )
+
+    // =========================================================================
+    // MD3 模型能力特性暗色调胶囊样式 (Dark-Toned Accent Feature Badges)
+    // 避免过亮糖果色底，保持沉稳、克制、高级的微容器与暗调强调色
+    // =========================================================================
 
     @Immutable
     data class FeatureStyle(
@@ -179,47 +189,47 @@ object AppTokens {
 
     val lightFeatureColors = FeatureColors(
         vision = FeatureStyle(
-            foreground = Color(0xFF2563EB),
-            container = Color(0xFFEFF6FF),
-            border = Color(0xFFBFDBFE)
+            foreground = Color(0xFF0369A1),     // 沉稳深海蓝 (Sky-700)
+            container = Color(0xFFF0F6FA),      // 极浅微蓝灰中性底
+            border = Color(0xFFCBD5E1)         // 中性微边框
         ),
         tools = FeatureStyle(
-            foreground = Color(0xFF0D9488),
-            container = Color(0xFFF0FDFA),
-            border = Color(0xFF99F6E4)
+            foreground = Color(0xFF0F766E),      // 沉稳暗青绿 (Teal-700)
+            container = Color(0xFFF0F7F6),      // 极浅微青灰底
+            border = Color(0xFFCBD5E1)
         ),
         reasoning = FeatureStyle(
-            foreground = Color(0xFF7C3AED),
-            container = Color(0xFFFAF5FF),
-            border = Color(0xFFE9D5FF)
+            foreground = Color(0xFF6B21A8),     // 沉稳深琉璃紫 (Purple-700)
+            container = Color(0xFFF7F3FA),      // 极浅微紫灰底
+            border = Color(0xFFCBD5E1)
         ),
         info = FeatureStyle(
-            foreground = Color(0xFF16A34A),
-            container = Color(0xFFF0FDF4),
-            border = Color(0xFFBBF7D0)
+            foreground = Color(0xFF475569),     // 沉稳深炭灰 (Slate-600)
+            container = Color(0xFFF1F5F9),      // 中性浅灰底
+            border = Color(0xFFCBD5E1)
         )
     )
 
     val darkFeatureColors = FeatureColors(
         vision = FeatureStyle(
-            foreground = Color(0xFF93C5FD),
-            container = Color(0x333B82F6),
-            border = Color(0x5960A5FA)
+            foreground = Color(0xFF7DD3FC),     // 柔和冰川蓝 (Sky-300)
+            container = Color(0xFF0F1E36),      // 深邃暗蓝底
+            border = Color(0xFF1E3A8A)          // 暗蓝边框
         ),
         tools = FeatureStyle(
-            foreground = Color(0xFF5EEAD4),
-            container = Color(0x3314B8A6),
-            border = Color(0x592DD4BF)
+            foreground = Color(0xFF5EEAD4),     // 柔和暗薄荷青 (Teal-300)
+            container = Color(0xFF042F2E),      // 深邃暗青底
+            border = Color(0xFF134E4A)
         ),
         reasoning = FeatureStyle(
-            foreground = Color(0xFFD8B4FE),
-            container = Color(0x33A855F7),
-            border = Color(0x59C084FC)
+            foreground = Color(0xFFD8B4FE),     // 柔和暗琉璃紫 (Purple-300)
+            container = Color(0xFF220D3D),      // 深邃暗紫底
+            border = Color(0xFF4C1D95)
         ),
         info = FeatureStyle(
-            foreground = Color(0xFF86EFAC),
-            container = Color(0x3322C55E),
-            border = Color(0x594ADE80)
+            foreground = Color(0xFFCBD5E1),     // 浅石板灰 (Slate-300)
+            container = Color(0xFF1E293B),      // 深石板灰底
+            border = Color(0xFF334155)
         )
     )
 
@@ -238,23 +248,36 @@ object AppTokens {
             val accent: Color
         )
 
-        val gemini = Colors(Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFF6366F1))
-        val claude = Colors(Color(0xFFEA580C), Color(0xFFF97316), Color(0xFFEA580C))
-        val openAi = Colors(Color(0xFF059669), Color(0xFF10B981), Color(0xFF059669))
-        val deepSeek = Colors(Color(0xFF0284C7), Color(0xFF0EA5E9), Color(0xFF0284C7))
-        val qwen = Colors(Color(0xFF7C3AED), Color(0xFF9333EA), Color(0xFF7C3AED))
-        val custom = Colors(Color(0xFF3B82F6), Color(0xFF60A5FA), Color(0xFF3B82F6))
+        val gemini = Colors(Color(0xFF4338CA), Color(0xFF6D28D9), Color(0xFF4338CA))
+        val claude = Colors(Color(0xFFC2410C), Color(0xFFEA580C), Color(0xFFC2410C))
+        val openAi = Colors(Color(0xFF047857), Color(0xFF059669), Color(0xFF047857))
+        val deepSeek = Colors(Color(0xFF0369A1), Color(0xFF0284C7), Color(0xFF0369A1))
+        val qwen = Colors(Color(0xFF6B21A8), Color(0xFF7C3AED), Color(0xFF6B21A8))
+        val custom = Colors(Color(0xFF2563EB), Color(0xFF3B82F6), Color(0xFF2563EB))
     }
 }
 
 val LocalAppStatusColors = compositionLocalOf { AppTokens.lightStatusColors }
 
 val AppStatusColors: AppTokens.StatusColors
-    @androidx.compose.runtime.Composable
+    @Composable
     get() = LocalAppStatusColors.current
 
 val LocalAppFeatureColors = compositionLocalOf { AppTokens.lightFeatureColors }
 
 val AppFeatureColors: AppTokens.FeatureColors
-    @androidx.compose.runtime.Composable
+    @Composable
     get() = LocalAppFeatureColors.current
+
+// MaterialTheme 扩展便捷入口
+val MaterialTheme.statusColors: AppTokens.StatusColors
+    @Composable
+    get() = LocalAppStatusColors.current
+
+val MaterialTheme.featureColors: AppTokens.FeatureColors
+    @Composable
+    get() = LocalAppFeatureColors.current
+
+val MaterialTheme.quotaColors: QuotaLevelColors
+    @Composable
+    get() = LocalAppQuotaColors.current

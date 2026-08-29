@@ -91,7 +91,7 @@ private val AppShapes = Shapes(
 @Composable
 fun AntigravityTheme(
     themeMode: String? = "system",
-    themePalette: String? = "indigo",
+    themePalette: String? = "white",
     content: @Composable () -> Unit
 ) {
     val isDark = when (themeMode) {
@@ -104,10 +104,12 @@ fun AntigravityTheme(
     val colorScheme = ThemePalettes.getColorScheme(palette, isDark)
     val statusColors = if (isDark) AppTokens.darkStatusColors else AppTokens.lightStatusColors
     val featureColors = if (isDark) AppTokens.darkFeatureColors else AppTokens.lightFeatureColors
+    val quotaColors = if (isDark) StudioThemeColors.darkQuotaColors else StudioThemeColors.lightQuotaColors
 
     CompositionLocalProvider(
         LocalAppStatusColors provides statusColors,
-        LocalAppFeatureColors provides featureColors
+        LocalAppFeatureColors provides featureColors,
+        LocalAppQuotaColors provides quotaColors
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

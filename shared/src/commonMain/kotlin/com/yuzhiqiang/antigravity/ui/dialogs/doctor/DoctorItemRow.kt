@@ -126,16 +126,16 @@ fun DoctorItemRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = AppTokens.Spacing.md)
-                    .clip(RoundedCornerShape(AppTokens.Radius.small))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(AppTokens.Radius.small))
-                    .padding(horizontal = AppTokens.Spacing.content, vertical = AppTokens.Spacing.xs),
+                    .padding(start = 4.dp, top = 2.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = s.doctorSuggestionPrefix + item.suggestion,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                     color = MaterialTheme.colorScheme.primary
                 )
             }

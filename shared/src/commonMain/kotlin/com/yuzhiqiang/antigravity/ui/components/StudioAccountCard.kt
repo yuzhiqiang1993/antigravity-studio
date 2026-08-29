@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -52,9 +54,12 @@ import com.yuzhiqiang.antigravity.domain.model.quota.QuotaGroup
 import com.yuzhiqiang.antigravity.domain.model.quota.QuotaWindow
 import com.yuzhiqiang.antigravity.ui.animation.*
 import com.yuzhiqiang.antigravity.ui.icons.StudioIcons
+import androidx.compose.foundation.BorderStroke
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.LocalAppStatusColors
+import com.yuzhiqiang.antigravity.ui.theme.StudioBadgeColors
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioThemeColors
 
 /**
@@ -89,27 +94,26 @@ fun StudioAccountCard(
     val isAnyActive = isIdeActive || effectiveAppCliActive
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    // 卡片整体背景 (完全遵循 M3 标准 surface，自动完美适配亮暗主题)
-    val targetCardBg = MaterialTheme.colorScheme.surface
+    // 1. 卡片整体背景 (遵循纯白毛玻璃半透明规范)
+    val targetCardBg = if (isAnyActive) {
+        if (isDark) MaterialTheme.colorScheme.surface.copy(alpha = StudioGlassTokens.activeCardAlphaDark)
+        else Color.White.copy(alpha = StudioGlassTokens.activeCardAlphaLight)
+    } else {
+        StudioGlassTokens.cardBackgroundColor(isDark)
+    }
 
     val animatedCardBg by androidx.compose.animation.animateColorAsState(
         targetValue = targetCardBg,
         animationSpec = androidx.compose.animation.core.tween(durationMillis = 300)
     )
 
-    val targetBorderColor = when {
-        isDualActive -> MaterialTheme.colorScheme.primary
-        isIdeActive -> MaterialTheme.colorScheme.secondary
-        effectiveAppCliActive -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
-    }
+    val cardInteractionSource = remember { MutableInteractionSource() }
+    val isCardHovered by cardInteractionSource.collectIsHoveredAsState()
 
-    val animatedBorderColor by androidx.compose.animation.animateColorAsState(
-        targetValue = targetBorderColor,
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 300)
+    val borderColor by androidx.compose.animation.animateColorAsState(
+        targetValue = StudioGlassTokens.cleanBorderColor(isDark, isCardHovered),
+        animationSpec = androidx.compose.animation.core.tween(150)
     )
-
-    val borderWidth = if (isAnyActive) 1.5.dp else 1.dp
 
     val displayEmail = if (isPrivacyMode) account.maskedEmail() else account.email
 
@@ -117,13 +121,15 @@ fun StudioAccountCard(
         modifier = modifier
             .fillMaxWidth()
             .border(
-                width = borderWidth,
-                color = animatedBorderColor,
+                width = StudioGlassTokens.borderWidth,
+                color = borderColor,
                 shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card)
-            ),
+            )
+            .hoverable(cardInteractionSource),
         shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card),
         color = animatedCardBg,
-        shadowElevation = if (isDark) 0.dp else 0.5.dp
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp
     ) {
 
         Column(
@@ -196,30 +202,25 @@ fun StudioAccountCard(
                         else -> null
                     }
                     if (activeHostLabel != null) {
-                        val activeHostContainerColor = when {
-                            isDualActive -> MaterialTheme.colorScheme.primaryContainer
-                            isIdeActive -> MaterialTheme.colorScheme.secondaryContainer
-                            else -> MaterialTheme.colorScheme.tertiaryContainer
-                        }
-                        val activeHostContentColor = when {
-                            isDualActive -> MaterialTheme.colorScheme.onPrimaryContainer
-                            isIdeActive -> MaterialTheme.colorScheme.onSecondaryContainer
-                            else -> MaterialTheme.colorScheme.onTertiaryContainer
-                        }
+                        val hostBadgeStyle = StudioBadgeColors.hostBadge(
+                            isDualActive = isDualActive,
+                            isIdeActive = isIdeActive,
+                            isDark = isDark
+                        )
                         Surface(
                             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                            color = activeHostContainerColor
+                            color = hostBadgeStyle.bg,
+                            border = if (hostBadgeStyle.border != Color.Transparent) BorderStroke(1.dp, hostBadgeStyle.border) else null
                         ) {
                             Text(
                                 text = activeHostLabel,
                                 fontSize = StudioDesignTokens.TextSize.badge,
                                 fontWeight = FontWeight.Bold,
-                                color = activeHostContentColor,
+                                color = hostBadgeStyle.text,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
-
 
                     val tier: AccountTier = when {
                         quotaSnapshot?.tier == AccountTier.ULTRA ||
@@ -238,20 +239,7 @@ fun StudioAccountCard(
                         else -> AccountTier.FREE
                     }
 
-                    val badgeBg = when (tier) {
-                        AccountTier.ULTRA -> MaterialTheme.colorScheme.tertiaryContainer
-                        AccountTier.PRO -> MaterialTheme.colorScheme.primaryContainer
-                        AccountTier.ENTERPRISE -> MaterialTheme.colorScheme.secondaryContainer
-                        AccountTier.FREE -> MaterialTheme.colorScheme.surfaceVariant
-                    }
-
-                    val badgeText = when (tier) {
-                        AccountTier.ULTRA -> MaterialTheme.colorScheme.onTertiaryContainer
-                        AccountTier.PRO -> MaterialTheme.colorScheme.onPrimaryContainer
-                        AccountTier.ENTERPRISE -> MaterialTheme.colorScheme.onSecondaryContainer
-                        AccountTier.FREE -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-
+                    val tierBadgeStyle = StudioBadgeColors.tierBadge(tier, isDark)
                     val badgeLabel = when (tier) {
                         AccountTier.ULTRA -> "Ultra"
                         AccountTier.PRO -> "Pro"
@@ -261,13 +249,14 @@ fun StudioAccountCard(
 
                     Surface(
                         shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                        color = badgeBg
+                        color = tierBadgeStyle.bg,
+                        border = if (tierBadgeStyle.border != Color.Transparent) BorderStroke(1.dp, tierBadgeStyle.border) else null
                     ) {
                         Text(
                             text = badgeLabel,
                             fontSize = StudioDesignTokens.TextSize.badge,
                             fontWeight = FontWeight.Bold,
-                            color = badgeText,
+                            color = tierBadgeStyle.text,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -393,23 +382,15 @@ private fun RingQuotaMatrixBlock(
     isRefreshing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val innerBg = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerLow
-    } else {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f)
-    }
-    val borderClr = if (isDark) {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-    } else {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-    }
+    val innerBg = StudioGlassTokens.innerPanelBackgroundColor(isDark)
+    val innerBorderColor = StudioGlassTokens.innerPanelBorderColor(isDark)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(StudioDesignTokens.CornerRadius.md))
             .background(innerBg)
-            .border(1.dp, borderClr, RoundedCornerShape(StudioDesignTokens.CornerRadius.md))
+            .border(1.dp, innerBorderColor, RoundedCornerShape(StudioDesignTokens.CornerRadius.md))
             .padding(horizontal = StudioDesignTokens.Padding.innerBlock, vertical = 10.dp)
     ) {
         StudioCrossfade(
@@ -418,7 +399,7 @@ private fun RingQuotaMatrixBlock(
         ) { hasData ->
             if (!hasData) {
                 // 骨架屏仪表盘：保持高度与正常卡片 100% 严格一致，流光呼吸加载
-                QuotaDashboardSkeleton(borderClr = borderClr, isDark = isDark, isRefreshing = isRefreshing)
+                QuotaDashboardSkeleton(borderClr = if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), isDark = isDark, isRefreshing = isRefreshing)
             } else {
                 val geminiGroup = groups.firstOrNull { it.family == "gemini" } ?: groups.first()
                 val claudeGroup = groups.firstOrNull { it.family == "claude" } ?: groups.getOrNull(1) ?: groups.first()
@@ -427,7 +408,10 @@ private fun RingQuotaMatrixBlock(
                     // 上部分: Gemini 模型族
                     RingFamilySection(group = geminiGroup, isDark = isDark)
 
-                    HorizontalDivider(color = borderClr.copy(alpha = 0.7f), thickness = 0.5.dp)
+                    HorizontalDivider(
+                        color = if (isDark) Color.White.copy(alpha = 0.08f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                        thickness = 0.5.dp
+                    )
 
                     // 下部分: Claude 模型族
                     RingFamilySection(group = claudeGroup, isDark = isDark)
@@ -605,17 +589,6 @@ private fun RingFamilySection(
     }
 }
 
-@Composable
-private fun quotaThemeColor(percentage: Int): Color {
-    val statusColors = LocalAppStatusColors.current
-    return when {
-        percentage >= 80 -> MaterialTheme.colorScheme.primary
-        percentage >= 50 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
-        percentage >= 20 -> statusColors.warning
-        else -> MaterialTheme.colorScheme.error
-    }
-}
-
 /**
  * 单条配额环形条目：
  * - 左侧：名称 + 高亮倒计时
@@ -630,7 +603,7 @@ private fun RingQuotaRow(
 ) {
     val s = strings()
     val targetPct = item.percentage.coerceIn(0, 100)
-    val barColor = quotaThemeColor(targetPct)
+    val barColor = StudioThemeColors.quotaColor(targetPct, isDark)
     val isFull = targetPct >= 100
     val countdown = item.formattedCountdown(s)
     val formattedDate = item.resetTimeEpochSeconds?.let { epochSec ->
@@ -641,8 +614,8 @@ private fun RingQuotaRow(
     // 复用全局统一的智能记忆滚动数字计数动画 (首次挂载 snap 稳定呈现，数据真实变更才平滑动画)
     val animatedPctFloat by rememberAnimatedQuotaPercentage(targetPercentage = targetPct)
 
-    // 精简沉稳倒计时与精确时间点 (2天 20小时后重置 · 08/28 14:53)，满额时使用当前主题色
-    val fullColor = MaterialTheme.colorScheme.primary
+    // 精简沉稳倒计时与精确时间点 (2天 20小时后重置 · 08/28 14:53)，满额时使用独立的健康暗绿色
+    val fullColor = StudioThemeColors.quotaColor(100, isDark)
     val descAnnotated = remember(targetPct, countdown, formattedDate, isFull, isDark, fullColor, s) {
         buildAnnotatedString {
             if (isFull) {

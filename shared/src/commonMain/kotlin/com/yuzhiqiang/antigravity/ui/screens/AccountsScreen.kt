@@ -25,6 +25,7 @@ import com.yuzhiqiang.antigravity.domain.model.account.AccountStatus
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StudioAccountCard
+import com.yuzhiqiang.antigravity.ui.components.StudioGlassSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu
 import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
 import com.yuzhiqiang.antigravity.ui.components.StudioSearchField
@@ -174,16 +175,11 @@ fun AccountsScreen(
             badge = accountsBadge
         )
 
-        // 2. 现代 MD3 顶栏操作栏
-        Surface(
+        // 2. 现代毛玻璃浮岛顶栏操作栏
+        StudioGlassSurface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card),
-            color = MaterialTheme.colorScheme.surface,
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
-            ),
-            shadowElevation = AppTokens.Elevation.level1
+            elevation = 0.dp
         ) {
             Row(
                 modifier = Modifier

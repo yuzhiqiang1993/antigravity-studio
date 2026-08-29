@@ -51,7 +51,7 @@ data class AppConfig(
     @SerialName("theme_mode")
     val themeMode: String = "system",
     @SerialName("theme_palette")
-    val themePalette: String = "indigo",
+    val themePalette: String = "white",
     @SerialName("auto_check_update")
     val autoCheckUpdate: Boolean = true,
     @SerialName("include_prerelease")
