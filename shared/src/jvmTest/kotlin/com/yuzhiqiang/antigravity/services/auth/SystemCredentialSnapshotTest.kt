@@ -2,7 +2,7 @@ package com.yuzhiqiang.antigravity.services.auth
 
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
-import com.yuzhiqiang.antigravity.data.storage.AccountStore
+import com.yuzhiqiang.antigravity.data.storage.OfficialCredentialsStore
 import java.io.File
 import kotlin.test.assertFalse
 
@@ -29,9 +29,9 @@ class SystemCredentialSnapshotTest {
         val state = OriginalState(
             ideSnapshot = null,
             appDbSnapshot = null,
-            sharedCredentialsSnapshot = AccountStore.OfficialCredentialsSnapshot(
+            sharedCredentialsSnapshot = OfficialCredentialsStore.Snapshot(
                 listOf(
-                    AccountStore.CredentialFileSnapshot(
+                    OfficialCredentialsStore.FileSnapshot(
                         file = File("shared.json"),
                         existed = true,
                         originalBytes = sharedBytes

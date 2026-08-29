@@ -2,6 +2,7 @@ package com.yuzhiqiang.antigravity.services.auth
 
 import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import com.yuzhiqiang.antigravity.data.storage.AccountStore
+import com.yuzhiqiang.antigravity.data.storage.OfficialCredentialsStore
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.OAuthTokens
 import com.yuzhiqiang.antigravity.host.app.AppHostManager
@@ -40,7 +41,7 @@ internal class AccountSwitchCredentialApplier(
             null
         }
 
-        var sharedCredentialsSnapshot: AccountStore.OfficialCredentialsSnapshot? = null
+        var sharedCredentialsSnapshot: OfficialCredentialsStore.Snapshot? = null
         var jetskiTokenSnapshot: FileSnapshot? = null
         return try {
             if (request.applyToAppCli) {
@@ -102,7 +103,7 @@ internal class AccountSwitchCredentialApplier(
         ideWasRunning: Boolean,
         appWasRunning: Boolean,
         changes: AppliedChanges,
-        sharedCredentialsSnapshot: AccountStore.OfficialCredentialsSnapshot?
+        sharedCredentialsSnapshot: OfficialCredentialsStore.Snapshot?
     ): AccountInfo {
         request.progressCallback?.invoke("2/4 正在写入目标账号与 App & CLI 共享凭据...")
         log(

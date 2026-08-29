@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.host.ownership
 
 import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
+import com.yuzhiqiang.antigravity.core.platform.AppDataPaths
 import com.yuzhiqiang.antigravity.host.macos.MacHostManager
 import com.yuzhiqiang.antigravity.host.windows.WindowsHostManager
 import java.io.File
@@ -23,8 +24,6 @@ import kotlinx.serialization.serializer
  */
 object HostOwnershipStore {
     private const val RECEIPT_SCHEMA_VERSION = 1
-    private const val ENVIRONMENT_RECEIPT_FILE = "environment-ownership.json"
-    private const val IDE_RECEIPT_FILE = "ide-settings-ownership.json"
     private const val ENVIRONMENT_KEY = "CLOUD_CODE_URL"
     private const val IDE_SETTING_KEY = "jetski.cloudCodeUrl"
 
@@ -444,43 +443,11 @@ object HostOwnershipStore {
         return updated
     }
 
-    private fun environmentReceiptFile(): File {
-        return integrationRoot().resolve(ENVIRONMENT_RECEIPT_FILE)
-    }
+    private fun environmentReceiptFile(): File =
+        AppDataPaths.resolve(AppDataPaths.ENVIRONMENT_RECEIPT_FILE_NAME)
 
-    private fun ideReceiptFile(): File {
-        return integrationRoot().resolve(IDE_RECEIPT_FILE)
-    }
-
-    private fun integrationRoot(): File {
-        val configuredPath = (System.getenv("ANTIGRAVITY_STUDIO_CONFIG_PATH")
-            ?: System.getenv("AGY_STUDIO_CONFIG_PATH"))
-            ?.trim()
-            ?.takeIf { path -> path.isNotEmpty() }
-            ?.let(::File)
-            ?.takeIf(File::isAbsolute)
-        if (configuredPath != null) {
-            return configuredPath.parentFile ?: configuredPath
-        }
-        val userHome = System.getProperty("user.home")
-        val osName = System.getProperty("os.name", "").lowercase()
-        return when {
-            osName.contains("mac") -> File(userHome, "Library/Application Support/Antigravity Studio")
-            osName.contains("win") -> {
-                val appData = System.getenv("APPDATA")
-                    ?.takeIf { value -> value.isNotBlank() }
-                    ?: File(userHome, "AppData/Roaming").absolutePath
-                File(appData, "Antigravity Studio")
-            }
-
-            else -> {
-                val configHome = System.getenv("XDG_CONFIG_HOME")
-                    ?.takeIf { value -> value.isNotBlank() }
-                    ?: File(userHome, ".config").absolutePath
-                File(configHome, "Antigravity Studio")
-            }
-        }
-    }
+    private fun ideReceiptFile(): File =
+        AppDataPaths.resolve(AppDataPaths.IDE_RECEIPT_FILE_NAME)
 
     private fun readEnvironmentReceipt(): Result<EnvironmentReceipt?> {
         return readReceipt(environmentReceiptFile())
@@ -548,26 +515,10 @@ object HostOwnershipStore {
         }
     }
 
-    private fun removeIdeReceipts(): Result<Unit> {
-        return removeReceipts(
-            listOf(
-                integrationRoot().resolve("ide-receipt.json"),
-                integrationRoot().resolve("ide-setting-ownership.json"),
-                integrationRoot().resolve("ide-settings-ownership.json"),
-                ideReceiptFile()
-            )
-        )
-    }
+    private fun removeIdeReceipts(): Result<Unit> = removeReceipts(listOf(ideReceiptFile()))
 
-    private fun removeEnvironmentReceipts(): Result<Unit> {
-        return removeReceipts(
-            listOf(
-                integrationRoot().resolve("environment-receipt.json"),
-                integrationRoot().resolve("environment-ownership.json"),
-                environmentReceiptFile()
-            )
-        )
-    }
+    private fun removeEnvironmentReceipts(): Result<Unit> =
+        removeReceipts(listOf(environmentReceiptFile()))
 
     private fun removeReceipts(files: List<File>): Result<Unit> {
         files.forEach { file ->
