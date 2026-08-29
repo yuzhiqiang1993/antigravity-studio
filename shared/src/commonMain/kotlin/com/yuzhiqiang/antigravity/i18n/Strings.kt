@@ -561,6 +561,7 @@ interface Strings {
     val settingsThemeDark: String
     val settingsThemePalette: String
     val settingsThemePaletteDescription: String
+    val paletteWhite: String
     val paletteIndigo: String
     val paletteOcean: String
     val paletteEmerald: String
@@ -1606,6 +1607,7 @@ object StringsZh : Strings {
     override val settingsThemeDark = "深色模式"
     override val settingsThemePalette = "配色方案"
     override val settingsThemePaletteDescription = "选择应用核心主题色系 (Material Design 3)"
+    override val paletteWhite = "极简白"
     override val paletteIndigo = "极光靛蓝"
     override val paletteOcean = "深海青蓝"
     override val paletteEmerald = "自然翠绿"
@@ -2727,6 +2729,7 @@ object StringsEn : Strings {
     override val settingsThemeDark = "Dark Theme"
     override val settingsThemePalette = "Color Palette"
     override val settingsThemePaletteDescription = "Choose core theme color scheme (Material Design 3)"
+    override val paletteWhite = "Minimalist White"
     override val paletteIndigo = "Aurora Indigo"
     override val paletteOcean = "Ocean Teal"
     override val paletteEmerald = "Natural Emerald"

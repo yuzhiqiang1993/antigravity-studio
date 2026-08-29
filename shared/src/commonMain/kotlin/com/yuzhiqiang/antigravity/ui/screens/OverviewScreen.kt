@@ -49,6 +49,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -70,6 +71,7 @@ import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.overview.HeroProxyServiceCard
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
 import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import com.yuzhiqiang.antigravity.ui.screens.overview.HostCardData
 import com.yuzhiqiang.antigravity.ui.screens.overview.HostCardItem
@@ -449,18 +451,26 @@ private fun ActiveAccountQuotaCard(
         AccountTier.FREE -> "Free"
     }
 
-    OutlinedCard(
-        modifier = modifier,
+    val cardBg = StudioGlassTokens.cardBackgroundColor(isDark)
+    val borderColor = StudioGlassTokens.cleanBorderColor(isDark)
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(
+                width = StudioGlassTokens.borderWidth,
+                color = borderColor,
+                shape = RoundedCornerShape(14.dp)
+            ),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        color = cardBg,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // === 头部第一行: 宿主正在使用状态徽标 + 右侧订阅等级徽章 ===
@@ -476,15 +486,16 @@ private fun ActiveAccountQuotaCard(
                 )
 
                 Surface(
-                    shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.xs),
-                    color = badgeBg
+                    shape = RoundedCornerShape(AppTokens.Radius.pill),
+                    color = badgeBg.copy(alpha = if (isDark) 0.55f else 0.70f),
+                    border = BorderStroke(1.dp, badgeText.copy(alpha = 0.20f))
                 ) {
                     Text(
                         text = badgeLabel,
-                        fontSize = StudioDesignTokens.TextSize.badge,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = badgeText,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                     )
                 }
             }

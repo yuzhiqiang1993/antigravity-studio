@@ -42,6 +42,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
 import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
 /** 配置单个上游模型 reasoning 档位、custom mapping 与 Gemini 思考预算（Material Design 3 规范）。 */
@@ -168,14 +169,11 @@ fun ReasoningConfigDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
+        StudioDialogSurface(
             modifier = Modifier
                 .width(480.dp)
                 .wrapContentHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-            shadowElevation = 20.dp
+            shape = RoundedCornerShape(24.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth()

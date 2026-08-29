@@ -22,6 +22,7 @@ import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import com.yuzhiqiang.antigravity.host.cli.CliHostManager
 import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import java.awt.FileDialog
 import java.awt.Frame
@@ -74,11 +75,9 @@ fun CustomHostPathDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        StudioDialogSurface(
             modifier = Modifier.width(540.dp),
-            shape = RoundedCornerShape(AppTokens.Radius.large),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = AppTokens.Elevation.dialog
+            shape = RoundedCornerShape(24.dp)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),

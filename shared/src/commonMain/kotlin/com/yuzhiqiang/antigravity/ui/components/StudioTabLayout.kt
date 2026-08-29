@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlinx.coroutines.launch
 
 data class StudioTabItem<T>(
@@ -237,6 +239,167 @@ fun <T> StudioSlidingTabLayout(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * JetBrains Toolbox 风格经典下划线 TabLayout 组件 (StudioUnderlineTabLayout)：
+ * 1. 极简通透无实心底槽，文字加粗 (SemiBold/Bold)；
+ * 2. 底部动态弹性滑动科技蓝指示横线 (2.5dp 高度，两端圆角)；
+ * 3. 悬停微高光反馈；
+ * 4. 支持 Badge 徽标与图标。
+ */
+@Composable
+fun <T> StudioUnderlineTabLayout(
+    items: List<StudioTabItem<T>>,
+    selectedKey: T,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    tabHeight: Dp = 42.dp,
+    activeColor: Color = MaterialTheme.colorScheme.primary,
+    inactiveColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
+) {
+    val density = LocalDensity.current
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
+    var tabPositions by remember { mutableStateOf(mapOf<Int, Pair<Dp, Dp>>()) }
+    val selectedIndex = items.indexOfFirst { it.key == selectedKey }.coerceAtLeast(0)
+
+    val currentPosition = tabPositions[selectedIndex]
+    val indicatorOffset by animateDpAsState(
+        targetValue = currentPosition?.first ?: 0.dp,
+        animationSpec = spring(
+            dampingRatio = 0.82f,
+            stiffness = Spring.StiffnessMediumLow
+        )
+    )
+    val indicatorWidth by animateDpAsState(
+        targetValue = currentPosition?.second ?: 0.dp,
+        animationSpec = spring(
+            dampingRatio = 0.82f,
+            stiffness = Spring.StiffnessMediumLow
+        )
+    )
+
+    LaunchedEffect(selectedIndex, tabPositions) {
+        currentPosition?.let { (xOffset, width) ->
+            val targetScroll = with(density) {
+                val containerWidth = scrollState.viewportSize.dp
+                val centerOffset = (xOffset + width / 2) - (containerWidth / 2)
+                centerOffset.toPx().toInt().coerceAtLeast(0)
+            }
+            coroutineScope.launch {
+                scrollState.animateScrollTo(targetScroll, animationSpec = tween(300))
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .height(tabHeight)
+            .fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .horizontalScroll(scrollState),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items.forEachIndexed { index, item ->
+                val isSelected = item.key == selectedKey
+                val interactionSource = remember { MutableInteractionSource() }
+                val isHovered by interactionSource.collectIsHoveredAsState()
+
+                val textColor by animateColorAsState(
+                    targetValue = when {
+                        isSelected -> MaterialTheme.colorScheme.onSurface
+                        isHovered -> MaterialTheme.colorScheme.onSurface
+                        else -> inactiveColor
+                    },
+                    animationSpec = tween(150)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .onGloballyPositioned { coordinates ->
+                            val positionInParent = coordinates.positionInParent()
+                            val width = coordinates.size.width
+                            with(density) {
+                                tabPositions = tabPositions + (index to (positionInParent.x.toDp() to width.toDp()))
+                            }
+                        }
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = { onSelect(item.key) }
+                        )
+                        .padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (item.icon != null) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isSelected) activeColor else textColor
+                            )
+                        }
+
+                        Text(
+                            text = item.title,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            color = textColor,
+                            maxLines = 1
+                        )
+
+                        if (!item.badge.isNullOrBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(AppTokens.Radius.pill),
+                                color = if (isSelected) activeColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.height(18.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = item.badge,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        ),
+                                        color = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 底部科技蓝滑动指示横线 (Toolbox 经典样式)
+        if (indicatorWidth > 0.dp) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .offset(x = indicatorOffset)
+                    .width(indicatorWidth)
+                    .height(2.5.dp)
+                    .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                    .background(activeColor)
+            )
         }
     }
 }

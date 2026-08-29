@@ -28,6 +28,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
@@ -283,17 +284,11 @@ fun QuotaRefreshConfigDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
+        StudioDialogSurface(
             modifier = Modifier
                 .widthIn(min = 480.dp, max = 540.dp)
                 .padding(16.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 8.dp,
-            border = BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.55f)
-            )
+            shape = RoundedCornerShape(24.dp)
         ) {
             Column(
                 modifier = Modifier

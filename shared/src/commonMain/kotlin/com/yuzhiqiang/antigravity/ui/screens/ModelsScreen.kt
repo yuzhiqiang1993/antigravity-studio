@@ -25,10 +25,12 @@ import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
 import com.yuzhiqiang.antigravity.ui.dialogs.*
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
+import com.yuzhiqiang.antigravity.ui.components.StudioGlassSurface
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.models.*
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 import kotlinx.coroutines.launch
 
 @Composable
@@ -79,84 +81,105 @@ fun ModelsScreen(
     val s = com.yuzhiqiang.antigravity.i18n.strings()
     val scrollState = rememberScrollState()
 
+    val officialCount = groupedOfficial.size
+    val tabItems = remember(config.providers, config.upstreamModels, groupedOfficial, s, officialCount) {
+        val list = mutableListOf<ProviderTabItem>()
+        list.add(
+            ProviderTabItem(
+                id = "official",
+                title = s.modelsOfficialDefault,
+                icon = Icons.Outlined.AutoAwesome,
+                count = officialCount
+            )
+        )
+        config.providers.forEach { provider ->
+            val modelCount = config.upstreamModels.count { it.providerId == provider.id }
+            list.add(
+                ProviderTabItem(
+                    id = provider.id,
+                    title = provider.name,
+                    icon = Icons.Outlined.Dns,
+                    count = modelCount
+                )
+            )
+        }
+        list
+    }
+
+    val totalModelsCount = tabItems.sumOf { it.count }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(scrollState)
             .padding(
                 horizontal = AppTokens.Spacing.pageHorizontal,
                 vertical = AppTokens.Spacing.pageVertical
             ),
-        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.pageSection)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        PageHeader(title = s.modelsTitle)
-
-        val officialCount = groupedOfficial.size
-        val tabItems = remember(config.providers, config.upstreamModels, groupedOfficial, s, officialCount) {
-            val list = mutableListOf<ProviderTabItem>()
-            list.add(
-                ProviderTabItem(
-                    id = "official",
-                    title = s.modelsOfficialDefault,
-                    icon = Icons.Outlined.AutoAwesome,
-                    count = officialCount
-                )
-            )
-            config.providers.forEach { provider ->
-                val modelCount = config.upstreamModels.count { it.providerId == provider.id }
-                list.add(
-                    ProviderTabItem(
-                        id = provider.id,
-                        title = provider.name,
-                        icon = Icons.Outlined.Dns,
-                        count = modelCount
-                    )
-                )
-            }
-            list
-        }
-
-        ProviderTabLayout(
-            items = tabItems,
-            selectedId = selectedTabId,
-            onSelect = { tabId ->
-                selectedTabId = tabId
-                if (tabId == "official") {
-                    officialTestSummaryText = null
-                }
-            },
-            trailingAction = {
-                Button(
-                    onClick = {
-                        editingProvider = null
-                        editingSingleModel = null
-                        showAddProviderDialog = true
-                    },
-                    modifier = Modifier.height(38.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = s.modelsAddProvider,
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.5.sp
-                        )
-                    )
-                }
-            }
+        // 1. 顶部主标题 (与 Accounts 保持一致的 Badge 格式)
+        PageHeader(
+            title = s.modelsTitle,
+            badge = "$totalModelsCount"
         )
+
+        // 2. 现代毛玻璃浮岛顶栏操作栏 (与 Accounts 保持一致的 StudioGlassSurface)
+        StudioGlassSurface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card),
+            elevation = 0.dp
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = StudioDesignTokens.Padding.topBarHorizontal,
+                        vertical = 8.dp
+                    )
+            ) {
+                ProviderTabLayout(
+                    items = tabItems,
+                    selectedId = selectedTabId,
+                    onSelect = { tabId ->
+                        selectedTabId = tabId
+                        if (tabId == "official") {
+                            officialTestSummaryText = null
+                        }
+                    },
+                    trailingAction = {
+                        Button(
+                            onClick = {
+                                editingProvider = null
+                                editingSingleModel = null
+                                showAddProviderDialog = true
+                            },
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = s.modelsAddProvider,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.5.sp
+                                )
+                            )
+                        }
+                    }
+                )
+            }
+        }
 
         AnimatedContent(
             targetState = selectedTabId,

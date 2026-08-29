@@ -31,6 +31,8 @@ import com.yuzhiqiang.antigravity.ui.components.*
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
+import androidx.compose.ui.graphics.luminance
 import com.yuzhiqiang.antigravity.ui.utils.LatencyTier
 import com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
@@ -120,15 +122,15 @@ fun ActivityScreen(
     ) {
         PageHeader(title = s.activityTitle)
 
-        OutlinedCard(
+        val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.outlinedCardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            color = StudioGlassTokens.cardBackgroundColor(isDark),
+            shadowElevation = StudioGlassTokens.cardElevation
         ) {
             Column(
                 modifier = Modifier

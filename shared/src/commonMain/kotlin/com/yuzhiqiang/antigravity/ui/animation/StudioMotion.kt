@@ -254,7 +254,7 @@ fun StudioCircularGauge(
     percentage: Int,
     barColor: Color,
     modifier: Modifier = Modifier,
-    trackColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = if (isSystemInDarkTheme()) 0.16f else 0.12f),
+    trackColor: Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isSystemInDarkTheme()) 0.45f else 0.65f),
     size: Dp = 22.dp,
     strokeWidth: Dp = 3.dp
 ) {

@@ -19,6 +19,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -147,28 +148,119 @@ fun PageHeader(
 }
 
 /**
- * Material Design 3 基础卡片组件（带轻量 Outline 描边与圆角）。
+ * Material Design 3 基础卡片组件（遵循 MD3 标准 1px 微轮廓规范）。
  */
 @Composable
 fun StudioCard(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(12.dp),
-    containerColor: Color = MaterialTheme.colorScheme.surface,
-    borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
-    borderWidth: Dp = 1.dp,
-    elevation: Dp = 1.dp,
+    containerColor: Color? = null,
+    borderColor: Color? = null,
+    borderWidth: Dp = com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.borderWidth,
+    elevation: Dp = 0.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
-        modifier = modifier,
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val effectiveBg = containerColor ?: com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.cardBackgroundColor(isDark)
+    val effectiveBorderColor = borderColor ?: com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.cleanBorderColor(isDark)
+
+    Surface(
+        modifier = modifier.border(borderWidth, effectiveBorderColor, shape),
         shape = shape,
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor
-        ),
-        border = BorderStroke(borderWidth, borderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
+        color = effectiveBg,
+        shadowElevation = elevation,
+        tonalElevation = 0.dp
+    ) {
+        Column(content = content)
+    }
+}
+
+/**
+ * 高质感现代毛玻璃卡片 (StudioGlassCard)：
+ * - 纯白/深灰底色 (自适应亮暗主题)
+ * - MD3 标准 1px 极细纯净微轮廓
+ */
+@Composable
+fun StudioGlassCard(
+    modifier: Modifier = Modifier,
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    backgroundColor: Color? = null,
+    borderColor: Color? = null,
+    borderWidth: Dp = com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.borderWidth,
+    elevation: Dp = 0.dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val effectiveBg = backgroundColor ?: com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.cardBackgroundColor(isDark)
+    val effectiveBorderColor = borderColor ?: com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.cleanBorderColor(isDark)
+
+    Surface(
+        modifier = modifier.border(width = borderWidth, color = effectiveBorderColor, shape = shape),
+        shape = shape,
+        color = effectiveBg,
+        shadowElevation = elevation,
+        tonalElevation = 0.dp
+    ) {
+        Column(content = content)
+    }
+}
+
+/**
+ * 通用毛玻璃浮岛容器 Surface (StudioGlassSurface)
+ */
+@Composable
+fun StudioGlassSurface(
+    modifier: Modifier = Modifier,
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    backgroundColor: Color? = null,
+    borderColor: Color? = null,
+    borderWidth: Dp = com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.borderWidth,
+    elevation: Dp = 0.dp,
+    content: @Composable () -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val effectiveBg = backgroundColor ?: com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.topBarBackgroundColor(isDark)
+    val effectiveBorderColor = borderColor ?: com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens.cleanBorderColor(isDark)
+
+    Surface(
+        modifier = modifier.border(width = borderWidth, color = effectiveBorderColor, shape = shape),
+        shape = shape,
+        color = effectiveBg,
+        shadowElevation = elevation,
+        tonalElevation = 0.dp,
         content = content
     )
+}
+
+/**
+ * Material Design 3 标准弹窗容器 (StudioDialogSurface)：
+ * - 容器色阶：浅色模式下使用极致纯白 surfaceContainerLowest，深色模式下使用深空暗色 surfaceContainer
+ * - 圆角标准：MD3 Extra Large 24dp 圆角
+ * - 边框标准：1px outlineVariant 微细轮廓，优雅沉稳
+ * - 阴影与高度：MD3 Level 3 Elevation (6dp tonalElevation)
+ */
+@Composable
+fun StudioDialogSurface(
+    modifier: Modifier = Modifier,
+    shape: RoundedCornerShape = RoundedCornerShape(24.dp),
+    containerColor: Color? = null,
+    borderColor: Color? = null,
+    borderWidth: Dp = 1.dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val effectiveBg = containerColor ?: if (isDark) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLowest
+    val effectiveBorder = borderColor ?: MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.50f)
+
+    Surface(
+        modifier = modifier.border(borderWidth, effectiveBorder, shape),
+        shape = shape,
+        color = effectiveBg,
+        tonalElevation = 0.dp,
+        shadowElevation = 24.dp
+    ) {
+        Column(content = content)
+    }
 }
 
 /**
@@ -334,13 +426,17 @@ fun StudioSearchField(
     val s = com.yuzhiqiang.antigravity.i18n.strings()
     val effectivePlaceholder = placeholder ?: s.commonSearch
     var isFocused by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    val bg = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
+    val bg = if (isDark) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.60f)
+    }
     val borderClr = if (isFocused) {
         MaterialTheme.colorScheme.primary
     } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
+        if (isDark) Color.White.copy(alpha = 0.10f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.60f)
     }
 
     androidx.compose.foundation.text.BasicTextField(
@@ -1069,8 +1165,8 @@ fun StudioTonalButton(
 
     val effectiveBg = when {
         !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-        isPressed -> containerColor.copy(alpha = 0.95f)
-        isHovered -> if (isDark) MaterialTheme.colorScheme.surfaceVariant else containerColor.copy(alpha = 0.95f)
+        isPressed -> if (containerColor.alpha < 0.5f) containerColor.copy(alpha = (containerColor.alpha * 2.2f).coerceAtMost(0.35f)) else containerColor.copy(alpha = 0.95f)
+        isHovered -> if (containerColor.alpha < 0.5f) containerColor.copy(alpha = (containerColor.alpha * 1.6f).coerceAtMost(0.24f)) else if (isDark) MaterialTheme.colorScheme.surfaceVariant else containerColor.copy(alpha = 0.85f)
         else -> containerColor
     }
 
@@ -1081,9 +1177,11 @@ fun StudioTonalButton(
     )
 
     val borderColor = if (isHovered && enabled) {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.6f else 0.8f)
+        if (containerColor.alpha < 0.5f) contentColor.copy(alpha = if (isDark) 0.55f else 0.45f)
+        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.6f else 0.8f)
     } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.25f else 0.4f)
+        if (containerColor.alpha < 0.5f) contentColor.copy(alpha = if (isDark) 0.25f else 0.20f)
+        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.25f else 0.4f)
     }
 
     val animatedBorder by animateColorAsState(
@@ -1093,7 +1191,7 @@ fun StudioTonalButton(
     )
 
     val effectiveContentColor = if (enabled) {
-        if (isHovered) MaterialTheme.colorScheme.onSurface else contentColor
+        contentColor
     } else {
         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
     }

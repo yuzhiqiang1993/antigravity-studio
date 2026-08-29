@@ -33,6 +33,7 @@ import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.services.auth.RefreshTokenParser
 import com.yuzhiqiang.antigravity.ui.components.NoticeKind
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
@@ -106,11 +107,11 @@ fun AddAccountDialog(
         },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        StudioCard(
+        StudioDialogSurface(
             modifier = Modifier
                 .widthIn(min = 520.dp, max = 580.dp)
                 .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(24.dp)
         ) {
             Column(
                 modifier = Modifier

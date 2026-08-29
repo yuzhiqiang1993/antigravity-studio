@@ -32,6 +32,7 @@ import antigravity_studio.shared.generated.resources.logo_transparent
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.update.model.AppUpdateDownloadState
 import com.yuzhiqiang.antigravity.update.model.ReleaseInfo
+import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioMarkdownViewer
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -64,14 +65,11 @@ fun UpdateDialog(
             onDismiss()
         }
     }) {
-        Surface(
+        StudioDialogSurface(
             modifier = Modifier
                 .width(540.dp)
                 .heightIn(max = 660.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-            shadowElevation = 8.dp
+            shape = RoundedCornerShape(20.dp)
         ) {
             Column(
                 modifier = Modifier

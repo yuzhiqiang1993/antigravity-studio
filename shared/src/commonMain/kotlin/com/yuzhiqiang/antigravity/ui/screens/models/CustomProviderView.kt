@@ -24,6 +24,8 @@ import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
+import androidx.compose.ui.graphics.luminance
 
 @Composable
 fun CustomProviderView(
@@ -46,21 +48,23 @@ fun CustomProviderView(
     onCopyNotice: (String) -> Unit
 ) {
     val s = com.yuzhiqiang.antigravity.i18n.strings()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val passedCount = models.count { modelTestStatuses[it.id]?.status == AppViewModel.ModelTestStatusKind.SUCCESS }
     val failedCount = models.count { modelTestStatuses[it.id]?.status == AppViewModel.ModelTestStatusKind.ERROR }
     val hasTested = passedCount > 0 || failedCount > 0
 
     Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)) {
-        OutlinedCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.outlinedCardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-            )
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    width = StudioGlassTokens.borderWidth,
+                    color = StudioGlassTokens.cleanBorderColor(isDark),
+                    shape = RoundedCornerShape(StudioGlassTokens.cardCornerRadius)
+                ),
+            shape = RoundedCornerShape(StudioGlassTokens.cardCornerRadius),
+            color = StudioGlassTokens.cardBackgroundColor(isDark),
+            shadowElevation = 0.dp
         ) {
             Row(
                 modifier = Modifier

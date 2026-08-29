@@ -1,8 +1,10 @@
 package com.yuzhiqiang.antigravity.ui.screens.overview
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -27,6 +30,7 @@ import com.yuzhiqiang.antigravity.ui.components.StudioButton
 import com.yuzhiqiang.antigravity.ui.components.StudioTonalButton
 import com.yuzhiqiang.antigravity.ui.components.StudioOutlinedButton
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -38,35 +42,38 @@ fun HeroProxyServiceCard(
     successRateText: String = "100%",
     avgLatencyText: String = "--",
     upstreamSummary: String? = null,
-    onStart: () -> Unit,
-    onStop: () -> Unit,
-    onCopyAddress: () -> Unit,
-    onDiagnostics: (() -> Unit)? = null
+    onStart: () -> Unit = {},
+    onStop: () -> Unit = {},
+    onDiagnostics: (() -> Unit)? = null,
+    onCopyAddress: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val s = com.yuzhiqiang.antigravity.i18n.strings()
     val displayUpstreamSummary = upstreamSummary ?: s.overviewOfficialDirect
-    var isRecentlyCopied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var isRecentlyCopied by remember { mutableStateOf(false) }
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-
-    val borderColor by animateColorAsState(
-        targetValue = when {
-            isHovered -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-        },
+    val borderColor by androidx.compose.animation.animateColorAsState(
+        targetValue = StudioGlassTokens.cleanBorderColor(isDark, isHovered),
         animationSpec = tween(150)
     )
+    val cardBg = StudioGlassTokens.cardBackgroundColor(isDark)
 
-    OutlinedCard(
-        modifier = Modifier
+    Surface(
+        modifier = modifier
             .fillMaxWidth()
-            .shadow(elevation = if (isHovered) 2.dp else 0.dp, shape = RoundedCornerShape(14.dp)),
+            .border(
+                width = StudioGlassTokens.borderWidth,
+                color = borderColor,
+                shape = RoundedCornerShape(14.dp)
+            ),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(1.dp, borderColor)
+        color = cardBg,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp
     ) {
         Column(
             modifier = Modifier
@@ -181,34 +188,38 @@ fun HeroProxyServiceCard(
                 // 右侧: 操作按钮组 (健康诊断 + 启停控制)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (onDiagnostics != null) {
                         StudioTonalButton(
                             text = s.overviewDiagnostics,
                             icon = Icons.Outlined.HealthAndSafety,
                             onClick = onDiagnostics,
-                            height = 36.dp,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            height = 34.dp,
+                            shape = RoundedCornerShape(8.dp),
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.18f else 0.10f),
+                            contentColor = MaterialTheme.colorScheme.primary
                         )
                     }
 
                     // 控制开关按钮
                     if (isRunning) {
-                        StudioOutlinedButton(
+                        StudioTonalButton(
                             text = s.overviewStopProxy,
-                            icon = Icons.Outlined.Stop,
+                            icon = Icons.Outlined.StopCircle,
                             onClick = onStop,
-                            height = 36.dp,
-                            customColor = AppStatusColors.warning
+                            height = 34.dp,
+                            shape = RoundedCornerShape(8.dp),
+                            containerColor = AppStatusColors.warning.copy(alpha = if (isDark) 0.18f else 0.10f),
+                            contentColor = AppStatusColors.warning
                         )
                     } else {
                         StudioButton(
                             text = s.overviewStartProxy,
                             icon = Icons.Outlined.PlayArrow,
                             onClick = onStart,
-                            height = 36.dp
+                            height = 34.dp,
+                            shape = RoundedCornerShape(8.dp)
                         )
                     }
                 }

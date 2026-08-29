@@ -20,6 +20,7 @@ import com.yuzhiqiang.antigravity.i18n.StringsEn
 import com.yuzhiqiang.antigravity.i18n.StringsZh
 import com.yuzhiqiang.antigravity.ui.components.AppSidebar
 import com.yuzhiqiang.antigravity.ui.components.AppSnackbarHost
+import com.yuzhiqiang.antigravity.ui.components.StudioAmbientBackground
 import com.yuzhiqiang.antigravity.ui.dialogs.ConfirmDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.CustomHostPathDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.DoctorDialog
@@ -97,11 +98,10 @@ fun App(
                             modifier = Modifier.fillMaxHeight()
                         )
 
-                        Box(
+                        StudioAmbientBackground(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.background)
                         ) {
                             AnimatedContent(
                                 targetState = currentTab,
