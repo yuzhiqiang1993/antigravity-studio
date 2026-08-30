@@ -334,10 +334,8 @@ object HostAccountDetector {
         installationPath: String? = null
     ): List<AccountProbeResult> = withContext(Dispatchers.IO) {
         buildList {
-            if (IdeHostManager.isRunning(installationPath)) {
-                RuntimeIdeAccountProbe.detectProfile().getOrNull()?.let { profile ->
-                    add(AccountProbeResult(profile, AccountProbeSource.RUNTIME_API))
-                }
+            RuntimeIdeAccountProbe.detectProfile().getOrNull()?.let { profile ->
+                add(AccountProbeResult(profile, AccountProbeSource.RUNTIME_API))
             }
             detectProfileFromCanonicalStateDb(StateDbInjector.TargetHost.IDE)?.let { profile ->
                 add(AccountProbeResult(profile, AccountProbeSource.STATE_DB))
@@ -346,17 +344,15 @@ object HostAccountDetector {
     }
 
     /**
-     * 独立采集 App 运行态与严格共享凭据文件，不使用日志作为配置证据。
+     * 独立采集 App/CLI 运行态与严格共享凭据文件，不使用日志作为配置证据。
      */
     internal suspend fun detectAppCliAccountProbes(
         credentialsFile: File? = null,
         installationPath: String? = null
     ): List<AccountProbeResult> = withContext(Dispatchers.IO) {
         buildList {
-            if (AppHostManager.isRunning(installationPath)) {
-                RuntimeAppAccountProbe.detectProfile().getOrNull()?.let { profile ->
-                    add(AccountProbeResult(profile, AccountProbeSource.RUNTIME_API))
-                }
+            RuntimeAppAccountProbe.detectProfile().getOrNull()?.let { profile ->
+                add(AccountProbeResult(profile, AccountProbeSource.RUNTIME_API))
             }
             detectStaticCliAppProfile(credentialsFile)?.first?.let { profile ->
                 add(
@@ -380,18 +376,17 @@ object HostAccountDetector {
      * 探测 Antigravity App & CLI 共享认证生效的 Profile。
      *
      * 优先级：运行态 API → 凭据文件回退（仅 App 在运行但 API 失败时）。
-     * App 未运行时返回 null，UI 不显示账号 tag。
+     * App/CLI 未运行时返回 null，UI 不显示账号 tag。
      */
     suspend fun detectAppCliActiveProfile(): IdeAccountProfile? = withContext(Dispatchers.IO) {
-        val appRunning = AppHostManager.isRunning()
+        // 运行态：优先使用 RuntimeAppAccountProbe 直通探测
+        val runtimeProfile = RuntimeAppAccountProbe.detectProfile().getOrNull()
+        if (runtimeProfile != null) {
+            return@withContext runtimeProfile
+        }
 
-        if (appRunning) {
-            // 运行态：优先使用 RuntimeAppAccountProbe
-            val runtimeProfile = RuntimeAppAccountProbe.detectProfile().getOrNull()
-            if (runtimeProfile != null) {
-                return@withContext runtimeProfile
-            }
-            // 运行态 API 失败 → 回退到凭据文件
+        // 运行态未响应时，若检测到 App 运行则回退到共享凭据文件
+        if (AppHostManager.isRunning()) {
             val sharedProfile = detectSharedExternalProfile()
             if (sharedProfile != null) {
                 return@withContext IdeAccountProfile(
@@ -401,7 +396,6 @@ object HostAccountDetector {
             }
         }
 
-        // App 未运行：不显示 tag
         null
     }
 
@@ -429,19 +423,17 @@ object HostAccountDetector {
      * IDE 未运行时返回 null，UI 不显示账号 tag。
      */
     suspend fun detectIdeActiveProfile(): IdeAccountProfile? = withContext(Dispatchers.IO) {
-        val ideRunning = IdeHostManager.isRunning()
+        // 运行态：优先使用 RuntimeIdeAccountProbe 直通探测
+        val runtimeProfile = RuntimeIdeAccountProbe.detectProfile().getOrNull()
+        if (runtimeProfile != null) {
+            return@withContext runtimeProfile
+        }
 
-        if (ideRunning) {
-            // 运行态：优先使用 RuntimeIdeAccountProbe
-            val runtimeProfile = RuntimeIdeAccountProbe.detectProfile().getOrNull()
-            if (runtimeProfile != null) {
-                return@withContext runtimeProfile
-            }
-            // 运行态 API 失败 → 回退到 SQLite
+        // 运行态未响应时，若检测到 IDE 运行则回退到 SQLite
+        if (IdeHostManager.isRunning()) {
             return@withContext detectProfileFromCanonicalStateDb(StateDbInjector.TargetHost.IDE)
         }
 
-        // IDE 未运行：不显示 tag
         null
     }
 

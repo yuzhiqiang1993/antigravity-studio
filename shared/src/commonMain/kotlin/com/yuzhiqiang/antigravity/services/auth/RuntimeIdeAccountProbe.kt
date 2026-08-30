@@ -45,6 +45,15 @@ object RuntimeIdeAccountProbe {
         // 通过 --app_data_dir 精准识别
         if (appDataDir == "antigravity-ide") return true
 
+        val subclientType = RuntimeAccountProbe.extractFlagValue(normalized, "--subclient_type")
+            ?.trim()
+        if (subclientType == "ide") return true
+
+        // 插件安装路径特征（通用 VS Code 扩展）
+        if (normalized.contains("extensions/antigravity/") ||
+            normalized.contains("extensions\\antigravity\\")
+        ) return true
+
         // 通过安装路径识别
         return when {
             osName.contains("mac") -> {
@@ -53,7 +62,9 @@ object RuntimeIdeAccountProbe {
             }
             osName.contains("windows") -> {
                 normalized.contains("/antigravity ide/") ||
-                        normalized.contains("/antigravity-ide/")
+                        normalized.contains("/antigravity-ide/") ||
+                        normalized.contains("\\antigravity ide\\") ||
+                        normalized.contains("\\antigravity-ide\\")
             }
             osName.contains("linux") -> {
                 normalized.contains("/antigravity-ide/") ||
