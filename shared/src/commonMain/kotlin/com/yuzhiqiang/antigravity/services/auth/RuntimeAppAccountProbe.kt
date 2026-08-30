@@ -55,7 +55,7 @@ object RuntimeAppAccountProbe {
         }
 
         return when {
-            osName.contains("mac") -> normalized.contains("/antigravity.app/")
+            osName.contains("mac") -> normalized.contains("/antigravity.app/") || normalized.contains("/antigravity app.app/") || appDataDir == "antigravity"
             osName.contains("windows") -> {
                 appDataDir == "antigravity" || windowsAppCommandMarkers.any(normalized::contains)
             }

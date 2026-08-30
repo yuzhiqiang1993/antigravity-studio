@@ -16,6 +16,7 @@ class AppHostManagerTest {
 
     @BeforeTest
     fun setUp() {
+        com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
         tempAppDir = File.createTempFile("AntigravityTestApp", "").apply {
             delete()
             mkdirs()
@@ -31,6 +32,7 @@ class AppHostManagerTest {
     @AfterTest
     fun tearDown() {
         tempAppDir.deleteRecursively()
+        com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
     }
 
     @Test
@@ -39,13 +41,13 @@ class AppHostManagerTest {
         val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
         val origBinary =
             if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
-        val shimFile = if (isWindows) File(binDir, "language_server.cmd") else lsBinary
+        val endpointConfig = File(binDir, "language_server_endpoint.txt")
 
         // 1. 模拟初始原生二进制
         lsBinary.writeText("RAW_BINARY_CONTENT")
         assertTrue(lsBinary.exists())
         assertFalse(origBinary.exists())
-        assertFalse(shimFile.exists() && isWindows)
+        assertFalse(endpointConfig.exists())
         assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
 
         // 2. 安装 Shim
@@ -53,20 +55,26 @@ class AppHostManagerTest {
         assertTrue(installOk)
         assertTrue(origBinary.exists(), "Original binary should be backed up")
         assertEquals("RAW_BINARY_CONTENT", origBinary.readText())
-        assertTrue(shimFile.exists(), "Shim script should be created")
+        assertTrue(lsBinary.exists(), "language_server binary / shim should exist")
         if (isWindows) {
-            assertFalse(lsBinary.exists(), "Original binary should be renamed and replaced on Windows")
+            assertTrue(endpointConfig.exists(), "Endpoint config file should be created on Windows")
+            assertEquals("http://127.0.0.1:8330", endpointConfig.readText().trim())
+        } else {
+            val shimContent = lsBinary.readText()
+            assertTrue(shimContent.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM"))
+            assertTrue(shimContent.contains("8330"))
         }
-        val shimContent = shimFile.readText()
-        assertTrue(shimContent.contains("ANTIGRAVITY_STUDIO_MANAGED_SHIM"))
-        assertTrue(shimContent.contains("8330"))
         assertTrue(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
 
         // 3. 再次安装 Shim（幂等性）
         val secondInstallOk = AppHostManager.installLanguageServerShim(8335, tempAppDir.absolutePath)
         assertTrue(secondInstallOk)
         assertEquals("RAW_BINARY_CONTENT", origBinary.readText(), "Original binary should remain intact")
-        assertTrue(shimFile.readText().contains("8335"))
+        if (isWindows) {
+            assertEquals("http://127.0.0.1:8335", endpointConfig.readText().trim())
+        } else {
+            assertTrue(lsBinary.readText().contains("8335"))
+        }
 
         // 4. 还原原始二进制
         val restoreOk = AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
@@ -75,7 +83,7 @@ class AppHostManagerTest {
         assertEquals("RAW_BINARY_CONTENT", lsBinary.readText())
         assertFalse(origBinary.exists(), "Backup binary should be removed after restore")
         if (isWindows) {
-            assertFalse(shimFile.exists(), "Shim script should be removed after restore on Windows")
+            assertFalse(endpointConfig.exists(), "Endpoint config should be removed after restore on Windows")
         }
         assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
     }
@@ -161,6 +169,65 @@ class AppHostManagerTest {
         val status = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
         assertFalse(status.isProxyActive)
         assertTrue(status.needsUpdate)
+    }
+
+    @Test
+    fun testInspectWhenAppNotInstalledAndCliEnabledDoesNotShowMismatch() {
+        try {
+            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.enableEnvironment(
+                com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.CLI,
+                8330
+            )
+            val nonExistentPath = File(tempAppDir, "non_existent_app_folder").absolutePath
+            val status = AppHostManager.inspect(8330, isProxyRunning = true, customInstallation = nonExistentPath)
+            assertFalse(status.isInstalled)
+            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL, status.integrationState)
+            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE, status.configurationState)
+            assertFalse(status.needsUpdate)
+            assertFalse(status.canDisable)
+        } finally {
+            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+        }
+    }
+
+    @Test
+    fun testInspectWhenAppInstalledAndOnlyCliEnabledIsOfficialNotMismatch() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        if (isWindows) {
+            File(tempAppDir, "Antigravity.exe").writeText("EXE")
+        } else {
+            File(tempAppDir, "Contents/MacOS/Antigravity").apply {
+                parentFile.mkdirs()
+                writeText("BIN")
+            }
+        }
+        try {
+            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.enableEnvironment(
+                com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.CLI,
+                8330
+            )
+            val status = AppHostManager.inspect(8330, isProxyRunning = true, customInstallation = tempAppDir.absolutePath)
+            assertTrue(status.isInstalled)
+            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL, status.integrationState)
+            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_ENABLED, status.configurationState)
+            assertFalse(status.needsUpdate)
+            assertFalse(status.canDisable)
+        } finally {
+            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+        }
+    }
+
+    @Test
+    fun testNormalizeCustomInstallationWithSubdirectoryInsideAppBundle() {
+        val fakeAppBundle = File(tempAppDir, "TestApp.app")
+        val subDir = File(fakeAppBundle, "Contents/MacOS").apply { mkdirs() }
+        val exe = File(subDir, "Antigravity").apply { writeText("BIN") }
+
+        val normalizedFromSubDir = AppHostManager.getCandidateInstallations(subDir.absolutePath).single()
+        assertEquals(fakeAppBundle.absoluteFile.normalize().path, normalizedFromSubDir.absoluteFile.normalize().path)
+
+        val normalizedFromExe = AppHostManager.getCandidateInstallations(exe.absolutePath).single()
+        assertEquals(fakeAppBundle.absoluteFile.normalize().path, normalizedFromExe.absoluteFile.normalize().path)
     }
 
     @Test

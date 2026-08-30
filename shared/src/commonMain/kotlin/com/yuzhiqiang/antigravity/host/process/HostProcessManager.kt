@@ -199,7 +199,7 @@ object HostProcessManager {
                     )
                 }.filter { snapshot ->
                     snapshot.pid != studioPid &&
-                        snapshot.commandLine.isNotBlank() &&
+                        (snapshot.commandLine.isNotBlank() || snapshot.executablePath.isNotBlank()) &&
                         !snapshot.isStudioProcess()
                 }.toList()
             }
@@ -239,9 +239,12 @@ object HostProcessManager {
             resolveExecutable(
                 File(localAppData, "Programs/$defaultAppName"),
                 defaultExecutableName
+            ) ?: resolveExecutable(
+                File(localAppData, "Programs/${defaultAppName.lowercase()}"),
+                defaultExecutableName
             ) ?: findExecutableOnPath(defaultExecutableName) ?: return false
         }
-        return runLaunchCommand(listOf(target.absolutePath), environment, waitForExit = false)
+        return runLaunchCommand(listOf(target.absolutePath), environment, waitForExit = false, workingDir = target.parentFile)
     }
 
     private fun launchMac(
@@ -251,7 +254,8 @@ object HostProcessManager {
     ): Boolean {
         val customPath = installationPath?.trim()?.takeIf(String::isNotEmpty)
         if (customPath != null && File(customPath).isFile) {
-            return runLaunchCommand(listOf(File(customPath).absolutePath), environment, waitForExit = false)
+            val file = File(customPath)
+            return runLaunchCommand(listOf(file.absolutePath), environment, waitForExit = false, workingDir = file.parentFile)
         }
         val command = if (customPath != null) {
             val target = File(customPath)
@@ -293,6 +297,7 @@ object HostProcessManager {
         return when {
             path.isFile -> path
             path.isDirectory -> File(path, executableName).takeIf(File::isFile)
+                ?: File(path, "_/$executableName").takeIf(File::isFile)
             else -> null
         }
     }
@@ -308,10 +313,14 @@ object HostProcessManager {
     private fun runLaunchCommand(
         command: List<String>,
         environment: Map<String, String>?,
-        waitForExit: Boolean
+        waitForExit: Boolean,
+        workingDir: File? = null
     ): Boolean {
         return try {
             val processBuilder = ProcessBuilder(command)
+            if (workingDir != null && workingDir.isDirectory) {
+                processBuilder.directory(workingDir)
+            }
             processBuilder.environment().remove("CLOUD_CODE_URL")
             environment?.forEach { (key, value) -> processBuilder.environment()[key] = value }
             val process = processBuilder.start()
@@ -361,16 +370,25 @@ object HostProcessManager {
         fun matches(matchPatterns: List<String>, excludePatterns: List<String>): Boolean {
             if (matchPatterns.isEmpty()) return false
             val normalizedCommand = commandLine.replace('\\', '/').lowercase()
+            val normalizedExe = executablePath.replace('\\', '/').lowercase()
+            val exeName = File(executablePath).name.lowercase()
+
             val excluded = excludePatterns.any { pattern ->
-                normalizedCommand.contains(pattern.replace('\\', '/').lowercase())
+                val normPat = pattern.replace('\\', '/').lowercase()
+                normalizedCommand.contains(normPat) || normalizedExe.contains(normPat)
             }
             if (excluded) return false
+
             return matchPatterns.any { pattern ->
                 val normalizedPattern = pattern.replace('\\', '/').lowercase()
                 if (normalizedPattern.endsWith(".exe") && !normalizedPattern.contains('/')) {
-                    File(executablePath).name.equals(pattern, ignoreCase = true)
+                    exeName.equals(normalizedPattern, ignoreCase = true) ||
+                            File(commandLine.substringBefore(' ').trim('"', '\'')).name.equals(normalizedPattern, ignoreCase = true) ||
+                            normalizedCommand.contains("/$normalizedPattern") ||
+                            normalizedCommand.startsWith(normalizedPattern) ||
+                            normalizedCommand.contains(" $normalizedPattern")
                 } else {
-                    normalizedCommand.contains(normalizedPattern)
+                    normalizedCommand.contains(normalizedPattern) || normalizedExe.contains(normalizedPattern)
                 }
             }
         }
@@ -378,7 +396,10 @@ object HostProcessManager {
         fun isStudioProcess(): Boolean {
             return commandLine.contains("antigravity-studio", ignoreCase = true) ||
                 commandLine.contains("Antigravity Studio", ignoreCase = true) ||
-                commandLine.contains("AntigravityStudio", ignoreCase = true)
+                commandLine.contains("AntigravityStudio", ignoreCase = true) ||
+                executablePath.contains("antigravity-studio", ignoreCase = true) ||
+                executablePath.contains("Antigravity Studio", ignoreCase = true) ||
+                executablePath.contains("AntigravityStudio", ignoreCase = true)
         }
     }
 }

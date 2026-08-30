@@ -40,10 +40,10 @@ fun CompactDualQuotaBar(
     val groups = quotaSnapshot?.normalizedDisplayGroups().orEmpty()
 
     StudioCrossfade(
-        targetState = groups.isNotEmpty(),
+        targetState = groups,
         label = "compact_quota_crossfade"
-    ) { hasData ->
-        if (!hasData) {
+    ) { currentGroups ->
+        if (currentGroups.isEmpty()) {
             // 骨架屏加载条
             Column(
                 modifier = modifier.fillMaxWidth(),
@@ -57,7 +57,7 @@ fun CompactDualQuotaBar(
                 modifier = modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                groups.take(2).forEach { group ->
+                currentGroups.take(2).forEach { group ->
                     CompactGroupRow(group = group)
                 }
             }

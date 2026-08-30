@@ -31,6 +31,9 @@ object IdeHostManager {
                     add(File(programFiles, "Antigravity IDE"))
                     System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity IDE")) }
                     addAll(discoverWindowsInstallations("Antigravity IDE.exe"))
+                }.flatMap { root ->
+                    // Inno Setup 待更新布局：主程序可能位于根目录下的 "_" 子目录
+                    listOf(root, File(root, "_"))
                 }
             }
 
@@ -51,7 +54,10 @@ object IdeHostManager {
         val os = System.getProperty("os.name").lowercase()
         return when {
             os.contains("mac") -> root.isDirectory && File(root, "Contents/MacOS/Electron").isFile
-            os.contains("win") -> root.isDirectory && File(root, "Antigravity IDE.exe").isFile
+            os.contains("win") -> root.isDirectory && (
+                File(root, "Antigravity IDE.exe").isFile ||
+                    File(root, "_/Antigravity IDE.exe").isFile
+                )
             else -> {
                 // Linux Electron 应用：检查二进制或 package.json 存在性
                 root.isDirectory && (
@@ -211,7 +217,10 @@ object IdeHostManager {
         listOf(
             "Antigravity IDE\\resources\\app\\extensions\\antigravity\\bin",
             "Antigravity-IDE\\resources\\app\\extensions\\antigravity\\bin",
-            "Antigravity IDE/resources/app/extensions/antigravity/bin"
+            "Antigravity IDE/resources/app/extensions/antigravity/bin",
+            // Inno Setup 待更新布局："_" 子目录
+            "Antigravity IDE\\_\\resources\\app\\extensions\\antigravity\\bin",
+            "Antigravity IDE/_/resources/app/extensions/antigravity/bin"
         )
     } else {
         listOf(
@@ -295,7 +304,16 @@ object IdeHostManager {
         } else {
             "Contents/Resources/app/extensions/antigravity/bin"
         }
-        return listOf(File(customRoot, relativePath).absolutePath)
+        // Windows Inno Setup 待更新布局：主程序可能位于 "_" 子目录
+        val effectiveRoot = if (isWindows &&
+            !File(customRoot, "Antigravity IDE.exe").isFile &&
+            File(customRoot, "_/Antigravity IDE.exe").isFile
+        ) {
+            File(customRoot, "_")
+        } else {
+            customRoot
+        }
+        return listOf(File(effectiveRoot, relativePath).absolutePath)
     }
 
     private suspend fun waitUntilRunning(customInstallation: String?): Boolean {

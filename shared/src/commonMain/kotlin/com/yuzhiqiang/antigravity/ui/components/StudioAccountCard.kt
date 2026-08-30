@@ -390,10 +390,10 @@ private fun RingQuotaMatrixBlock(
             .padding(vertical = 2.dp)
     ) {
         StudioCrossfade(
-            targetState = groups.isNotEmpty(),
+            targetState = groups,
             label = "quota_matrix_crossfade"
-        ) { hasData ->
-            if (!hasData) {
+        ) { currentGroups ->
+            if (currentGroups.isEmpty()) {
                 // 骨架屏仪表盘：保持高度与正常卡片 100% 严格一致，流光呼吸加载
                 QuotaDashboardSkeleton(
                     borderClr = if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.primary.copy(
@@ -401,22 +401,26 @@ private fun RingQuotaMatrixBlock(
                     ), isDark = isDark, isRefreshing = isRefreshing
                 )
             } else {
-                val geminiGroup = groups.firstOrNull { it.family == "gemini" } ?: groups.first()
-                val claudeGroup = groups.firstOrNull { it.family == "claude" } ?: groups.getOrNull(1) ?: groups.first()
+                val geminiGroup = currentGroups.firstOrNull { it.family == "gemini" } ?: currentGroups.firstOrNull()
+                val claudeGroup = currentGroups.firstOrNull { it.family == "claude" } ?: currentGroups.getOrNull(1) ?: geminiGroup
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 上部分: Gemini 模型族
-                    RingFamilySection(group = geminiGroup, isDark = isDark)
+                if (geminiGroup != null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // 上部分: Gemini 模型族
+                        RingFamilySection(group = geminiGroup, isDark = isDark)
 
-                    HorizontalDivider(
-                        color = if (isDark) Color.White.copy(alpha = 0.08f) else MaterialTheme.colorScheme.outlineVariant.copy(
-                            alpha = 0.4f
-                        ),
-                        thickness = 0.5.dp
-                    )
+                        if (claudeGroup != null && (claudeGroup != geminiGroup || currentGroups.size > 1)) {
+                            HorizontalDivider(
+                                color = if (isDark) Color.White.copy(alpha = 0.08f) else MaterialTheme.colorScheme.outlineVariant.copy(
+                                    alpha = 0.4f
+                                ),
+                                thickness = 0.5.dp
+                            )
 
-                    // 下部分: Claude 模型族
-                    RingFamilySection(group = claudeGroup, isDark = isDark)
+                            // 下部分: Claude 模型族
+                            RingFamilySection(group = claudeGroup, isDark = isDark)
+                        }
+                    }
                 }
             }
         }
