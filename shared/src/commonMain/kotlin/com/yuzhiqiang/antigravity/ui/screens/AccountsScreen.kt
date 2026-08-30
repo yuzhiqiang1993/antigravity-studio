@@ -32,6 +32,9 @@ import com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem
 import com.yuzhiqiang.antigravity.ui.components.StudioSearchField
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
+import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
+import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
+import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.dialogs.AccountSwitchDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.AddAccountDialog
 import com.yuzhiqiang.antigravity.ui.dialogs.QuotaRefreshConfigDialog
@@ -63,6 +66,7 @@ fun AccountsScreen(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val tourManager = LocalSpotlightTourManager.current
     val accounts by viewModel.accounts.collectAsState()
     val activeAccount by viewModel.activeAccount.collectAsState()
     val appCliActiveEmail by viewModel.appCliActiveEmail.collectAsState(initial = null)
@@ -177,7 +181,9 @@ fun AccountsScreen(
 
         // 2. 现代毛玻璃浮岛顶栏操作栏
         StudioGlassSurface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .tourAnchor(TourStep.ACCOUNTS_MANAGE, tourManager),
             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card),
             elevation = 0.dp
         ) {

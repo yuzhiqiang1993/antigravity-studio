@@ -54,6 +54,7 @@ fun App(
     val confirmState by viewModel.confirmDialog.collectAsState()
     val hostPathDialogState by viewModel.hostPathDialogState.collectAsState()
     val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
+    val showOnboarding by viewModel.showOnboardingDialog.collectAsState()
     val activeRelease by viewModel.activeRelease.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
 
@@ -72,8 +73,23 @@ fun App(
     }
 
 
+    val tourManager = remember {
+        com.yuzhiqiang.antigravity.ui.components.tour.SpotlightTourManager().apply {
+            onNavigateTab = { tab -> viewModel.selectTab(tab) }
+        }
+    }
+
+    LaunchedEffect(showOnboarding) {
+        if (showOnboarding && !tourManager.isActive) {
+            tourManager.startTour()
+        }
+    }
+
     KoinContext {
-    CompositionLocalProvider(LocalStrings provides currentStrings) {
+    CompositionLocalProvider(
+        LocalStrings provides currentStrings,
+        com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager provides tourManager
+    ) {
         AntigravityTheme(
             themeMode = config.themeMode,
             themePalette = config.themePalette
@@ -180,6 +196,17 @@ fun App(
                         onShowInFolder = { file -> viewModel.showDownloadedFileInFolder(file) },
                         onDismiss = { viewModel.dismissUpdateDialog() },
                         onIgnoreVersion = { version -> viewModel.ignoreUpdateVersion(version) }
+                    )
+                }
+
+                // 全屏镂空挖孔聚光灯新手指引蒙层
+                if (tourManager.isActive) {
+                    com.yuzhiqiang.antigravity.ui.components.tour.SpotlightTourOverlay(
+                        manager = tourManager,
+                        onComplete = {
+                            viewModel.completeOnboarding()
+                            viewModel.showNotice(currentStrings.onboardingCompletedToast, com.yuzhiqiang.antigravity.ui.components.NoticeKind.SUCCESS)
+                        }
                     )
                 }
             }

@@ -68,6 +68,9 @@ import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
+import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
+import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
+import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.overview.HeroProxyServiceCard
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
@@ -88,6 +91,7 @@ fun OverviewScreen(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val tourManager = LocalSpotlightTourManager.current
     val isRunning by viewModel.isProxyRunning.collectAsState()
     val actualPort by viewModel.actualProxyPort.collectAsState()
     val isIdeActive by viewModel.isIdeHostActive.collectAsState()
@@ -157,7 +161,8 @@ fun OverviewScreen(
                     viewModel.showNotice(s.overviewCopiedProxyAddress)
                 }
             },
-            onDiagnostics = { viewModel.openDoctorDialog() }
+            onDiagnostics = { viewModel.openDoctorDialog() },
+            modifier = Modifier.tourAnchor(TourStep.OVERVIEW_HERO_PROXY, tourManager)
         )
 
         // 宿主实际生效活跃账号与核心模型配额摘要 (按 IDE 与 App & CLI 两大应用环境归集)
@@ -379,7 +384,9 @@ fun OverviewScreen(
 
         // 宿主环境卡片 (固定平铺 3 列并排布局，彻底杜绝缩放过程中的跨行折叠与高度抖动)
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .tourAnchor(TourStep.OVERVIEW_HOST_GRID, tourManager),
             horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.card)
         ) {
             hostCardItems.forEach { item ->

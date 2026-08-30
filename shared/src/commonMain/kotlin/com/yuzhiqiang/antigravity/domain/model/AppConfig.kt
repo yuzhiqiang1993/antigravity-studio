@@ -71,7 +71,9 @@ data class AppConfig(
     @SerialName("quota_active_interval_seconds")
     val quotaActiveIntervalSeconds: Int = 60,
     @SerialName("quota_background_interval_seconds")
-    val quotaBackgroundIntervalSeconds: Int = 600
+    val quotaBackgroundIntervalSeconds: Int = 600,
+    @SerialName("has_completed_onboarding")
+    val hasCompletedOnboarding: Boolean = false
 ) {
 
     val isDebugMode: Boolean

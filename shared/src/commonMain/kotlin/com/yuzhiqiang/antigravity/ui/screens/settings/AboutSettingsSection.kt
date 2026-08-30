@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.*
@@ -34,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.BrandMark
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
+import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
+import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.update.model.AppVersion
 import com.yuzhiqiang.antigravity.update.model.UpdateState
@@ -49,8 +53,10 @@ fun AboutSettingsSection(
     onOpenUpdateDialog: () -> Unit,
     onSetDeveloperMode: (Boolean) -> Unit = {},
     onOpenConfigDirectory: () -> Unit,
+    onOpenOnboarding: () -> Unit = {},
     s: Strings
 ) {
+    val tourManager = LocalSpotlightTourManager.current
     var clickCount by remember { mutableStateOf(0) }
     var lastClickTime by remember { mutableStateOf(0L) }
     var showEasterEggDialog by remember { mutableStateOf(false) }
@@ -326,17 +332,19 @@ fun AboutSettingsSection(
             horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
         ) {
             AboutActionCard(
+                icon = Icons.Outlined.Lightbulb,
+                title = s.onboardingReopen,
+                subtitle = s.onboardingReopenDesc,
+                onClick = onOpenOnboarding,
+                modifier = Modifier
+                    .weight(1f)
+                    .tourAnchor(TourStep.ABOUT_REOPEN_CARD, tourManager)
+            )
+            AboutActionCard(
                 icon = Icons.Outlined.Code,
                 title = s.settingsRepo,
                 subtitle = "${AppVersion.GITHUB_OWNER}/${AppVersion.GITHUB_REPO}",
                 onClick = { openWebUrl(AppVersion.GITHUB_REPO_URL) },
-                modifier = Modifier.weight(1f)
-            )
-            AboutActionCard(
-                icon = Icons.Outlined.Folder,
-                title = s.settingsConfigDir,
-                subtitle = s.settingsOpenConfigDir,
-                onClick = onOpenConfigDirectory,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -345,10 +353,10 @@ fun AboutSettingsSection(
             horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.md)
         ) {
             AboutActionCard(
-                icon = Icons.Outlined.Person,
-                title = s.settingsDeveloper,
-                subtitle = "@${AppVersion.GITHUB_OWNER}",
-                onClick = { openWebUrl("https://github.com/${AppVersion.GITHUB_OWNER}") },
+                icon = Icons.Outlined.Folder,
+                title = s.settingsConfigDir,
+                subtitle = s.settingsOpenConfigDir,
+                onClick = onOpenConfigDirectory,
                 modifier = Modifier.weight(1f)
             )
             AboutActionCard(

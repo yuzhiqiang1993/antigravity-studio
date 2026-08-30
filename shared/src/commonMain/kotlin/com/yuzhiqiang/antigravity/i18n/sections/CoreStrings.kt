@@ -192,11 +192,45 @@ interface CoreStrings {
     val hostPathSuggestedTitle: String
     val hostPathSelectFile: String
 
+    val onboardingTitle: String
+    val onboardingSubtitle: String
+    val onboardingSkip: String
+    val onboardingPrev: String
+    val onboardingNext: String
+    val onboardingFinish: String
+    val onboardingReopen: String
+    val onboardingReopenDesc: String
+    val onboardingCompletedToast: String
+
+    val tourStep1Title: String
+    val tourStep1Desc: String
+    val tourStep2Title: String
+    val tourStep2Desc: String
+    val tourStep3Title: String
+    val tourStep3Desc: String
+    val tourStep4Title: String
+    val tourStep4Desc: String
+    val tourStep5Title: String
+    val tourStep5Desc: String
+    val tourStep6Title: String
+    val tourStep6Desc: String
+    val tourStep7Title: String
+    val tourStep7Desc: String
+    val tourStep8Title: String
+    val tourStep8Desc: String
+    val tourStep9Title: String
+    val tourStep9Desc: String
+    val tourStep10Title: String
+    val tourStep10Desc: String
+    val tourStep11Title: String
+    val tourStep11Desc: String
+    val tourStep12Title: String
+    val tourStep12Desc: String
 }
 
 object CoreStringsZh : CoreStrings {
     override val appName = "Antigravity Studio"
-    override val appSubtitle = "Antigravity 桌面智能代理与模型管理中枢"
+    override val appSubtitle = "Antigravity 账号管理、本地代理与自定义模型工具"
 
     override val navOverview = "运行概览"
     override val navAccounts = "账号配额"
@@ -398,11 +432,56 @@ object CoreStringsZh : CoreStrings {
     override val hostPathSuggestedTitle = "推荐 / 发现的候选路径"
     override val hostPathSelectFile = "浏览"
 
+    override val onboardingTitle = "快速上手指引"
+    override val onboardingSubtitle = "带你快速熟悉各个页面的具体功能与使用技巧"
+    override val onboardingSkip = "跳过"
+    override val onboardingPrev = "上一步"
+    override val onboardingNext = "下一步"
+    override val onboardingFinish = "开始使用 Studio"
+    override val onboardingReopen = "新手指引"
+    override val onboardingReopenDesc = "重新打开向导，回顾各个页面的具体功能与操作技巧"
+    override val onboardingCompletedToast = "新手指引已完成，祝你使用愉快！"
+
+    override val tourStep1Title = "运行概览"
+    override val tourStep1Desc = "这里是首页中枢，能一眼看到本地代理有没有正常跑起来，以及你的 IDE、App 等工具是否已经成功接管。"
+
+    override val tourStep2Title = "账号与配额"
+    override val tourStep2Desc = "在这里添加和管理你的多个账号，随时查看各个模型的剩余额度和恢复倒计时，还能随时换号使用。"
+
+    override val tourStep3Title = "模型管理"
+    override val tourStep3Desc = "如果你有自己的大模型 API，可以在这里接进来并直接加入到宿主模型列表中，还能根据需要自由调整上下文压缩策略。"
+
+    override val tourStep4Title = "调用日志"
+    override val tourStep4Desc = "IDE 发出的每一笔代码补全和问答请求都会记录在这里，请求耗时、用了多少 Token、有没有报错一查便知。"
+
+    override val tourStep5Title = "应用设置"
+    override val tourStep5Desc = "在这里修改代理端口、配置公司网络代理、切换主题颜色和语言。如果忘了怎么用，随时能在这重看新手指引。"
+
+    override val tourStep6Title = "本地代理服务"
+    override val tourStep6Desc = "Studio 会在本地启动一个代理中转服务。你可以在这启动或停止服务、查看实时延迟，遇到网络问题点健康诊断就能一键体检。"
+
+    override val tourStep7Title = "客户端一键接入"
+    override val tourStep7Desc = "系统会自动扫描你电脑上装好的 IDE 和客户端。直接点「接入代理」，就会自动配置好网络，不用你手动去改端口。"
+
+    override val tourStep8Title = "添加与管理账号"
+    override val tourStep8Desc = "点「添加账号」可以用浏览器登录或直接粘贴 Token。上方还支持一键按剩余额度排序、隐藏邮箱防窥，以及把账号配置导出备份。"
+
+    override val tourStep9Title = "接入第三方服务与压缩策略"
+    override val tourStep9Desc = "点「添加提供商」就能接入你自备的模型服务，直接加入到宿主的模型列表中使用。还可以自由调整上下文压缩策略，灵活掌控上下文长度。"
+
+    override val tourStep10Title = "实时请求审计流"
+    override val tourStep10Desc = "这里会按时间列出所有请求。你可以按关键词搜索或按状态码过滤，点开就能查看具体的耗时与数据流，排查报错非常方便。"
+
+    override val tourStep11Title = "端口、网络与主题设置"
+    override val tourStep11Desc = "如果默认端口被占用了可以在这修改，公司需要挂上游代理也可以在这填。下面还准备了多种深浅色主题，挑一个你喜欢的风格。"
+
+    override val tourStep12Title = "检查更新与重看指引"
+    override val tourStep12Desc = "在这里可以检查最新版本，也能直接打开配置文件夹。如果你以后想重温功能用法，随时点击「新手指引」卡片就能重新打开！"
 }
 
 object CoreStringsEn : CoreStrings {
     override val appName = "Antigravity Studio"
-    override val appSubtitle = "The all-in-one desktop hub and BYOK model suite for Antigravity"
+    override val appSubtitle = "Account management, local proxy, and custom model tools for Antigravity"
 
     override val navOverview = "Overview"
     override val navAccounts = "Accounts"
@@ -614,4 +693,49 @@ object CoreStringsEn : CoreStrings {
     override val hostPathSuggestedTitle = "Detected candidate paths"
     override val hostPathSelectFile = "Browse"
 
+    override val onboardingTitle = "Quick Start Guide"
+    override val onboardingSubtitle = "Get familiar with the key features and tips across each page"
+    override val onboardingSkip = "Skip"
+    override val onboardingPrev = "Previous"
+    override val onboardingNext = "Next"
+    override val onboardingFinish = "Get Started"
+    override val onboardingReopen = "Quick Start Guide"
+    override val onboardingReopenDesc = "Re-open the guide to review page features and workflows"
+    override val onboardingCompletedToast = "Quick start guide completed. Enjoy using Studio!"
+
+    override val tourStep1Title = "Overview"
+    override val tourStep1Desc = "The main control hub. Quickly check if the local proxy is running and whether your IDE or App tools are hooked."
+
+    override val tourStep2Title = "Accounts & Quota"
+    override val tourStep2Desc = "Add and manage multiple accounts. Check remaining model quotas and recovery countdowns, and switch accounts anytime."
+
+    override val tourStep3Title = "Model Management"
+    override val tourStep3Desc = "Connect your own model APIs directly into the host model list, and freely adjust context compression strategies as needed."
+
+    override val tourStep4Title = "Activity Logs"
+    override val tourStep4Desc = "Every completion and chat request from your IDE is logged here. Check latency, token usage, and errors at a glance."
+
+    override val tourStep5Title = "Settings"
+    override val tourStep5Desc = "Change proxy ports, configure upstream corporate proxies, switch themes and languages, or replay this guide anytime."
+
+    override val tourStep6Title = "Local Proxy Service"
+    override val tourStep6Desc = "Studio runs a local proxy service. Start/stop the service, check latency, or run instant health diagnostics for network issues."
+
+    override val tourStep7Title = "One-Click Client Hook"
+    override val tourStep7Desc = "Automatically scans installed IDEs and clients on your machine. Click 'Connect Proxy' to hook networks without manual port edits."
+
+    override val tourStep8Title = "Add & Manage Accounts"
+    override val tourStep8Desc = "Click 'Add Account' to log in via browser or paste a Token. Sort by remaining quota, mask emails for privacy, and export backups."
+
+    override val tourStep9Title = "Custom Providers & Strategies"
+    override val tourStep9Desc = "Click 'Add Provider' to connect your custom model services directly into the host model list, and freely adjust compression strategies."
+
+    override val tourStep10Title = "Real-Time Audit Stream"
+    override val tourStep10Desc = "Lists all incoming requests chronologically. Filter by keywords or status codes, and click to inspect latencies and stream data."
+
+    override val tourStep11Title = "Ports, Network & Themes"
+    override val tourStep11Desc = "Change the port if occupied, or set up upstream corporate proxies. Pick your favorite style from a variety of dark and light themes."
+
+    override val tourStep12Title = "Updates & Reopening Guide"
+    override val tourStep12Desc = "Check for new updates or open the config directory. Replay this walkthrough anytime by clicking the 'Quick Start Guide' card!"
 }

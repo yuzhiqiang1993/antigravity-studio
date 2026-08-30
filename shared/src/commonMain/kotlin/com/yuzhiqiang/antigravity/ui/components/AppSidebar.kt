@@ -38,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
+import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
+import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
 
@@ -53,6 +56,7 @@ fun AppSidebar(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val tourManager = LocalSpotlightTourManager.current
     val currentTab by viewModel.currentTab.collectAsState()
     val isCollapsed by viewModel.isSidebarCollapsed.collectAsState()
 
@@ -189,11 +193,19 @@ fun AppSidebar(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     mainItems.forEach { item ->
+                        val anchorModifier = when (item.tab) {
+                            NavTab.OVERVIEW -> Modifier.tourAnchor(TourStep.SIDEBAR_OVERVIEW, tourManager)
+                            NavTab.ACCOUNTS -> Modifier.tourAnchor(TourStep.SIDEBAR_ACCOUNTS, tourManager)
+                            NavTab.MODELS -> Modifier.tourAnchor(TourStep.SIDEBAR_MODELS, tourManager)
+                            NavTab.ACTIVITY -> Modifier.tourAnchor(TourStep.SIDEBAR_ACTIVITY, tourManager)
+                            else -> Modifier
+                        }
                         AppSidebarDrawerItem(
                             item = item,
                             selected = currentTab == item.tab,
                             isCollapsed = isCollapsed,
-                            onClick = { viewModel.selectTab(item.tab) }
+                            onClick = { viewModel.selectTab(item.tab) },
+                            modifier = anchorModifier
                         )
                     }
                 }
@@ -211,7 +223,8 @@ fun AppSidebar(
                     item = SidebarItem(NavTab.SETTINGS, s.navSettings, Icons.Outlined.Settings),
                     selected = currentTab == NavTab.SETTINGS,
                     isCollapsed = isCollapsed,
-                    onClick = { viewModel.selectTab(NavTab.SETTINGS) }
+                    onClick = { viewModel.selectTab(NavTab.SETTINGS) },
+                    modifier = Modifier.tourAnchor(TourStep.SIDEBAR_SETTINGS, tourManager)
                 )
             }
         }
@@ -235,7 +248,8 @@ private fun AppSidebarDrawerItem(
     item: SidebarItem,
     selected: Boolean,
     isCollapsed: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val itemShape = RoundedCornerShape(10.dp)
 
@@ -266,7 +280,7 @@ private fun AppSidebarDrawerItem(
         },
         selected = selected,
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(44.dp),
         shape = itemShape,

@@ -19,6 +19,9 @@ import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.*
+import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
+import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
+import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
@@ -30,6 +33,7 @@ fun ActivityScreen(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val tourManager = LocalSpotlightTourManager.current
     val config by viewModel.config.collectAsState()
     val logs by viewModel.activityLogs.collectAsState()
     val autoScroll = config.activityAutoScroll
@@ -74,7 +78,8 @@ fun ActivityScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                .tourAnchor(TourStep.ACTIVITY_PANEL, tourManager),
             shape = RoundedCornerShape(14.dp),
             color = StudioGlassTokens.cardBackgroundColor(isDark),
             shadowElevation = StudioGlassTokens.cardElevation

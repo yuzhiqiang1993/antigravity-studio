@@ -27,6 +27,9 @@ import com.yuzhiqiang.antigravity.ui.dialogs.*
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassSurface
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
+import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
+import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
+import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.screens.models.*
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -39,6 +42,7 @@ fun ModelsScreen(
     viewModel: AppViewModel,
     modifier: Modifier = Modifier
 ) {
+    val tourManager = LocalSpotlightTourManager.current
     val accounts by viewModel.accounts.collectAsState()
     val config by viewModel.config.collectAsState()
     val officialModels by viewModel.officialModels.collectAsState()
@@ -127,7 +131,9 @@ fun ModelsScreen(
 
         // 2. 现代毛玻璃浮岛顶栏操作栏 (与 Accounts 保持一致的 StudioGlassSurface)
         StudioGlassSurface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .tourAnchor(TourStep.MODELS_MANAGE, tourManager),
             shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card),
             elevation = 0.dp
         ) {

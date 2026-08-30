@@ -20,6 +20,9 @@ import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StudioSlidingTabLayout
 import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
+import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
+import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
+import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.screens.settings.*
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
@@ -31,6 +34,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val tourManager = LocalSpotlightTourManager.current
     val config by viewModel.config.collectAsState()
     val loadError by viewModel.configLoadError.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
@@ -48,6 +52,12 @@ fun SettingsScreen(
         if (networkSettingsRequest > 0L) {
             selectedSection = SettingsSection.NETWORK
             scrollState.scrollTo(0)
+        }
+    }
+
+    LaunchedEffect(tourManager.currentStep) {
+        if (tourManager.currentStep == TourStep.ABOUT_REOPEN_CARD) {
+            selectedSection = SettingsSection.ABOUT
         }
     }
 
@@ -76,7 +86,8 @@ fun SettingsScreen(
             items = tabItems,
             selectedKey = selectedSection,
             onSelect = { selectedSection = it },
-            tabHeight = 40.dp
+            tabHeight = 40.dp,
+            modifier = Modifier.tourAnchor(TourStep.SETTINGS_PANEL, tourManager)
         )
 
         // 通栏内容区（带 ViewPager 级方向感知水平滑动动画）
@@ -139,6 +150,7 @@ fun SettingsScreen(
                     openDirectoryError = openConfigDirectory(viewModel)
                 },
                 onConfigureHostPath = { key, title -> viewModel.openHostPathDialog(key, title) },
+                onOpenOnboarding = { viewModel.openOnboardingDialog() },
                 s = s
             )
         }
@@ -172,6 +184,7 @@ private fun SettingsContent(
     onClearOutboundProxyTestResult: () -> Unit,
     onOpenDirectory: () -> Unit,
     onConfigureHostPath: ((String, String) -> Unit)? = null,
+    onOpenOnboarding: () -> Unit = {},
     s: Strings,
     modifier: Modifier = Modifier
 ) {
@@ -216,6 +229,7 @@ private fun SettingsContent(
                 onOpenUpdateDialog = onOpenUpdateDialog,
                 onSetDeveloperMode = onUpdateDeveloperMode,
                 onOpenConfigDirectory = onOpenDirectory,
+                onOpenOnboarding = onOpenOnboarding,
                 s = s
             )
         }

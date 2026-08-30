@@ -287,6 +287,26 @@ class AppViewModel(
     private val _showUpdateDialog = MutableStateFlow(false)
     val showUpdateDialog: StateFlow<Boolean> = _showUpdateDialog.asStateFlow()
 
+    private val _showOnboardingDialog = MutableStateFlow(false)
+    val showOnboardingDialog: StateFlow<Boolean> = _showOnboardingDialog.asStateFlow()
+
+    fun openOnboardingDialog() {
+        _showOnboardingDialog.value = true
+    }
+
+    fun dismissOnboardingDialog() {
+        _showOnboardingDialog.value = false
+    }
+
+    fun completeOnboarding() {
+        _showOnboardingDialog.value = false
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            configStore.updateConfig { current ->
+                current.copy(hasCompletedOnboarding = true)
+            }
+        }
+    }
+
     private val _activeRelease = MutableStateFlow<ReleaseInfo?>(null)
     val activeRelease: StateFlow<ReleaseInfo?> = _activeRelease.asStateFlow()
 
@@ -378,6 +398,9 @@ class AppViewModel(
             fetchOfficialModels().join()
             if (configStore.currentConfig.autoCheckUpdate) {
                 checkForUpdates(isManual = false)
+            }
+            if (!configStore.currentConfig.hasCompletedOnboarding) {
+                _showOnboardingDialog.value = true
             }
         }
     }
