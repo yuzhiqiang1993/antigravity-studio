@@ -92,20 +92,31 @@ object AppHostManager {
         val candidates = if (isWindows) {
             val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome/AppData/Local"
             val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
-            buildList {
+            val standardList = buildList {
                 add(File(localAppData, "Programs/Antigravity"))
                 add(File(localAppData, "Programs/antigravity"))
                 add(File(programFiles, "Antigravity"))
                 System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity")) }
-                addAll(discoverWindowsInstallations("Antigravity.exe"))
+            }
+            // 优先直接检测标准路径是否存在，若已命中则直接返回，避免无谓启动 reg.exe 子进程查询注册表
+            val existing = standardList.filter(File::exists)
+            if (existing.isNotEmpty()) {
+                existing
+            } else {
+                standardList + discoverWindowsInstallations("Antigravity.exe")
             }
         } else if (isMac) {
-            buildList {
+            val standardList = buildList {
                 add(File("/Applications/Antigravity.app"))
                 add(File("$userHome/Applications/Antigravity.app"))
                 add(File("/Applications/Antigravity App.app"))
                 add(File("$userHome/Applications/Antigravity App.app"))
-                addAll(discoverMacApplications("com.google.antigravity"))
+            }
+            val existing = standardList.filter(File::exists)
+            if (existing.isNotEmpty()) {
+                existing
+            } else {
+                standardList + discoverMacApplications("com.google.antigravity")
             }
         } else {
             buildList {
