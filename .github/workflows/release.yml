@@ -20,10 +20,83 @@ permissions:
 
 jobs:
   # --------------------------------------------------------------------------
-  # 矩阵构建多平台与各 CPU 架构安装包
+  # 1. 初始化 Release 元数据与更新日志 (Ubuntu 秒级完成)
   # --------------------------------------------------------------------------
-  build-packages:
-    name: Build (${{ matrix.os_label }})
+  init-release:
+    name: Initialize Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    outputs:
+      tag_name: ${{ steps.vars.outputs.tag_name }}
+      version: ${{ steps.vars.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine Tag and Version
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            TAG_NAME="v${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/(v.+) ]]; then
+            TAG_NAME="${BASH_REMATCH[1]}"
+          else
+            VERSION=$(grep 'packageVersion\s*=' desktopApp/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+            TAG_NAME="v$VERSION"
+          fi
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Extract Release Notes from CHANGELOG
+        run: |
+          VERSION="${{ steps.vars.outputs.version }}"
+          echo "正在提取版本 $VERSION 的更新日志..."
+          
+          if [ -f "CHANGELOG.md" ]; then
+            awk -v ver="$VERSION" '
+              BEGIN { found=0; }
+              $0 ~ "^## \\[" ver "\\]" { found=1; next; }
+              found && /^## \[/ { exit; }
+              found { print; }
+            ' CHANGELOG.md > RELEASE_BODY.md
+          fi
+          
+          if [ -s RELEASE_BODY.md ]; then
+            cat RELEASE_BODY.md > RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+            echo "---" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+            echo "### 📦 下载指引" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+            echo "- **macOS Apple Silicon（M 系列芯片）**：下载 \`Antigravity-Studio-$VERSION-macos-arm64.dmg\`" >> RELEASE_NOTES.md
+            echo "- **macOS Intel 芯片**：下载 \`Antigravity-Studio-$VERSION-macos-x64.dmg\`" >> RELEASE_NOTES.md
+            echo "- **Windows 64 位**：下载 \`Antigravity-Studio-$VERSION-windows-x64.exe\`" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+            echo "> ⚠️ **macOS 用户注意**：首次安装后如果提示\"已损坏\"或\"无法打开\"，请在终端执行以下命令解除系统的 Gatekeeper 隔离限制：" >> RELEASE_NOTES.md
+            echo "> \`\`\`bash" >> RELEASE_NOTES.md
+            echo "> sudo xattr -rd com.apple.quarantine \"/Applications/Antigravity Studio.app\"" >> RELEASE_NOTES.md
+            echo "> \`\`\`" >> RELEASE_NOTES.md
+          else
+            echo "Antigravity Studio $VERSION 正式发布。" > RELEASE_NOTES.md
+          fi
+
+      - name: Create or Update GitHub Release Header
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: "Antigravity Studio ${{ steps.vars.outputs.tag_name }}"
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+          body_path: RELEASE_NOTES.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # 2. 矩阵构建各平台安装包并直接追加上传至 Release (彻底免除 actions/upload-artifact 存储配额限制)
+  # --------------------------------------------------------------------------
+  build-and-upload:
+    name: Build & Upload (${{ matrix.os_label }})
+    needs: init-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -92,7 +165,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           mkdir -p release-artifacts
-          VERSION=$(./app_build.sh help | head -n 1 > /dev/null; grep 'packageVersion\s*=' desktopApp/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION="${{ needs.init-release.outputs.version }}"
           ARCH="${{ matrix.arch }}"
           
           # DMG 推荐安装包
@@ -106,106 +179,18 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-artifacts | Out-Null
-          $gradleContent = Get-Content "desktopApp/build.gradle.kts" -Raw
-          $versionMatch = [regex]::Match($gradleContent, 'packageVersion\s*=\s*"([^"]+)"')
-          $version = if ($versionMatch.Success) { $versionMatch.Groups[1].Value } else { "1.0.0" }
+          $version = "${{ needs.init-release.outputs.version }}"
           
           # EXE 推荐安装包
           if (Test-Path "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe") {
             Copy-Item "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe" "release-artifacts/Antigravity-Studio-$version-windows-x64.exe"
           }
 
-      # 上传当前 Job 产物作为 Workflow Artifacts
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages-${{ matrix.os_label }}
-          path: release-artifacts/*
-          retention-days: 7
-
-  # --------------------------------------------------------------------------
-  # 汇总所有平台安装包并创建/更新 GitHub Release
-  # --------------------------------------------------------------------------
-  publish-release:
-    name: Publish GitHub Release
-    needs: build-packages
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: all-artifacts
-
-      - name: Flatten & Collect Release Assets
-        run: |
-          mkdir -p dist
-          find all-artifacts -type f -exec cp {} dist/ \;
-          echo "=== 待发布的安装包与校验文件 ==="
-          ls -lh dist/
-          
-          ls -lh dist/
-
-      - name: Determine Tag and Version
-        id: vars
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
-            TAG_NAME="v${{ github.event.inputs.version }}"
-          elif [[ "${{ github.ref }}" =~ ^refs/tags/(v.+) ]]; then
-            TAG_NAME="${BASH_REMATCH[1]}"
-          else
-            VERSION=$(grep 'packageVersion\s*=' desktopApp/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
-            TAG_NAME="v$VERSION"
-          fi
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "version=${TAG_NAME#v}" >> $GITHUB_OUTPUT
-
-      - name: Extract Release Notes from CHANGELOG
-        run: |
-          VERSION="${{ steps.vars.outputs.version }}"
-          echo "正在提取版本 $VERSION 的更新日志..."
-          
-          # 从 CHANGELOG.md 提取当前版本段落
-          if [ -f "CHANGELOG.md" ]; then
-            awk -v ver="$VERSION" '
-              BEGIN { found=0; }
-              $0 ~ "^## \\[" ver "\\]" { found=1; next; }
-              found && /^## \[/ { exit; }
-              found { print; }
-            ' CHANGELOG.md > RELEASE_BODY.md
-          fi
-          
-          if [ -s RELEASE_BODY.md ]; then
-            cat RELEASE_BODY.md > RELEASE_NOTES.md
-            echo "" >> RELEASE_NOTES.md
-            echo "---" >> RELEASE_NOTES.md
-            echo "" >> RELEASE_NOTES.md
-            echo "### 📦 下载指引" >> RELEASE_NOTES.md
-            echo "" >> RELEASE_NOTES.md
-            echo "- **macOS Apple Silicon（M 系列芯片）**：下载 \`Antigravity-Studio-$VERSION-macos-arm64.dmg\`" >> RELEASE_NOTES.md
-            echo "- **macOS Intel 芯片**：下载 \`Antigravity-Studio-$VERSION-macos-x64.dmg\`" >> RELEASE_NOTES.md
-            echo "- **Windows 64 位**：下载 \`Antigravity-Studio-$VERSION-windows-x64.exe\`" >> RELEASE_NOTES.md
-            echo "" >> RELEASE_NOTES.md
-            echo "> ⚠️ **macOS 用户注意**：首次安装后如果提示\"已损坏\"或\"无法打开\"，请在终端执行以下命令解除系统的 Gatekeeper 隔离限制：" >> RELEASE_NOTES.md
-            echo "> \`\`\`bash" >> RELEASE_NOTES.md
-            echo "> sudo xattr -rd com.apple.quarantine \"/Applications/Antigravity Studio.app\"" >> RELEASE_NOTES.md
-            echo "> \`\`\`" >> RELEASE_NOTES.md
-          else
-            echo "Antigravity Studio $VERSION 正式发布。" > RELEASE_NOTES.md
-          fi
-
-      - name: Create or Update GitHub Release
+      # 直接将当前平台的 DMG / EXE 追加上传到 GitHub Release 附件中（无需占用 Actions Artifact 存储配额）
+      - name: Upload Assets directly to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.vars.outputs.tag_name }}
-          name: "Antigravity Studio ${{ steps.vars.outputs.tag_name }}"
-          draft: false
-          prerelease: ${{ github.event.inputs.prerelease || false }}
-          body_path: RELEASE_NOTES.md
-          files: |
-            dist/*
+          tag_name: ${{ needs.init-release.outputs.tag_name }}
+          files: release-artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
