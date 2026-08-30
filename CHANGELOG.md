@@ -2,6 +2,30 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.2.1] - 2026-08-30
+
+### 🇨🇳 中文
+
+#### ✨ 新增功能
+- **全景镂空聚光灯新手指引 (Spotlight Tour)**：内置两阶段 12 步超详细深度漫游引导，涵盖左侧主导航骨架漫游与各功能页核心聚焦（本地代理中转、客户端零配置一键接管、账号管理与防窥、第三方服务直接接入宿主列表与自由压缩策略控制、请求流审计、端口与主题定制、关于页随时重温向导）
+- **高阶动效与双区域联合高亮**：采用 Spring 弹性阻尼镜头插值与文本淡入滑移动画，右侧详情页聚焦时左侧对应 Tab 同步镂空呼吸高亮；支持视口智能防溢出与自适应上下翻转
+
+#### 🐛 问题修复
+- **App 代理接入权限与环境变量重构**：修复 App 代理注入权限死锁问题，重构跨平台环境变量注入与安全自愈机制
+
+---
+
+### 🌐 English
+
+#### ✨ New Features
+- **Comprehensive Spotlight Tour System**: Introduced a two-phase, 12-step onboarding tour covering sidebar skeleton navigation and in-depth page feature walkthroughs (local proxy hub, zero-config one-click integration, account switching & privacy masking, custom model integration directly into host lists with flexible compression strategies, activity stream audit, network & theme settings, and reopening anytime).
+- **Smooth Physics Animation & Dual Cutout Highlighting**: Powered by Spring-damped transitions, animated text fades, dual-area union cutouts (highlighting target content and associated sidebar tab simultaneously), and smart viewport clamping with adaptive top/bottom flipping.
+
+#### 🐛 Bug Fixes
+- **App Proxy Permissions & Environment Refactoring**: Fixed permission deadlocks during App proxy injection, refactoring cross-platform environment variable propagation and self-healing mechanisms.
+
+---
+
 ## [1.2.0] - 2026-08-30
 
 ### 🇨🇳 中文
