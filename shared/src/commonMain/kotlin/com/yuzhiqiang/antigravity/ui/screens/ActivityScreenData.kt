@@ -61,7 +61,18 @@ internal fun rememberActivityDisplayedLogs(
 internal data class ActivityStatistics(
     val failedCount: Int,
     val averageDuration: Long,
+    val averageFirstTokenMs: Long,
     val overallCacheHitRate: Double?
+)
+
+data class ModelLatencyStat(
+    val modelId: String,
+    val sampleCount: Int,
+    val averageFirstTokenMs: Long,
+    val minFirstTokenMs: Long,
+    val maxFirstTokenMs: Long,
+    val averageDurationMs: Long,
+    val totalRequests: Int
 )
 
 @Composable
@@ -71,6 +82,12 @@ internal fun rememberActivityStatistics(logs: List<ActivityLog>): ActivityStatis
         logs.filter { !it.isPending && it.statusCode > 0 }
             .takeIf { it.isNotEmpty() }
             ?.map { it.durationMs }
+            ?.average()
+            ?.toLong() ?: 0L
+    }
+    val averageFirstTokenMs = remember(logs) {
+        logs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
+            .takeIf { it.isNotEmpty() }
             ?.average()
             ?.toLong() ?: 0L
     }
@@ -84,6 +101,45 @@ internal fun rememberActivityStatistics(logs: List<ActivityLog>): ActivityStatis
     return ActivityStatistics(
         failedCount = failedCount,
         averageDuration = averageDuration,
+        averageFirstTokenMs = averageFirstTokenMs,
         overallCacheHitRate = overallCacheHitRate
     )
 }
+
+@Composable
+internal fun rememberModelLatencyStats(logs: List<ActivityLog>): List<ModelLatencyStat> = remember(logs) {
+    calculateModelLatencyStats(logs)
+}
+
+internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLatencyStat> {
+    return logs
+        .mapNotNull { log ->
+            val model = (log.modelId ?: log.requestedModelId)?.takeIf { it.isNotBlank() }
+            if (model != null) model to log else null
+        }
+        .groupBy({ it.first }, { it.second })
+        .map { (modelId, modelLogs) ->
+            val firstTokenLogs = modelLogs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
+            val avgFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.average().toLong() else 0L
+            val minFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.minOrNull() ?: 0L else 0L
+            val maxFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.maxOrNull() ?: 0L else 0L
+            val completedLogs = modelLogs.filter { !it.isPending && it.durationMs > 0 }
+            val avgDuration = if (completedLogs.isNotEmpty()) completedLogs.map { it.durationMs }.average().toLong() else 0L
+
+            ModelLatencyStat(
+                modelId = modelId,
+                sampleCount = firstTokenLogs.size,
+                averageFirstTokenMs = avgFirstToken,
+                minFirstTokenMs = minFirstToken,
+                maxFirstTokenMs = maxFirstToken,
+                averageDurationMs = avgDuration,
+                totalRequests = modelLogs.size
+            )
+        }
+        .sortedWith(
+            compareByDescending<ModelLatencyStat> { it.sampleCount > 0 }
+                .thenByDescending { it.sampleCount }
+                .thenBy { it.averageFirstTokenMs }
+        )
+}
+

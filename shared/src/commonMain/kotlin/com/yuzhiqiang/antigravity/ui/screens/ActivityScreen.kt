@@ -42,6 +42,7 @@ fun ActivityScreen(
     var activityFilter by remember { mutableStateOf(ActivityLogFilter()) }
     var filterResetKey by remember { mutableIntStateOf(0) }
     var selectedLog by remember { mutableStateOf<ActivityLog?>(null) }
+    var showModelLatencyStats by remember { mutableStateOf(false) }
     val normalizedQuery = searchQuery.trim()
 
     fun resetActivityFilters() {
@@ -207,14 +208,15 @@ fun ActivityScreen(
 
                 Spacer(Modifier.height(14.dp))
 
-                // 指标卡片（前两项支持点击快速切换筛选）
+                // 指标卡片（支持点击快速切换筛选或查看模型耗时明细）
                 ActivityMetricsRow(
                     totalCount = logs.size,
                     failedCount = statistics.failedCount,
-                    averageDuration = statistics.averageDuration,
+                    averageFirstTokenMs = statistics.averageFirstTokenMs,
                     overallCacheHitRate = statistics.overallCacheHitRate,
                     filter = activityFilter,
                     onFilterChange = { activityFilter = it },
+                    onShowModelLatencyStats = { showModelLatencyStats = true },
                     s = s
                 )
 
@@ -259,4 +261,10 @@ fun ActivityScreen(
         )
     }
 
+    if (showModelLatencyStats) {
+        com.yuzhiqiang.antigravity.ui.dialogs.ModelLatencyStatsDialog(
+            logs = logs,
+            onDismiss = { showModelLatencyStats = false }
+        )
+    }
 }

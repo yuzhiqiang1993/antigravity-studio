@@ -30,21 +30,22 @@ import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
 import com.yuzhiqiang.antigravity.ui.utils.formatHitRate
 import com.yuzhiqiang.antigravity.ui.utils.getCacheHitRateColor
-import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
+import com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier
 import com.yuzhiqiang.antigravity.ui.utils.toColor
 
 @Composable
 internal fun ActivityMetricsRow(
     totalCount: Int,
     failedCount: Int,
-    averageDuration: Long,
+    averageFirstTokenMs: Long,
     overallCacheHitRate: Double?,
     filter: ActivityLogFilter,
     onFilterChange: (ActivityLogFilter) -> Unit,
+    onShowModelLatencyStats: () -> Unit,
     s: Strings,
     modifier: Modifier = Modifier
 ) {
-    val avgTier = getDurationLatencyTier(averageDuration)
+    val avgTtftTier = getFirstTokenLatencyTier(averageFirstTokenMs)
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -69,8 +70,9 @@ internal fun ActivityMetricsRow(
         )
         ActivityMetricCard(
             label = s.activityAverage,
-            value = formatDuration(averageDuration),
-            customValueColor = if (averageDuration > 0) avgTier.toColor() else null,
+            value = if (averageFirstTokenMs > 0) formatDuration(averageFirstTokenMs) else "--",
+            customValueColor = if (averageFirstTokenMs > 0) avgTtftTier?.toColor() else null,
+            onClick = onShowModelLatencyStats,
             modifier = Modifier.weight(1f)
         )
         ActivityMetricCard(
