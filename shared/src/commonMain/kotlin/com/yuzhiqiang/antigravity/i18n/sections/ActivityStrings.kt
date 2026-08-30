@@ -24,6 +24,7 @@ interface ActivityStrings {
     val activityModelLatencyTotalSamples: String
     val activityModelLatencyActiveModels: String
     val activityModelLatencyOverallAvg: String
+    val activityModelLatencyOverallAvgDuration: String
     val activityModelLatencyEmpty: String
     val activityModelLatencyEmptyDesc: String
     val activityModelLatencyColModel: String
@@ -31,7 +32,9 @@ interface ActivityStrings {
     val activityModelLatencyColAvgTtft: String
     val activityModelLatencyColRange: String
     val activityModelLatencyColAvgDuration: String
+    val activityModelLatencyColDurationRange: String
     fun activityModelLatencySampleCount(count: Int): String
+    fun activityModelLatencyCompletedCalls(completed: Int, total: Int): String
     val activityFirstTokenLabel: String
     val activityPending: String
     val activityProcessing: String
@@ -135,19 +138,22 @@ object ActivityStringsZh : ActivityStrings {
     override val activityFailedTotal = "异常请求"
     override val activityAverage = "首字平均耗时"
     override val activityCacheHitRate = "缓存命中率"
-    override val activityModelLatencyDialogTitle = "各模型首字耗时统计"
-    override val activityModelLatencyDialogSubtitle = "基于当前日志中各模型的首字响应耗时 (TTFT) 统计汇总"
-    override val activityModelLatencyTotalSamples = "会话总样本"
+    override val activityModelLatencyDialogTitle = "各模型耗时统计"
+    override val activityModelLatencyDialogSubtitle = "汇总各模型的首字响应耗时 (TTFT) 与完整会话总耗时"
+    override val activityModelLatencyTotalSamples = "首字样本 / 总请求"
     override val activityModelLatencyActiveModels = "统计模型数"
-    override val activityModelLatencyOverallAvg = "全局首字均值"
-    override val activityModelLatencyEmpty = "暂无模型首字耗时数据"
-    override val activityModelLatencyEmptyDesc = "当发起流式对话并返回首字 (TTFT) 时，各模型的平均耗时将自动汇总于此处"
+    override val activityModelLatencyOverallAvg = "首字均值"
+    override val activityModelLatencyOverallAvgDuration = "总耗时均值"
+    override val activityModelLatencyEmpty = "暂无模型耗时数据"
+    override val activityModelLatencyEmptyDesc = "当发起模型对话时，各模型的首字响应与总耗时将自动汇总于此处"
     override val activityModelLatencyColModel = "模型名称"
-    override val activityModelLatencyColSamples = "会话样本"
-    override val activityModelLatencyColAvgTtft = "首字平均耗时"
-    override val activityModelLatencyColRange = "极值区间"
-    override val activityModelLatencyColAvgDuration = "总平均耗时"
-    override fun activityModelLatencySampleCount(count: Int) = "$count 次会话"
+    override val activityModelLatencyColSamples = "首字样本"
+    override val activityModelLatencyColAvgTtft = "首字响应 (TTFT)"
+    override val activityModelLatencyColRange = "首字区间"
+    override val activityModelLatencyColAvgDuration = "会话总耗时"
+    override val activityModelLatencyColDurationRange = "总耗时区间"
+    override fun activityModelLatencySampleCount(count: Int) = "$count 次首字"
+    override fun activityModelLatencyCompletedCalls(completed: Int, total: Int) = "$completed / $total 次完成"
     override val activityFirstTokenLabel = "首字耗时"
     override val activityPending = "请求中"
     override val activityProcessing = "处理中..."
@@ -253,18 +259,21 @@ object ActivityStringsEn : ActivityStrings {
     override val activityAverage = "Avg First Token"
     override val activityCacheHitRate = "Cache Hit Rate"
     override val activityModelLatencyDialogTitle = "Model Latency Statistics"
-    override val activityModelLatencyDialogSubtitle = "Summary of Time to First Token (TTFT) across active models"
-    override val activityModelLatencyTotalSamples = "Total Samples"
+    override val activityModelLatencyDialogSubtitle = "Summary of Time to First Token (TTFT) and total session duration across active models"
+    override val activityModelLatencyTotalSamples = "Samples / Total Requests"
     override val activityModelLatencyActiveModels = "Active Models"
-    override val activityModelLatencyOverallAvg = "Overall Avg TTFT"
-    override val activityModelLatencyEmpty = "No first-token latency recorded"
-    override val activityModelLatencyEmptyDesc = "First-token response times (TTFT) will be summarized here after streaming chat sessions"
+    override val activityModelLatencyOverallAvg = "Avg First Token"
+    override val activityModelLatencyOverallAvgDuration = "Avg Duration"
+    override val activityModelLatencyEmpty = "No model latency recorded"
+    override val activityModelLatencyEmptyDesc = "Model first-token response times (TTFT) and session durations will be summarized here"
     override val activityModelLatencyColModel = "Model"
-    override val activityModelLatencyColSamples = "Samples"
-    override val activityModelLatencyColAvgTtft = "Avg First Token"
-    override val activityModelLatencyColRange = "Min / Max"
+    override val activityModelLatencyColSamples = "TTFT Samples"
+    override val activityModelLatencyColAvgTtft = "Avg First Token (TTFT)"
+    override val activityModelLatencyColRange = "TTFT Range"
     override val activityModelLatencyColAvgDuration = "Avg Total Duration"
-    override fun activityModelLatencySampleCount(count: Int) = "$count sessions"
+    override val activityModelLatencyColDurationRange = "Duration Range"
+    override fun activityModelLatencySampleCount(count: Int) = "$count TTFT"
+    override fun activityModelLatencyCompletedCalls(completed: Int, total: Int) = "$completed / $total completed"
     override val activityFirstTokenLabel = "First Token"
     override val activityPending = "Processing"
     override val activityProcessing = "In progress..."

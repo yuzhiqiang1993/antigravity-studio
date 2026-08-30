@@ -72,6 +72,9 @@ data class ModelLatencyStat(
     val minFirstTokenMs: Long,
     val maxFirstTokenMs: Long,
     val averageDurationMs: Long,
+    val minDurationMs: Long,
+    val maxDurationMs: Long,
+    val completedCount: Int,
     val totalRequests: Int
 )
 
@@ -125,6 +128,8 @@ internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLate
             val maxFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.maxOrNull() ?: 0L else 0L
             val completedLogs = modelLogs.filter { !it.isPending && it.durationMs > 0 }
             val avgDuration = if (completedLogs.isNotEmpty()) completedLogs.map { it.durationMs }.average().toLong() else 0L
+            val minDuration = if (completedLogs.isNotEmpty()) completedLogs.minOf { it.durationMs } else 0L
+            val maxDuration = if (completedLogs.isNotEmpty()) completedLogs.maxOf { it.durationMs } else 0L
 
             ModelLatencyStat(
                 modelId = modelId,
@@ -133,13 +138,16 @@ internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLate
                 minFirstTokenMs = minFirstToken,
                 maxFirstTokenMs = maxFirstToken,
                 averageDurationMs = avgDuration,
+                minDurationMs = minDuration,
+                maxDurationMs = maxDuration,
+                completedCount = completedLogs.size,
                 totalRequests = modelLogs.size
             )
         }
         .sortedWith(
-            compareByDescending<ModelLatencyStat> { it.sampleCount > 0 }
-                .thenByDescending { it.sampleCount }
-                .thenBy { it.averageFirstTokenMs }
+            compareByDescending<ModelLatencyStat> { it.sampleCount > 0 || it.completedCount > 0 }
+                .thenByDescending { it.totalRequests }
+                .thenBy { if (it.averageFirstTokenMs > 0) it.averageFirstTokenMs else it.averageDurationMs }
         )
 }
 
