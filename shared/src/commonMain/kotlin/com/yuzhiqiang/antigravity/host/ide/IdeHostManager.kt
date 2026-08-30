@@ -13,25 +13,38 @@ object IdeHostManager {
         val customRoot = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let(::File)
             ?.let { if (it.isFile) it.parentFile else it }
         val candidates = when {
-            os.contains("mac") -> buildList {
-                customRoot?.let(::add)
-                add(File("/Applications/Antigravity IDE.app"))
-                add(File(home, "Applications/Antigravity IDE.app"))
-                add(File("/Applications/Antigravity-IDE.app"))
-                add(File(home, "Applications/Antigravity-IDE.app"))
-                addAll(discoverMacApplications("com.google.antigravity-ide"))
+            os.contains("mac") -> {
+                val standardList = buildList {
+                    customRoot?.let(::add)
+                    add(File("/Applications/Antigravity IDE.app"))
+                    add(File(home, "Applications/Antigravity IDE.app"))
+                    add(File("/Applications/Antigravity-IDE.app"))
+                    add(File(home, "Applications/Antigravity-IDE.app"))
+                }
+                val existing = standardList.filter(File::exists)
+                if (existing.isNotEmpty()) {
+                    existing
+                } else {
+                    standardList + discoverMacApplications("com.google.antigravity-ide")
+                }
             }
 
             os.contains("win") -> {
                 val localAppData = System.getenv("LOCALAPPDATA") ?: "$home/AppData/Local"
                 val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
-                buildList {
+                val standardList = buildList {
                     customRoot?.let(::add)
                     add(File(localAppData, "Programs/Antigravity IDE"))
                     add(File(programFiles, "Antigravity IDE"))
                     System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity IDE")) }
-                    addAll(discoverWindowsInstallations("Antigravity IDE.exe"))
-                }.flatMap { root ->
+                }
+                val existing = standardList.filter(File::exists)
+                val baseRoots = if (existing.isNotEmpty()) {
+                    existing
+                } else {
+                    standardList + discoverWindowsInstallations("Antigravity IDE.exe")
+                }
+                baseRoots.flatMap { root ->
                     // Inno Setup 待更新布局：主程序可能位于根目录下的 "_" 子目录
                     listOf(root, File(root, "_"))
                 }

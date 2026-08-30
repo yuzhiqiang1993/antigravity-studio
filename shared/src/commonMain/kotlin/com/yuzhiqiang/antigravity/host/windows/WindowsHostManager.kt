@@ -1,6 +1,14 @@
 package com.yuzhiqiang.antigravity.host.windows
 
+import java.util.concurrent.TimeUnit
+
 object WindowsHostManager {
+
+    @Volatile
+    private var cachedEnvironmentUrl: String? = null
+    @Volatile
+    private var lastQueryTimeMs: Long = 0L
+    private const val CACHE_TTL_MS = 200L
 
     /** 写入 Windows 当前用户的 CLOUD_CODE_URL。 */
     fun setEnvironmentUrl(endpoint: String): Boolean {
@@ -15,13 +23,10 @@ object WindowsHostManager {
             ).start()
             val success = process.waitFor() == 0
             if (success) {
-                // 已启动的宿主不会自动读取新环境；广播变更供新进程和宿主发现逻辑及时刷新。
-                runCatching {
-                    ProcessBuilder(
-                        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
-                        "\$signature = '[DllImport(\"user32.dll\", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'; Add-Type -MemberDefinition \$signature -Name NativeMethods -Namespace Win32; \$result = [UIntPtr]::Zero; [Win32.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]\$result) | Out-Null"
-                    ).start()
-                }
+                cachedEnvironmentUrl = endpoint
+                lastQueryTimeMs = System.currentTimeMillis()
+                // 已启动的宿主不会自动读取新环境；异步广播变更供新进程和宿主发现逻辑刷新，不阻塞主流程。
+                broadcastEnvironmentChangeAsync()
             }
             success
         } catch (error: Exception) {
@@ -35,12 +40,9 @@ object WindowsHostManager {
             val process = ProcessBuilder("reg", "delete", "HKCU\\Environment", "/F", "/V", "CLOUD_CODE_URL").start()
             val success = process.waitFor() == 0 || getEnvironmentUrl() == null
             if (success) {
-                runCatching {
-                    ProcessBuilder(
-                        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
-                        "\$signature = '[DllImport(\"user32.dll\", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'; Add-Type -MemberDefinition \$signature -Name NativeMethods -Namespace Win32; \$result = [UIntPtr]::Zero; [Win32.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]\$result) | Out-Null"
-                    ).start()
-                }
+                cachedEnvironmentUrl = null
+                lastQueryTimeMs = System.currentTimeMillis()
+                broadcastEnvironmentChangeAsync()
             }
             success
         } catch (error: Exception) {
@@ -50,11 +52,15 @@ object WindowsHostManager {
 
     /** 读取 Windows 当前用户的 CLOUD_CODE_URL。 */
     fun getEnvironmentUrl(): String? {
+        val now = System.currentTimeMillis()
+        if (now - lastQueryTimeMs < CACHE_TTL_MS) {
+            return cachedEnvironmentUrl
+        }
         return try {
             val process = ProcessBuilder("reg", "query", "HKCU\\Environment", "/v", "CLOUD_CODE_URL").start()
             val output = process.inputStream.bufferedReader().readText()
             val exitCode = process.waitFor()
-            if (exitCode != 0) {
+            val result = if (exitCode != 0) {
                 null
             } else {
                 output.lineSequence()
@@ -71,8 +77,26 @@ object WindowsHostManager {
                     }
                     ?.takeIf { value -> value.isNotEmpty() }
             }
+            cachedEnvironmentUrl = result
+            lastQueryTimeMs = now
+            result
         } catch (error: Exception) {
             null
+        }
+    }
+
+    private fun broadcastEnvironmentChangeAsync() {
+        Thread {
+            runCatching {
+                ProcessBuilder(
+                    "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+                    "\$signature = '[DllImport(\"user32.dll\", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'; Add-Type -MemberDefinition \$signature -Name NativeMethods -Namespace Win32; \$result = [UIntPtr]::Zero; [Win32.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]\$result) | Out-Null"
+                ).start().waitFor(5, TimeUnit.SECONDS)
+            }
+        }.apply {
+            isDaemon = true
+            name = "windows-env-broadcast"
+            start()
         }
     }
 }
