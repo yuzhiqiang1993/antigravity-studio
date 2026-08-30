@@ -13,6 +13,7 @@ import java.net.Proxy
 import java.net.URL
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import java.util.Base64
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
@@ -67,7 +68,7 @@ internal object RuntimeAccountProbe {
     private const val LOOPBACK_HOST = "127.0.0.1"
     private const val USER_STATUS_PATH =
         "/exa.language_server_pb.LanguageServerService/GetUserStatus"
-    private const val PROCESS_TIMEOUT_MS = 2_000L
+    private const val PROCESS_TIMEOUT_MS = 6_000L
     private const val HTTP_CONNECT_TIMEOUT_MS = 1_000
     private const val HTTP_READ_TIMEOUT_MS = 2_000
     private const val REQUEST_BODY =
@@ -157,39 +158,30 @@ internal object RuntimeAccountProbe {
     }
 
     private fun discoverWindowsCandidates(matcher: ProcessMatcher): Result<List<LanguageServerCandidate>> {
-        val scripts = listOf(
-            "Get-CimInstance Win32_Process -Filter \"Name LIKE '%language_server%'\" | " +
-                    "ForEach-Object { \$_.ProcessId.ToString() + ' ' + \$_.CommandLine }",
-            "Get-WmiObject Win32_Process -Filter \"Name LIKE '%language_server%'\" | " +
-                    "ForEach-Object { \$_.ProcessId.ToString() + ' ' + \$_.CommandLine }"
-        )
-        var output: ProcessOutput? = null
-        var lastFailure: Exception? = null
-        for (script in scripts) {
-            try {
-                val result = executeProcess(
-                    listOf(
-                        "powershell.exe",
-                        "-NoProfile",
-                        "-NonInteractive",
-                        "-ExecutionPolicy",
-                        "Bypass",
-                        "-Command",
-                        script
-                    ),
-                    PROCESS_TIMEOUT_MS
-                )
-                if (result.exitCode == 0) {
-                    output = result
-                    break
-                }
-                lastFailure = IOException("Windows 进程查询失败")
-            } catch (exception: Exception) {
-                lastFailure = exception
-            }
+        val script = "\$ProgressPreference = 'SilentlyContinue'; " +
+                "Get-CimInstance Win32_Process | " +
+                "Where-Object { \$_.Name -like '*language_server*' } | " +
+                "ForEach-Object { \"\$(\$_.ProcessId) \$(\$_.CommandLine)\" }"
+        val encodedScript = Base64.getEncoder().encodeToString(script.toByteArray(Charsets.UTF_16LE))
+
+        val output = try {
+            executeProcess(
+                listOf(
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-EncodedCommand",
+                    encodedScript
+                ),
+                PROCESS_TIMEOUT_MS
+            )
+        } catch (exception: Exception) {
+            return Result.failure(exception)
         }
-        if (output == null) {
-            return Result.failure(lastFailure ?: IOException("Windows 进程查询失败"))
+        if (output.exitCode != 0) {
+            return Result.failure(IOException("Windows 进程查询失败"))
         }
 
         val candidates = mutableListOf<LanguageServerCandidate>()
@@ -288,6 +280,23 @@ internal object RuntimeAccountProbe {
     }
 
     private fun getWindowsListeningPorts(pid: Long): List<Int> {
+        val netstat = try {
+            executeProcess(listOf("netstat", "-ano", "-p", "tcp"), 3_000L)
+        } catch (_: Exception) {
+            null
+        }
+        if (netstat != null && netstat.exitCode == 0) {
+            val ports = netstat.text.lineSequence()
+                .mapNotNull { line -> parseNetstatPort(line, pid) }
+                .distinct()
+                .toList()
+            if (ports.isNotEmpty()) return ports
+        }
+
+        val script = "\$ProgressPreference = 'SilentlyContinue'; " +
+                "Get-NetTCPConnection -OwningProcess $pid -State Listen | " +
+                "Select-Object -ExpandProperty LocalPort"
+        val encodedScript = Base64.getEncoder().encodeToString(script.toByteArray(Charsets.UTF_16LE))
         val powershell = try {
             executeProcess(
                 listOf(
@@ -296,9 +305,8 @@ internal object RuntimeAccountProbe {
                     "-NonInteractive",
                     "-ExecutionPolicy",
                     "Bypass",
-                    "-Command",
-                    "Get-NetTCPConnection -OwningProcess $pid -State Listen | " +
-                            "Select-Object -ExpandProperty LocalPort"
+                    "-EncodedCommand",
+                    encodedScript
                 ),
                 PROCESS_TIMEOUT_MS
             )
@@ -310,16 +318,7 @@ internal object RuntimeAccountProbe {
             if (ports.isNotEmpty()) return ports
         }
 
-        val netstat = try {
-            executeProcess(listOf("netstat", "-ano", "-p", "tcp"), PROCESS_TIMEOUT_MS)
-        } catch (_: Exception) {
-            return emptyList()
-        }
-        if (netstat.exitCode != 0) return emptyList()
-        return netstat.text.lineSequence()
-            .mapNotNull { line -> parseNetstatPort(line, pid) }
-            .distinct()
-            .toList()
+        return emptyList()
     }
 
     private fun parseNumericPorts(text: String): List<Int> {

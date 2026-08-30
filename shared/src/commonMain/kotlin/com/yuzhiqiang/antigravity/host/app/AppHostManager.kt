@@ -3,6 +3,7 @@ package com.yuzhiqiang.antigravity.host.app
 import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
 import com.yuzhiqiang.antigravity.host.process.HostProcessManager
+import com.yuzhiqiang.antigravity.host.windows.WindowsShimBinary
 import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.coroutines.delay
 import java.io.File
@@ -12,7 +13,9 @@ import java.io.File
  */
 object AppHostManager {
 
-    private val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+    private val osName = System.getProperty("os.name", "").lowercase()
+    private val isWindows = osName.contains("win")
+    private val isMac = osName.contains("mac")
 
     /**
      * 检测 Antigravity App 是否已安装。
@@ -22,35 +25,24 @@ object AppHostManager {
             val file = File(customInstallation.trim())
             if (file.exists()) {
                 if (file.isFile) return true
-                if (file.isDirectory && (File(file, "Contents/MacOS/Antigravity").isFile || File(
-                        file,
-                        "Antigravity.exe"
-                    ).isFile)
-                ) return true
+                if (isInstallationComplete(file) || isShimInstalled(customInstallation)) return true
             }
         }
-        val candidates = getCandidateInstallations(customInstallation)
-        return if (isWindows) {
-            candidates.any { root ->
-                root.isDirectory &&
-                        File(root, "Antigravity.exe").isFile &&
-                        (File(root, "resources/bin/language_server.exe").isFile ||
-                                File(root, "resources/bin/language_server.original.exe").isFile)
-            }
-        } else {
-            candidates.any { root ->
-                root.isDirectory &&
-                        File(root, "Contents/MacOS/Antigravity").isFile &&
-                        (File(root, "Contents/Resources/bin/language_server").isFile ||
-                                File(root, "Contents/Resources/bin/language_server.original").isFile)
-            }
+        return getCandidateInstallations(customInstallation).any { root ->
+            isInstallationComplete(root) || isShimInstalled(root.absolutePath)
         }
     }
 
-    private val appMatchPatterns = if (isWindows) {
-        listOf("Antigravity.exe")
-    } else {
-        listOf("Antigravity.app/", "/Antigravity.app", "/MacOS/Antigravity")
+    private val appMatchPatterns = when {
+        isWindows -> listOf("Antigravity.exe")
+        isMac -> listOf(
+            "Antigravity.app/",
+            "/Antigravity.app",
+            "Antigravity App.app/",
+            "/Antigravity App.app",
+            "/MacOS/Antigravity"
+        )
+        else -> listOf("/antigravity", "antigravity")
     }
 
     private val appExcludePatterns = listOf(
@@ -63,17 +55,26 @@ object AppHostManager {
         "antigravity-ide-cockpit"
     )
 
-    private val appLanguageServerPatterns = if (isWindows) {
-        listOf(
+    private val appLanguageServerPatterns = when {
+        isWindows -> listOf(
             "Programs\\Antigravity\\resources\\bin\\language_server.exe",
             "Programs/Antigravity/resources/bin/language_server.exe",
+            "Programs\\antigravity\\resources\\bin\\language_server.exe",
+            "Programs/antigravity/resources/bin/language_server.exe",
             "Programs\\Antigravity\\resources\\bin\\language_server.original.exe",
-            "Programs/Antigravity/resources/bin/language_server.original.exe"
+            "Programs/Antigravity/resources/bin/language_server.original.exe",
+            "Programs\\antigravity\\resources\\bin\\language_server.original.exe",
+            "Programs/antigravity/resources/bin/language_server.original.exe"
         )
-    } else {
-        listOf(
+        isMac -> listOf(
             "Antigravity.app/Contents/Resources/bin/language_server",
-            "Antigravity.app/Contents/Resources/bin/language_server.original"
+            "Antigravity.app/Contents/Resources/bin/language_server.original",
+            "Antigravity App.app/Contents/Resources/bin/language_server",
+            "Antigravity App.app/Contents/Resources/bin/language_server.original"
+        )
+        else -> listOf(
+            "/antigravity/resources/bin/language_server",
+            "/antigravity/resources/bin/language_server.original"
         )
     }
 
@@ -88,17 +89,17 @@ object AppHostManager {
             return listOf(customRoot)
         }
         val userHome = System.getProperty("user.home", "")
-        val os = System.getProperty("os.name", "").lowercase()
         val candidates = if (isWindows) {
             val localAppData = System.getenv("LOCALAPPDATA") ?: "$userHome/AppData/Local"
             val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
             buildList {
                 add(File(localAppData, "Programs/Antigravity"))
+                add(File(localAppData, "Programs/antigravity"))
                 add(File(programFiles, "Antigravity"))
                 System.getenv("ProgramFiles(x86)")?.let { add(File(it, "Antigravity")) }
                 addAll(discoverWindowsInstallations("Antigravity.exe"))
             }
-        } else if (os.contains("mac")) {
+        } else if (isMac) {
             buildList {
                 add(File("/Applications/Antigravity.app"))
                 add(File("$userHome/Applications/Antigravity.app"))
@@ -165,7 +166,7 @@ object AppHostManager {
     }
 
     /**
-     * 检测指定文件是否包含 Shim 脚本标识。
+     * 检测指定文件是否包含 Shim 脚本/二进制标识。
      */
     private fun isShimScript(file: File): Boolean {
         if (!file.exists() || !file.isFile) return false
@@ -183,10 +184,23 @@ object AppHostManager {
         }.getOrDefault(false)
     }
 
+    /**
+     * 检测指定文件是否是 Studio 托管的 Shim（macOS 脚本或 Windows PE 二进制）。
+     */
+    private fun isShimFile(file: File): Boolean {
+        if (!file.exists() || !file.isFile) return false
+        return if (isWindows) {
+            WindowsShimBinary.isShimBinary(file) || isShimScript(file)
+        } else {
+            isShimScript(file)
+        }
+    }
+
     private data class LanguageServerFiles(
         val languageServer: File,
         val original: File,
-        val cmdShim: File
+        val endpointConfig: File,
+        val legacyCmdShim: File
     )
 
     private fun languageServerFiles(root: File): LanguageServerFiles {
@@ -197,7 +211,8 @@ object AppHostManager {
                 binDir,
                 "language_server.original"
             ),
-            cmdShim = File(binDir, "language_server.cmd")
+            endpointConfig = File(binDir, "language_server_endpoint.txt"),
+            legacyCmdShim = File(binDir, "language_server.cmd")
         )
     }
 
@@ -213,7 +228,7 @@ object AppHostManager {
             val files = languageServerFiles(root)
             if (!files.original.isFile) continue
             if (isWindows) {
-                if (isShimScript(files.cmdShim)) return true
+                if (isShimFile(files.languageServer)) return true
             } else if (isShimScript(files.languageServer) && files.languageServer.canExecute()) {
                 return true
             }
@@ -232,9 +247,14 @@ object AppHostManager {
         for (root in candidates) {
             if (!root.exists()) continue
             val files = languageServerFiles(root)
-            val shimFile = if (isWindows) files.cmdShim else files.languageServer
-            if (isShimScript(shimFile)) {
-                return runCatching { shimFile.readText(Charsets.UTF_8) }.getOrNull()
+            if (isWindows) {
+                if (files.endpointConfig.exists()) {
+                    return runCatching { files.endpointConfig.readText(Charsets.UTF_8) }.getOrNull()
+                }
+            } else {
+                if (isShimScript(files.languageServer)) {
+                    return runCatching { files.languageServer.readText(Charsets.UTF_8) }.getOrNull()
+                }
             }
         }
         return null
@@ -246,16 +266,25 @@ object AppHostManager {
         for (root in candidates) {
             if (!root.exists()) continue
             val files = languageServerFiles(root)
-            val shimFile = if (isWindows) files.cmdShim else files.languageServer
-            val writeResult = AtomicFileWriter.writeText(
-                target = shimFile,
-                content = content,
-                permissionPolicy = AtomicFileWriter.PermissionPolicy.PRESERVE_EXISTING,
-                disallowSymlinks = true
-            )
-            if (writeResult.isFailure) continue
-            if (!isWindows) shimFile.setExecutable(true, false)
-            restored = true
+            if (isWindows) {
+                val writeResult = AtomicFileWriter.writeText(
+                    target = files.endpointConfig,
+                    content = content,
+                    permissionPolicy = AtomicFileWriter.PermissionPolicy.PRESERVE_EXISTING,
+                    disallowSymlinks = true
+                )
+                if (writeResult.isSuccess) restored = true
+            } else {
+                val writeResult = AtomicFileWriter.writeText(
+                    target = files.languageServer,
+                    content = content,
+                    permissionPolicy = AtomicFileWriter.PermissionPolicy.PRESERVE_EXISTING,
+                    disallowSymlinks = true
+                )
+                if (writeResult.isFailure) continue
+                files.languageServer.setExecutable(true, false)
+                restored = true
+            }
         }
         return restored
     }
@@ -400,7 +429,7 @@ object AppHostManager {
     }
 
     /**
-     * 安装 Language Server Shim 包装脚本，将写死的 --cloud_code_endpoint 动态重写为本地代理端口。
+     * 安装 Language Server Shim 包装（macOS Shell 脚本或 Windows PE 二进制），将写死的 --cloud_code_endpoint 动态重写为本地代理端口。
      */
     fun installLanguageServerShim(proxyPort: Int, customInstallation: String? = null): Boolean {
         val candidates = getCandidateInstallations(customInstallation)
@@ -422,24 +451,22 @@ object AppHostManager {
 
             val lsFile = files.languageServer
             val origFile = files.original
-            val cmdFile = files.cmdShim
             val hadOriginal = origFile.exists()
-            val hadShim = if (isWindows) isShimScript(cmdFile) else isShimScript(lsFile)
+            val hadShim = isShimFile(lsFile)
             AppLog.w("Host/App") {
                 "候选 ${root.absolutePath} ls=${lsFile.exists()}/${lsFile.length()} orig=${origFile.exists()}/${origFile.length()} shim=$hadShim"
             }
             val previousShimContent = if (hadShim) {
-                val previousShimFile = if (isWindows) cmdFile else lsFile
-                runCatching { previousShimFile.readText(Charsets.UTF_8) }.getOrNull()
+                readCurrentShimContent(customInstallation)
             } else {
                 null
             }
 
             // 1. 备份原生二进制。macOS 优先复制，避免 rename 正在/刚退出的可执行文件触发 ETXTBSY。
             if (!origFile.exists()) {
-                if (!lsFile.exists() || isShimScript(lsFile)) {
+                if (!lsFile.exists() || isShimFile(lsFile)) {
                     AppLog.e("Host/App") {
-                        "无法备份 language_server：exists=${lsFile.exists()} isShim=${isShimScript(lsFile)} path=${lsFile.absolutePath}"
+                        "无法备份 language_server：exists=${lsFile.exists()} isShim=${isShimFile(lsFile)} path=${lsFile.absolutePath}"
                     }
                     continue
                 }
@@ -458,24 +485,28 @@ object AppHostManager {
                 continue
             }
 
-            // 2. 使用原子写入更新包装脚本，避免 App 进程恰好读取到半截脚本
+            // 2. 安装包装脚本/二进制，避免 App 进程读取到半截文件
             val targetEndpoint = "http://127.0.0.1:$proxyPort"
             val ok = if (isWindows) {
-                val scriptContent = buildWindowsShimScript(targetEndpoint)
-                val writeResult = AtomicFileWriter.writeText(
-                    target = cmdFile,
-                    content = scriptContent,
+                val writeEndpointResult = AtomicFileWriter.writeText(
+                    target = files.endpointConfig,
+                    content = targetEndpoint,
                     permissionPolicy = AtomicFileWriter.PermissionPolicy.PRESERVE_EXISTING,
                     disallowSymlinks = true
                 )
-                if (writeResult.isFailure) {
-                    AppLog.e("Host/App", writeResult.exceptionOrNull()) {
-                        "写入 Windows Shim 失败：${cmdFile.absolutePath}"
+                if (writeEndpointResult.isFailure) {
+                    AppLog.e("Host/App", writeEndpointResult.exceptionOrNull()) {
+                        "写入 Windows Shim endpoint 失败：${files.endpointConfig.absolutePath}"
                     }
                 }
-                writeResult.isSuccess &&
-                        (!lsFile.exists() || !isShimScript(lsFile) || lsFile.delete()) &&
-                        isShimScript(cmdFile)
+                val writeShimOk = WindowsShimBinary.writeShimBinary(lsFile)
+                if (!writeShimOk) {
+                    AppLog.e("Host/App") { "写入 Windows Shim 二进制失败：${lsFile.absolutePath}" }
+                }
+                if (files.legacyCmdShim.exists()) {
+                    files.legacyCmdShim.delete()
+                }
+                writeEndpointResult.isSuccess && writeShimOk && isShimFile(lsFile)
             } else {
                 val scriptContent = buildMacShimScript(targetEndpoint)
                 val writeResult = AtomicFileWriter.writeText(
@@ -500,23 +531,18 @@ object AppHostManager {
             // 写入失败时撤销本轮备份，避免只剩 original 却被误认为已经接入。
             if (!hadOriginal && origFile.exists()) {
                 if (isWindows) {
-                    if (cmdFile.exists() && isShimScript(cmdFile)) cmdFile.delete()
-                } else if (lsFile.exists() && isShimScript(lsFile)) {
+                    if (files.endpointConfig.exists()) files.endpointConfig.delete()
+                    if (files.legacyCmdShim.exists()) files.legacyCmdShim.delete()
+                }
+                if (lsFile.exists() && isShimFile(lsFile)) {
                     lsFile.delete()
                 }
                 when {
                     !lsFile.exists() -> moveOrReplaceFile(origFile, lsFile)
-                    !isShimScript(lsFile) -> origFile.delete()
+                    !isShimFile(lsFile) -> origFile.delete()
                 }
             } else if (hadShim && previousShimContent != null) {
-                val previousShimFile = if (isWindows) cmdFile else lsFile
-                AtomicFileWriter.writeText(
-                    target = previousShimFile,
-                    content = previousShimContent,
-                    permissionPolicy = AtomicFileWriter.PermissionPolicy.PRESERVE_EXISTING,
-                    disallowSymlinks = true
-                )
-                if (!isWindows) previousShimFile.setExecutable(true, false)
+                restoreShimContent(previousShimContent, customInstallation)
             }
         }
         return anySuccess
@@ -533,22 +559,21 @@ object AppHostManager {
             val binDir = if (isWindows) File(root, "resources/bin") else File(root, "Contents/Resources/bin")
             if (!binDir.exists()) continue
 
-            // 1. Windows 下清理 language_server.cmd
+            val files = languageServerFiles(root)
             if (isWindows) {
-                val cmdFile = File(binDir, "language_server.cmd")
-                if (cmdFile.exists()) {
-                    cmdFile.delete()
+                if (files.endpointConfig.exists()) {
+                    files.endpointConfig.delete()
+                }
+                if (files.legacyCmdShim.exists()) {
+                    files.legacyCmdShim.delete()
                 }
             }
 
-            val lsFile = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
-            val origFile = if (isWindows) File(binDir, "language_server.original.exe") else File(
-                binDir,
-                "language_server.original"
-            )
+            val lsFile = files.languageServer
+            val origFile = files.original
 
-            // 2. 如果 lsFile 存在且是 shim 脚本，则删除 shim 脚本
-            if (lsFile.exists() && isShimScript(lsFile)) {
+            // 2. 如果 lsFile 存在且是 shim，则删除 shim
+            if (lsFile.exists() && isShimFile(lsFile)) {
                 lsFile.delete()
             }
 
@@ -560,12 +585,12 @@ object AppHostManager {
                         if (!isWindows) lsFile.setExecutable(true, false)
                         anyRestoredOrClean = true
                     }
-                } else if (!isShimScript(lsFile)) {
+                } else if (!isShimFile(lsFile)) {
                     // lsFile 存在且是正常二进制，origFile 只是多余备份，直接清理
                     origFile.delete()
                     anyRestoredOrClean = true
                 }
-            } else if (lsFile.exists() && !isShimScript(lsFile)) {
+            } else if (lsFile.exists() && !isShimFile(lsFile)) {
                 anyRestoredOrClean = true
             }
         }
@@ -597,7 +622,7 @@ object AppHostManager {
             HostOwnershipStore.EnvironmentOwner.APP,
             proxyPort
         )
-        return environment.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED &&
+        return environment.state.isReady &&
                 environment.endpointMatches &&
                 isShimReady(customInstallation)
     }
@@ -641,27 +666,40 @@ object AppHostManager {
         )
         val shimReady = isShimReady(customInstallation)
         val shimResidue = hasShimResidue(customInstallation)
-        val finalState = when {
-            shimReady && inspect.endpointMatches -> inspect.state
-            shimReady || inspect.endpointMatches || shimResidue ->
-                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
 
-            else -> inspect.state
+        val finalState = when {
+            !installed -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL
+            // 1. 受控就绪状态：环境变量由 APP 托管且端点匹配，同时 Shim 就绪
+            shimReady && inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED && inspect.endpointMatches ->
+                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
+            // 2. 外部接入且匹配（外部环境与 Shim 均就绪）
+            shimReady && inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL && inspect.endpointMatches ->
+                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL
+            // 3. 失配待更新：
+            //   a. Shim 残留（.original 备份或未完成还原）
+            //   b. APP 托管但端点失配或 Shim 未就绪
+            //   c. Shim 就绪但端点失配
+            //   d. 外部端点失配且存在 Shim
+            shimResidue ||
+                    (inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED && (!shimReady || !inspect.endpointMatches)) ||
+                    (shimReady && !inspect.endpointMatches) ->
+                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
+            // 4. 其余情况视为官方直连模式（包括仅 CLI 接管环境变量而 App 未接入 Shim 且无 APP receipt 的情况）
+            else -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL
         }
 
-        val configState = when (finalState) {
-            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_ENABLED
-            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.CONFLICT,
-            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
-
-            com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NEEDS_UPDATE
-
-            else -> when {
-                !inspect.endpointMatches -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NEEDS_UPDATE
-                !isProxyRunning -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.SERVICE_STOPPED
-                !running -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_RUNNING
-                else -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.MATCHED
-            }
+        val configState = when {
+            !installed -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
+            finalState == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL ->
+                com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_ENABLED
+            finalState == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.CONFLICT ||
+                    finalState == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE ->
+                com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE
+            finalState == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH ->
+                com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NEEDS_UPDATE
+            !isProxyRunning -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.SERVICE_STOPPED
+            !running -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_RUNNING
+            else -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.MATCHED
         }
         val target = "http://127.0.0.1:$proxyPort"
         return com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
@@ -674,7 +712,7 @@ object AppHostManager {
             targetEndpoint = target,
             configPath = "CLOUD_CODE_URL & language_server",
             canEnable = installed,
-            canDisable = inspect.canDisable || shimResidue,
+            canDisable = (inspect.canDisable && inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED) || shimResidue || shimReady,
             canLaunch = installed && (finalState == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL || (finalState.isReady && isProxyRunning)),
             customPath = customInstallation,
             version = version
@@ -780,12 +818,12 @@ object AppHostManager {
     }
 
     private fun normalizeCustomInstallation(customInstallation: String): File {
-        val customFile = File(customInstallation)
-        if (customFile.isDirectory) return customFile
-
-        val appRoot = generateSequence(customFile.parentFile, File::getParentFile)
+        val customFile = File(customInstallation.trim())
+        val appRoot = generateSequence(customFile) { it.parentFile }
             .firstOrNull { it.name.endsWith(".app", ignoreCase = true) }
         if (appRoot != null) return appRoot
+
+        if (customFile.isDirectory) return customFile
 
         // macOS 的文件选择器也可能返回 App 主可执行文件，而测试/便携包不一定带 .app 后缀。
         val macContents = customFile.parentFile?.takeIf { it.name.equals("MacOS", ignoreCase = true) }
@@ -841,16 +879,15 @@ object AppHostManager {
     }
 
     private fun isInstallationComplete(root: File): Boolean {
-        val os = System.getProperty("os.name", "").lowercase()
+        if (!root.exists() || !root.isDirectory) return false
         return when {
-            isWindows -> root.isDirectory && File(root, "Antigravity.exe").isFile
-            os.contains("mac") -> root.isDirectory && File(root, "Contents/MacOS/Antigravity").isFile
+            isWindows -> File(root, "Antigravity.exe").isFile || File(root, "_/Antigravity.exe").isFile
+            isMac -> File(root, "Contents/MacOS/Antigravity").isFile ||
+                    File(root, "Contents/MacOS/Antigravity App").isFile ||
+                    File(root, "Contents/MacOS/Electron").isFile
             else -> {
                 // Linux Electron 应用：检查二进制或 package.json 存在性
-                root.isDirectory && (
-                        File(root, "antigravity").isFile ||
-                                File(root, "resources/app/package.json").isFile
-                        )
+                File(root, "antigravity").isFile || File(root, "resources/app/package.json").isFile
             }
         }
     }
@@ -882,9 +919,12 @@ object AppHostManager {
                 val output = process.inputStream.bufferedReader().readText()
                 process.waitFor()
                 output.lineSequence()
-                    .firstOrNull { it.contains("REG_SZ") }
-                    ?.substringAfter("REG_SZ")
-                    ?.trim()
+                    .firstOrNull { it.contains("REG_SZ") || it.contains("REG_EXPAND_SZ") }
+                    ?.let { line ->
+                        line.substringAfter("REG_EXPAND_SZ", "")
+                            .ifBlank { line.substringAfter("REG_SZ", "") }
+                            .trim()
+                    }
                     ?.takeIf { it.isNotEmpty() }
                     ?.let(::File)
                     ?.let { if (it.isFile) it.parentFile else it }

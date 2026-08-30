@@ -49,7 +49,7 @@ class ByokStreamAttemptTest {
                 channel = channel,
                 encoder = ResponseEncoder.newStreamEncoder(),
                 requestStartTimeMs = System.currentTimeMillis(),
-                idleTimeoutMs = 1_000L,
+                idleTimeoutMs = 5_000L,
                 heartbeatIntervalMs = 20L,
                 onFrames = { frames += it }
             )

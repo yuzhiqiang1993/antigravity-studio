@@ -47,6 +47,7 @@ object CliHostManager {
             val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
             buildList {
                 customBin?.let(::add)
+                findExecutableInPath("agy")?.let(::add)
                 findExecutableInPath("agy.exe")?.let(::add)
                 add(File(localAppData, "Programs/Antigravity/agy.exe"))
                 add(File(localAppData, "Programs/agy/agy.exe"))
