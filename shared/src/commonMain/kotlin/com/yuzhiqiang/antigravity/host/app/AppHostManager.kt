@@ -812,7 +812,7 @@ object AppHostManager {
      */
     suspend fun restart(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
         if (!terminate(customInstallation, force = true)) return false
-        delay(500)
+        delay(150)
         if (!launch(customInstallation, proxyPort)) return false
         return waitUntilRunning(customInstallation)
     }
@@ -858,9 +858,9 @@ object AppHostManager {
     }
 
     private suspend fun waitUntilRunning(customInstallation: String?): Boolean {
-        repeat(25) {
+        repeat(30) {
             if (isRunning(customInstallation)) return true
-            delay(200)
+            delay(100)
         }
         return false
     }

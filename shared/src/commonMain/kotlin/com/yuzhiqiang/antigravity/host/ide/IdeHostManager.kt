@@ -282,7 +282,7 @@ object IdeHostManager {
      */
     suspend fun restart(customInstallation: String? = null): Boolean {
         if (!terminate(customInstallation, force = true)) return false
-        delay(300)
+        delay(150)
         if (!launch(customInstallation)) return false
         return waitUntilRunning(customInstallation)
     }
@@ -317,9 +317,9 @@ object IdeHostManager {
     }
 
     private suspend fun waitUntilRunning(customInstallation: String?): Boolean {
-        repeat(25) {
+        repeat(30) {
             if (isRunning(customInstallation)) return true
-            delay(200)
+            delay(100)
         }
         return false
     }
