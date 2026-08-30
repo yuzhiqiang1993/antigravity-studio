@@ -285,9 +285,15 @@ class HostLifecycleDelegate(
                 com.yuzhiqiang.antigravity.logging.AppLog.w("Host/App") {
                     "enableAppHostInternal：stoppedSuccessfully=$stoppedSuccessfully"
                 }
-                val operationSucceeded = stoppedSuccessfully && AppHostManager.enable(actualPort, customInstallation)
+                val enableResult = if (stoppedSuccessfully) {
+                    AppHostManager.enableDetailed(actualPort, customInstallation)
+                } else {
+                    Result.failure(IllegalStateException("未能成功停止现有 App 进程"))
+                }
+                val operationSucceeded = enableResult.isSuccess
+                val enableFailure = enableResult.exceptionOrNull()
                 com.yuzhiqiang.antigravity.logging.AppLog.w("Host/App") {
-                    "enableAppHostInternal：operationSucceeded=$operationSucceeded"
+                    "enableAppHostInternal：operationSucceeded=$operationSucceeded failure=$enableFailure"
                 }
                 val restartSucceeded = if (operationSucceeded && isCurrentlyRunning) {
                     AppHostManager.launch(customInstallation, actualPort)

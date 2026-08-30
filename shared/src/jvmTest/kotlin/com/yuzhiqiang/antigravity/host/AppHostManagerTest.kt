@@ -231,6 +231,70 @@ class AppHostManagerTest {
     }
 
     @Test
+    fun testRestoreOriginalLanguageServerRestoresMissingLanguageServer() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+        val origBinary =
+            if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+
+        // 仅存在 original 备份，主二进制丢失
+        origBinary.writeText("ORIGINAL_CONTENT")
+        assertTrue(origBinary.exists())
+        assertFalse(lsBinary.exists())
+
+        val restored = AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
+        assertTrue(restored, "在仅存 original 时调用 restore 应成功自愈")
+        assertTrue(lsBinary.exists(), "主二进制应被还原")
+        assertEquals("ORIGINAL_CONTENT", lsBinary.readText())
+        assertFalse(origBinary.exists(), "备份文件在恢复后应被清理")
+        if (!isWindows) {
+            assertTrue(lsBinary.canExecute(), "还原后的原生二进制应具有可执行权限")
+        }
+    }
+
+    @Test
+    fun testLeftoverOriginalBackupSelfHealsOnRestoreEvenIfShimInstalledWasTrue() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+        val origBinary =
+            if (isWindows) File(binDir, "language_server.original.exe") else File(binDir, "language_server.original")
+
+        origBinary.writeText("PERSISTENT_ORIGINAL")
+        assertTrue(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
+
+        val statusBefore = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
+        assertTrue(statusBefore.needsUpdate)
+
+        val restored = AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
+        assertTrue(restored)
+        assertTrue(lsBinary.exists())
+        assertEquals("PERSISTENT_ORIGINAL", lsBinary.readText())
+        assertFalse(origBinary.exists())
+
+        val statusAfter = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
+        assertFalse(statusAfter.needsUpdate)
+        assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL, statusAfter.integrationState)
+    }
+
+    @Test
+    fun testInstallDetailedReturnsPermissionExceptionWhenDirectoryReadOnly() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        if (isWindows) return
+        val readOnlyDir = File(tempAppDir, "Contents/Resources/bin")
+        readOnlyDir.setWritable(false, false)
+        try {
+            val result = AppHostManager.installLanguageServerShimDetailed(8330, tempAppDir.absolutePath)
+            if (!readOnlyDir.canWrite()) {
+                assertTrue(result.isFailure)
+                val ex = result.exceptionOrNull()
+                assertTrue(ex is AppHostManager.HostPermissionDeniedException || ex is SecurityException)
+            }
+        } finally {
+            readOnlyDir.setWritable(true, false)
+        }
+    }
+
+    @Test
     fun diagnoseInstallOnRealAntigravityApp() {
         if (System.getenv("ANTIGRAVITY_DIAGNOSE_REAL_APP") != "1") {
             return
