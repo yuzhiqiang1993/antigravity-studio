@@ -893,13 +893,10 @@ object AppHostManager {
         if (!root.exists() || !root.isDirectory) return false
         return when {
             isWindows -> File(root, "Antigravity.exe").isFile || File(root, "_/Antigravity.exe").isFile
-            isMac -> File(root, "Contents/MacOS/Antigravity").isFile ||
+            else -> File(root, "Contents/MacOS/Antigravity").isFile ||
                     File(root, "Contents/MacOS/Antigravity App").isFile ||
-                    File(root, "Contents/MacOS/Electron").isFile
-            else -> {
-                // Linux Electron 应用：检查二进制或 package.json 存在性
-                File(root, "antigravity").isFile || File(root, "resources/app/package.json").isFile
-            }
+                    File(root, "Contents/MacOS/Electron").isFile ||
+                    File(root, "antigravity").isFile
         }
     }
 
