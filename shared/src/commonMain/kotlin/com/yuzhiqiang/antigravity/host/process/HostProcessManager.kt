@@ -11,9 +11,9 @@ import java.util.concurrent.TimeUnit
  */
 object HostProcessManager {
 
-    private const val GRACEFUL_EXIT_TIMEOUT_MILLIS = 8_000L
+    private const val GRACEFUL_EXIT_TIMEOUT_MILLIS = 2_000L
     private const val FORCE_EXIT_TIMEOUT_MILLIS = 1_500L
-    private const val POLL_INTERVAL_MILLIS = 200L
+    private const val POLL_INTERVAL_MILLIS = 50L
     private const val COMMAND_TIMEOUT_MILLIS = 3_000L
 
     private val osName = System.getProperty("os.name", "").lowercase()
@@ -76,15 +76,22 @@ object HostProcessManager {
             snapshots.firstOrNull { it.pid == pid }?.parentPid !in ownedPids
         }
 
+        if (!force) {
+            val gracefulRequestSent = requestGracefulExit(bundleId, rootPids)
+            if (gracefulRequestSent && waitUntilStopped(ownedPids, GRACEFUL_EXIT_TIMEOUT_MILLIS)) {
+                return areProcessesStopped(matchPatterns + scopedServerPatterns, excludePatterns)
+            }
+            return false
+        }
+
+        // force == true: 优先尝试快速优雅退出 (最多等待 1s)，未退出则快速强杀
         val gracefulRequestSent = requestGracefulExit(bundleId, rootPids)
-        if (gracefulRequestSent && waitUntilStopped(ownedPids, GRACEFUL_EXIT_TIMEOUT_MILLIS)) {
+        if (gracefulRequestSent && waitUntilStopped(ownedPids, 1_000L)) {
             return areProcessesStopped(matchPatterns + scopedServerPatterns, excludePatterns)
         }
-        if (!force) return false
 
-        // 优雅退出请求可能因宿主 GUI 无响应或权限问题失败；force=true 时仍只对
-        // 本次快照中已确认归属的 PID 执行强制终止，不能提前返回而留下文件占用。
-        forceStopOwnedProcesses(ownedPids, snapshots)
+        // 强杀所有归属进程
+        forceStopOwnedProcesses(ownedPids, rootPids, snapshots)
         val stopped = waitUntilStopped(ownedPids, FORCE_EXIT_TIMEOUT_MILLIS)
         return stopped && areProcessesStopped(matchPatterns + scopedServerPatterns, excludePatterns)
     }
@@ -116,13 +123,28 @@ object HostProcessManager {
         }
     }
 
-    private fun forceStopOwnedProcesses(ownedPids: Set<Long>, snapshots: List<ProcessSnapshot>) {
-        val depthByPid = buildProcessDepths(ownedPids, snapshots)
-        ownedPids.sortedByDescending { depthByPid[it] ?: 0 }.forEach { pid ->
-            if (!isPidAlive(pid)) return@forEach
-            if (isWindows) {
-                runCommand("taskkill", "/F", "/PID", pid.toString())
-            } else {
+    private fun forceStopOwnedProcesses(
+        ownedPids: Set<Long>,
+        rootPids: Set<Long>,
+        snapshots: List<ProcessSnapshot>
+    ) {
+        if (isWindows) {
+            // Windows: 优先通过 /T (Tree Kill) 一并终结根进程及所有子树进程
+            rootPids.forEach { pid ->
+                if (isPidAlive(pid)) {
+                    runCommand("taskkill", "/F", "/T", "/PID", pid.toString())
+                }
+            }
+            // 确保无遗漏的孤立子进程被清理
+            ownedPids.forEach { pid ->
+                if (isPidAlive(pid)) {
+                    runCommand("taskkill", "/F", "/PID", pid.toString())
+                }
+            }
+        } else {
+            val depthByPid = buildProcessDepths(ownedPids, snapshots)
+            ownedPids.sortedByDescending { depthByPid[it] ?: 0 }.forEach { pid ->
+                if (!isPidAlive(pid)) return@forEach
                 runCommand("kill", "-9", pid.toString())
             }
         }
@@ -187,9 +209,19 @@ object HostProcessManager {
                 processes.map { handle ->
                     val info = handle.info()
                     val command = info.command().orElse("")
-                    val arguments = info.arguments().orElse(emptyArray()).joinToString(" ")
-                    val commandLine = info.commandLine().orElse("").ifBlank {
-                        listOf(command, arguments).filter(String::isNotBlank).joinToString(" ")
+                    // 仅对 Antigravity / LanguageServer / Electron 或 command 为空的候选进程深入读取完整命令行，避免扫描数百个无关系统进程的内存
+                    val isCandidate = command.isBlank() ||
+                        command.contains("antigravity", ignoreCase = true) ||
+                        command.contains("language_server", ignoreCase = true) ||
+                        command.contains("electron", ignoreCase = true)
+
+                    val commandLine = if (isCandidate) {
+                        info.commandLine().orElse("").ifBlank {
+                            val arguments = info.arguments().orElse(emptyArray()).joinToString(" ")
+                            listOf(command, arguments).filter(String::isNotBlank).joinToString(" ")
+                        }
+                    } else {
+                        command
                     }
                     ProcessSnapshot(
                         pid = handle.pid(),

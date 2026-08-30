@@ -153,7 +153,7 @@ internal class AccountSwitchSession(
                 changes.appTerminated = true
             }
             log("停止App完成", "Antigravity App 已停止 (wasRunning=" + appWasRunning + ")")
-            delay(500)
+            delay(100)
         }
     }
 
@@ -216,7 +216,7 @@ internal class AccountSwitchSession(
     }
 
     private companion object {
-        private const val HOST_START_TIMEOUT_MS = 10_000L
-        private const val HOST_START_INTERVAL_MS = 250L
+        private const val HOST_START_TIMEOUT_MS = 8_000L
+        private const val HOST_START_INTERVAL_MS = 100L
     }
 }
