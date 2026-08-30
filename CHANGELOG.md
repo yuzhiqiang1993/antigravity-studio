@@ -2,6 +2,50 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.2.0] - 2026-08-30
+
+### 🇨🇳 中文
+
+#### ✨ 新增功能
+- **多账号无缝切换与事务安全**：支持全宿主环境（IDE / App / CLI）的活跃账号秒级一键切换，引入事务机制与自动回滚保障凭据一致性
+- **8 大主题微浸润卡片体系 (Tinted Tonal Surfaces)**：全面重塑视觉设计，新增「晨曦粉紫」、「清冽海蓝」、白曜纯白蓝调等 8 套主题，结合微浸润卡片与 Logo 动态主题变色
+- **macOS 沉浸式透明标题栏**：落地 macOS 原生全屏透明标题栏与侧边栏红绿灯安全避让，与系统外观浑然一体
+- **出站代理与网络健康体检**：支持配置 HTTP/Socks5 出站网络代理，自动感知 macOS 系统代理，并将代理连通性纳入健康体检 (Doctor)
+- **调用日志多维筛选与报文详情**：支持按客户端来源、状态码与耗时进行多维组合过滤，调试模式下支持查看请求与响应完整报文
+
+#### ⚡ 体验与性能优化
+- **宿主探查与重启亚秒级加速**：优化 Windows 注册表内存缓存与守护线程异步广播，消除子进程开销；强杀采用树状查杀 (`taskkill /F /T`) 消除等待延迟
+- **流式代理首字与异常防卡死**：优化代理流式响应首字延迟（TTFT），支持多层瞬态重试与流式首块缓冲重试，有效防止上游异常时 IDE 挂起
+- **结构化客户端识别**：智能识别官方 IDE 结构化 User-Agent、插件端及跨端请求来源并在日志与概览中精确标记
+- **国内构建与镜像加速**：配置阿里云 Maven 镜像源，提升国内开发与 CI 依赖解析效率
+
+#### 🐛 问题修复
+- **Windows 平台 App 代理注入与 Shim 修复**：内置原生 PE Shim 二进制程序，彻底解决 Windows 端 Antigravity App 代理注入、端口探测与进程拉起异常
+- **Shim 状态自愈与残留清理**：修复 App 代理半成品接入时的状态误报，支持检测 `.original` 备份残留并在重置时安全原子还原
+- **CI 与单测时序稳定性**：放宽流式尝试单测空闲超时，收敛 CI 矩阵至 macOS 与 Windows 双目标平台，消除时序竞态偶发报错
+
+---
+
+### 🌐 English
+
+#### ✨ New Features
+- **Seamless Multi-Account Switching & Transaction Safety**: Supported 1-click account switching across IDE, App, and CLI hosts with transactional rollback for credential consistency.
+- **8-Theme Tinted Tonal Surfaces**: Overhauled UI design with 8 theme palettes (including Dawn Lilac, Glacial Blue, Pure White/Azure), featuring tinted tonal surface cards and dynamic logo color adaptability.
+- **macOS Immersive Transparent Title Bar**: Integrated native macOS transparent title bar styling with traffic light button avoidance for a seamless OS appearance.
+- **Outbound Proxy & Network Doctor**: Added support for HTTP/Socks5 outbound network proxies, auto-detection for macOS system proxies, and proxy connectivity health checks.
+- **Activity Multi-Dimensional Filtering & Full Payload Inspection**: Enabled multi-criteria log filtering by client source, status code, and duration, with full request/response payload viewing in Debug mode.
+
+#### ⚡ Improvements & Performance
+- **Sub-Second Host Discovery & Restart**: Introduced registry memory caching and async daemon broadcasting to eliminate Windows child process overhead; used tree kill (`taskkill /F /T`) to eliminate termination delays.
+- **Stream TTFT & Hanging Prevention**: Optimized proxy stream Time-To-First-Token (TTFT), supporting multi-tier transient retries and first-chunk buffer retries to prevent IDE hangs on upstream glitches.
+- **Structured Client Identification**: Accurately detected and highlighted official IDE structured User-Agents, plugin clients, and cross-platform request origins.
+- **Accelerated Build Resolution**: Added Aliyun Maven mirrors for faster domestic Gradle builds and CI dependency resolution.
+
+#### 🐛 Bug Fixes
+- **Windows App Proxy Injection & Native Shim**: Embedded native PE shim binaries, completely fixing Antigravity App proxy injection, port probing, and process launch issues on Windows.
+- **Shim Self-Healing & Residue Cleanup**: Resolved false "installation failed" errors during half-baked injections, supporting atomic restoration and residue cleanup.
+- **CI & Test Timing Stability**: Extended idle timeouts in streaming attempt unit tests and scoped CI quality matrix to macOS and Windows targets.
+
 ---
 
 ## [1.1.0] - 2026-08-27
