@@ -2,6 +2,36 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.2.2] - 2026-08-30
+
+### 🇨🇳 中文
+
+#### ✨ 新增功能
+- **首字延迟与总耗时双指标统计体系**：活动分析与模型耗时面板全面升级为“首字耗时 (TTFT)”与“会话总耗时”双指标并列视图，搭配动态分级色标与双层进度条，直观反映流式响应首字速度与整体会话处理时长
+- **模型耗时明细弹窗 (Model Latency Detail)**：点击活动指标卡片中的“模型首字耗时”即可快速唤起全局模型耗时明细弹窗，支持模型关键字过滤、极值区间（Min ~ Max）透视与请求完成量统计
+
+#### ⚡ 体验与性能优化
+- **活动指标卡片聚焦首字响应**：概览与调用日志顶栏的主耗时指标统一切换为首字延迟（TTFT），更精准度量大模型实时交互响应体感
+
+#### 🐛 问题修复
+- **宿主账号探测前置阻断修复**：修复 IDE 与 App/CLI 宿主在未配置凭据或检测环境时的前置拦截与异常判断，优化宿主活跃账号的自动探测与识别规则
+
+---
+
+### 🌐 English
+
+#### ✨ New Features
+- **Dual TTFT & Total Duration Metric System**: Upgraded activity latency analytics to display both "Time-to-First-Token (TTFT)" and "Total Session Duration" side-by-side with dynamic tiered color coding and dual-layer visual progress bars.
+- **Model Latency Breakdown Dialog**: Clicking on the TTFT activity metric opens an interactive model latency modal, supporting keyword filtering, min-max range inspection, and completed request tracking.
+
+#### ⚡ Improvements & Performance
+- **TTFT-Focused Activity KPI**: Aligned primary latency indicators across overview and activity views with Time-to-First-Token for a more accurate reflection of interactive streaming responsiveness.
+
+#### 🐛 Bug Fixes
+- **Host Account Probe Unblocking**: Fixed pre-check blockers during account probing across IDE, App, and CLI hosts, refining multi-host credential detection and identification rules.
+
+---
+
 ## [1.2.1] - 2026-08-30
 
 ### 🇨🇳 中文
