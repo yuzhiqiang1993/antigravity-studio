@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
+import java.net.HttpURLConnection
 import java.net.Proxy
 import java.net.URL
 import java.security.SecureRandom
@@ -44,6 +45,11 @@ internal object RuntimeAccountProbe {
         val port: Int
     )
 
+    internal data class LanguageServerEndpoint(
+        val port: Int,
+        val csrfToken: String
+    )
+
     private data class ProcessOutput(
         val text: String,
         val exitCode: Int
@@ -75,6 +81,9 @@ internal object RuntimeAccountProbe {
         "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\"}}"
     private const val MAX_PORT = 65_535
     private const val MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+
+    // 用量分页单页可能接近官方 LS 的 8 MB 限制，不能复用账号响应的 4 MB 限制。
+    private const val MAX_USAGE_RESPONSE_BYTES = 16 * 1024 * 1024
     private const val PROCESS_READER_JOIN_TIMEOUT_MS = 2_000L
 
     /**
@@ -116,6 +125,14 @@ internal object RuntimeAccountProbe {
         }
 
     // ========== 进程发现 ==========
+
+    /** 用量回退使用全部可验证的本机 Language Server，不依赖某一宿主的账号探针。 */
+    internal fun discoverLanguageServerEndpoints(): Result<List<LanguageServerEndpoint>> =
+        discoverCandidates { _, _ -> true }.map { candidates ->
+            candidates
+                .map { LanguageServerEndpoint(it.port, it.csrfToken) }
+                .distinctBy { "${it.port}:${it.csrfToken}" }
+        }
 
     private fun discoverCandidates(matcher: ProcessMatcher): Result<List<LanguageServerCandidate>> {
         val osName = System.getProperty("os.name", "").lowercase(Locale.ROOT)
@@ -351,6 +368,70 @@ internal object RuntimeAccountProbe {
     }
 
     // ========== HTTP 请求 ==========
+
+    /**
+     * 向本机 Language Server 发送 ConnectRPC 风格 JSON 请求。
+     * 官方版本可能在同一端口上使用 HTTP 或自签 HTTPS，因此按 HTTPS → HTTP 回退。
+     */
+    internal fun requestLanguageServerJson(
+        endpoint: LanguageServerEndpoint,
+        method: String,
+        body: String,
+        timeoutMs: Int = 6_000
+    ): String {
+        require(endpoint.port in 1..MAX_PORT) { "非法 Language Server 端口" }
+        require(endpoint.csrfToken.isNotBlank()) { "缺少 Language Server CSRF token" }
+        val path = "/exa.language_server_pb.LanguageServerService/$method"
+        var lastError: Throwable? = null
+        for (protocol in listOf("https", "http")) {
+            try {
+                return requestLanguageServerJsonWithProtocol(endpoint, protocol, path, body, timeoutMs)
+            } catch (error: Throwable) {
+                lastError = error
+            }
+        }
+        throw IOException("Language Server 请求失败: ${lastError?.message ?: "未知错误"}", lastError)
+    }
+
+    private fun requestLanguageServerJsonWithProtocol(
+        endpoint: LanguageServerEndpoint,
+        protocol: String,
+        path: String,
+        body: String,
+        timeoutMs: Int
+    ): String {
+        val connection = URL("$protocol://$LOOPBACK_HOST:${endpoint.port}$path")
+            .openConnection(Proxy.NO_PROXY) as HttpURLConnection
+        if (connection is HttpsURLConnection) {
+            connection.sslSocketFactory = loopbackTrustAllSslSocketFactory
+            connection.hostnameVerifier = HostnameVerifier { hostname, _ -> hostname == LOOPBACK_HOST }
+        }
+        connection.requestMethod = "POST"
+        connection.connectTimeout = timeoutMs
+        connection.readTimeout = timeoutMs
+        connection.doInput = true
+        connection.doOutput = true
+        connection.useCaches = false
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("Connect-Protocol-Version", "1")
+        connection.setRequestProperty("X-Codeium-Csrf-Token", endpoint.csrfToken)
+
+        return try {
+            connection.outputStream.use { stream -> stream.write(body.toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            val input = if (status in 200..299) connection.inputStream else connection.errorStream
+            val bytes = input?.use { it.readNBytes(MAX_RESPONSE_BYTES + 1) } ?: ByteArray(0)
+            if (bytes.size > MAX_USAGE_RESPONSE_BYTES) throw IOException("Language Server 响应超过大小限制")
+            val responseBody = bytes.toString(Charsets.UTF_8)
+            if (status !in 200..299) {
+                throw IOException("$path HTTP $status: ${responseBody.take(200)}")
+            }
+            responseBody
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private fun requestUserStatus(
         targetDisplayName: String,

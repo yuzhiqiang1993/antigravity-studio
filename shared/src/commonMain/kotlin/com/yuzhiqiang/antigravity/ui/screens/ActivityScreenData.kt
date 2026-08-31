@@ -109,7 +109,7 @@ internal fun calculateActivityStatistics(logs: List<ActivityLog>): ActivityStati
         .takeIf { it.isNotEmpty() }
         ?.average()
         ?.toLong() ?: 0L
-    val averageTps = logs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 } }
+    val averageTps = logs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 && tps <= com.yuzhiqiang.antigravity.domain.model.MAX_REASONABLE_TPS } }
         .takeIf { it.isNotEmpty() }
         ?.average()
     val totalInputTokens = logs.mapNotNull { it.inputTokens }.sum()
@@ -155,7 +155,7 @@ internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLate
             val p50Duration = calculatePercentile(durationLogs, 50.0)
             val p95Duration = calculatePercentile(durationLogs, 95.0)
 
-            val tpsList = modelLogs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 } }
+            val tpsList = modelLogs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 && tps <= com.yuzhiqiang.antigravity.domain.model.MAX_REASONABLE_TPS } }
             val avgTps = if (tpsList.isNotEmpty()) tpsList.average() else null
             val minTps = tpsList.minOrNull()
             val maxTps = tpsList.maxOrNull()

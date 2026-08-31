@@ -4,12 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yuzhiqiang.antigravity.data.storage.AccountStore
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
+import com.yuzhiqiang.antigravity.data.usage.UsageRepository
 import com.yuzhiqiang.antigravity.doctor.engine.DoctorEngine
 import com.yuzhiqiang.antigravity.doctor.model.DoctorFixAction
 import com.yuzhiqiang.antigravity.doctor.model.DoctorReport
 import com.yuzhiqiang.antigravity.domain.model.*
 import com.yuzhiqiang.antigravity.domain.model.account.*
 import com.yuzhiqiang.antigravity.domain.model.quota.AccountQuotaSnapshot
+import com.yuzhiqiang.antigravity.domain.model.usage.CustomDateRange
+import com.yuzhiqiang.antigravity.domain.model.usage.UsageTimeRange
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.network.ConnectionTester
@@ -312,6 +315,36 @@ class AppViewModel(
 
     private val _downloadState = MutableStateFlow<AppUpdateDownloadState>(AppUpdateDownloadState.Idle)
     val downloadState: StateFlow<AppUpdateDownloadState> = _downloadState.asStateFlow()
+    val usageRepository = UsageRepository()
+    private val usageDelegate = UsageDelegate(
+        scope = viewModelScope,
+        usageRepository = usageRepository,
+        showNotice = ::showNotice
+    )
+
+    val usageStats get() = usageDelegate.usageStats
+    val isRefreshingUsage get() = usageDelegate.isRefreshing
+    val usageTimeRange get() = usageDelegate.selectedTimeRange
+    val usageCustomDateRange get() = usageDelegate.customDateRange
+    val usageSelectedSources get() = usageDelegate.selectedSources
+
+    fun refreshUsageStats(force: Boolean = true) = usageDelegate.refresh(force)
+    fun setUsageTimeRange(
+        timeRange: UsageTimeRange,
+        customRange: CustomDateRange? = null
+    ) =
+        usageDelegate.setTimeRange(timeRange, customRange)
+
+    fun toggleUsageSource(source: String) = usageDelegate.toggleSource(source)
+    fun updateCustomPricingPath(path: String?) {
+        val trimmed = path?.trim()?.takeIf { it.isNotEmpty() }
+        viewModelScope.launch {
+            configStore.updateConfig { it.copy(customPricingPath = trimmed) }
+            usageRepository.pricingService.setCustomPricingSource(trimmed)
+            usageDelegate.recompute()
+        }
+    }
+
     private val updateDelegate = UpdateDelegate(
         scope = viewModelScope,
         configStore = configStore,
@@ -396,6 +429,14 @@ class AppViewModel(
             proxyServer.start(configStore.currentConfig.proxyPort)
             refreshHostStatus()
             fetchOfficialModels().join()
+            val savedCustomPricing = configStore.currentConfig.customPricingPath
+            if (!savedCustomPricing.isNullOrBlank()) {
+                usageRepository.pricingService.setCustomPricingSource(savedCustomPricing)
+            }
+            // 重新计算已加载的磁盘快照，再启动首次扫描，避免价格变更只在下一次手动刷新生效。
+            usageDelegate.recompute()
+            // 价格配置完成后再启动首次用量扫描，确保首屏费用不会使用旧费率。
+            usageDelegate.startInitialRefresh()
             if (configStore.currentConfig.autoCheckUpdate) {
                 checkForUpdates(isManual = false)
             }

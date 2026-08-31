@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Description
@@ -64,6 +65,7 @@ fun AppSidebar(
         SidebarItem(NavTab.OVERVIEW, s.navOverview, Icons.Outlined.Dashboard),
         SidebarItem(NavTab.ACCOUNTS, s.navAccounts, Icons.Outlined.AccountCircle),
         SidebarItem(NavTab.MODELS, s.navModels, Icons.Outlined.Memory),
+        SidebarItem(NavTab.USAGE, s.navUsage, Icons.Outlined.BarChart),
         SidebarItem(NavTab.ACTIVITY, s.navActivity, Icons.Outlined.Description)
     )
 

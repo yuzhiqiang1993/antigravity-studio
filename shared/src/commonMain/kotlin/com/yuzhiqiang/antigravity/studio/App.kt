@@ -33,6 +33,7 @@ import com.yuzhiqiang.antigravity.ui.screens.ActivityScreen
 import com.yuzhiqiang.antigravity.ui.screens.ModelsScreen
 import com.yuzhiqiang.antigravity.ui.screens.OverviewScreen
 import com.yuzhiqiang.antigravity.ui.screens.SettingsScreen
+import com.yuzhiqiang.antigravity.ui.screens.UsageScreen
 
 import com.yuzhiqiang.antigravity.ui.theme.AntigravityTheme
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -135,6 +136,7 @@ fun App(
                                         NavTab.OVERVIEW -> OverviewScreen(viewModel = viewModel)
                                         NavTab.ACCOUNTS -> AccountsScreen(viewModel = viewModel)
                                         NavTab.MODELS -> ModelsScreen(viewModel = viewModel)
+                                        NavTab.USAGE -> UsageScreen(viewModel = viewModel)
                                         NavTab.ACTIVITY -> ActivityScreen(viewModel = viewModel)
                                         NavTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
                                     }

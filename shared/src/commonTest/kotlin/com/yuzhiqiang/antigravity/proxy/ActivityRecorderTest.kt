@@ -139,6 +139,32 @@ class ActivityRecorderTest {
     }
 
     @Test
+    fun testBurstOrSingleChunkResponseDoesNotExplodeTps() {
+        val logId = ActivityRecorder.startActivity(
+            method = "POST",
+            path = "/v1internal:streamGenerateContent",
+            modelId = "custom-gpt-5-6-sol-x-high",
+            providerName = "OpenAI",
+            isOfficialPassthrough = false
+        )
+
+        // 模拟 19s 长思考后在 1ms 内突发返回 405 tokens（首字 19000ms，尾字 19000ms，总耗时 19001ms）
+        ActivityRecorder.finishActivity(
+            id = logId,
+            statusCode = 200,
+            durationMs = 19001L,
+            usage = NeutralUsage(outputTokens = 405),
+            firstTokenMs = 19000L,
+            lastTokenMs = 19000L
+        )
+
+        val log = ActivityRecorder.logs.value.single()
+        assertEquals(19001L, log.generationDurationMs)
+        assertNotNull(log.tokensPerSecond)
+        assertTrue(log.tokensPerSecond!! in 20.0..22.0) // 405 / 19.001 ≈ 21.31 t/s
+    }
+
+    @Test
     fun testLargePayloadSanitization() {
         val hugeBody = "A".repeat(1_200_000)
         val logId = ActivityRecorder.startActivity(

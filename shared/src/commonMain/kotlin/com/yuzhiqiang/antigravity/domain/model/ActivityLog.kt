@@ -81,6 +81,9 @@ data class ActivityLog(
     val responseBody: String? = null
 )
 
+internal const val MIN_STREAM_GENERATION_DURATION_MS = 100L
+internal const val MAX_REASONABLE_TPS = 2_000.0
+
 internal data class SpeedMetrics(
     val generationDurationMs: Long?,
     val tokensPerSecond: Double?,
@@ -93,32 +96,75 @@ internal fun calculateSpeedMetrics(
     lastTokenMs: Long?,
     durationMs: Long? = null
 ): SpeedMetrics {
-    if (outputTokens == null || outputTokens <= 1L) {
+    if (outputTokens == null || outputTokens <= 0L) {
         val rawGenMs = when {
             firstTokenMs != null && lastTokenMs != null && lastTokenMs >= firstTokenMs -> lastTokenMs - firstTokenMs
             firstTokenMs != null && durationMs != null && durationMs >= firstTokenMs -> durationMs - firstTokenMs
+            durationMs != null && durationMs > 0L -> durationMs
             else -> null
         }
         return SpeedMetrics(rawGenMs, null, null)
     }
 
-    // 优先使用实际流式末字与首字差值，若无明确差值且有总耗时则使用 durationMs - firstTokenMs
+    // 1. 优先使用实际流式末字与首字跨度（必须满足持续吐字跨度 >= 100ms）
+    // 2. 其次使用首字到请求完成跨度（>= 100ms）
+    // 3. 突发交付/单包返回或生成跨度极短时，降级采用总响应耗时 durationMs（避免 1ms 毫秒除法放大产生几十万 TPS 脏数据）
     val rawGenMs = when {
-        firstTokenMs != null && lastTokenMs != null && lastTokenMs > firstTokenMs -> lastTokenMs - firstTokenMs
-        firstTokenMs != null && durationMs != null && durationMs > firstTokenMs -> durationMs - firstTokenMs
-        durationMs != null && durationMs > 0L -> durationMs
+        firstTokenMs != null && lastTokenMs != null && (lastTokenMs - firstTokenMs) >= MIN_STREAM_GENERATION_DURATION_MS -> {
+            lastTokenMs - firstTokenMs
+        }
+        firstTokenMs != null && durationMs != null && (durationMs - firstTokenMs) >= MIN_STREAM_GENERATION_DURATION_MS -> {
+            durationMs - firstTokenMs
+        }
+        firstTokenMs != null && lastTokenMs != null && lastTokenMs == firstTokenMs && (durationMs == null || firstTokenMs >= durationMs) -> {
+            0L
+        }
+        durationMs != null && durationMs >= MIN_STREAM_GENERATION_DURATION_MS -> {
+            durationMs
+        }
+        durationMs != null && durationMs > 0L -> {
+            durationMs
+        }
+        firstTokenMs != null && lastTokenMs != null && lastTokenMs > firstTokenMs -> {
+            lastTokenMs - firstTokenMs
+        }
         else -> null
     }
 
     if (rawGenMs == null || rawGenMs <= 0L) {
         return SpeedMetrics(rawGenMs, null, null)
     }
+
     val seconds = rawGenMs / 1000.0
-    val tps = outputTokens.toDouble() / seconds
-    val tpot = rawGenMs.toDouble() / maxOf(1L, outputTokens - 1).toDouble()
+    val rawTps = outputTokens.toDouble() / seconds
+
+    // 针对极限突发场景做合理性上限兜底（防止毫秒级时钟抖动溢出）
+    val finalTps = if (rawTps > MAX_REASONABLE_TPS) {
+        if (durationMs != null && durationMs >= MIN_STREAM_GENERATION_DURATION_MS) {
+            val fallbackTps = outputTokens.toDouble() / (durationMs / 1000.0)
+            if (fallbackTps <= MAX_REASONABLE_TPS) fallbackTps else null
+        } else {
+            null
+        }
+    } else {
+        rawTps
+    }
+
+    val finalGenMs = if (finalTps != null && finalTps != rawTps && durationMs != null) {
+        durationMs
+    } else {
+        rawGenMs
+    }
+
+    val tpot = if (finalGenMs > 0L && outputTokens > 0L) {
+        finalGenMs.toDouble() / maxOf(1L, if (outputTokens > 1L) outputTokens - 1 else 1L).toDouble()
+    } else {
+        null
+    }
+
     return SpeedMetrics(
-        generationDurationMs = rawGenMs,
-        tokensPerSecond = tps,
+        generationDurationMs = finalGenMs,
+        tokensPerSecond = finalTps,
         timePerOutputTokenMs = tpot
     )
 }
