@@ -97,7 +97,7 @@ get_version_name() {
             return 0
         fi
     fi
-    echo "1.2.2"
+    echo "1.2.3"
 }
 
 # 解析命令行参数

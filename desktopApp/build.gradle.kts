@@ -46,7 +46,7 @@ compose.desktop {
             modules("java.sql", "java.naming")
             targetFormats(TargetFormat.Dmg, TargetFormat.Pkg, TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Antigravity Studio"
-            packageVersion = "1.2.2"
+            packageVersion = "1.2.3"
             description = "All-in-one desktop hub and productivity studio for Antigravity AI tools"
             vendor = "yuzhiqiang"
 

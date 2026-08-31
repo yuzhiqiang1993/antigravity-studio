@@ -2,6 +2,32 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.2.3] - 2026-08-31
+
+### 🇨🇳 中文
+
+#### ✨ 新增功能
+- **流式响应时序追踪与输出速率度量**：调用日志全链路支持流式响应时序追踪（TTFT 首字耗时、会话总耗时、输出 Token 计数），实时计算输出生成速率（Tokens/sec）与双层时序胶囊
+- **活动日志智能筛选与接口语义化**：重构筛选面板（加宽至 900dp，界面更通透），支持“仅看会话生成 (Chat / Stream)”一键切换，并自动在指标统计中聚焦核心会话；日志最大缓存容量扩容至 2000 条
+- **Cockpit 插件生态联动推广与智能检测**：在运行概览新增 Antigravity Cockpit 插件联动推荐横幅，内置 `CockpitPluginDetector` 智能跨平台检测用户是否已安装插件，已安装自动静默隐藏
+
+#### 🐛 问题修复
+- **Release 独立安装包 SQL/Naming 模块缺失修复**：桌面端打包配置补充 `java.sql` 与 `java.naming` 运行时模块，彻底解决独立 App 在生产环境下 SQLite 驱动缺失导致的账号探测失效问题
+
+---
+
+### 🌐 English
+
+#### ✨ New Features
+- **Streaming Timing Metrics & Output Speed Tracker**: Added full-link streaming response lifecycle metrics (TTFT, Total Duration, Output Tokens) with real-time output throughput (Tokens/sec) calculation and dual-layer visual badges.
+- **Enhanced Activity Filtering & Endpoint Semantics**: Redesigned filter modal (expanded to 900dp) with a 1-click "Chat / Stream Only" filter tab, semantic endpoint labels, and dynamic activity KPI recalculations; expanded log buffer to 2000 entries.
+- **Cockpit Extension Ecosystem Integration & Auto-Detection**: Integrated Antigravity Cockpit extension promotion banner in overview with smart local installation prober (`CockpitPluginDetector`) that automatically hides the banner for existing users.
+
+#### 🐛 Bug Fixes
+- **Standalone App Distribution SQL/Naming Module Fix**: Added missing `java.sql` and `java.naming` modules to native distribution package to resolve SQLite driver runtime initialization failures in Release builds.
+
+---
+
 ## [1.2.2] - 2026-08-30
 
 ### 🇨🇳 中文
