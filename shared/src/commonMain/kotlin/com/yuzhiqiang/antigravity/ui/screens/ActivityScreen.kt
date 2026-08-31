@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -153,6 +154,17 @@ fun ActivityScreen(
                                 }
                             )
                         ) {
+                            if (autoScroll) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(
+                                            com.yuzhiqiang.antigravity.ui.theme.AppStatusColors.success,
+                                            androidx.compose.foundation.shape.CircleShape
+                                        )
+                                )
+                                Spacer(Modifier.width(6.dp))
+                            }
                             Icon(
                                 imageVector = if (autoScroll) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
                                 contentDescription = null,
@@ -209,11 +221,13 @@ fun ActivityScreen(
 
                 Spacer(Modifier.height(14.dp))
 
-                // 指标卡片（支持点击快速切换筛选或查看模型耗时明细）
+                // 指标卡片（直接展示总数、异常、首字耗时、输出速率、会话耗时、缓存命中率）
                 ActivityMetricsRow(
                     totalCount = logs.size,
                     failedCount = statistics.failedCount,
                     averageFirstTokenMs = statistics.averageFirstTokenMs,
+                    averageTps = statistics.averageTps,
+                    averageDuration = statistics.averageDuration,
                     overallCacheHitRate = statistics.overallCacheHitRate,
                     filter = activityFilter,
                     onFilterChange = { activityFilter = it },

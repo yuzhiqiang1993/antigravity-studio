@@ -18,6 +18,9 @@ interface ActivityStrings {
     val activityTotal: String
     val activityFailedTotal: String
     val activityAverage: String
+    val activityAvgTtft: String
+    val activityAvgTps: String
+    val activityAvgDuration: String
     val activityCacheHitRate: String
     val activityModelLatencyDialogTitle: String
     val activityModelLatencyDialogSubtitle: String
@@ -153,6 +156,9 @@ object ActivityStringsZh : ActivityStrings {
     override val activityTotal = "总请求量"
     override val activityFailedTotal = "异常请求"
     override val activityAverage = "首字平均耗时"
+    override val activityAvgTtft = "首字耗时"
+    override val activityAvgTps = "输出速率"
+    override val activityAvgDuration = "会话耗时"
     override val activityCacheHitRate = "缓存命中率"
     override val activityModelLatencyDialogTitle = "模型速度与耗时统计"
     override val activityModelLatencyDialogSubtitle = "汇总各模型的首字响应速度、输出速率与总耗时"
@@ -289,6 +295,9 @@ object ActivityStringsEn : ActivityStrings {
     override val activityTotal = "Total requests"
     override val activityFailedTotal = "Failed requests"
     override val activityAverage = "Avg First Token"
+    override val activityAvgTtft = "First Token"
+    override val activityAvgTps = "Output Speed"
+    override val activityAvgDuration = "Duration"
     override val activityCacheHitRate = "Cache Hit Rate"
     override val activityModelLatencyDialogTitle = "Model Speed & Latency"
     override val activityModelLatencyDialogSubtitle = "Overview of first token response, generation speed, and total duration across models"

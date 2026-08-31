@@ -62,6 +62,7 @@ internal data class ActivityStatistics(
     val failedCount: Int,
     val averageDuration: Long,
     val averageFirstTokenMs: Long,
+    val averageTps: Double? = null,
     val overallCacheHitRate: Double?
 )
 
@@ -93,32 +94,34 @@ data class ModelLatencyStat(
 )
 
 @Composable
-internal fun rememberActivityStatistics(logs: List<ActivityLog>): ActivityStatistics {
-    val failedCount = remember(logs) { logs.count { !it.isPending && it.statusCode >= 400 } }
-    val averageDuration = remember(logs) {
-        logs.filter { !it.isPending && it.statusCode > 0 }
-            .takeIf { it.isNotEmpty() }
-            ?.map { it.durationMs }
-            ?.average()
-            ?.toLong() ?: 0L
-    }
-    val averageFirstTokenMs = remember(logs) {
-        logs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
-            .takeIf { it.isNotEmpty() }
-            ?.average()
-            ?.toLong() ?: 0L
-    }
-    val totalInputTokens = remember(logs) { logs.mapNotNull { it.inputTokens }.sum() }
-    val totalCacheReadTokens = remember(logs) { logs.mapNotNull { it.cacheReadTokens }.sum() }
-    val totalCacheWriteTokens = remember(logs) { logs.mapNotNull { it.cacheWriteTokens }.sum() }
-    val overallCacheHitRate = remember(totalInputTokens, totalCacheReadTokens, totalCacheWriteTokens) {
-        calculateCacheHitRate(totalCacheReadTokens, totalInputTokens, totalCacheWriteTokens)
-    }
+internal fun rememberActivityStatistics(logs: List<ActivityLog>): ActivityStatistics = remember(logs) {
+    calculateActivityStatistics(logs)
+}
+
+internal fun calculateActivityStatistics(logs: List<ActivityLog>): ActivityStatistics {
+    val failedCount = logs.count { !it.isPending && it.statusCode >= 400 }
+    val averageDuration = logs.filter { !it.isPending && it.statusCode > 0 }
+        .takeIf { it.isNotEmpty() }
+        ?.map { it.durationMs }
+        ?.average()
+        ?.toLong() ?: 0L
+    val averageFirstTokenMs = logs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
+        .takeIf { it.isNotEmpty() }
+        ?.average()
+        ?.toLong() ?: 0L
+    val averageTps = logs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 } }
+        .takeIf { it.isNotEmpty() }
+        ?.average()
+    val totalInputTokens = logs.mapNotNull { it.inputTokens }.sum()
+    val totalCacheReadTokens = logs.mapNotNull { it.cacheReadTokens }.sum()
+    val totalCacheWriteTokens = logs.mapNotNull { it.cacheWriteTokens }.sum()
+    val overallCacheHitRate = calculateCacheHitRate(totalCacheReadTokens, totalInputTokens, totalCacheWriteTokens)
 
     return ActivityStatistics(
         failedCount = failedCount,
         averageDuration = averageDuration,
         averageFirstTokenMs = averageFirstTokenMs,
+        averageTps = averageTps,
         overallCacheHitRate = overallCacheHitRate
     )
 }

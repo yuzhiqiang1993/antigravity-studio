@@ -84,4 +84,70 @@ class ActivityScreenDataTest {
         assertEquals(2500L, stat.p95MaxChunkGapMs)
         assertEquals(50L, stat.averageQueueWaitMs)
     }
+
+    @Test
+    fun testCalculateActivityStatistics() {
+        val logs = listOf(
+            ActivityLog(
+                id = "1",
+                method = "POST",
+                path = "/v1/chat",
+                statusCode = 200,
+                durationMs = 3000L,
+                firstTokenMs = 1000L,
+                tokensPerSecond = 60.0,
+                inputTokens = 1000L,
+                cacheReadTokens = 800L,
+                cacheWriteTokens = 0L,
+                outputTokens = 120L
+            ),
+            ActivityLog(
+                id = "2",
+                method = "POST",
+                path = "/v1/chat",
+                statusCode = 500,
+                durationMs = 1000L,
+                firstTokenMs = null,
+                tokensPerSecond = null,
+                inputTokens = 500L,
+                cacheReadTokens = 0L,
+                cacheWriteTokens = 0L,
+                outputTokens = 0L
+            ),
+            ActivityLog(
+                id = "3",
+                method = "POST",
+                path = "/v1/chat",
+                statusCode = 200,
+                durationMs = 5000L,
+                firstTokenMs = 2000L,
+                tokensPerSecond = 40.0,
+                inputTokens = 1000L,
+                cacheReadTokens = 200L,
+                cacheWriteTokens = 0L,
+                outputTokens = 120L
+            )
+        )
+
+        val stats = calculateActivityStatistics(logs)
+        assertEquals(1, stats.failedCount)
+        assertEquals(3000L, stats.averageDuration) // (3000 + 1000 + 5000) / 3 = 3000
+        assertEquals(1500L, stats.averageFirstTokenMs) // (1000 + 2000) / 2 = 1500
+        assertEquals(50.0, stats.averageTps) // (60 + 40) / 2 = 50
+        assertNotNull(stats.overallCacheHitRate)
+        // 总输入: (800+1000) + 500 + (200+1000) = 3500; 命中: 1000; 1000/3500 * 100 = 28.57%
+        val hitRate = stats.overallCacheHitRate ?: 0.0
+        assertEquals(28.57, kotlin.math.round(hitRate * 100) / 100.0)
+    }
+
+    @Test
+    fun testCalculateActivityStatisticsEmpty() {
+        val stats = calculateActivityStatistics(emptyList())
+        assertEquals(0, stats.failedCount)
+        assertEquals(0L, stats.averageDuration)
+        assertEquals(0L, stats.averageFirstTokenMs)
+        assertNull(stats.averageTps)
+        assertNull(stats.overallCacheHitRate)
+    }
 }
+

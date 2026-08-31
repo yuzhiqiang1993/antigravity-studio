@@ -217,3 +217,45 @@ fun getCacheHitRateColor(rate: Double?, defaultColor: androidx.compose.ui.graphi
         else -> defaultColor
     }
 }
+
+/**
+ * 将耗时拆分为数值与单位二元组，用于精细化 UI 排版（如 "2.7" to "s", "360" to "ms"）
+ */
+fun splitDuration(durationMs: Long?): Pair<String, String>? {
+    if (durationMs == null || durationMs <= 0L) return null
+    if (durationMs < 1000L) return "$durationMs" to "ms"
+    if (durationMs < 60_000L) {
+        val seconds = durationMs / 1000.0
+        val rounded = round(seconds * 10) / 10.0
+        val text = if (rounded == rounded.toLong().toDouble()) "${rounded.toLong()}" else "$rounded"
+        return text to "s"
+    }
+    val minutes = durationMs / 60_000L
+    val remainingSeconds = (durationMs % 60_000L) / 1000L
+    return if (remainingSeconds > 0L) {
+        "${minutes}m ${remainingSeconds}" to "s"
+    } else {
+        "$minutes" to "m"
+    }
+}
+
+/**
+ * 将 TPS 拆分为数值与单位二元组（如 "488.7" to "t/s"）
+ */
+fun splitTps(tps: Double?): Pair<String, String>? {
+    if (tps == null || tps <= 0.0) return null
+    val rounded = round(tps * 10) / 10.0
+    val text = if (rounded == rounded.toLong().toDouble()) "${rounded.toLong()}" else "$rounded"
+    return text to "t/s"
+}
+
+/**
+ * 将缓存命中率拆分为数值与百分号二元组（如 "74.6" to "%"）
+ */
+fun splitHitRate(rate: Double?): Pair<String, String>? {
+    if (rate == null) return null
+    val rounded = round(rate * 10) / 10.0
+    val text = if (rounded == rounded.toLong().toDouble()) "${rounded.toLong()}" else "$rounded"
+    return text to "%"
+}
+

@@ -6,19 +6,44 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
 import com.yuzhiqiang.antigravity.i18n.Strings
-import com.yuzhiqiang.antigravity.ui.components.*
+import com.yuzhiqiang.antigravity.ui.components.BadgeTone
+import com.yuzhiqiang.antigravity.ui.components.HighlightedText
+import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate
@@ -64,13 +89,19 @@ internal fun ActivityLogRow(
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.outlinedCardColors(
-            containerColor = if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface
+            containerColor = if (isHovered) {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
         ),
         border = BorderStroke(
             1.dp,
-            if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(
-                alpha = 0.5f
-            )
+            if (isHovered) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            }
         )
     ) {
         Row(
@@ -144,36 +175,25 @@ internal fun ActivityLogRow(
                             maxLines = 1
                         )
                     }
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = time,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                         )
+
                         if (log.isPending) {
                             if (log.firstTokenMs != null) {
                                 val ttftTier = getFirstTokenLatencyTier(log.firstTokenMs)
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Text(
-                                        text = s.activityFirstTokenLabel,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                    )
-                                    Text(
-                                        text = formatDuration(log.firstTokenMs),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
-                                        color = ttftTier.toColor()
-                                    )
-                                }
+                                MetricPill(
+                                    icon = Icons.Outlined.Bolt,
+                                    text = formatDuration(log.firstTokenMs),
+                                    color = ttftTier.toColor()
+                                )
                             }
                             Text(
                                 text = s.activityProcessing,
@@ -186,41 +206,18 @@ internal fun ActivityLogRow(
                         } else {
                             if (log.firstTokenMs != null) {
                                 val ttftTier = getFirstTokenLatencyTier(log.firstTokenMs)
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Text(
-                                        text = s.activityFirstTokenLabel,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                    )
-                                    Text(
-                                        text = formatDuration(log.firstTokenMs),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
-                                        color = ttftTier.toColor()
-                                    )
-                                }
+                                MetricPill(
+                                    icon = Icons.Outlined.Bolt,
+                                    text = formatDuration(log.firstTokenMs),
+                                    color = ttftTier.toColor()
+                                )
                             }
                             if (log.tokensPerSecond != null && log.tokensPerSecond > 0.0) {
-                                val tpsColor = MaterialTheme.colorScheme.secondary
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = tpsColor.copy(alpha = 0.15f)
-                                ) {
-                                    Text(
-                                        text = formatTps(log.tokensPerSecond),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
-                                        color = tpsColor,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
+                                MetricPill(
+                                    icon = Icons.Outlined.Speed,
+                                    text = formatTps(log.tokensPerSecond),
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
                             }
                             val durationTier = getDurationLatencyTier(log.durationMs)
                             Text(
@@ -371,6 +368,41 @@ internal fun ActivityLogRow(
     }
 }
 
+@Composable
+private fun MetricPill(
+    icon: ImageVector,
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = color.copy(alpha = 0.12f),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(11.dp),
+                tint = color
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = color
+            )
+        }
+    }
+}
+
 private fun formatLogTime(timestampMs: Long): String {
     return try {
         val sdf = java.text.SimpleDateFormat("HH:mm:ss.SSS")
@@ -397,7 +429,6 @@ private fun ClientSourceBadge(
         isCli -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) to MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f) to MaterialTheme.colorScheme.onSurfaceVariant
     }
-
 
     Surface(
         color = bg,

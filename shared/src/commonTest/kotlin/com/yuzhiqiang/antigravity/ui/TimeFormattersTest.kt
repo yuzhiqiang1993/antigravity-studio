@@ -114,4 +114,23 @@ class TimeFormattersTest {
 
         assertEquals("—", com.yuzhiqiang.antigravity.ui.utils.formatHitRate(null))
     }
+
+    @Test
+    fun testSplitFunctions() {
+        assertEquals("2.7" to "s", com.yuzhiqiang.antigravity.ui.utils.splitDuration(2700L))
+        assertEquals("360" to "ms", com.yuzhiqiang.antigravity.ui.utils.splitDuration(360L))
+        assertEquals("1m 5" to "s", com.yuzhiqiang.antigravity.ui.utils.splitDuration(65000L))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.splitDuration(null))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.splitDuration(0L))
+
+        assertEquals("488.7" to "t/s", com.yuzhiqiang.antigravity.ui.utils.splitTps(488.7))
+        assertEquals("120" to "t/s", com.yuzhiqiang.antigravity.ui.utils.splitTps(120.0))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.splitTps(null))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.splitTps(0.0))
+
+        assertEquals("74.6" to "%", com.yuzhiqiang.antigravity.ui.utils.splitHitRate(74.6))
+        assertEquals("100" to "%", com.yuzhiqiang.antigravity.ui.utils.splitHitRate(100.0))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.splitHitRate(null))
+    }
 }
+
