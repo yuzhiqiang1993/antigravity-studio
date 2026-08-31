@@ -12,6 +12,10 @@
 
 一句话概括：**用自己的 Key 畅享任意第三方大模型，集中管理多个 Google 账号与额度余量，随心定制长记忆压缩与模型列表。**
 
+<p align="center">
+  <img src="img/zh/overview.png" alt="Antigravity Studio 运行概览" width="100%" />
+</p>
+
 ---
 
 ## 为什么需要 Antigravity Studio？
@@ -29,15 +33,22 @@
 ## 核心功能一览
 
 ### 1. 自带 Key 接入任意大模型 (BYOK)
-- **支持全主流服务商**：内置 OpenAI、Anthropic、Gemini、DeepSeek、xAI、本地 Ollama 以及各种中转/聚合网关，也可填入任意自定义端点；
+- **支持全主流服务商**：内置 OpenAI、Anthropic、Gemini、DeepSeek、xAI、本地 Ollama 以及各大平台与聚合网关，也可填入任意自定义端点；
 - **一键拉取模型**：填好 Key 后直接点拉取，勾选就能把模型无缝注入 Antigravity；
 - **能力完全不缩水**：完美支持多模态图片输入、代码工具调用 (Tools) 与思维链 (Thinking) 推理档位；
 - **无额度限制**：直接连你的服务商，不经过任何第三方服务器中转。
 
+![模型管理](img/zh/model_management.png)
+![服务商预设](img/zh/provider_presets.png)
+![模型选择与能力配置](img/zh/provider_models_select.png)
+
 ### 2. 多账号管理与一键换号
 - **多账号集中托管**：支持 Google 浏览器一键登录或直接粘贴 Refresh Token 录入多个账号；
-- **实时监控配额**：各账号各模型的额度余量一目了然；
-- **一键生效到 IDE**：点击「设为当前账号」，即可秒级切换当前 IDE 正在使用的账号，不用反复重新登录。
+- **实时监控配额**：各账号各模型（Gemini / Claude）的 5 小时与周额度余量、重置倒计时一目了然；
+- **一键生效到 IDE / App / CLI**：点击「设为当前账号」，即可秒级切换当前目标应用正在使用的账号，不用反复重新登录。
+
+![账号配额管理](img/zh/account_quota.png)
+![一键切换账号](img/zh/account_switch.png)
 
 ### 3. 多端一键接管，随时切回官方直连
 - **多端自动感知**：自动识别本机 Antigravity IDE、Antigravity App 和 Antigravity CLI 的运行状态；
@@ -47,12 +58,25 @@
 - **模型列表瘦身**：在界面上一键勾选隐藏不常用的官方模型，让 IDE 里的模型下拉框清爽利落；
 - **放宽上下文压缩阈值**：提供 128K、200K、256K、372K、1M 等多档容量设定，自定义压缩触发时机，防止长对话过早遗忘关键代码细节。
 
+![定制长记忆上下文策略](img/zh/context_strategy.png)
+
 ### 5. 一键体检与故障自愈 (Doctor)
 - 连接不上或配置异常时，点一下「健康诊断」即可一键体检（网络连通性、代理端口占用、配置文件完整性、宿主接入状态等），并支持一键自动修复常见问题。
 
-### 6. 调用日志透明审计
-- 本地实时查看请求明细（模型名称、调用耗时、上游状态码）；
+### 6. 调用日志透明审计与耗时统计
+- **实时请求明细**：本地查看请求路径、模型名称、调用耗时、上游状态码及吞吐速率；
+- **性能统计分析**：汇总各模型的首字响应延迟 (TTFT)、生成速度 (TPS) 与会话总耗时；
 - **隐私保护**：所有日志仅存放在本地内存中，退出即清空，**绝不记录用户代码、Prompt 提示词、模型回答或 API Key**。
+
+![调用日志明细](img/zh/activity_logs.png)
+![模型速度与耗时统计](img/zh/logs_model_speed_stats.png)
+
+### 7. 偏好设置与个性化
+- **外观与主题**：支持浅色/深色模式及多款 Material 3 主题配色；
+- **通用设置**：中英文多语言切换、切号默认目标应用配置、一键版本更新检测。
+
+![应用偏好与配置](img/zh/settings_general.png)
+![关于 Antigravity Studio](img/zh/settings_about.png)
 
 ---
 

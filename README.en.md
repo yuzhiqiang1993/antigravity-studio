@@ -10,6 +10,10 @@
 
 **Antigravity Studio** is a cross-platform desktop client for the Antigravity programming suite (IDE, App, CLI). It runs a local proxy that lets you bring your own API keys for third-party LLMs (such as OpenAI, Claude, DeepSeek, Gemini, Ollama, etc.), manage models, and toggle IDE integration with one click.
 
+<p align="center">
+  <img src="img/zh/overview.png" alt="Antigravity Studio Overview" width="100%" />
+</p>
+
 ---
 
 ## Why Antigravity Studio?
@@ -45,25 +49,38 @@ If you use Antigravity IDE frequently, check out the [**Antigravity IDE Cockpit*
 
 ## Core Features
 
-### 1. Overview
+### 1. Overview & Host Integration
 - **Local Proxy Status**: Monitor proxy status and the active port;
 - **Host Detection**: Automatically detects installed instances of Antigravity IDE, App, and CLI;
 - **One-Click Integration**: Easily toggle between "Proxy Mode" and "Official Direct Connection".
 
-### 2. Provider & Model Management
+### 2. Multi-Account Management & Switching
+- **Account Quota Monitoring**: Live quota rings and reset countdowns for Gemini & Claude;
+- **One-Click Switching**: Seamlessly switch target app active account without re-authenticating.
+
+![Account Quota Management](img/zh/account_quota.png)
+![Switch Account](img/zh/account_switch.png)
+
+### 3. Provider & Model Management (BYOK)
 - **Provider Presets**: Built-in presets for OpenAI, Anthropic, Gemini, DeepSeek, xAI, Ollama, and API gateways, plus support for custom endpoints;
 - **One-Click Model Fetching**: Fetch available models from upstream providers and add them to Antigravity;
 - **Multimodal & Thinking Mapping**: Enable image inputs, tools, and map Low / Medium / High / Max reasoning levels;
 - **Official Model Filtering**: Hide unused official models with a single click;
 - **Latency Testing**: Test endpoint connectivity and response latency at any time.
 
-### 3. Context Compression Settings
+![Model Management](img/zh/model_management.png)
+![Provider Presets](img/zh/provider_presets.png)
+![Select Models](img/zh/provider_models_select.png)
+
+### 4. Context Compression Settings
 In long conversations, triggering context compression too early can lead to repeated summary calls and loss of earlier code details, while triggering too late might exceed the model's context limit.
 - Capacity presets from 128K, 200K, 256K, 372K up to 1M;
 - Customize compression trigger thresholds and output buffer sizes;
 - Choose between using the current model or a lightweight model for compression.
 
-### 4. Health Check (Doctor Engine)
+![Context Strategy](img/zh/context_strategy.png)
+
+### 5. Health Check (Doctor Engine)
 Run a one-click diagnosis with guided fixes for common setup issues:
 - Network connectivity to official services and GitHub Releases;
 - Local config file integrity and permissions;
@@ -71,9 +88,20 @@ Run a one-click diagnosis with guided fixes for common setup issues:
 - Host integration configuration validity;
 - Upstream provider credentials and endpoint health.
 
-### 5. Activity Logs
-- Inspect local request routing records (timestamp, requested model, provider, HTTP status code, duration);
+### 6. Activity Logs & Speed Statistics
+- **Real-Time Requests**: Inspect local request routing records (timestamp, requested model, provider, HTTP status code, duration, TPS);
+- **Performance Metrics**: Aggregate TTFT (Time to First Token), output throughput, and session latency across models;
 - **Privacy First**: Logs are stored strictly in memory and are cleared on exit. Prompts, code contents, responses, and API keys are never recorded or transmitted.
+
+![Activity Logs](img/zh/activity_logs.png)
+![Model Speed Stats](img/zh/logs_model_speed_stats.png)
+
+### 7. App Preferences & Theming
+- **Appearance**: Light / Dark mode and multiple Material 3 dynamic color schemes;
+- **Settings**: Multi-language support (English / Simplified Chinese), default switch target app, and update checks.
+
+![Settings](img/zh/settings_general.png)
+![About](img/zh/settings_about.png)
 
 ---
 
