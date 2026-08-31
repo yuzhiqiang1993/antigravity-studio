@@ -44,6 +44,7 @@ internal class OfficialPassthroughResponseHandler(
         onResponseStarted: () -> Unit,
         response: HttpResponse
     ): OfficialResponseHandlingResult {
+        val responseReadyMs = maxOf(0L, System.currentTimeMillis() - startTime)
         val status = response.status.value
         val responseContentType = response.contentType() ?: ContentType.Application.Json
         val responseIsStreaming = isStreaming || responseContentType.match(ContentType.Text.EventStream)
@@ -102,6 +103,7 @@ internal class OfficialPassthroughResponseHandler(
             id = logId,
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,
+            firstByteMs = responseReadyMs,
             usage = nonStreamingUsage,
             retryCount = attempt - 1,
             responseHeaders = responseHeaders,
@@ -146,17 +148,24 @@ internal class OfficialPassthroughResponseHandler(
             )
         }
 
+        val firstReadAt = System.currentTimeMillis()
+        val timingTracker = StreamTimingTracker(startTime).apply { recordFirstByte(firstReadAt) }
         onResponseStarted()
         call.response.headers.append("Cache-Control", "no-cache")
         call.response.headers.append("X-Accel-Buffering", "no")
         OfficialPassthroughHttpSupport.copyForwardResponseHeaders(call, response)
-        val ttft = System.currentTimeMillis() - startTime
-        val firstTokenMs: Long? = ttft
-        ActivityRecorder.updateFirstToken(logId, ttft)
         var latestUsage: NeutralUsage? = null
         val sseBuffer = StringBuilder()
         val debugStreamBody = if (isDebug) StringBuilder() else null
         var streamErrorCaught: Throwable? = null
+
+        fun recordObservation(observation: OfficialSseObservation, atMs: Long) {
+            observation.usage?.let { latestUsage = it }
+            if (observation.hasMeaningfulContent) {
+                val (elapsedMs, isFirst) = timingTracker.recordMeaningfulContent(atMs)
+                if (isFirst) ActivityRecorder.updateFirstToken(logId, elapsedMs)
+            }
+        }
 
         try {
             call.respondBytesWriter(contentType = responseContentType, status = response.status) {
@@ -165,9 +174,10 @@ internal class OfficialPassthroughResponseHandler(
                 val firstText = firstBuffer.decodeToString(0, firstRead)
                 debugStreamBody?.append(firstText)
                 sseBuffer.append(firstText)
-                OfficialPassthroughUsage.extractUsageFromSseBuffer(sseBuffer, isFinal = false)?.let { usage ->
-                    latestUsage = usage
-                }
+                recordObservation(
+                    OfficialPassthroughUsage.extractObservationFromSseBuffer(sseBuffer, isFinal = false),
+                    System.currentTimeMillis()
+                )
 
                 val buffer = ByteArray(8192)
                 try {
@@ -183,8 +193,10 @@ internal class OfficialPassthroughResponseHandler(
                         val chunkText = buffer.decodeToString(0, read)
                         debugStreamBody?.append(chunkText)
                         sseBuffer.append(chunkText)
-                        OfficialPassthroughUsage.extractUsageFromSseBuffer(sseBuffer, isFinal = false)
-                            ?.let { usage -> latestUsage = usage }
+                        recordObservation(
+                            OfficialPassthroughUsage.extractObservationFromSseBuffer(sseBuffer, isFinal = false),
+                            System.currentTimeMillis()
+                        )
                     }
                 } catch (streamError: Throwable) {
                     streamErrorCaught = streamError
@@ -202,14 +214,21 @@ internal class OfficialPassthroughResponseHandler(
                     }
                 }
             }
-            OfficialPassthroughUsage.extractUsageFromSseBuffer(sseBuffer, isFinal = true)?.let { usage ->
-                latestUsage = usage
-            }
+            recordObservation(
+                OfficialPassthroughUsage.extractObservationFromSseBuffer(sseBuffer, isFinal = true),
+                System.currentTimeMillis()
+            )
+            val timing = timingTracker.snapshot()
             ActivityRecorder.finishActivity(
                 id = logId,
                 statusCode = if (streamErrorCaught != null) 502 else status,
                 durationMs = System.currentTimeMillis() - startTime,
-                firstTokenMs = firstTokenMs,
+                firstByteMs = timing.firstByteMs,
+                firstTokenMs = timing.firstTokenMs,
+                lastTokenMs = timing.lastTokenMs,
+                maxChunkGapMs = timing.maxChunkGapMs,
+                stallCount = timing.stallCount,
+                stallDurationMs = timing.stallDurationMs,
                 usage = latestUsage,
                 errorMessage = streamErrorCaught?.message,
                 errorSource = streamErrorCaught?.let { StreamErrorSource.UPSTREAM_TRANSPORT.name },
@@ -218,6 +237,7 @@ internal class OfficialPassthroughResponseHandler(
                 responseBody = debugStreamBody?.toString()
             )
         } catch (error: Exception) {
+            val timing = timingTracker.snapshot()
             ActivityRecorder.finishActivity(
                 id = logId,
                 statusCode = 502,
@@ -229,7 +249,12 @@ internal class OfficialPassthroughResponseHandler(
                     StreamErrorSource.STUDIO_PROXY.name
                 },
                 usage = latestUsage,
-                firstTokenMs = firstTokenMs,
+                firstByteMs = timing.firstByteMs,
+                firstTokenMs = timing.firstTokenMs,
+                lastTokenMs = timing.lastTokenMs,
+                maxChunkGapMs = timing.maxChunkGapMs,
+                stallCount = timing.stallCount,
+                stallDurationMs = timing.stallDurationMs,
                 retryCount = attempt - 1,
                 responseHeaders = responseHeaders,
                 responseBody = debugStreamBody?.toString()

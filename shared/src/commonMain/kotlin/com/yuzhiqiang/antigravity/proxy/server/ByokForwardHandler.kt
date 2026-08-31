@@ -30,7 +30,8 @@ class ByokForwardHandler(
         path: String,
         startTime: Long,
         route: ResolvedRoute,
-        rawBody: String? = null
+        rawBody: String? = null,
+        queueWaitMs: Long? = null
     ) {
         val cloudCode = path.contains("/v1internal")
         val stream = route.request.stream
@@ -46,6 +47,7 @@ class ByokForwardHandler(
             providerName = route.provider.name,
             isOfficialPassthrough = false,
             timestamp = startTime,
+            queueWaitMs = queueWaitMs,
             requestHeaders = reqHeaders,
             requestBody = if (isDebug) rawBody else null
         )
@@ -162,9 +164,9 @@ class ByokForwardHandler(
         var errorMessage: String? = null
         var errorSource: StreamErrorSource? = null
         var latestUsage: NeutralUsage? = null
-        var firstTokenMs: Long? = null
         var attempt = 0
         val sseBuffer = if (isDebug) StringBuilder() else null
+        val timingTracker = StreamTimingTracker(startTime)
 
         val maxRetries = maxOf(0, route.provider.maxRetries)
         val baseDelayMs = maxOf(100L, route.provider.retryDelayMs)
@@ -212,12 +214,12 @@ class ByokForwardHandler(
                                 ),
                                 requestStartTimeMs = startTime,
                                 idleTimeoutMs = idleTimeoutMs,
+                                timingTracker = timingTracker,
                                 mapError = { error ->
                                     toUserFacingError(classifyErrorSource(error))
                                 },
                                 onFrames = ::writeFrames,
                                 onFirstToken = { elapsedMs ->
-                                    firstTokenMs = elapsedMs
                                     ActivityRecorder.updateFirstToken(logId, elapsedMs)
                                 },
                                 onHeartbeat = ::writeHeartbeat
@@ -245,7 +247,6 @@ class ByokForwardHandler(
 
                     finalResult = attemptResult
                     latestUsage = attemptResult.usage
-                    firstTokenMs = attemptResult.firstTokenMs ?: firstTokenMs
                     if (attemptResult.isSuccessful || attemptResult.committed) break
 
                     val retryError = attemptResult.error ?: NeutralStreamChunk.Error(
@@ -295,6 +296,7 @@ class ByokForwardHandler(
             errorSource = StreamErrorSource.STUDIO_PROXY
         }
 
+        val timing = timingTracker.snapshot()
         ActivityRecorder.finishActivity(
             id = logId,
             statusCode = status,
@@ -304,7 +306,12 @@ class ByokForwardHandler(
             errorMessage = errorMessage,
             errorSource = errorSource?.name,
             usage = latestUsage,
-            firstTokenMs = firstTokenMs,
+            firstByteMs = timing.firstByteMs,
+            firstTokenMs = timing.firstTokenMs,
+            lastTokenMs = timing.lastTokenMs,
+            maxChunkGapMs = timing.maxChunkGapMs,
+            stallCount = timing.stallCount,
+            stallDurationMs = timing.stallDurationMs,
             retryCount = attempt - 1,
             responseBody = if (isDebug) sseBuffer?.toString() else null
         )

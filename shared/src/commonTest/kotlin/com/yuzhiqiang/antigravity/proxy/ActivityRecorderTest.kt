@@ -27,7 +27,8 @@ class ActivityRecorderTest {
             clientSource = "Antigravity IDE",
             providerName = "OpenAI",
             isOfficialPassthrough = false,
-            timestamp = 1000L
+            timestamp = 1000L,
+            queueWaitMs = 120L
         )
         assertNotNull(logId)
         val initialLogs = ActivityRecorder.logs.value
@@ -53,6 +54,11 @@ class ActivityRecorderTest {
             id = logId,
             statusCode = 200,
             durationMs = 3500L,
+            firstByteMs = 900L,
+            lastTokenMs = 3500L,
+            maxChunkGapMs = 450L,
+            stallCount = 1,
+            stallDurationMs = 2_100L,
             errorMessage = "upstream failed",
             errorSource = "UPSTREAM_RESPONSE",
             usage = NeutralUsage(inputTokens = 100, outputTokens = 200, totalTokens = 300),
@@ -66,7 +72,16 @@ class ActivityRecorderTest {
         assertFalse(finishedLog.isPending)
         assertEquals(200, finishedLog.statusCode)
         assertEquals(3500L, finishedLog.durationMs)
+        assertEquals(120L, finishedLog.queueWaitMs)
+        assertEquals(900L, finishedLog.firstByteMs)
         assertEquals(1500L, finishedLog.firstTokenMs)
+        assertEquals(3500L, finishedLog.lastTokenMs)
+        assertEquals(2000L, finishedLog.generationDurationMs)
+        assertEquals(100.0, finishedLog.tokensPerSecond)
+        assertEquals(2000.0 / 199.0, finishedLog.timePerOutputTokenMs)
+        assertEquals(450L, finishedLog.maxChunkGapMs)
+        assertEquals(1, finishedLog.stallCount)
+        assertEquals(2_100L, finishedLog.stallDurationMs)
         assertEquals(300L, finishedLog.totalTokens)
         assertEquals("UPSTREAM_RESPONSE", finishedLog.errorSource)
         assertEquals(2, finishedLog.retryCount)
@@ -99,6 +114,31 @@ class ActivityRecorderTest {
     }
 
     @Test
+    fun testDoesNotInventThroughputWithoutAUsableGenerationWindow() {
+        val logId = ActivityRecorder.startActivity(
+            method = "POST",
+            path = "/v1/chat",
+            modelId = "single-response",
+            providerName = "Test",
+            isOfficialPassthrough = false
+        )
+
+        ActivityRecorder.finishActivity(
+            id = logId,
+            statusCode = 200,
+            durationMs = 500L,
+            usage = NeutralUsage(outputTokens = 1),
+            firstTokenMs = 500L,
+            lastTokenMs = 500L
+        )
+
+        val log = ActivityRecorder.logs.value.single()
+        assertEquals(0L, log.generationDurationMs)
+        assertEquals(null, log.tokensPerSecond)
+        assertEquals(null, log.timePerOutputTokenMs)
+    }
+
+    @Test
     fun testLargePayloadSanitization() {
         val hugeBody = "A".repeat(1_200_000)
         val logId = ActivityRecorder.startActivity(
@@ -115,4 +155,3 @@ class ActivityRecorderTest {
         assertTrue(log.requestBody!!.length < 1_100_000)
     }
 }
-

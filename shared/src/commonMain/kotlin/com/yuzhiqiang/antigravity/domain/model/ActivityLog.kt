@@ -46,8 +46,29 @@ data class ActivityLog(
     val reasoningTokens: Long? = null,
     @SerialName("total_tokens")
     val totalTokens: Long? = null,
+    /** 从请求进入 Studio 到收到首个上游响应的耗时；流式为首批字节，非流式为响应头就绪。 */
+    @SerialName("first_byte_ms")
+    val firstByteMs: Long? = null,
     @SerialName("first_token_ms")
     val firstTokenMs: Long? = null,
+    /** 从请求进入 Studio 到最后一个有效内容事件写出的耗时。 */
+    @SerialName("last_token_ms")
+    val lastTokenMs: Long? = null,
+    @SerialName("generation_duration_ms")
+    val generationDurationMs: Long? = null,
+    @SerialName("tokens_per_second")
+    val tokensPerSecond: Double? = null,
+    @SerialName("time_per_output_token_ms")
+    val timePerOutputTokenMs: Double? = null,
+    @SerialName("max_chunk_gap_ms")
+    val maxChunkGapMs: Long? = null,
+    @SerialName("stall_count")
+    val stallCount: Int = 0,
+    /** 所有达到卡顿阈值的完整内容间隔之和。 */
+    @SerialName("stall_duration_ms")
+    val stallDurationMs: Long? = null,
+    @SerialName("queue_wait_ms")
+    val queueWaitMs: Long? = null,
     @SerialName("retry_count")
     val retryCount: Int = 0,
     @SerialName("request_headers")
@@ -60,3 +81,44 @@ data class ActivityLog(
     val responseBody: String? = null
 )
 
+internal data class SpeedMetrics(
+    val generationDurationMs: Long?,
+    val tokensPerSecond: Double?,
+    val timePerOutputTokenMs: Double?
+)
+
+internal fun calculateSpeedMetrics(
+    outputTokens: Long?,
+    firstTokenMs: Long?,
+    lastTokenMs: Long?,
+    durationMs: Long? = null
+): SpeedMetrics {
+    if (outputTokens == null || outputTokens <= 1L) {
+        val rawGenMs = when {
+            firstTokenMs != null && lastTokenMs != null && lastTokenMs >= firstTokenMs -> lastTokenMs - firstTokenMs
+            firstTokenMs != null && durationMs != null && durationMs >= firstTokenMs -> durationMs - firstTokenMs
+            else -> null
+        }
+        return SpeedMetrics(rawGenMs, null, null)
+    }
+
+    // 优先使用实际流式末字与首字差值，若无明确差值且有总耗时则使用 durationMs - firstTokenMs
+    val rawGenMs = when {
+        firstTokenMs != null && lastTokenMs != null && lastTokenMs > firstTokenMs -> lastTokenMs - firstTokenMs
+        firstTokenMs != null && durationMs != null && durationMs > firstTokenMs -> durationMs - firstTokenMs
+        durationMs != null && durationMs > 0L -> durationMs
+        else -> null
+    }
+
+    if (rawGenMs == null || rawGenMs <= 0L) {
+        return SpeedMetrics(rawGenMs, null, null)
+    }
+    val seconds = rawGenMs / 1000.0
+    val tps = outputTokens.toDouble() / seconds
+    val tpot = rawGenMs.toDouble() / maxOf(1L, outputTokens - 1).toDouble()
+    return SpeedMetrics(
+        generationDurationMs = rawGenMs,
+        tokensPerSecond = tps,
+        timePerOutputTokenMs = tpot
+    )
+}

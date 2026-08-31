@@ -27,7 +27,8 @@ internal class OfficialPassthroughForwarder(
         path: String,
         rawBody: ByteArray,
         modelId: String?,
-        startTime: Long
+        startTime: Long,
+        queueWaitMs: Long? = null
     ) {
         val isDebug = configStore.currentConfig.isDebugMode
         val requestHeaders = if (isDebug) extractRequestHeaders(call) else null
@@ -42,6 +43,7 @@ internal class OfficialPassthroughForwarder(
             providerName = "Official Cloud Code",
             isOfficialPassthrough = true,
             timestamp = startTime,
+            queueWaitMs = queueWaitMs,
             requestHeaders = requestHeaders,
             requestBody = requestBody
         )

@@ -18,18 +18,20 @@ class OfficialPassthroughHandler(
         path: String,
         rawBody: ByteArray,
         modelId: String?,
-        startTime: Long
+        startTime: Long,
+        queueWaitMs: Long? = null
     ) {
-        forwarder.forwardOfficial(call, path, rawBody, modelId, startTime)
+        forwarder.forwardOfficial(call, path, rawBody, modelId, startTime, queueWaitMs)
     }
 
     suspend fun forwardOfficialCatalog(
         call: ApplicationCall,
         path: String,
         rawBody: String,
-        startTime: Long
+        startTime: Long,
+        queueWaitMs: Long? = null
     ) {
-        catalogHandler.forwardOfficialCatalog(call, path, rawBody, startTime)
+        catalogHandler.forwardOfficialCatalog(call, path, rawBody, startTime, queueWaitMs)
     }
 
     suspend fun respondCatalogFallback(

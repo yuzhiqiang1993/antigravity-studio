@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.proxy.activity
 
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
+import com.yuzhiqiang.antigravity.domain.model.calculateSpeedMetrics
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,7 @@ object ActivityRecorder {
         providerName: String?,
         isOfficialPassthrough: Boolean,
         timestamp: Long = System.currentTimeMillis(),
+        queueWaitMs: Long? = null,
         requestHeaders: Map<String, String>? = null,
         requestBody: String? = null
     ): String {
@@ -44,6 +46,7 @@ object ActivityRecorder {
             durationMs = 0L,
             isOfficialPassthrough = isOfficialPassthrough,
             isPending = true,
+            queueWaitMs = queueWaitMs?.coerceAtLeast(0L),
             requestHeaders = requestHeaders,
             requestBody = sanitizePayload(requestBody)
         )
@@ -93,7 +96,12 @@ object ActivityRecorder {
         errorMessage: String? = null,
         errorSource: String? = null,
         usage: NeutralUsage? = null,
+        firstByteMs: Long? = null,
         firstTokenMs: Long? = null,
+        lastTokenMs: Long? = null,
+        maxChunkGapMs: Long? = null,
+        stallCount: Int? = null,
+        stallDurationMs: Long? = null,
         retryCount: Int = 0,
         responseHeaders: Map<String, String>? = null,
         responseBody: String? = null
@@ -101,6 +109,15 @@ object ActivityRecorder {
         _logs.update { current ->
             current.map { log ->
                 if (log.id == id) {
+                    val resolvedFirstTokenMs = firstTokenMs ?: log.firstTokenMs
+                    val resolvedLastTokenMs = lastTokenMs ?: log.lastTokenMs
+                    val resolvedOutputTokens = usage?.outputTokens ?: log.outputTokens
+                    val speedMetrics = calculateSpeedMetrics(
+                        outputTokens = resolvedOutputTokens,
+                        firstTokenMs = resolvedFirstTokenMs,
+                        lastTokenMs = resolvedLastTokenMs,
+                        durationMs = durationMs
+                    )
                     log.copy(
                         statusCode = statusCode,
                         durationMs = durationMs,
@@ -109,12 +126,20 @@ object ActivityRecorder {
                         errorMessage = errorMessage,
                         errorSource = errorSource,
                         inputTokens = usage?.inputTokens ?: log.inputTokens,
-                        outputTokens = usage?.outputTokens ?: log.outputTokens,
+                        outputTokens = resolvedOutputTokens,
                         cacheReadTokens = usage?.cacheReadTokens ?: log.cacheReadTokens,
                         cacheWriteTokens = usage?.cacheWriteTokens ?: log.cacheWriteTokens,
                         reasoningTokens = usage?.reasoningTokens ?: log.reasoningTokens,
                         totalTokens = usage?.totalTokens ?: log.totalTokens,
-                        firstTokenMs = firstTokenMs ?: log.firstTokenMs,
+                        firstByteMs = firstByteMs ?: log.firstByteMs,
+                        firstTokenMs = resolvedFirstTokenMs,
+                        lastTokenMs = resolvedLastTokenMs,
+                        generationDurationMs = speedMetrics.generationDurationMs,
+                        tokensPerSecond = speedMetrics.tokensPerSecond,
+                        timePerOutputTokenMs = speedMetrics.timePerOutputTokenMs,
+                        maxChunkGapMs = maxChunkGapMs ?: log.maxChunkGapMs,
+                        stallCount = (stallCount ?: log.stallCount).coerceAtLeast(0),
+                        stallDurationMs = (stallDurationMs ?: log.stallDurationMs)?.coerceAtLeast(0L),
                         retryCount = if (retryCount > 0) retryCount else log.retryCount,
                         responseHeaders = responseHeaders ?: log.responseHeaders,
                         responseBody = sanitizePayload(responseBody) ?: log.responseBody,
@@ -137,19 +162,32 @@ object ActivityRecorder {
         statusCode: Int,
         durationMs: Long,
         isOfficialPassthrough: Boolean,
+        timestamp: Long = System.currentTimeMillis(),
         errorMessage: String? = null,
         errorSource: String? = null,
         usage: NeutralUsage? = null,
+        firstByteMs: Long? = null,
         firstTokenMs: Long? = null,
+        lastTokenMs: Long? = null,
+        maxChunkGapMs: Long? = null,
+        stallCount: Int = 0,
+        stallDurationMs: Long? = null,
+        queueWaitMs: Long? = null,
         retryCount: Int = 0,
         requestHeaders: Map<String, String>? = null,
         requestBody: String? = null,
         responseHeaders: Map<String, String>? = null,
         responseBody: String? = null
     ) {
+        val speedMetrics = calculateSpeedMetrics(
+            outputTokens = usage?.outputTokens,
+            firstTokenMs = firstTokenMs,
+            lastTokenMs = lastTokenMs,
+            durationMs = durationMs
+        )
         val newLog = ActivityLog(
             id = UUID.randomUUID().toString(),
-            timestamp = System.currentTimeMillis(),
+            timestamp = timestamp,
             method = method,
             path = path,
             modelId = modelId,
@@ -168,7 +206,16 @@ object ActivityRecorder {
             cacheWriteTokens = usage?.cacheWriteTokens,
             reasoningTokens = usage?.reasoningTokens,
             totalTokens = usage?.totalTokens,
+            firstByteMs = firstByteMs,
             firstTokenMs = firstTokenMs,
+            lastTokenMs = lastTokenMs,
+            generationDurationMs = speedMetrics.generationDurationMs,
+            tokensPerSecond = speedMetrics.tokensPerSecond,
+            timePerOutputTokenMs = speedMetrics.timePerOutputTokenMs,
+            maxChunkGapMs = maxChunkGapMs,
+            stallCount = stallCount.coerceAtLeast(0),
+            stallDurationMs = stallDurationMs?.coerceAtLeast(0L),
+            queueWaitMs = queueWaitMs?.coerceAtLeast(0L),
             retryCount = retryCount,
             requestHeaders = requestHeaders,
             requestBody = sanitizePayload(requestBody),
@@ -196,4 +243,3 @@ object ActivityRecorder {
         return payload.substring(0, MAX_PAYLOAD_CHARS) + "\n\n... [Truncated: ${payload.length - MAX_PAYLOAD_CHARS} chars omitted for performance]"
     }
 }
-

@@ -26,7 +26,8 @@ internal class OfficialPassthroughCatalogHandler(
         call: ApplicationCall,
         path: String,
         rawBody: String,
-        startTime: Long
+        startTime: Long,
+        queueWaitMs: Long? = null
     ) {
         val officialUrlResult = OfficialPassthroughRouting.officialUrl(
             path,
@@ -44,7 +45,8 @@ internal class OfficialPassthroughCatalogHandler(
                 startTime,
                 502,
                 message,
-                errorSource = StreamErrorSource.STUDIO_PROXY
+                errorSource = StreamErrorSource.STUDIO_PROXY,
+                queueWaitMs = queueWaitMs
             )
             OfficialPassthroughErrorResponder.respondError(
                 call,
@@ -73,6 +75,7 @@ internal class OfficialPassthroughCatalogHandler(
                     response.status.value,
                     body,
                     errorSource = StreamErrorSource.UPSTREAM_RESPONSE,
+                    queueWaitMs = queueWaitMs,
                     requestHeaders = requestHeaders,
                     requestBody = if (isDebug) rawBody else null,
                     responseHeaders = responseHeaders,
@@ -109,7 +112,8 @@ internal class OfficialPassthroughCatalogHandler(
                 requestHeaders = requestHeaders,
                 requestBody = if (isDebug) rawBody else null,
                 responseHeaders = responseHeaders,
-                responseBody = if (isDebug) responseJson.toString() else null
+                responseBody = if (isDebug) responseJson.toString() else null,
+                queueWaitMs = queueWaitMs
             )
             call.respondText(
                 OfficialPassthroughRouting.rewriteOfficialUrls(responseJson.toString(), call, actualPortProvider),
@@ -117,7 +121,14 @@ internal class OfficialPassthroughCatalogHandler(
                 response.status
             )
         } catch (error: Exception) {
-            respondCatalogFallback(call, path, startTime, error.message ?: "官方目录获取失败", rawBody)
+            respondCatalogFallback(
+                call,
+                path,
+                startTime,
+                error.message ?: "官方目录获取失败",
+                rawBody,
+                queueWaitMs
+            )
         }
     }
 
@@ -126,7 +137,8 @@ internal class OfficialPassthroughCatalogHandler(
         path: String,
         startTime: Long,
         reason: String,
-        rawBody: String? = null
+        rawBody: String? = null,
+        queueWaitMs: Long? = null
     ) {
         val config = configStore.currentConfig
         val isDebug = config.isDebugMode
@@ -165,7 +177,8 @@ internal class OfficialPassthroughCatalogHandler(
             clientSource = clientSource,
             requestHeaders = requestHeaders,
             requestBody = if (isDebug) rawBody else null,
-            responseBody = if (isDebug) fallback.toString() else null
+            responseBody = if (isDebug) fallback.toString() else null,
+            queueWaitMs = queueWaitMs
         )
         if (hasCustomModels) {
             call.respondText(
@@ -191,6 +204,7 @@ internal class OfficialPassthroughCatalogHandler(
         message: String?,
         method: String = "POST",
         errorSource: StreamErrorSource = StreamErrorSource.STUDIO_PROXY,
+        queueWaitMs: Long? = null,
         clientSource: String? = null,
         requestHeaders: Map<String, String>? = null,
         requestBody: String? = null,
@@ -205,6 +219,7 @@ internal class OfficialPassthroughCatalogHandler(
             message,
             method,
             errorSource = errorSource,
+            queueWaitMs = queueWaitMs,
             clientSource = clientSource,
             requestHeaders = requestHeaders,
             requestBody = requestBody,
@@ -221,6 +236,7 @@ internal class OfficialPassthroughCatalogHandler(
         message: String?,
         method: String = "POST",
         errorSource: StreamErrorSource? = null,
+        queueWaitMs: Long? = null,
         clientSource: String? = null,
         requestHeaders: Map<String, String>? = null,
         requestBody: String? = null,
@@ -237,8 +253,10 @@ internal class OfficialPassthroughCatalogHandler(
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,
             isOfficialPassthrough = true,
+            timestamp = startTime,
             errorMessage = message,
             errorSource = errorSource?.name,
+            queueWaitMs = queueWaitMs,
             requestHeaders = requestHeaders,
             requestBody = requestBody,
             responseHeaders = responseHeaders,

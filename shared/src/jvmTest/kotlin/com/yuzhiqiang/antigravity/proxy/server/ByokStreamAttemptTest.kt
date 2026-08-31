@@ -166,6 +166,52 @@ class ByokStreamAttemptTest {
     }
 
     @Test
+    fun streamingAttemptTracksTimingAndChunkGapsAndStalls() = runBlocking {
+        val channel = Channel<NeutralStreamChunk>(Channel.UNLIMITED)
+        var simulatedTime = 1000L
+        val frames = mutableListOf<String>()
+
+        val attempt = async {
+            streamProviderAttempt(
+                channel = channel,
+                encoder = ResponseEncoder.newStreamEncoder(),
+                requestStartTimeMs = 1000L,
+                idleTimeoutMs = 60_000L,
+                clockMs = { simulatedTime },
+                onFrames = { frames += it }
+            )
+        }
+
+        // Chunk 1 at 1200ms (TTFT = 200ms)
+        simulatedTime = 1200L
+        channel.send(NeutralStreamChunk.TextDelta("hello "))
+        delay(50L)
+
+        // Chunk 2 at 1500ms (Gap = 300ms)
+        simulatedTime = 1500L
+        channel.send(NeutralStreamChunk.TextDelta("world "))
+        delay(50L)
+
+        // Chunk 3 at 3600ms (Gap = 2100ms >= 2000ms -> stallCount = 1)
+        simulatedTime = 3600L
+        channel.send(NeutralStreamChunk.TextDelta("done"))
+        delay(50L)
+
+        simulatedTime = 3700L
+        channel.send(NeutralStreamChunk.Completed())
+        channel.close()
+
+        val result = attempt.await()
+        assertTrue(result.isSuccessful)
+        assertEquals(200L, result.firstByteMs)
+        assertEquals(200L, result.firstTokenMs)
+        assertEquals(2600L, result.lastTokenMs)
+        assertEquals(2100L, result.maxChunkGapMs)
+        assertEquals(1, result.stallCount)
+        assertEquals(2100L, result.stallDurationMs)
+    }
+
+    @Test
     fun streamingAttemptStillReportsErrorArrivingAfterCompletionDuringDrain() = runBlocking {
         val channel = Channel<NeutralStreamChunk>(Channel.UNLIMITED)
         val frames = mutableListOf<String>()

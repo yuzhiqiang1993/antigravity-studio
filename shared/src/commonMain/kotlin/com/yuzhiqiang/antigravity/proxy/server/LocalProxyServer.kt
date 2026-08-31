@@ -86,18 +86,37 @@ class LocalProxyServer(
                         call.respond(HttpStatusCode.OK)
                     }
                     post("/{...}") {
+                        val requestStartTime = System.currentTimeMillis()
                         val normalizedPath = normalizeProxyPath(call.request.path())
                         when {
                             isFixedGetPath(normalizedPath) -> respondMethodNotAllowed(call)
                             isOfficialCatalogFetchPath(normalizedPath) -> {
-                                controlPlaneSemaphore.withPermit { handleChatRequest(call) }
+                                controlPlaneSemaphore.withPermit {
+                                    handleChatRequest(
+                                        call,
+                                        requestStartTime,
+                                        System.currentTimeMillis() - requestStartTime
+                                    )
+                                }
                             }
 
                             isGenerationPath(normalizedPath) -> {
-                                generationSemaphore.withPermit { handleChatRequest(call) }
+                                generationSemaphore.withPermit {
+                                    handleChatRequest(
+                                        call,
+                                        requestStartTime,
+                                        System.currentTimeMillis() - requestStartTime
+                                    )
+                                }
                             }
 
-                            else -> controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
+                            else -> controlPlaneSemaphore.withPermit {
+                                handlePassthroughRequest(
+                                    call,
+                                    requestStartTime,
+                                    System.currentTimeMillis() - requestStartTime
+                                )
+                            }
                         }
                     }
                     get("/{...}") {
@@ -190,8 +209,11 @@ class LocalProxyServer(
         }
     }
 
-    private suspend fun handleChatRequest(call: ApplicationCall) {
-        val startTime = System.currentTimeMillis()
+    private suspend fun handleChatRequest(
+        call: ApplicationCall,
+        startTime: Long,
+        queueWaitMs: Long
+    ) {
         val path = normalizeProxyPath(call.request.path())
         val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
         val config = configStore.currentConfig
@@ -206,6 +228,7 @@ class LocalProxyServer(
                 startTime,
                 400,
                 message,
+                queueWaitMs = queueWaitMs,
                 clientSource = clientSource,
                 requestHeaders = reqHeaders,
                 responseBody = if (isDebug) message else null
@@ -215,7 +238,7 @@ class LocalProxyServer(
         }
 
         if (isOfficialCatalogFetchPath(path)) {
-            passthroughHandler.forwardOfficialCatalog(call, path, rawBody, startTime)
+            passthroughHandler.forwardOfficialCatalog(call, path, rawBody, startTime, queueWaitMs)
             return
         }
 
@@ -228,6 +251,7 @@ class LocalProxyServer(
                 startTime,
                 400,
                 message,
+                queueWaitMs = queueWaitMs,
                 clientSource = clientSource,
                 requestHeaders = reqHeaders,
                 requestBody = if (isDebug) rawBody else null,
@@ -246,6 +270,7 @@ class LocalProxyServer(
                 startTime,
                 400,
                 "Missing model ID in request",
+                queueWaitMs = queueWaitMs,
                 clientSource = clientSource,
                 requestHeaders = reqHeaders,
                 requestBody = if (isDebug) rawBody else null,
@@ -268,6 +293,7 @@ class LocalProxyServer(
                     startTime,
                     400,
                     message,
+                    queueWaitMs = queueWaitMs,
                     clientSource = clientSource,
                     requestHeaders = reqHeaders,
                     requestBody = if (isDebug) rawBody else null,
@@ -290,6 +316,7 @@ class LocalProxyServer(
                     startTime,
                     status,
                     message,
+                    queueWaitMs = queueWaitMs,
                     clientSource = clientSource,
                     requestHeaders = reqHeaders,
                     requestBody = if (isDebug) rawBody else null,
@@ -298,15 +325,32 @@ class LocalProxyServer(
                 respondError(call, HttpStatusCode.fromValue(status), message)
                 return
             }
-            byokHandler.forwardToByok(call, path, startTime, routeResult.getOrThrow(), rawBody)
+            byokHandler.forwardToByok(
+                call,
+                path,
+                startTime,
+                routeResult.getOrThrow(),
+                rawBody,
+                queueWaitMs
+            )
             return
         }
 
-        passthroughHandler.forwardOfficial(call, path, rawBody.toByteArray(Charsets.UTF_8), requestedModelId, startTime)
+        passthroughHandler.forwardOfficial(
+            call,
+            path,
+            rawBody.toByteArray(Charsets.UTF_8),
+            requestedModelId,
+            startTime,
+            queueWaitMs
+        )
     }
 
-    private suspend fun handlePassthroughRequest(call: ApplicationCall) {
-        val startTime = System.currentTimeMillis()
+    private suspend fun handlePassthroughRequest(
+        call: ApplicationCall,
+        startTime: Long = System.currentTimeMillis(),
+        queueWaitMs: Long? = null
+    ) {
         val path = normalizeProxyPath(call.request.path())
         val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
         val isDebug = configStore.currentConfig.isDebugMode
@@ -324,6 +368,7 @@ class LocalProxyServer(
                     400,
                     message,
                     method = call.request.httpMethod.value,
+                    queueWaitMs = queueWaitMs,
                     clientSource = clientSource,
                     requestHeaders = reqHeaders,
                     responseBody = if (isDebug) message else null
@@ -339,7 +384,8 @@ class LocalProxyServer(
             path = path,
             rawBody = rawBody,
             modelId = null,
-            startTime = startTime
+            startTime = startTime,
+            queueWaitMs = queueWaitMs
         )
     }
 
@@ -408,6 +454,7 @@ class LocalProxyServer(
             statusCode = 200,
             durationMs = System.currentTimeMillis() - startTime,
             isOfficialPassthrough = false,
+            timestamp = startTime,
             requestHeaders = if (isDebug) extractRequestHeaders(call) else null,
             responseBody = if (isDebug) responseJson.toString() else null
         )
@@ -509,6 +556,7 @@ class LocalProxyServer(
         status: Int,
         message: String?,
         method: String = "POST",
+        queueWaitMs: Long? = null,
         clientSource: String? = null,
         requestHeaders: Map<String, String>? = null,
         requestBody: String? = null,
@@ -525,7 +573,9 @@ class LocalProxyServer(
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,
             isOfficialPassthrough = false,
+            timestamp = startTime,
             errorMessage = message,
+            queueWaitMs = queueWaitMs,
             requestHeaders = requestHeaders,
             requestBody = requestBody,
             responseHeaders = responseHeaders,
@@ -533,4 +583,3 @@ class LocalProxyServer(
         )
     }
 }
-

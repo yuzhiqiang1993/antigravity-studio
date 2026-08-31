@@ -5,6 +5,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
@@ -14,6 +16,11 @@ internal object OfficialPassthroughJson {
         isLenient = true
     }
 }
+
+internal data class OfficialSseObservation(
+    val usage: NeutralUsage? = null,
+    val hasMeaningfulContent: Boolean = false
+)
 
 internal object OfficialPassthroughUsage {
     fun parseGeminiUsage(jsonElement: JsonElement): NeutralUsage? {
@@ -52,43 +59,105 @@ internal object OfficialPassthroughUsage {
         )
     }
 
-    fun extractUsageFromSseBuffer(buffer: StringBuilder, isFinal: Boolean = false): NeutralUsage? {
+    fun extractObservationFromSseBuffer(
+        buffer: StringBuilder,
+        isFinal: Boolean = false
+    ): OfficialSseObservation {
         var foundUsage: NeutralUsage? = null
+        var hasMeaningfulContent = false
         while (true) {
-            val eventEndIndex = buffer.indexOf("\n\n")
-            if (eventEndIndex >= 0) {
+            val boundary = findEventBoundary(buffer)
+            if (boundary != null) {
+                val (eventEndIndex, delimiterLength) = boundary
                 val rawEvent = buffer.substring(0, eventEndIndex)
-                buffer.delete(0, eventEndIndex + 2)
-                processRawSseEvent(rawEvent)?.let { foundUsage = it }
+                buffer.delete(0, eventEndIndex + delimiterLength)
+                val observation = processRawSseEvent(rawEvent)
+                observation.usage?.let { foundUsage = it }
+                hasMeaningfulContent = hasMeaningfulContent || observation.hasMeaningfulContent
             } else if (isFinal && buffer.isNotEmpty()) {
                 val rawEvent = buffer.toString()
                 buffer.clear()
-                processRawSseEvent(rawEvent)?.let { foundUsage = it }
+                val observation = processRawSseEvent(rawEvent)
+                observation.usage?.let { foundUsage = it }
+                hasMeaningfulContent = hasMeaningfulContent || observation.hasMeaningfulContent
                 break
             } else {
                 break
             }
         }
-        return foundUsage
+        return OfficialSseObservation(foundUsage, hasMeaningfulContent)
     }
 
-    private fun processRawSseEvent(rawEvent: String): NeutralUsage? {
-        var eventUsage: NeutralUsage? = null
-        rawEvent.lineSequence().forEach { line ->
-            val trimmed = line.trim()
-            if (trimmed.startsWith("data:")) {
-                val data = trimmed.removePrefix("data:").trim()
-                if (data.isNotEmpty() && data != "[DONE]") {
-                    val parsedUsage = runCatching {
-                        val jsonElement = OfficialPassthroughJson.catalog.parseToJsonElement(data)
-                        parseGeminiUsage(jsonElement)
-                    }.getOrNull()
-                    if (parsedUsage != null) {
-                        eventUsage = parsedUsage
-                    }
-                }
-            }
+    fun extractUsageFromSseBuffer(buffer: StringBuilder, isFinal: Boolean = false): NeutralUsage? {
+        return extractObservationFromSseBuffer(buffer, isFinal).usage
+    }
+
+    private fun findEventBoundary(buffer: StringBuilder): Pair<Int, Int>? {
+        val lfIndex = buffer.indexOf("\n\n")
+        val crlfIndex = buffer.indexOf("\r\n\r\n")
+        return when {
+            lfIndex < 0 && crlfIndex < 0 -> null
+            crlfIndex >= 0 && (lfIndex < 0 || crlfIndex < lfIndex) -> crlfIndex to 4
+            else -> lfIndex to 2
         }
-        return eventUsage
+    }
+
+    private fun processRawSseEvent(rawEvent: String): OfficialSseObservation {
+        val dataLines = rawEvent.lineSequence()
+            .map { it.removeSuffix("\r").trimStart() }
+            .filter { it.startsWith("data:") }
+            .map { it.removePrefix("data:").trimStart() }
+            .toList()
+        val data = if (dataLines.isNotEmpty()) {
+            dataLines.joinToString("\n").trim()
+        } else {
+            rawEvent.trim().takeIf { it.startsWith("{") || it.startsWith("[") }.orEmpty()
+        }
+        if (data.isEmpty() || data == "[DONE]") return OfficialSseObservation()
+
+        val jsonElement = runCatching {
+            OfficialPassthroughJson.catalog.parseToJsonElement(data)
+        }.getOrNull() ?: return OfficialSseObservation()
+        return OfficialSseObservation(
+            usage = runCatching { parseGeminiUsage(jsonElement) }.getOrNull(),
+            hasMeaningfulContent = runCatching { containsMeaningfulContent(jsonElement) }.getOrDefault(false)
+        )
+    }
+
+    internal fun containsMeaningfulContent(jsonElement: JsonElement): Boolean {
+        val roots = when (jsonElement) {
+            is JsonObject -> listOf(jsonElement)
+            is JsonArray -> jsonElement.filterIsInstance<JsonObject>()
+            else -> emptyList()
+        }
+        return roots.any { root ->
+            val payload = (root["response"] as? JsonObject) ?: root
+            containsMeaningfulCandidate(payload)
+        }
+    }
+
+    private fun containsMeaningfulCandidate(payload: JsonObject): Boolean {
+        val candidates = payload["candidates"] as? JsonArray ?: return false
+        return candidates.filterIsInstance<JsonObject>().any { candidate ->
+            val content = candidate["content"] as? JsonObject ?: return@any false
+            val parts = content["parts"] as? JsonArray ?: return@any false
+            parts.filterIsInstance<JsonObject>().any(::isMeaningfulPart)
+        }
+    }
+
+    private fun isMeaningfulPart(part: JsonObject): Boolean {
+        val text = (part["text"] as? JsonPrimitive)?.contentOrNull
+        val signature = (part["thoughtSignature"] as? JsonPrimitive)?.contentOrNull
+            ?: (part["thought_signature"] as? JsonPrimitive)?.contentOrNull
+        return !text.isNullOrEmpty() ||
+                !signature.isNullOrEmpty() ||
+                listOf(
+                    "functionCall",
+                    "function_call",
+                    "inlineData",
+                    "inline_data",
+                    "executableCode",
+                    "codeExecutionResult"
+                ).any(part::containsKey)
     }
 }

@@ -11,7 +11,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 internal data class StreamAttemptResult(
     val error: NeutralStreamChunk.Error?,
     val usage: NeutralUsage?,
-    val firstTokenMs: Long?,
+    val firstByteMs: Long? = null,
+    val firstTokenMs: Long? = null,
+    val lastTokenMs: Long? = null,
+    val maxChunkGapMs: Long? = null,
+    val stallCount: Int = 0,
+    val stallDurationMs: Long? = null,
     val committed: Boolean,
     val completed: Boolean
 ) {
@@ -30,13 +35,13 @@ internal suspend fun streamProviderAttempt(
     idleTimeoutMs: Long,
     heartbeatIntervalMs: Long = 15_000L,
     clockMs: () -> Long = System::currentTimeMillis,
+    timingTracker: StreamTimingTracker = StreamTimingTracker(requestStartTimeMs),
     mapError: (NeutralStreamChunk.Error) -> NeutralStreamChunk.Error = { it },
     onFrames: suspend (List<String>) -> Unit,
     onFirstToken: suspend (Long) -> Unit = {},
     onHeartbeat: suspend () -> Unit = {}
 ): StreamAttemptResult {
     var latestUsage: NeutralUsage? = null
-    var firstTokenMs: Long? = null
     var committed = false
     var sawCompleted = false
     var sawMeaningfulContent = false
@@ -46,23 +51,32 @@ internal suspend fun streamProviderAttempt(
         if (frames.isEmpty()) return
         onFrames(frames)
         committed = true
-        if (firstTokenMs == null && containsMeaningfulContent) {
-            val elapsedMs = maxOf(0L, clockMs() - requestStartTimeMs)
-            firstTokenMs = elapsedMs
-            onFirstToken(elapsedMs)
+        if (containsMeaningfulContent) {
+            val (elapsedMs, isFirst) = timingTracker.recordMeaningfulContent(clockMs())
+            if (isFirst) {
+                onFirstToken(elapsedMs)
+            }
         }
     }
 
     fun result(
         error: NeutralStreamChunk.Error? = null,
         completed: Boolean = false
-    ): StreamAttemptResult = StreamAttemptResult(
-        error = error,
-        usage = latestUsage,
-        firstTokenMs = firstTokenMs,
-        committed = committed,
-        completed = completed
-    )
+    ): StreamAttemptResult {
+        val timing = timingTracker.snapshot()
+        return StreamAttemptResult(
+            error = error,
+            usage = latestUsage,
+            firstByteMs = timing.firstByteMs,
+            firstTokenMs = timing.firstTokenMs,
+            lastTokenMs = timing.lastTokenMs,
+            maxChunkGapMs = timing.maxChunkGapMs,
+            stallCount = timing.stallCount,
+            stallDurationMs = timing.stallDurationMs,
+            committed = committed,
+            completed = completed
+        )
+    }
 
     suspend fun fail(rawError: NeutralStreamChunk.Error): StreamAttemptResult {
         val error = mapError(rawError)
@@ -77,7 +91,8 @@ internal suspend fun streamProviderAttempt(
         val failureStatus = encoder.failureStatusCode
         emitFrames(
             frames,
-            containsMeaningfulContent = failureStatus == null && sawMeaningfulContent
+            containsMeaningfulContent = failureStatus == null &&
+                    sawMeaningfulContent && timingTracker.snapshot().firstTokenMs == null
         )
         if (failureStatus != null) {
             return result(
@@ -126,7 +141,9 @@ internal suspend fun streamProviderAttempt(
             )
         }
 
-        idleDeadlineMs = clockMs() + idleTimeoutMs
+        val chunkReceivedAt = clockMs()
+        timingTracker.recordFirstByte(chunkReceivedAt)
+        idleDeadlineMs = chunkReceivedAt + idleTimeoutMs
         if (chunk is NeutralStreamChunk.Error) return fail(chunk)
 
         if (chunk is NeutralStreamChunk.Completed) {
