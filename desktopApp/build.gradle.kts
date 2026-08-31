@@ -43,6 +43,7 @@ compose.desktop {
         )
 
         nativeDistributions {
+            modules("java.sql", "java.naming")
             targetFormats(TargetFormat.Dmg, TargetFormat.Pkg, TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Antigravity Studio"
             packageVersion = "1.2.2"

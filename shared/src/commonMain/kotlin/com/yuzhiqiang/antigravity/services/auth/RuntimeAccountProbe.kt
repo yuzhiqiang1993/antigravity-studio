@@ -75,7 +75,7 @@ internal object RuntimeAccountProbe {
         "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\"}}"
     private const val MAX_PORT = 65_535
     private const val MAX_RESPONSE_BYTES = 4 * 1024 * 1024
-    private const val PROCESS_READER_JOIN_TIMEOUT_MS = 500L
+    private const val PROCESS_READER_JOIN_TIMEOUT_MS = 2_000L
 
     /**
      * 探测指定目标配置的运行态账号。
@@ -94,7 +94,7 @@ internal object RuntimeAccountProbe {
                 return@withContext Result.success(null)
             }
 
-            var lastFailure: Exception? = null
+            var lastFailure: Throwable? = null
             var hasInvalidResponse = false
             for (candidate in candidates) {
                 try {
@@ -103,7 +103,7 @@ internal object RuntimeAccountProbe {
                         return@withContext Result.success(profile)
                     }
                     hasInvalidResponse = true
-                } catch (exception: Exception) {
+                } catch (exception: Throwable) {
                     lastFailure = exception
                 }
             }
@@ -127,13 +127,25 @@ internal object RuntimeAccountProbe {
     }
 
     private fun discoverUnixCandidates(osName: String, matcher: ProcessMatcher): Result<List<LanguageServerCandidate>> {
-        val output = try {
-            executeProcess(listOf("/bin/ps", "-axo", "pid=,command="), PROCESS_TIMEOUT_MS)
-        } catch (exception: Exception) {
-            return Result.failure(exception)
+        val psCommands = listOf(
+            listOf("/bin/ps", "-axo", "pid=,command="),
+            listOf("ps", "-axo", "pid=,command=")
+        )
+        var output: ProcessOutput? = null
+        var lastError: Throwable? = null
+        for (cmd in psCommands) {
+            try {
+                val res = executeProcess(cmd, PROCESS_TIMEOUT_MS)
+                if (res.exitCode == 0) {
+                    output = res
+                    break
+                }
+            } catch (t: Throwable) {
+                lastError = t
+            }
         }
-        if (output.exitCode != 0) {
-            return Result.failure(IOException("系统进程查询失败"))
+        if (output == null || output.exitCode != 0) {
+            return Result.failure(lastError ?: IOException("系统进程查询失败"))
         }
 
         val candidates = mutableListOf<LanguageServerCandidate>()
@@ -386,11 +398,11 @@ internal object RuntimeAccountProbe {
     private fun parseUserStatus(body: String): HostAccountDetector.IdeAccountProfile? {
         val root = try {
             json.parseToJsonElement(body) as? JsonObject
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         } ?: return null
 
-        val userStatus = root["userStatus"] as? JsonObject ?: return null
+        val userStatus = (root["userStatus"] ?: root["user_status"]) as? JsonObject ?: return null
         val email = userStatus["email"]
             ?.jsonPrimitive
             ?.contentOrNull
@@ -437,7 +449,7 @@ internal object RuntimeAccountProbe {
                 throw IOException("读取系统进程输出超时")
             }
             return ProcessOutput(output.toString(), process.exitValue())
-        } catch (exception: Exception) {
+        } catch (exception: Throwable) {
             process.destroyForcibly()
             outputReader.interrupt()
             outputReader.join(PROCESS_READER_JOIN_TIMEOUT_MS)

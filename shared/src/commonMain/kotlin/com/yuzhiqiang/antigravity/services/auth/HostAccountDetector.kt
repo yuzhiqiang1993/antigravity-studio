@@ -187,7 +187,7 @@ object HostAccountDetector {
                 expiryTimestamp = expiryTimestamp,
                 tokenType = tokenType
             )
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         }
     }
@@ -206,7 +206,7 @@ object HostAccountDetector {
                 val obj = json.parseToJsonElement(decoded) as? JsonObject
                 obj?.get("email")?.jsonPrimitive?.contentOrNull?.takeIf { it.contains("@") }
             } else null
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         }
     }
@@ -308,7 +308,7 @@ object HostAccountDetector {
                     }
                 }
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
         return Pair(null, 0L)
     }
@@ -475,7 +475,7 @@ object HostAccountDetector {
                     }
                 }
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         }
     }
@@ -503,7 +503,7 @@ object HostAccountDetector {
                         // Level 3 的 Field 1 是 Base64 编码的内部 UserStatus Protobuf 字节
                         val innerBytes = try {
                             Base64.getDecoder().decode(b3)
-                        } catch (_: Exception) {
+                        } catch (_: Throwable) {
                             null
                         }
 
@@ -550,7 +550,7 @@ object HostAccountDetector {
                     }
                 }
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
         return null
     }
@@ -592,7 +592,7 @@ object HostAccountDetector {
                         return directRt
                     }
                 }
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
             }
         }
         return null

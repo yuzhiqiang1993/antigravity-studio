@@ -181,7 +181,7 @@ class AccountDelegate(
                         }
                     }
                 }
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
             }
         }
     }
