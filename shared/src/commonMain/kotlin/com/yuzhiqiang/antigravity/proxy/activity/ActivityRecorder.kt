@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.update
 import java.util.UUID
 
 object ActivityRecorder {
-    private const val MAX_LOGS = 500
+    private const val MAX_LOGS = 2000
     private val _logs = MutableStateFlow<List<ActivityLog>>(emptyList())
     val logs: StateFlow<List<ActivityLog>> = _logs.asStateFlow()
 

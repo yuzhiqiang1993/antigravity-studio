@@ -69,6 +69,12 @@ interface ActivityStrings {
     val activityFilterNoEndpoints: String
     val activityFilterNoRoutes: String
     val activityFilterResetAll: String
+    val activityFilterOnlyAiChat: String
+    val activityFilterTabAll: String
+    val activityFilterTabAiChat: String
+    val activityFilterTabSystem: String
+    val activityFilterCoreBadge: String
+    fun activityEndpointDisplayName(path: String): String
     fun activityFilterMatches(shown: Int, total: Int): String
     fun activityFilterSelectedDimension(label: String, count: Int): String
     val activityTokenInput: String
@@ -207,6 +213,35 @@ object ActivityStringsZh : ActivityStrings {
     override val activityFilterNoEndpoints = "暂无匹配接口"
     override val activityFilterNoRoutes = "暂无路由记录"
     override val activityFilterResetAll = "重置全部"
+    override val activityFilterOnlyAiChat = "仅看会话生成"
+    override val activityFilterTabAll = "全部"
+    override val activityFilterTabAiChat = "核心会话"
+    override val activityFilterTabSystem = "系统通信"
+    override val activityFilterCoreBadge = "核心生成"
+    override fun activityEndpointDisplayName(path: String): String {
+        val clean = path.trim().lowercase()
+        return when {
+            clean.contains("streamgeneratecontent") -> "流式内容生成"
+            clean.contains("generatecontent") -> "内容生成 (非流式)"
+            clean.contains("completecode") || clean.contains("inlinecompletion") || clean.contains("getcompletions") -> "代码智能补全"
+            clean.contains("recordcodeassistmetrics") || clean.contains("recordmetrics") -> "指标数据上报"
+            clean.contains("fetchavailablemodels") || clean.contains("models") -> "可用模型拉取"
+            clean.contains("retrieveuserquotassummary") || clean.contains("quotas") -> "账号配额同步"
+            clean.contains("fetchuserinfo") || clean.contains("userinfo") || clean.contains("getuserstatus") -> "用户资料同步"
+            clean.contains("listexperiments") || clean.contains("experiments") -> "实验特性检测"
+            clean.contains("cascadenuxes") || clean.contains("nuxes") -> "新手指引状态"
+            clean.contains("loadcodeassist") -> "辅助模块配置"
+            clean.contains("fetchadmincontrols") -> "企业策略拉取"
+            else -> {
+                val colonIdx = path.lastIndexOf(':')
+                if (colonIdx >= 0 && colonIdx < path.length - 1) {
+                    path.substring(colonIdx + 1)
+                } else {
+                    path.removePrefix("/v1internal/").removePrefix("/v1/").removePrefix("/")
+                }
+            }
+        }
+    }
     override fun activityFilterMatches(shown: Int, total: Int) = "匹配 $shown / $total 条"
     override fun activityFilterSelectedDimension(label: String, count: Int) = "$label $count"
     override val activityTokenInput = "输入"
@@ -346,6 +381,35 @@ object ActivityStringsEn : ActivityStrings {
     override val activityFilterNoEndpoints = "No matching endpoints"
     override val activityFilterNoRoutes = "No route records"
     override val activityFilterResetAll = "Reset All"
+    override val activityFilterOnlyAiChat = "AI Sessions Only"
+    override val activityFilterTabAll = "All"
+    override val activityFilterTabAiChat = "Core Sessions"
+    override val activityFilterTabSystem = "System Calls"
+    override val activityFilterCoreBadge = "Core Gen"
+    override fun activityEndpointDisplayName(path: String): String {
+        val clean = path.trim().lowercase()
+        return when {
+            clean.contains("streamgeneratecontent") -> "Stream Generate Content"
+            clean.contains("generatecontent") -> "Generate Content"
+            clean.contains("completecode") || clean.contains("inlinecompletion") || clean.contains("getcompletions") -> "Code Completion"
+            clean.contains("recordcodeassistmetrics") || clean.contains("recordmetrics") -> "Metrics Report"
+            clean.contains("fetchavailablemodels") || clean.contains("models") -> "Fetch Models"
+            clean.contains("retrieveuserquotassummary") || clean.contains("quotas") -> "Quota Summary"
+            clean.contains("fetchuserinfo") || clean.contains("userinfo") || clean.contains("getuserstatus") -> "Fetch User Info"
+            clean.contains("listexperiments") || clean.contains("experiments") -> "List Experiments"
+            clean.contains("cascadenuxes") || clean.contains("nuxes") -> "Onboarding Guides"
+            clean.contains("loadcodeassist") -> "Load Code Assist"
+            clean.contains("fetchadmincontrols") -> "Admin Controls"
+            else -> {
+                val colonIdx = path.lastIndexOf(':')
+                if (colonIdx >= 0 && colonIdx < path.length - 1) {
+                    path.substring(colonIdx + 1)
+                } else {
+                    path.removePrefix("/v1internal/").removePrefix("/v1/").removePrefix("/")
+                }
+            }
+        }
+    }
     override fun activityFilterMatches(shown: Int, total: Int) = "$shown of $total matching"
     override fun activityFilterSelectedDimension(label: String, count: Int) = "$label: $count"
     override val activityTokenInput = "Input"

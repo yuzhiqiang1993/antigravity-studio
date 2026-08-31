@@ -164,16 +164,42 @@ internal fun ActivityLogRow(
                             }
                         }
 
+                        val endpointInfo = remember(log.path) { ActivityEndpointRegistry.resolve(log.path) }
+                        val isAiChat = endpointInfo.category == ActivityEndpointCategory.AI_CHAT || endpointInfo.category == ActivityEndpointCategory.CODE_ASSIST
+
                         HighlightedText(
                             text = log.path,
                             query = searchQuery,
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = if (isAiChat) FontWeight.Bold else FontWeight.SemiBold,
                                 fontSize = 13.5.sp
                             ),
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = if (isAiChat) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                             maxLines = 1
                         )
+
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (isAiChat) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                            },
+                            border = BorderStroke(
+                                0.5.dp,
+                                if (isAiChat) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
+                        ) {
+                            Text(
+                                text = s.activityEndpointDisplayName(log.path),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.5.sp,
+                                    fontWeight = if (isAiChat) FontWeight.Bold else FontWeight.Medium
+                                ),
+                                color = if (isAiChat) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
 
                     Row(

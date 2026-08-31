@@ -45,6 +45,7 @@ fun ActivityScreen(
     var filterResetKey by remember { mutableIntStateOf(0) }
     var selectedLog by remember { mutableStateOf<ActivityLog?>(null) }
     var showModelLatencyStats by remember { mutableStateOf(false) }
+    var showFilterDialog by remember { mutableStateOf(false) }
     val normalizedQuery = searchQuery.trim()
 
     fun resetActivityFilters() {
@@ -66,7 +67,7 @@ fun ActivityScreen(
             listState.animateScrollToItem(0)
         }
     }
-    val statistics = rememberActivityStatistics(logs)
+    val statistics = rememberActivityStatistics(displayedLogs)
 
     Column(
         modifier = modifier
@@ -92,7 +93,7 @@ fun ActivityScreen(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                // 顶部工具栏：全文搜索 + 多维筛选 + 日志操作
+                // 顶部工具栏：全文搜索 + 筛选弹窗按钮 + 自动滚动 + 清空日志
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -106,20 +107,21 @@ fun ActivityScreen(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             placeholder = s.activitySearchPlaceholder,
-                            modifier = Modifier.width(320.dp)
+                            modifier = Modifier.width(280.dp)
                         )
 
-                        ActivityFilterDropdown(
-                            totalCount = logs.size,
-                            matchingCount = displayedLogs.size,
-                            clientCounts = filterCounts.clientCounts,
-                            endpointCounts = filterCounts.endpointCounts,
-                            routeCounts = filterCounts.routeCounts,
-                            statusCounts = filterCounts.statusCounts,
-                            filter = activityFilter,
-                            resetKey = filterResetKey,
-                            onFilterChange = { activityFilter = it },
-                            onResetAll = ::resetActivityFilters,
+                        ActivityOnlyAiChatToggleButton(
+                            isOnlyAiChat = activityFilter.onlyAiChat,
+                            onClick = {
+                                activityFilter = activityFilter.copy(onlyAiChat = !activityFilter.onlyAiChat)
+                            },
+                            s = s
+                        )
+
+                        ActivityFilterButton(
+                            isFiltered = activityFilter.isActive,
+                            filterCount = activityFilter.activeCount,
+                            onClick = { showFilterDialog = true },
                             s = s
                         )
                     }
@@ -221,9 +223,9 @@ fun ActivityScreen(
 
                 Spacer(Modifier.height(14.dp))
 
-                // 指标卡片（直接展示总数、异常、首字耗时、输出速率、会话耗时、缓存命中率）
+                // 指标卡片（动态展示当前筛选范围下的总数、异常、首字耗时、输出速率、会话耗时、缓存命中率）
                 ActivityMetricsRow(
-                    totalCount = logs.size,
+                    totalCount = displayedLogs.size,
                     failedCount = statistics.failedCount,
                     averageFirstTokenMs = statistics.averageFirstTokenMs,
                     averageTps = statistics.averageTps,
@@ -282,6 +284,23 @@ fun ActivityScreen(
             config = config,
             officialModels = officialModels,
             onDismiss = { showModelLatencyStats = false }
+        )
+    }
+
+    if (showFilterDialog) {
+        ActivityFilterDialog(
+            totalCount = logs.size,
+            matchingCount = displayedLogs.size,
+            clientCounts = filterCounts.clientCounts,
+            endpointCounts = filterCounts.endpointCounts,
+            routeCounts = filterCounts.routeCounts,
+            statusCounts = filterCounts.statusCounts,
+            filter = activityFilter,
+            resetKey = filterResetKey,
+            onFilterChange = { activityFilter = it },
+            onResetAll = ::resetActivityFilters,
+            onDismiss = { showFilterDialog = false },
+            s = s
         )
     }
 }
