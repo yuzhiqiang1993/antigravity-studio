@@ -1,6 +1,8 @@
 package com.yuzhiqiang.antigravity.ui
 
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
+import com.yuzhiqiang.antigravity.ui.utils.formatTpot
+import com.yuzhiqiang.antigravity.ui.utils.formatTps
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -72,6 +74,20 @@ class TimeFormattersTest {
         assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(15000L))
         assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(15001L))
         assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(35000L))
+    }
+
+    @Test
+    fun testTpsAndTpotFormatting() {
+        assertEquals("—", formatTps(null))
+        assertEquals("—", formatTps(0.0))
+        assertEquals("45 t/s", formatTps(45.0))
+        assertEquals("42.5 t/s", formatTps(42.5))
+        assertEquals("120 t/s", formatTps(120.0))
+
+        assertEquals("—", formatTpot(null))
+        assertEquals("—", formatTpot(0.0))
+        assertEquals("22 ms/t", formatTpot(22.0))
+        assertEquals("23.5 ms/t", formatTpot(23.5))
     }
 
     @Test

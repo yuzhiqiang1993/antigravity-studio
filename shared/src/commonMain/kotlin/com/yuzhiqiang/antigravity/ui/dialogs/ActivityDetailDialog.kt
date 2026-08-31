@@ -32,6 +32,8 @@ import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
 import com.yuzhiqiang.antigravity.ui.utils.formatHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatTokens
+import com.yuzhiqiang.antigravity.ui.utils.formatTpot
+import com.yuzhiqiang.antigravity.ui.utils.formatTps
 import com.yuzhiqiang.antigravity.ui.utils.getCacheHitRateColor
 import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
 import com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier
@@ -148,6 +150,17 @@ fun ActivityDetailDialog(
                             MaterialTheme.colorScheme.primary
                         }
                         DetailItemRow(s.activityDetailDuration, durationFormatted, highlightColor = durationColor)
+                        log.queueWaitMs?.let {
+                            DetailItemRow(s.activityDetailQueueWait, formatDuration(it))
+                        }
+                        log.firstByteMs?.let { ttfb ->
+                            DetailItemRow(
+                                s.activityDetailFirstByte,
+                                formatDuration(ttfb),
+                                highlightColor = getFirstTokenLatencyTier(ttfb)
+                                    .toColor(MaterialTheme.colorScheme.secondary)
+                            )
+                        }
                         log.firstTokenMs?.let { ttft ->
                             val ttftFormatted = if (ttft >= 1000L) {
                                 "${formatDuration(ttft)} ($ttft ms)"
@@ -179,7 +192,59 @@ fun ActivityDetailDialog(
                         }
                     }
 
-                    // 2. Token 消耗统计 (若存在)
+                    // 2. 速度与流式指标 (若存在)
+                    val hasSpeedInfo = log.tokensPerSecond != null || log.timePerOutputTokenMs != null ||
+                        log.generationDurationMs != null || log.maxChunkGapMs != null || log.stallCount > 0 ||
+                        log.lastTokenMs != null || log.stallDurationMs != null
+                    if (hasSpeedInfo) {
+                        DetailSectionCard(title = s.activityDetailSpeedSection) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                TokenMetricBadge(
+                                    label = s.activityDetailTps,
+                                    value = log.tokensPerSecond?.let(::formatTps) ?: "—",
+                                    customValueColor = log.tokensPerSecond?.let { MaterialTheme.colorScheme.primary },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TokenMetricBadge(
+                                    label = s.activityDetailTpot,
+                                    value = log.timePerOutputTokenMs?.let(::formatTpot) ?: "—",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TokenMetricBadge(
+                                    label = s.activityDetailGenerationDuration,
+                                    value = log.generationDurationMs?.let(::formatDuration) ?: "—",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TokenMetricBadge(
+                                    label = s.activityDetailMaxChunkGap,
+                                    value = log.maxChunkGapMs?.let(::formatDuration) ?: "—",
+                                    customValueColor = log.maxChunkGapMs?.let {
+                                        if (log.stallCount > 0) MaterialTheme.colorScheme.error
+                                        else MaterialTheme.colorScheme.tertiary
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (log.stallCount > 0) {
+                                DetailItemRow(
+                                    s.activityDetailStallCount,
+                                    s.activityStallsCount(log.stallCount),
+                                    highlightColor = MaterialTheme.colorScheme.error
+                                )
+                            }
+                            log.stallDurationMs?.takeIf { it > 0L }?.let {
+                                DetailItemRow(s.activityDetailStallDuration, formatDuration(it))
+                            }
+                            log.lastTokenMs?.let {
+                                DetailItemRow(s.activityDetailLastToken, formatDuration(it))
+                            }
+                        }
+                    }
+
+                    // 3. Token 消耗统计 (若存在)
                     val hasTokenInfo = log.totalTokens != null || log.inputTokens != null || log.outputTokens != null
                     if (hasTokenInfo) {
                         DetailSectionCard(title = s.activityDetailTokenSection) {
@@ -240,7 +305,7 @@ fun ActivityDetailDialog(
                         }
                     }
 
-                    // 3. 错误详情与异常响应体 (完整无脱敏)
+                    // 4. 错误详情与异常响应体 (完整无脱敏)
                     if (!log.errorMessage.isNullOrBlank()) {
                         DetailSectionCard(
                             title = s.activityDetailErrorSection,
@@ -285,13 +350,13 @@ fun ActivityDetailDialog(
                         }
                     }
 
-                    // 4. Debug 详细报文（请求头、请求体、响应头、响应体）
+                    // 5. Debug 详细报文（请求头、请求体、响应头、响应体）
                     if (hasDebugData) {
                         DetailSectionCard(
                             title = s.activityDetailDebugSection,
                             headerColor = MaterialTheme.colorScheme.primary
                         ) {
-                            // 4.1 请求头 (Request Headers)
+                            // 5.1 请求头 (Request Headers)
                             if (!log.requestHeaders.isNullOrEmpty()) {
                                 HeadersDisplayBlock(
                                     title = s.activityDetailRequestHeaders,
@@ -303,7 +368,7 @@ fun ActivityDetailDialog(
                                 )
                             }
 
-                            // 4.2 请求数据 (Request Body)
+                            // 5.2 请求数据 (Request Body)
                             if (!log.requestBody.isNullOrBlank()) {
                                 PayloadDisplayBlock(
                                     title = s.activityDetailRequestBody,
@@ -317,7 +382,7 @@ fun ActivityDetailDialog(
                                 )
                             }
 
-                            // 4.3 响应头 (Response Headers)
+                            // 5.3 响应头 (Response Headers)
                             if (!log.responseHeaders.isNullOrEmpty()) {
                                 HeadersDisplayBlock(
                                     title = s.activityDetailResponseHeaders,
@@ -329,7 +394,7 @@ fun ActivityDetailDialog(
                                 )
                             }
 
-                            // 4.4 响应数据 (Response Body)
+                            // 5.4 响应数据 (Response Body)
                             if (!log.responseBody.isNullOrBlank()) {
                                 PayloadDisplayBlock(
                                     title = s.activityDetailResponseBody,

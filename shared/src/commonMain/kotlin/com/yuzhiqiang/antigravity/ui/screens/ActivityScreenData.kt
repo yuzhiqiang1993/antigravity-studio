@@ -68,12 +68,26 @@ internal data class ActivityStatistics(
 data class ModelLatencyStat(
     val modelId: String,
     val sampleCount: Int,
+    val p50FirstByteMs: Long = 0L,
+    val p95FirstByteMs: Long = 0L,
     val averageFirstTokenMs: Long,
     val minFirstTokenMs: Long,
     val maxFirstTokenMs: Long,
+    val p50FirstTokenMs: Long = 0L,
+    val p95FirstTokenMs: Long = 0L,
     val averageDurationMs: Long,
     val minDurationMs: Long,
     val maxDurationMs: Long,
+    val p50DurationMs: Long = 0L,
+    val p95DurationMs: Long = 0L,
+    val averageTps: Double? = null,
+    val minTps: Double? = null,
+    val maxTps: Double? = null,
+    val p50Tps: Double? = null,
+    val averageTpotMs: Double? = null,
+    val p95MaxChunkGapMs: Long = 0L,
+    val averageQueueWaitMs: Long? = null,
+    val totalStallCount: Int = 0,
     val completedCount: Int,
     val totalRequests: Int
 )
@@ -122,24 +136,62 @@ internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLate
         }
         .groupBy({ it.first }, { it.second })
         .map { (modelId, modelLogs) ->
+            val firstByteLogs = modelLogs.mapNotNull { it.firstByteMs?.takeIf { ms -> ms > 0L } }
             val firstTokenLogs = modelLogs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
             val avgFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.average().toLong() else 0L
             val minFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.minOrNull() ?: 0L else 0L
             val maxFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.maxOrNull() ?: 0L else 0L
+            val p50FirstToken = calculatePercentile(firstTokenLogs, 50.0)
+            val p95FirstToken = calculatePercentile(firstTokenLogs, 95.0)
+
             val completedLogs = modelLogs.filter { !it.isPending && it.durationMs > 0 }
-            val avgDuration = if (completedLogs.isNotEmpty()) completedLogs.map { it.durationMs }.average().toLong() else 0L
-            val minDuration = if (completedLogs.isNotEmpty()) completedLogs.minOf { it.durationMs } else 0L
-            val maxDuration = if (completedLogs.isNotEmpty()) completedLogs.maxOf { it.durationMs } else 0L
+            val durationLogs = completedLogs.map { it.durationMs }
+            val avgDuration = if (durationLogs.isNotEmpty()) durationLogs.average().toLong() else 0L
+            val minDuration = durationLogs.minOrNull() ?: 0L
+            val maxDuration = durationLogs.maxOrNull() ?: 0L
+            val p50Duration = calculatePercentile(durationLogs, 50.0)
+            val p95Duration = calculatePercentile(durationLogs, 95.0)
+
+            val tpsList = modelLogs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 } }
+            val avgTps = if (tpsList.isNotEmpty()) tpsList.average() else null
+            val minTps = tpsList.minOrNull()
+            val maxTps = tpsList.maxOrNull()
+            val p50Tps = calculateDoublePercentile(tpsList, 50.0)
+
+            val tpotList = modelLogs.mapNotNull { it.timePerOutputTokenMs?.takeIf { tpot -> tpot > 0.0 } }
+            val avgTpot = if (tpotList.isNotEmpty()) tpotList.average() else null
+
+            val gapList = modelLogs.mapNotNull { it.maxChunkGapMs?.takeIf { gap -> gap > 0 } }
+            val p95MaxGap = calculatePercentile(gapList, 95.0)
+
+            val queueWaitList = modelLogs.mapNotNull { it.queueWaitMs }
+            val avgQueueWait = if (queueWaitList.isNotEmpty()) queueWaitList.average().toLong() else null
+
+            val totalStalls = modelLogs.sumOf { it.stallCount }
 
             ModelLatencyStat(
                 modelId = modelId,
                 sampleCount = firstTokenLogs.size,
+                p50FirstByteMs = calculatePercentile(firstByteLogs, 50.0),
+                p95FirstByteMs = calculatePercentile(firstByteLogs, 95.0),
                 averageFirstTokenMs = avgFirstToken,
                 minFirstTokenMs = minFirstToken,
                 maxFirstTokenMs = maxFirstToken,
+                p50FirstTokenMs = p50FirstToken,
+                p95FirstTokenMs = p95FirstToken,
                 averageDurationMs = avgDuration,
                 minDurationMs = minDuration,
                 maxDurationMs = maxDuration,
+                p50DurationMs = p50Duration,
+                p95DurationMs = p95Duration,
+                averageTps = avgTps,
+                minTps = minTps,
+                maxTps = maxTps,
+                p50Tps = p50Tps,
+                averageTpotMs = avgTpot,
+                p95MaxChunkGapMs = p95MaxGap,
+                averageQueueWaitMs = avgQueueWait,
+                totalStallCount = totalStalls,
                 completedCount = completedLogs.size,
                 totalRequests = modelLogs.size
             )
@@ -151,3 +203,16 @@ internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLate
         )
 }
 
+internal fun calculatePercentile(values: List<Long>, percentile: Double): Long {
+    if (values.isEmpty()) return 0L
+    val sorted = values.sorted()
+    val index = (kotlin.math.ceil((percentile / 100.0) * sorted.size).toInt() - 1).coerceIn(0, sorted.size - 1)
+    return sorted[index]
+}
+
+internal fun calculateDoublePercentile(values: List<Double>, percentile: Double): Double? {
+    if (values.isEmpty()) return null
+    val sorted = values.sorted()
+    val index = (kotlin.math.ceil((percentile / 100.0) * sorted.size).toInt() - 1).coerceIn(0, sorted.size - 1)
+    return sorted[index]
+}

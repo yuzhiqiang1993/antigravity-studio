@@ -125,6 +125,34 @@ fun getDurationLatencyTier(durationMs: Long?): LatencyTier? {
 }
 
 /**
+ * 格式化输出速率 TPS (Tokens per second)：
+ * - 例如: 42.5 -> "42.5 t/s", 120.0 -> "120 t/s"
+ */
+fun formatTps(tps: Double?): String {
+    if (tps == null || tps <= 0.0) return "—"
+    val rounded = round(tps * 10) / 10.0
+    return if (rounded == rounded.toLong().toDouble()) {
+        "${rounded.toLong()} t/s"
+    } else {
+        "${rounded} t/s"
+    }
+}
+
+/**
+ * 格式化单 Token 耗时 TPOT (Time per output token)：
+ * - 例如: 23.5 -> "23.5 ms/t", 15.0 -> "15 ms/t"
+ */
+fun formatTpot(tpotMs: Double?): String {
+    if (tpotMs == null || tpotMs <= 0.0) return "—"
+    val rounded = round(tpotMs * 10) / 10.0
+    return if (rounded == rounded.toLong().toDouble()) {
+        "${rounded.toLong()} ms/t"
+    } else {
+        "${rounded} ms/t"
+    }
+}
+
+/**
  * 将延迟等级映射为当前主题的语义状态色彩
  */
 @androidx.compose.runtime.Composable
@@ -189,4 +217,3 @@ fun getCacheHitRateColor(rate: Double?, defaultColor: androidx.compose.ui.graphi
         else -> defaultColor
     }
 }
-

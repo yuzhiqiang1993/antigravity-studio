@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.ElectricBolt
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -31,21 +33,29 @@ import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.screens.ModelLatencyStat
 import com.yuzhiqiang.antigravity.ui.screens.rememberModelLatencyStats
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.domain.model.AppConfig
+import com.yuzhiqiang.antigravity.domain.model.OfficialCatalogModel
+import com.yuzhiqiang.antigravity.ui.utils.ModelDisplayNameResolver
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
+import com.yuzhiqiang.antigravity.ui.utils.formatTps
 import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
 import com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier
 import com.yuzhiqiang.antigravity.ui.utils.toColor
 
 /**
- * 各模型耗时双指标统计弹窗：
+ * 各模型耗时与速度统计弹窗：
  * - 复用 StudioDialogSurface 与 AppTokens 尺寸令牌，遵循应用统一的 Material Design 3 弹窗规范
- * - 顶部展示模型数、首字均值、总耗时均值、样本/总调用量 4 项汇总指标
- * - 列表各模型采用双指标并列卡片（左侧首字响应 TTFT，右侧会话总耗时 Duration），包含双对比条与极值区间
+ * - 顶部展示模型数量、首字均值、速率均值、总耗时均值 4 项核心汇总指标
+ * - 列表各模型采用三指标并列卡片（首字响应 TTFT、输出速率 TPS、会话总耗时 Duration），纵向层次分明，杜绝文字挤压折行
+ * - 优先展示友好的 displayName，并在需要时展示原始 modelId
+ * - 文案通俗易懂，过滤非必要的复杂工程指标
  * - 底部标准 Action 栏统一消费 s.commonClose
  */
 @Composable
 fun ModelLatencyStatsDialog(
     logs: List<ActivityLog>,
+    config: AppConfig? = null,
+    officialModels: List<OfficialCatalogModel>? = null,
     onDismiss: () -> Unit
 ) {
     val s = strings()
@@ -55,7 +65,6 @@ fun ModelLatencyStatsDialog(
     val validStats = stats.filter { it.sampleCount > 0 || it.completedCount > 0 }
     val totalTtftSamples = validStats.sumOf { it.sampleCount }
     val totalCompletedRequests = validStats.sumOf { it.completedCount }
-    val totalRequests = validStats.sumOf { it.totalRequests }
     val activeModelCount = validStats.size
     // 与 calculateModelLatencyStats 保持相同的模型归属口径，避免无模型日志只进入均值分子。
     val modelLatencyLogs = logs.filter { (it.modelId ?: it.requestedModelId)?.isNotBlank() == true }
@@ -67,6 +76,9 @@ fun ModelLatencyStatsDialog(
         0L
     }
 
+    val tpsLogs = modelLatencyLogs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 } }
+    val overallAvgTps = if (tpsLogs.isNotEmpty()) tpsLogs.average() else null
+
     val overallAvgDuration = if (totalCompletedRequests > 0) {
         val totalDurationMs = modelLatencyLogs.filter { !it.isPending && it.durationMs > 0 }.sumOf { it.durationMs }
         totalDurationMs / totalCompletedRequests
@@ -75,6 +87,7 @@ fun ModelLatencyStatsDialog(
     }
 
     val maxAvgTtft = validStats.maxOfOrNull { it.averageFirstTokenMs }?.coerceAtLeast(1L) ?: 1L
+    val maxAvgTps = validStats.mapNotNull { it.averageTps }.maxOrNull()?.coerceAtLeast(1.0) ?: 100.0
     val maxAvgDuration = validStats.maxOfOrNull { it.averageDurationMs }?.coerceAtLeast(1L) ?: 1L
 
     Dialog(onDismissRequest = onDismiss) {
@@ -125,7 +138,7 @@ fun ModelLatencyStatsDialog(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                // 2. 汇总概览卡片行（4 列并排）
+                // 2. 汇总概览卡片行（4 列并排，呼吸感更好）
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -148,6 +161,14 @@ fun ModelLatencyStatsDialog(
                         modifier = Modifier.weight(1f)
                     )
 
+                    LatencySummaryCard(
+                        label = s.activityModelLatencyOverallAvgTps,
+                        value = overallAvgTps?.let { formatTps(it) } ?: "--",
+                        valueColor = overallAvgTps?.let { MaterialTheme.colorScheme.secondary },
+                        isDark = isDark,
+                        modifier = Modifier.weight(1f)
+                    )
+
                     val overallDurationTier = getDurationLatencyTier(overallAvgDuration)
                     LatencySummaryCard(
                         label = s.activityModelLatencyOverallAvgDuration,
@@ -156,16 +177,9 @@ fun ModelLatencyStatsDialog(
                         isDark = isDark,
                         modifier = Modifier.weight(1f)
                     )
-
-                    LatencySummaryCard(
-                        label = s.activityModelLatencyTotalSamples,
-                        value = "$totalTtftSamples / $totalRequests",
-                        isDark = isDark,
-                        modifier = Modifier.weight(1f)
-                    )
                 }
 
-                // 3. 模型双指标卡片列表
+                // 3. 模型多指标卡片列表
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -186,10 +200,13 @@ fun ModelLatencyStatsDialog(
                             contentPadding = PaddingValues(bottom = 12.dp)
                         ) {
                             items(validStats, key = { it.modelId }) { stat ->
-                                DualMetricModelCard(
+                                MultiMetricModelCard(
                                     stat = stat,
                                     maxAvgTtft = maxAvgTtft,
+                                    maxAvgTps = maxAvgTps,
                                     maxAvgDuration = maxAvgDuration,
+                                    config = config,
+                                    officialModels = officialModels,
                                     s = s,
                                     isDark = isDark
                                 )
@@ -253,7 +270,8 @@ private fun LatencySummaryCard(
                 text = label,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = value,
@@ -262,25 +280,37 @@ private fun LatencySummaryCard(
                     fontSize = 15.sp
                 ),
                 color = valueColor ?: MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
 
 /**
- * 双指标并列模型卡片：
+ * 多指标并列模型卡片：
  * 遵循通透层次规范（外层纯净 surface 背景 + 微边框；内层微底色子卡片 + 进度条）
  */
 @Composable
-private fun DualMetricModelCard(
+private fun MultiMetricModelCard(
     stat: ModelLatencyStat,
     maxAvgTtft: Long,
+    maxAvgTps: Double,
     maxAvgDuration: Long,
+    config: AppConfig? = null,
+    officialModels: List<OfficialCatalogModel>? = null,
     s: Strings,
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val displayName = androidx.compose.runtime.remember(stat.modelId, config, officialModels) {
+        ModelDisplayNameResolver.resolve(
+            modelId = stat.modelId,
+            config = config,
+            officialModels = officialModels
+        )
+    }
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(AppTokens.Radius.medium),
@@ -294,52 +324,76 @@ private fun DualMetricModelCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(13.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 顶行：模型名称 + 徽标组
+            // 顶行：模型名称 (displayName + modelId) + 状态徽标
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = stat.modelId,
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.5.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
+                Column(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(
+                        text = displayName,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (displayName != stat.modelId) {
+                        Text(
+                            text = stat.modelId,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    if (stat.sampleCount > 0) {
+                    // 仅在存在卡顿时展示警示徽标
+                    if (stat.totalStallCount > 0) {
                         Surface(
                             shape = RoundedCornerShape(5.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.65f else 0.85f)
+                            color = MaterialTheme.colorScheme.error.copy(alpha = if (isDark) 0.20f else 0.14f)
                         ) {
                             Text(
-                                text = s.activityModelLatencySampleCount(stat.sampleCount),
+                                text = s.activityModelLatencyStallBadge(stat.totalStallCount),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.5.sp,
                                     fontWeight = FontWeight.SemiBold
                                 ),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
 
+                    // 调用次数徽标
                     Surface(
                         shape = RoundedCornerShape(5.dp),
                         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (isDark) 0.55f else 0.80f)
                     ) {
+                        val badgeText = if (stat.completedCount == stat.totalRequests) {
+                            s.activityModelLatencyCallsCount(stat.totalRequests)
+                        } else {
+                            s.activityModelLatencyCompletedCalls(stat.completedCount, stat.totalRequests)
+                        }
                         Text(
-                            text = s.activityModelLatencyCompletedCalls(stat.completedCount, stat.totalRequests),
+                            text = badgeText,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -351,46 +405,96 @@ private fun DualMetricModelCard(
                 }
             }
 
-            // 中间：双指标并列子卡片行
+            // 中间：首字响应、生成速率、总耗时三指标并列子卡片行
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 左栏：首字响应 (TTFT)
+                // 1. 首字响应 (TTFT)
                 val ttftTier = getFirstTokenLatencyTier(stat.averageFirstTokenMs)
-                val ttftColor = if (stat.averageFirstTokenMs > 0) ttftTier?.toColor() ?: MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                val ttftColor = if (stat.averageFirstTokenMs > 0) {
+                    ttftTier?.toColor() ?: MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
                 val ttftRatio = if (maxAvgTtft > 0 && stat.averageFirstTokenMs > 0) {
                     (stat.averageFirstTokenMs.toFloat() / maxAvgTtft.toFloat()).coerceIn(0.04f, 1f)
                 } else {
                     0f
                 }
+                val ttftFootnote = formatRangeFootnote(
+                    minMs = stat.minFirstTokenMs,
+                    maxMs = stat.maxFirstTokenMs,
+                    p50Ms = stat.p50FirstTokenMs,
+                    medianLabel = s.activityModelLatencyMedian
+                )
 
                 MetricColumnCard(
                     title = s.activityModelLatencyColAvgTtft,
                     valueText = if (stat.averageFirstTokenMs > 0) formatDuration(stat.averageFirstTokenMs) else "--",
                     valueColor = ttftColor,
-                    secondaryText = formatLatencyRangeText(s.activityModelLatencyColRange, stat.minFirstTokenMs, stat.maxFirstTokenMs),
+                    footnoteText = ttftFootnote,
                     progressRatio = ttftRatio,
                     progressColor = ttftColor,
+                    icon = Icons.Outlined.ElectricBolt,
+                    isDark = isDark,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // 2. 生成速率 (TPS)
+                val tpsColor = if (stat.averageTps != null && stat.averageTps > 0) {
+                    MaterialTheme.colorScheme.secondary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                val tpsRatio = if (maxAvgTps > 0 && stat.averageTps != null && stat.averageTps > 0) {
+                    (stat.averageTps.toFloat() / maxAvgTps.toFloat()).coerceIn(0.04f, 1f)
+                } else {
+                    0f
+                }
+                val tpsFootnote = formatTpsFootnote(
+                    minTps = stat.minTps,
+                    maxTps = stat.maxTps,
+                    p50Tps = stat.p50Tps,
+                    medianLabel = s.activityModelLatencyMedian
+                )
+
+                MetricColumnCard(
+                    title = s.activityModelLatencyColAvgTps,
+                    valueText = stat.averageTps?.let { formatTps(it) } ?: "--",
+                    valueColor = tpsColor,
+                    footnoteText = tpsFootnote,
+                    progressRatio = tpsRatio,
+                    progressColor = tpsColor,
                     icon = Icons.Outlined.Speed,
                     isDark = isDark,
                     modifier = Modifier.weight(1f)
                 )
 
-                // 右栏：会话总耗时 (Duration)
+                // 3. 会话总耗时 (Duration)
                 val durationTier = getDurationLatencyTier(stat.averageDurationMs)
-                val durationColor = if (stat.averageDurationMs > 0) durationTier?.toColor() ?: MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                val durationColor = if (stat.averageDurationMs > 0) {
+                    durationTier?.toColor() ?: MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
                 val durationRatio = if (maxAvgDuration > 0 && stat.averageDurationMs > 0) {
                     (stat.averageDurationMs.toFloat() / maxAvgDuration.toFloat()).coerceIn(0.04f, 1f)
                 } else {
                     0f
                 }
+                val durationFootnote = formatRangeFootnote(
+                    minMs = stat.minDurationMs,
+                    maxMs = stat.maxDurationMs,
+                    p50Ms = stat.p50DurationMs,
+                    medianLabel = s.activityModelLatencyMedian
+                )
 
                 MetricColumnCard(
                     title = s.activityModelLatencyColAvgDuration,
                     valueText = if (stat.averageDurationMs > 0) formatDuration(stat.averageDurationMs) else "--",
                     valueColor = durationColor,
-                    secondaryText = formatLatencyRangeText(s.activityModelLatencyColDurationRange, stat.minDurationMs, stat.maxDurationMs),
+                    footnoteText = durationFootnote,
                     progressRatio = durationRatio,
                     progressColor = durationColor,
                     icon = Icons.Outlined.AccessTime,
@@ -402,12 +506,16 @@ private fun DualMetricModelCard(
     }
 }
 
+/**
+ * 单项指标列卡片：
+ * 采用纵向层次结构（标题 -> 核心大数值 -> 进度条 -> 辅助范围说明），避免横向挤压换行
+ */
 @Composable
 private fun MetricColumnCard(
     title: String,
     valueText: String,
     valueColor: Color,
-    secondaryText: String,
+    footnoteText: String,
     progressRatio: Float,
     progressColor: Color,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -426,80 +534,102 @@ private fun MetricColumnCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+                .padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // 顶行：标题与大数值
+            // 1. 顶部：图标 + 标题（单行完整展示）
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(13.dp)
+                )
                 Text(
-                    text = valueText,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.5.sp
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
                     ),
-                    color = valueColor
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            // 中间：可视化对比条
+            // 2. 中间：大字数值独立占行（永不挤压折行）
+            Text(
+                text = valueText,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.5.sp
+                ),
+                color = valueColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            // 3. 进度指示条
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
+                    .height(3.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.30f else 0.45f))
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.25f else 0.40f))
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(progressRatio)
-                        .fillMaxHeight()
-                        .clip(CircleShape)
-                        .background(progressColor)
-                )
+                if (progressRatio > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progressRatio)
+                            .fillMaxHeight()
+                            .clip(CircleShape)
+                            .background(progressColor)
+                    )
+                }
             }
 
-            // 底行：极值区间
+            // 4. 底部：通俗易懂的极值区间或中位数说明（单行）
             Text(
-                text = secondaryText,
+                text = footnoteText,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
                 ),
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
 
-private fun formatLatencyRangeText(label: String, minMs: Long, maxMs: Long): String {
-    if (maxMs <= 0L) return "$label: --"
-    return if (minMs == maxMs || minMs <= 0L) {
-        "$label: ${formatDuration(maxMs)}"
-    } else {
-        "$label: ${formatDuration(minMs)} ~ ${formatDuration(maxMs)}"
+/**
+ * 格式化耗时辅助说明文案（极值区间或中位数）
+ */
+private fun formatRangeFootnote(minMs: Long, maxMs: Long, p50Ms: Long, medianLabel: String): String {
+    if (minMs > 0L && maxMs > 0L && minMs != maxMs) {
+        return "${formatDuration(minMs)} ~ ${formatDuration(maxMs)}"
     }
+    if (p50Ms > 0L) {
+        return "$medianLabel: ${formatDuration(p50Ms)}"
+    }
+    if (maxMs > 0L) {
+        return formatDuration(maxMs)
+    }
+    return "--"
+}
+
+/**
+ * 格式化速率辅助说明文案（极值区间或中位数）
+ */
+private fun formatTpsFootnote(minTps: Double?, maxTps: Double?, p50Tps: Double?, medianLabel: String): String {
+    if (minTps != null && maxTps != null && minTps > 0.0 && maxTps > 0.0 && kotlin.math.abs(maxTps - minTps) > 0.1) {
+        return "${formatTps(minTps)} ~ ${formatTps(maxTps)}"
+    }
+    if (p50Tps != null && p50Tps > 0.0) {
+        return "$medianLabel: ${formatTps(p50Tps)}"
+    }
+    return "--"
 }

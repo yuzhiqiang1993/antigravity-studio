@@ -36,6 +36,7 @@ fun ActivityScreen(
     val tourManager = LocalSpotlightTourManager.current
     val config by viewModel.config.collectAsState()
     val logs by viewModel.activityLogs.collectAsState()
+    val officialModels by viewModel.officialModels.collectAsState()
     val autoScroll = config.activityAutoScroll
     val listState = rememberLazyListState()
     var searchQuery by remember { mutableStateOf("") }
@@ -264,6 +265,8 @@ fun ActivityScreen(
     if (showModelLatencyStats) {
         com.yuzhiqiang.antigravity.ui.dialogs.ModelLatencyStatsDialog(
             logs = logs,
+            config = config,
+            officialModels = officialModels,
             onDismiss = { showModelLatencyStats = false }
         )
     }

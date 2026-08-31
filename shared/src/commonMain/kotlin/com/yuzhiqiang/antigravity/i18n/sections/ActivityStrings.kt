@@ -25,17 +25,23 @@ interface ActivityStrings {
     val activityModelLatencyActiveModels: String
     val activityModelLatencyOverallAvg: String
     val activityModelLatencyOverallAvgDuration: String
+    val activityModelLatencyOverallAvgTps: String
     val activityModelLatencyEmpty: String
     val activityModelLatencyEmptyDesc: String
     val activityModelLatencyColModel: String
     val activityModelLatencyColSamples: String
     val activityModelLatencyColAvgTtft: String
-    val activityModelLatencyColRange: String
+    val activityModelLatencyColAvgTps: String
     val activityModelLatencyColAvgDuration: String
-    val activityModelLatencyColDurationRange: String
+    val activityModelLatencyRange: String
+    val activityModelLatencyMedian: String
+    fun activityModelLatencyCallsCount(count: Int): String
     fun activityModelLatencySampleCount(count: Int): String
     fun activityModelLatencyCompletedCalls(completed: Int, total: Int): String
+    fun activityModelLatencyStallBadge(count: Int): String
+    val activityModelLatencyP95Gap: String
     val activityFirstTokenLabel: String
+    fun activityStallsCount(count: Int): String
     val activityPending: String
     val activityProcessing: String
     val activityAllTags: String
@@ -77,7 +83,17 @@ interface ActivityStrings {
     val activityDetailMethod: String
     val activityDetailPath: String
     val activityDetailDuration: String
+    val activityDetailQueueWait: String
+    val activityDetailFirstByte: String
     val activityDetailFirstToken: String
+    val activityDetailSpeedSection: String
+    val activityDetailTps: String
+    val activityDetailTpot: String
+    val activityDetailGenerationDuration: String
+    val activityDetailLastToken: String
+    val activityDetailMaxChunkGap: String
+    val activityDetailStallCount: String
+    val activityDetailStallDuration: String
     val activityDetailTimestamp: String
     val activityDetailClientSource: String
     val activityClientIde: String
@@ -138,23 +154,29 @@ object ActivityStringsZh : ActivityStrings {
     override val activityFailedTotal = "异常请求"
     override val activityAverage = "首字平均耗时"
     override val activityCacheHitRate = "缓存命中率"
-    override val activityModelLatencyDialogTitle = "各模型耗时统计"
-    override val activityModelLatencyDialogSubtitle = "汇总各模型的首字响应耗时 (TTFT) 与完整会话总耗时"
-    override val activityModelLatencyTotalSamples = "首字样本 / 总请求"
-    override val activityModelLatencyActiveModels = "统计模型数"
+    override val activityModelLatencyDialogTitle = "模型速度与耗时统计"
+    override val activityModelLatencyDialogSubtitle = "汇总各模型的首字响应速度、输出速率与总耗时"
+    override val activityModelLatencyTotalSamples = "总请求样本"
+    override val activityModelLatencyActiveModels = "模型数量"
     override val activityModelLatencyOverallAvg = "首字均值"
     override val activityModelLatencyOverallAvgDuration = "总耗时均值"
+    override val activityModelLatencyOverallAvgTps = "速率均值"
     override val activityModelLatencyEmpty = "暂无模型耗时数据"
-    override val activityModelLatencyEmptyDesc = "当发起模型对话时，各模型的首字响应与总耗时将自动汇总于此处"
+    override val activityModelLatencyEmptyDesc = "发起模型对话后，首字响应、生成速率与总耗时将自动汇总展示于此处"
     override val activityModelLatencyColModel = "模型名称"
-    override val activityModelLatencyColSamples = "首字样本"
+    override val activityModelLatencyColSamples = "样本数"
     override val activityModelLatencyColAvgTtft = "首字响应 (TTFT)"
-    override val activityModelLatencyColRange = "首字区间"
+    override val activityModelLatencyColAvgTps = "输出速率 (TPS)"
     override val activityModelLatencyColAvgDuration = "会话总耗时"
-    override val activityModelLatencyColDurationRange = "总耗时区间"
+    override val activityModelLatencyRange = "波动区间"
+    override val activityModelLatencyMedian = "中位数"
+    override fun activityModelLatencyCallsCount(count: Int) = "$count 次调用"
     override fun activityModelLatencySampleCount(count: Int) = "$count 次首字"
     override fun activityModelLatencyCompletedCalls(completed: Int, total: Int) = "$completed / $total 次完成"
+    override fun activityModelLatencyStallBadge(count: Int) = "卡顿 $count 次"
+    override val activityModelLatencyP95Gap = "长尾间隔"
     override val activityFirstTokenLabel = "首字耗时"
+    override fun activityStallsCount(count: Int) = "$count 次卡顿"
     override val activityPending = "请求中"
     override val activityProcessing = "处理中..."
     override val activityAllTags = "日志筛选"
@@ -196,7 +218,17 @@ object ActivityStringsZh : ActivityStrings {
     override val activityDetailMethod = "请求方法"
     override val activityDetailPath = "完整请求路径"
     override val activityDetailDuration = "总响应耗时"
+    override val activityDetailQueueWait = "Studio 排队耗时"
+    override val activityDetailFirstByte = "上游首包耗时 (TTFB)"
     override val activityDetailFirstToken = "首字响应耗时 (TTFT)"
+    override val activityDetailSpeedSection = "速度与流式指标"
+    override val activityDetailTps = "输出速率 (TPS)"
+    override val activityDetailTpot = "单 Token 耗时 (TPOT)"
+    override val activityDetailGenerationDuration = "纯生成耗时"
+    override val activityDetailLastToken = "末字到达耗时"
+    override val activityDetailMaxChunkGap = "流式最大等待间隔"
+    override val activityDetailStallCount = "流式卡顿次数 (≥2s)"
+    override val activityDetailStallDuration = "累计卡顿时长"
     override val activityDetailTimestamp = "请求发起时间"
     override val activityDetailClientSource = "请求客户端"
     override val activityClientIde = "Antigravity IDE"
@@ -258,23 +290,29 @@ object ActivityStringsEn : ActivityStrings {
     override val activityFailedTotal = "Failed requests"
     override val activityAverage = "Avg First Token"
     override val activityCacheHitRate = "Cache Hit Rate"
-    override val activityModelLatencyDialogTitle = "Model Latency Statistics"
-    override val activityModelLatencyDialogSubtitle = "Summary of Time to First Token (TTFT) and total session duration across active models"
-    override val activityModelLatencyTotalSamples = "Samples / Total Requests"
-    override val activityModelLatencyActiveModels = "Active Models"
+    override val activityModelLatencyDialogTitle = "Model Speed & Latency"
+    override val activityModelLatencyDialogSubtitle = "Overview of first token response, generation speed, and total duration across models"
+    override val activityModelLatencyTotalSamples = "Total Samples"
+    override val activityModelLatencyActiveModels = "Models"
     override val activityModelLatencyOverallAvg = "Avg First Token"
     override val activityModelLatencyOverallAvgDuration = "Avg Duration"
+    override val activityModelLatencyOverallAvgTps = "Avg Speed"
     override val activityModelLatencyEmpty = "No model latency recorded"
-    override val activityModelLatencyEmptyDesc = "Model first-token response times (TTFT) and session durations will be summarized here"
+    override val activityModelLatencyEmptyDesc = "First token response, speed, and session duration will be summarized here after model requests"
     override val activityModelLatencyColModel = "Model"
-    override val activityModelLatencyColSamples = "TTFT Samples"
-    override val activityModelLatencyColAvgTtft = "Avg First Token (TTFT)"
-    override val activityModelLatencyColRange = "TTFT Range"
-    override val activityModelLatencyColAvgDuration = "Avg Total Duration"
-    override val activityModelLatencyColDurationRange = "Duration Range"
+    override val activityModelLatencyColSamples = "Samples"
+    override val activityModelLatencyColAvgTtft = "First Token (TTFT)"
+    override val activityModelLatencyColAvgTps = "Speed (TPS)"
+    override val activityModelLatencyColAvgDuration = "Total Duration"
+    override val activityModelLatencyRange = "Range"
+    override val activityModelLatencyMedian = "Median"
+    override fun activityModelLatencyCallsCount(count: Int) = "$count calls"
     override fun activityModelLatencySampleCount(count: Int) = "$count TTFT"
     override fun activityModelLatencyCompletedCalls(completed: Int, total: Int) = "$completed / $total completed"
+    override fun activityModelLatencyStallBadge(count: Int) = "$count stalls"
+    override val activityModelLatencyP95Gap = "Tail Gap"
     override val activityFirstTokenLabel = "First Token"
+    override fun activityStallsCount(count: Int) = "$count stalls"
     override val activityPending = "Processing"
     override val activityProcessing = "In progress..."
     override val activityAllTags = "Log Filter"
@@ -316,7 +354,17 @@ object ActivityStringsEn : ActivityStrings {
     override val activityDetailMethod = "HTTP Method"
     override val activityDetailPath = "Full Request Path"
     override val activityDetailDuration = "Total Response Latency"
+    override val activityDetailQueueWait = "Studio Queue Wait"
+    override val activityDetailFirstByte = "Time to First Byte (TTFB)"
     override val activityDetailFirstToken = "Time to First Token (TTFT)"
+    override val activityDetailSpeedSection = "Speed & Streaming Metrics"
+    override val activityDetailTps = "Output Speed (TPS)"
+    override val activityDetailTpot = "Time per Token (TPOT)"
+    override val activityDetailGenerationDuration = "Generation Duration"
+    override val activityDetailLastToken = "Time to Last Token"
+    override val activityDetailMaxChunkGap = "Max Stream Chunk Gap"
+    override val activityDetailStallCount = "Stream Stalls (≥2s)"
+    override val activityDetailStallDuration = "Total Stall Duration"
     override val activityDetailTimestamp = "Request Start Time"
     override val activityDetailClientSource = "Client Source"
     override val activityClientIde = "Antigravity IDE"

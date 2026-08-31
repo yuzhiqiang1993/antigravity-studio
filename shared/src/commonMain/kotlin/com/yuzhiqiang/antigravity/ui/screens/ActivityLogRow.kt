@@ -25,6 +25,7 @@ import com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
 import com.yuzhiqiang.antigravity.ui.utils.formatHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatTokens
+import com.yuzhiqiang.antigravity.ui.utils.formatTps
 import com.yuzhiqiang.antigravity.ui.utils.getCacheHitRateColor
 import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
 import com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier
@@ -204,6 +205,23 @@ internal fun ActivityLogRow(
                                     )
                                 }
                             }
+                            if (log.tokensPerSecond != null && log.tokensPerSecond > 0.0) {
+                                val tpsColor = MaterialTheme.colorScheme.secondary
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = tpsColor.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = formatTps(log.tokensPerSecond),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = tpsColor,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
                             val durationTier = getDurationLatencyTier(log.durationMs)
                             Text(
                                 text = formatDuration(log.durationMs),
@@ -278,10 +296,19 @@ internal fun ActivityLogRow(
                                     )
                                 }
                                 if (log.outputTokens != null && log.outputTokens > 0) {
+                                    val tpsSuffix = if (log.tokensPerSecond != null && log.tokensPerSecond > 0.0) {
+                                        " (${formatTps(log.tokensPerSecond)})"
+                                    } else {
+                                        ""
+                                    }
                                     Text(
-                                        text = "${s.activityTokenOutput} ${formatTokens(log.outputTokens)}",
+                                        text = "${s.activityTokenOutput} ${formatTokens(log.outputTokens)}$tpsSuffix",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                        color = if (log.tokensPerSecond != null && log.tokensPerSecond > 0.0) {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                        }
                                     )
                                     Text(
                                         text = "·",

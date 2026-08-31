@@ -33,7 +33,16 @@ fun ActivityLog.toJsonString(): String {
         put("durationMs", log.durationMs)
         put("isPending", log.isPending)
         if (log.retryCount > 0) put("retryCount", log.retryCount)
+        log.queueWaitMs?.let { put("queueWaitMs", it) }
+        log.firstByteMs?.let { put("firstByteMs", it) }
         log.firstTokenMs?.let { put("firstTokenMs", it) }
+        log.lastTokenMs?.let { put("lastTokenMs", it) }
+        log.generationDurationMs?.let { put("generationDurationMs", it) }
+        log.tokensPerSecond?.let { put("tokensPerSecond", it) }
+        log.timePerOutputTokenMs?.let { put("timePerOutputTokenMs", it) }
+        log.maxChunkGapMs?.let { put("maxChunkGapMs", it) }
+        if (log.stallCount > 0) put("stallCount", log.stallCount)
+        log.stallDurationMs?.let { put("stallDurationMs", it) }
         put("clientSource", log.clientSource)
         put("isOfficialPassthrough", log.isOfficialPassthrough)
         put("modelId", log.modelId)
