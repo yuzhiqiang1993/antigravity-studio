@@ -15,6 +15,9 @@ import com.yuzhiqiang.antigravity.i18n.sections.ProviderStringsEn
 import com.yuzhiqiang.antigravity.i18n.sections.SettingsStrings
 import com.yuzhiqiang.antigravity.i18n.sections.SettingsStringsEn
 
+import com.yuzhiqiang.antigravity.i18n.sections.UsageStrings
+import com.yuzhiqiang.antigravity.i18n.sections.UsageStringsEn
+
 object StringsEn : Strings,
     CoreStrings by CoreStringsEn,
     ModelsStrings by ModelsStringsEn,
@@ -22,4 +25,5 @@ object StringsEn : Strings,
     ActivityStrings by ActivityStringsEn,
     SettingsStrings by SettingsStringsEn,
     DoctorStrings by DoctorStringsEn,
-    AdvancedStrings by AdvancedStringsEn
+    AdvancedStrings by AdvancedStringsEn,
+    UsageStrings by UsageStringsEn

@@ -149,6 +149,7 @@ fun SettingsScreen(
                 onOpenDirectory = {
                     openDirectoryError = openConfigDirectory(viewModel)
                 },
+                onUpdateCustomPricing = { viewModel.updateCustomPricingPath(it) },
                 onConfigureHostPath = { key, title -> viewModel.openHostPathDialog(key, title) },
                 onOpenOnboarding = { viewModel.openOnboardingDialog() },
                 s = s
@@ -183,6 +184,7 @@ private fun SettingsContent(
     onTestOutboundProxy: (OutboundProxyConfig) -> Unit,
     onClearOutboundProxyTestResult: () -> Unit,
     onOpenDirectory: () -> Unit,
+    onUpdateCustomPricing: (String?) -> Unit,
     onConfigureHostPath: ((String, String) -> Unit)? = null,
     onOpenOnboarding: () -> Unit = {},
     s: Strings,
@@ -218,6 +220,8 @@ private fun SettingsContent(
             SettingsSection.DATA -> DataSettingsSection(
                 loadError = loadError,
                 openDirectoryError = openDirectoryError,
+                customPricingPath = config.customPricingPath,
+                onUpdateCustomPricing = onUpdateCustomPricing,
                 onOpenDirectory = onOpenDirectory,
                 s = s
             )

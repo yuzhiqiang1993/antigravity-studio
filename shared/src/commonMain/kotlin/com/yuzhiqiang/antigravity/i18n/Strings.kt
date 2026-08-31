@@ -15,4 +15,5 @@ interface Strings :
     ActivityStrings,
     SettingsStrings,
     DoctorStrings,
-    AdvancedStrings
+    AdvancedStrings,
+    com.yuzhiqiang.antigravity.i18n.sections.UsageStrings

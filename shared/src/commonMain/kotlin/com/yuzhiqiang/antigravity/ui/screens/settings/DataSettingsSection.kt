@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Paid
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -20,11 +21,14 @@ import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import java.io.File
 
 @Composable
 fun DataSettingsSection(
     loadError: String?,
     openDirectoryError: String?,
+    customPricingPath: String?,
+    onUpdateCustomPricing: (String?) -> Unit,
     onOpenDirectory: () -> Unit,
     s: Strings
 ) {
@@ -80,6 +84,49 @@ fun DataSettingsSection(
                 }
             }
 
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), modifier = Modifier.padding(vertical = 4.dp))
+
+            // 自定义费率文件配置
+            SettingRow(
+                icon = Icons.Outlined.Paid,
+                title = s.settingsCustomPricingTitle,
+                description = s.settingsCustomPricingDesc,
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!customPricingPath.isNullOrBlank()) {
+                        OutlinedButton(
+                            onClick = { onUpdateCustomPricing(null) },
+                            shape = RoundedCornerShape(AppTokens.Radius.small),
+                            modifier = Modifier.height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                        ) {
+                            Text(s.commonClear, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val picked = pickPricingJsonFile()
+                            if (picked != null) {
+                                onUpdateCustomPricing(picked)
+                            }
+                        },
+                        shape = RoundedCornerShape(AppTokens.Radius.small),
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = if (customPricingPath.isNullOrBlank()) s.settingsCustomPricingSelectFile else File(customPricingPath).name,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
             if (openDirectoryError != null) {
                 Text(
                     text = openDirectoryError,
@@ -89,5 +136,22 @@ fun DataSettingsSection(
                 )
             }
         }
+    }
+}
+
+private fun pickPricingJsonFile(): String? {
+    return try {
+        val fileDialog = java.awt.FileDialog(null as java.awt.Frame?, "选择 LiteLLM 定价 JSON 文件", java.awt.FileDialog.LOAD)
+        fileDialog.setFilenameFilter { _, name -> name.endsWith(".json", ignoreCase = true) }
+        fileDialog.isVisible = true
+        val file = fileDialog.file
+        val dir = fileDialog.directory
+        if (file != null && dir != null) {
+            File(dir, file).absolutePath
+        } else {
+            null
+        }
+    } catch (_: Exception) {
+        null
     }
 }

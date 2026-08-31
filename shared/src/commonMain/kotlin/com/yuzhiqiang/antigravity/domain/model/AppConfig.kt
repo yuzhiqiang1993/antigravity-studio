@@ -72,6 +72,8 @@ data class AppConfig(
     val quotaActiveIntervalSeconds: Int = 60,
     @SerialName("quota_background_interval_seconds")
     val quotaBackgroundIntervalSeconds: Int = 600,
+    @SerialName("custom_pricing_path")
+    val customPricingPath: String? = null,
     @SerialName("has_completed_onboarding")
     val hasCompletedOnboarding: Boolean = false
 ) {
