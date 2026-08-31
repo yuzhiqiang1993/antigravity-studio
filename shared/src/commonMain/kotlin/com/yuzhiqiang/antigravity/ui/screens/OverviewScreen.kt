@@ -31,6 +31,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
@@ -38,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -394,6 +396,185 @@ fun OverviewScreen(
                     HostCardItem(
                         data = item,
                         modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        // 底部生态联动卡片：推荐搭配 Antigravity Cockpit 插件
+        EcosystemCockpitBanner()
+    }
+}
+
+@Composable
+private fun EcosystemCockpitBanner(
+    modifier: Modifier = Modifier
+) {
+    val s = strings()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val isInstalled = remember { com.yuzhiqiang.antigravity.host.ide.CockpitPluginDetector.isInstalled() }
+    var isDismissed by remember { mutableStateOf(false) }
+    if (isInstalled || isDismissed) return
+
+    val brandColor = Color(0xFF6366F1)
+    val cardBg = if (isDark) {
+        Color(0xFF1E1B4B).copy(alpha = 0.35f)
+    } else {
+        Color(0xFFEEF2FF).copy(alpha = 0.65f)
+    }
+    val borderColor = if (isDark) {
+        brandColor.copy(alpha = 0.35f)
+    } else {
+        brandColor.copy(alpha = 0.25f)
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(14.dp)
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color = cardBg
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // 左侧 Logo 容器
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = brandColor.copy(alpha = if (isDark) 0.25f else 0.15f),
+                    border = BorderStroke(1.dp, brandColor.copy(alpha = 0.4f)),
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.Extension,
+                            contentDescription = null,
+                            tint = brandColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                // 中间标题与特性亮点
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = s.ecosystemCockpitTitle,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = s.ecosystemCockpitSubtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        listOf(
+                            s.ecosystemCockpitFeature1,
+                            s.ecosystemCockpitFeature2,
+                            s.ecosystemCockpitFeature3
+                        ).forEach { feature ->
+                            Surface(
+                                shape = RoundedCornerShape(AppTokens.Radius.pill),
+                                color = brandColor.copy(alpha = if (isDark) 0.18f else 0.10f),
+                                border = BorderStroke(0.5.dp, brandColor.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    text = feature,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = if (isDark) Color(0xFFA5B4FC) else Color(0xFF4F46E5),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            // 右侧操作区
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService.openBrowser(
+                            "https://open-vsx.org/extension/yuzhiqiang/antigravity-ide-cockpit"
+                        )
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+                ) {
+                    Text(
+                        text = s.ecosystemCockpitOpenVsxBtn,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp)
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService.openBrowser(
+                            "https://agycockpit.com/"
+                        )
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = brandColor)
+                ) {
+                    Text(
+                        text = s.ecosystemCockpitWebsiteBtn,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    )
+                }
+
+                IconButton(
+                    onClick = { isDismissed = true },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = s.commonClose,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }

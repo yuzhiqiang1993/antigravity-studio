@@ -101,6 +101,18 @@ interface CoreStrings {
     val hostIdeActiveDesc: String
     val hostOfficialDirectDesc: String
 
+    // Ecosystem & Cockpit Plugin Promotion
+    val hostIdeCockpitBannerTip: String
+    val hostIdeCockpitInstallBtn: String
+    val ecosystemCockpitTitle: String
+    val ecosystemCockpitSubtitle: String
+    val ecosystemCockpitFeature1: String
+    val ecosystemCockpitFeature2: String
+    val ecosystemCockpitFeature3: String
+    val ecosystemCockpitGetPluginBtn: String
+    val ecosystemCockpitOpenVsxBtn: String
+    val ecosystemCockpitWebsiteBtn: String
+
     fun hostAppPortMismatch(endpoint: String): String
     val hostAppRunning: String
     val hostAppRunningAndConfigured: String
@@ -321,6 +333,18 @@ object CoreStringsZh : CoreStrings {
     override fun hostIdePendingUpdate(port: Int) = "代理配置待更新为 http://127.0.0.1:$port"
     override val hostIdeActiveDesc = "已通过 settings.json 接入代理"
     override val hostOfficialDirectDesc = "当前处于官方直连模式"
+
+    // Ecosystem & Cockpit Plugin Promotion
+    override val hostIdeCockpitBannerTip = "推荐搭配 Cockpit 插件：在 IDE 状态栏实时看配额与一键热切号"
+    override val hostIdeCockpitInstallBtn = "安装插件 ↗"
+    override val ecosystemCockpitTitle = "搭配 Antigravity Cockpit 插件，打造 IDE 沉浸式开发体验"
+    override val ecosystemCockpitSubtitle = "Antigravity IDE 专属驾驶舱扩展：在编辑器状态栏实时监控配额与 Token 用量、支持一键无感热切号，并与 Studio 本地代理无缝握手协同。"
+    override val ecosystemCockpitFeature1 = "状态栏实时配额"
+    override val ecosystemCockpitFeature2 = "IDE 内快捷热切号"
+    override val ecosystemCockpitFeature3 = "本地代理无缝协同"
+    override val ecosystemCockpitGetPluginBtn = "获取 VS Code 插件 ↗"
+    override val ecosystemCockpitOpenVsxBtn = "Open VSX 市场 ↗"
+    override val ecosystemCockpitWebsiteBtn = "官方网站 ↗"
 
     override fun hostAppPortMismatch(endpoint: String) = "检测到环境变量与当前端口不一致（$endpoint）"
     override val hostAppRunning = "Antigravity App 正在运行"
@@ -574,6 +598,18 @@ object CoreStringsEn : CoreStrings {
     override fun hostIdePendingUpdate(port: Int) = "Proxy config pending update to http://127.0.0.1:$port"
     override val hostIdeActiveDesc = "settings.json proxy integration active"
     override val hostOfficialDirectDesc = "Currently using official direct mode"
+
+    // Ecosystem & Cockpit Plugin Promotion
+    override val hostIdeCockpitBannerTip = "Recommended with Cockpit: Status bar quota & 1-click account switch in IDE"
+    override val hostIdeCockpitInstallBtn = "Install Plugin ↗"
+    override val ecosystemCockpitTitle = "Pair with Antigravity Cockpit for an Immersive IDE Experience"
+    override val ecosystemCockpitSubtitle = "Dedicated dashboard extension for Antigravity IDE: monitor quotas & tokens in status bar, switch accounts seamlessly, and sync with Studio proxy."
+    override val ecosystemCockpitFeature1 = "Status Bar Quotas"
+    override val ecosystemCockpitFeature2 = "1-Click Hot Switch"
+    override val ecosystemCockpitFeature3 = "Studio Proxy Sync"
+    override val ecosystemCockpitGetPluginBtn = "Get VS Code Extension ↗"
+    override val ecosystemCockpitOpenVsxBtn = "Open VSX ↗"
+    override val ecosystemCockpitWebsiteBtn = "Website ↗"
 
     override fun hostAppPortMismatch(endpoint: String) = "Environment variable differs from current port ($endpoint)"
     override val hostAppRunning = "Antigravity App is running"
