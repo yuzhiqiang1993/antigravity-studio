@@ -1,6 +1,8 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
+import com.yuzhiqiang.antigravity.domain.model.CompressionPolicyTargetType
 import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
+import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicyAssignment
 import kotlinx.serialization.json.*
 
 internal object CatalogCompressionApplier {
@@ -12,14 +14,15 @@ internal object CatalogCompressionApplier {
 
     fun applyOfficialCompressionPolicies(
         root: JsonObject,
-        policies: Map<String, ModelCompressionPolicy>
+        assignments: List<ModelCompressionPolicyAssignment>
     ): JsonObject {
+        val policies = assignments
+            .asSequence()
+            .filter { assignment -> assignment.targetType == CompressionPolicyTargetType.OFFICIAL_CATALOG_MODEL }
+            .associate { assignment ->
+                CatalogModelFilter.normalizeCatalogModelId(assignment.targetId) to assignment.policy
+            }
         if (policies.isEmpty()) return root
-        val expandedPolicies = policies.toMutableMap()
-        CatalogModelFilter.officialModelAliases(root).forEach { (deprecated, replacement) ->
-            policies[deprecated]?.let { expandedPolicies[replacement] = it }
-            policies[replacement]?.let { expandedPolicies[deprecated] = it }
-        }
         val checkpointWorkers = checkpointWorkerIds(root)
         val checkpointWorkerLimits = checkpointWorkerLimits(root)
         val defaultCheckpointWorker = checkpointWorkers
@@ -34,7 +37,7 @@ internal object CatalogCompressionApplier {
             val models = container["models"]
             val updatedModels = when (models) {
                 is JsonObject -> JsonObject(models.mapValues { (key, value) ->
-                    val policy = findPolicy(expandedPolicies, key, value)
+                    val policy = findPolicy(policies, key, value)
                     if (policy == null) value else applyPolicyToEntry(
                         value,
                         policy,
@@ -46,7 +49,7 @@ internal object CatalogCompressionApplier {
 
                 is JsonArray -> JsonArray(models.map { value ->
                     val objectValue = value as? JsonObject ?: return@map value
-                    val policy = findPolicy(expandedPolicies, null, objectValue)
+                    val policy = findPolicy(policies, null, objectValue)
                     if (policy == null) value else applyPolicyToEntry(
                         value,
                         policy,
@@ -71,34 +74,8 @@ internal object CatalogCompressionApplier {
         key: String?,
         value: JsonElement
     ): ModelCompressionPolicy? {
-        val objectValue = value as? JsonObject
-        val rawCandidates = listOfNotNull(
-            key,
-            objectValue?.get("id")?.jsonPrimitive?.contentOrNull,
-            objectValue?.get("name")?.jsonPrimitive?.contentOrNull,
-            objectValue?.get("model")?.jsonPrimitive?.contentOrNull,
-            objectValue?.get("catalogKey")?.jsonPrimitive?.contentOrNull,
-            objectValue?.get("displayName")?.jsonPrimitive?.contentOrNull
-        )
-        val normalizedCandidates = rawCandidates.flatMap { raw ->
-            val norm = CatalogModelFilter.normalizeCatalogModelId(raw)
-            val baseSlug = norm.removeSuffix("-high")
-                .removeSuffix("-medium")
-                .removeSuffix("-low")
-                .removeSuffix("-tiered")
-            listOf(norm, baseSlug, "$baseSlug-tiered")
-        }.distinct()
-
-        return normalizedCandidates.firstNotNullOfOrNull { candidate ->
-            policies.entries.firstOrNull { (modelId, _) ->
-                val normModelId = CatalogModelFilter.normalizeCatalogModelId(modelId)
-                val normBaseSlug = normModelId.removeSuffix("-high")
-                    .removeSuffix("-medium")
-                    .removeSuffix("-low")
-                    .removeSuffix("-tiered")
-                normModelId == candidate || normBaseSlug == candidate
-            }?.value
-        }
+        val catalogModelId = CatalogModelFilter.catalogModelId(value, key) ?: return null
+        return policies[CatalogModelFilter.normalizeCatalogModelId(catalogModelId)]
     }
 
     fun applyPolicyToEntry(

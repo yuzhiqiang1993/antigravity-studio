@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.data.usage
 
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
 import com.yuzhiqiang.antigravity.domain.model.usage.TokenEntry
 import kotlinx.serialization.json.*
 
@@ -226,26 +227,52 @@ object UsageExtractor {
 
         if (attributedTotal == 0L && unattributed == 0L) return null
 
-        val usageModel = getString(usage, "model", "model_id", "modelId", "response_model", "responseModel")
-        val contextModel = modelContext?.let {
-            getString(it, "response_model", "responseModel", "model", "model_id", "modelId")
-        }.orEmpty()
-        val model = usageModel.takeUnless(::isMissingModelValue)
-            ?: contextModel
-        val displayName = getString(usage, "display_name", "displayName", "name")
-            .ifBlank { modelContext?.let { getString(it, "display_name", "displayName", "name") }.orEmpty() }
-        val provider = getString(usage, "api_provider", "apiProvider", "provider")
-            .ifBlank { modelContext?.let { getString(it, "api_provider", "apiProvider", "provider") }.orEmpty() }
+        val provider = observedString(usage, modelContext, "api_provider", "apiProvider", "provider")
         val responseId = getString(usage, "response_id", "responseId", "id")
         val ts = getString(usage, "created_at", "createdAt", "timestamp").ifBlank { defaultTs }
-        val identity = UsageModelIdentityResolver.resolve(
-            responseModel = if (UsageModelIdentityResolver.isOpaqueModelReference(model) &&
-                !isMissingModelValue(contextModel) &&
-                !UsageModelIdentityResolver.isOpaqueModelReference(contextModel)
-            ) contextModel else model,
-            displayName = displayName,
-            runtimeModelId = usageModel.takeIf(UsageModelIdentityResolver::isOpaqueModelReference)
-                ?: contextModel.takeIf(UsageModelIdentityResolver::isOpaqueModelReference)
+        val observation = ModelObservation(
+            requestedModelId = observedString(
+                usage,
+                modelContext,
+                "requested_model_id",
+                "requestedModelId",
+                "requested_model",
+                "requestedModel"
+            ),
+            variantId = observedString(usage, modelContext, "variant_id", "variantId"),
+            catalogModelId = observedString(usage, modelContext, "catalog_model_id", "catalogModelId"),
+            runtimeModelId = observedString(
+                usage,
+                modelContext,
+                "runtime_model_id",
+                "runtimeModelId",
+                "model_enum",
+                "modelEnum"
+            ),
+            bindingId = observedString(usage, modelContext, "binding_id", "bindingId"),
+            providerConfigId = observedString(
+                usage,
+                modelContext,
+                "provider_config_id",
+                "providerConfigId"
+            ),
+            providerModelId = observedString(
+                usage,
+                modelContext,
+                "provider_model_id",
+                "providerModelId"
+            ),
+            responseModelId = observedString(
+                usage,
+                modelContext,
+                "response_model",
+                "responseModel",
+                "model",
+                "model_id",
+                "modelId"
+            ),
+            providerVendor = provider,
+            displayName = observedString(usage, modelContext, "display_name", "displayName", "name")
         )
 
         return TokenEntry(
@@ -256,15 +283,9 @@ object UsageExtractor {
             cacheWrite = cacheWrite.value,
             reasoning = reasoning.value,
             unattributed = unattributed,
-            model = identity.model,
-            modelDisplayName = identity.displayName,
-            modelCanonicalId = identity.canonicalId,
-            modelRuntimeId = identity.runtimeId,
-            modelAggregationId = identity.aggregationId,
-            modelPricingIds = identity.pricingModelIds,
-            modelEvidenceSource = identity.evidenceSource,
+            modelObservation = observation,
             missingUsageFields = missingUsageFields(input, output, cacheRead, cacheWrite, reasoning),
-            provider = provider,
+            provider = provider.orEmpty(),
             timestamp = ts,
             conversationId = conversationId,
             appSource = appSource
@@ -307,8 +328,6 @@ object UsageExtractor {
         if (!reasoning.known) add("reasoning")
     }
 
-    private fun isMissingModelValue(value: String): Boolean =
-        value.isBlank() || value.equals("unknown", ignoreCase = true) || value == "?"
 
     private fun getNestedCreatedAt(obj: JsonObject): String {
         val startMetadata = obj["chatStartMetadata"] ?: obj["chat_start_metadata"]
@@ -328,30 +347,21 @@ object UsageExtractor {
         return ""
     }
 
+    private fun observedString(
+        usage: JsonObject,
+        context: JsonObject?,
+        vararg keys: String
+    ): String? = getString(usage, *keys)
+        .ifBlank { context?.let { getString(it, *keys) }.orEmpty() }
+        .trim()
+        .takeIf(String::isNotEmpty)
+
     private fun mergeTokenEntry(first: TokenEntry, second: TokenEntry): TokenEntry {
-        val firstConcrete = first.model.isNotBlank()
-                && first.model != "unknown"
-                && !UsageModelIdentityResolver.isOpaqueModelReference(first.model)
-        val secondConcrete = second.model.isNotBlank()
-                && second.model != "unknown"
-                && !UsageModelIdentityResolver.isOpaqueModelReference(second.model)
-        val model = when {
-            firstConcrete -> first.model
-            secondConcrete -> second.model
-            first.model.isNotBlank() -> first.model
-            else -> second.model
-        }
         val missing = if (first.missingUsageFields.isEmpty() || second.missingUsageFields.isEmpty()) {
             emptyList()
         } else {
             first.missingUsageFields.intersect(second.missingUsageFields.toSet()).toList()
         }
-        val displayName = listOfNotNull(first.modelDisplayName, second.modelDisplayName)
-            .firstOrNull { !isMissingModelValue(it) && !UsageModelIdentityResolver.isOpaqueModelReference(it) }
-        val canonicalId = listOfNotNull(first.modelCanonicalId, second.modelCanonicalId)
-            .firstOrNull { !isMissingModelValue(it) && !UsageModelIdentityResolver.isOpaqueModelReference(it) }
-        val catalogId = listOfNotNull(first.modelCatalogId, second.modelCatalogId)
-            .firstOrNull { !isMissingModelValue(it) && !UsageModelIdentityResolver.isOpaqueModelReference(it) }
         val input = maxOf(first.input, second.input)
         val output = maxOf(first.output, second.output)
         val cacheRead = maxOf(first.cacheRead, second.cacheRead)
@@ -368,17 +378,29 @@ object UsageExtractor {
             cacheWrite = cacheWrite,
             reasoning = reasoning,
             unattributed = unattributed,
-            model = model,
-            modelDisplayName = displayName,
-            modelCanonicalId = canonicalId,
-            modelCatalogId = catalogId,
-            modelRuntimeId = first.modelRuntimeId ?: second.modelRuntimeId,
-            modelAggregationId = first.modelAggregationId ?: second.modelAggregationId,
-            modelPricingIds = (first.modelPricingIds + second.modelPricingIds).distinct(),
-            modelEvidenceSource = first.modelEvidenceSource ?: second.modelEvidenceSource,
+            modelObservation = mergeObservation(first.modelObservation, second.modelObservation),
             missingUsageFields = missing,
             provider = if (first.provider.isNotBlank()) first.provider else second.provider,
             timestamp = if (first.timestamp.isNotBlank()) first.timestamp else second.timestamp
         )
     }
+
+    private fun mergeObservation(first: ModelObservation, second: ModelObservation): ModelObservation =
+        ModelObservation(
+            requestedModelId = first.requestedModelId.orSecond(second.requestedModelId),
+            variantId = first.variantId.orSecond(second.variantId),
+            catalogModelId = first.catalogModelId.orSecond(second.catalogModelId),
+            runtimeModelId = first.runtimeModelId.orSecond(second.runtimeModelId),
+            bindingId = first.bindingId.orSecond(second.bindingId),
+            providerConfigId = first.providerConfigId.orSecond(second.providerConfigId),
+            providerModelId = first.providerModelId.orSecond(second.providerModelId),
+            responseModelId = first.responseModelId.orSecond(second.responseModelId),
+            providerVendor = first.providerVendor.orSecond(second.providerVendor),
+            displayName = first.displayName.orSecond(second.displayName),
+            reasoningLevel = first.reasoningLevel ?: second.reasoningLevel
+        )
+
+    private fun String?.orSecond(second: String?): String? =
+        this?.trim()?.takeIf(String::isNotEmpty)
+            ?: second?.trim()?.takeIf(String::isNotEmpty)
 }

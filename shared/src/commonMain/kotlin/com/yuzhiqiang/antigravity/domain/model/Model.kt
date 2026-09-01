@@ -155,38 +155,170 @@ data class ModelTokenLimits(
 
 
 @Serializable
-data class UpstreamModel(
-    @SerialName("id") val id: String,
-    @SerialName("provider_id") val providerId: String,
-    @SerialName("name") val name: String = "",
-    @SerialName("display_name") val displayName: String? = null,
-    @SerialName("upstream_model_id") val upstreamModelId: String,
+enum class ModelSource {
+    @SerialName("official")
+    OFFICIAL,
+
+    @SerialName("byok")
+    BYOK
+}
+
+@Serializable
+enum class ModelIdentityStatus {
+    @SerialName("resolved")
+    RESOLVED,
+
+    @SerialName("unresolved")
+    UNRESOLVED,
+
+    @SerialName("conflict")
+    CONFLICT
+}
+
+@Serializable
+enum class ModelIdentitySource {
+    @SerialName("official_provider_model")
+    OFFICIAL_PROVIDER_MODEL,
+
+    @SerialName("provider_catalog")
+    PROVIDER_CATALOG,
+
+    @SerialName("provider_response")
+    PROVIDER_RESPONSE,
+
+    @SerialName("user_configured")
+    USER_CONFIGURED,
+
+    @SerialName("registered_alias")
+    REGISTERED_ALIAS,
+
+    @SerialName("route_snapshot")
+    ROUTE_SNAPSHOT,
+
+    @SerialName("unknown")
+    UNKNOWN
+}
+
+@Serializable
+enum class ModelIdentityConfidence {
+    @SerialName("exact")
+    EXACT,
+
+    @SerialName("registered")
+    REGISTERED,
+
+    @SerialName("unknown")
+    UNKNOWN
+}
+
+@Serializable
+data class ModelIdentityResolution(
+    @SerialName("status") val status: ModelIdentityStatus = ModelIdentityStatus.UNRESOLVED,
+    @SerialName("source") val source: ModelIdentitySource = ModelIdentitySource.UNKNOWN,
+    @SerialName("confidence") val confidence: ModelIdentityConfidence = ModelIdentityConfidence.UNKNOWN
+)
+
+@Serializable
+enum class ModelAliasKind {
+    @SerialName("provider_response")
+    PROVIDER_RESPONSE,
+
+    @SerialName("provider_request")
+    PROVIDER_REQUEST,
+
+    @SerialName("pricing")
+    PRICING
+}
+
+@Serializable
+data class ModelAlias(
+    @SerialName("value") val value: String,
+    @SerialName("kind") val kind: ModelAliasKind,
+    @SerialName("provider_vendor") val providerVendor: String? = null
+)
+
+@Serializable
+data class CanonicalModel(
+    @SerialName("canonical_model_id") val canonicalModelId: String,
+    @SerialName("provider_vendor") val providerVendor: String,
+    @SerialName("base_model_id") val baseModelId: String? = null,
+    @SerialName("version") val version: String? = null,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("pricing_aliases") val pricingAliases: List<String> = emptyList()
+)
+
+@Serializable
+data class ProviderModelBinding(
+    @SerialName("binding_id") val bindingId: String,
+    @SerialName("provider_config_id") val providerConfigId: String,
+    @SerialName("provider_model_id") val providerModelId: String,
+    @SerialName("canonical_model_id") val canonicalModelId: String? = null,
+    @SerialName("provider_vendor") val providerVendor: String? = null,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("aliases") val aliases: List<ModelAlias> = emptyList(),
+    @SerialName("identity_resolution") val identityResolution: ModelIdentityResolution = ModelIdentityResolution(),
+    @SerialName("source") val source: ModelSource = ModelSource.BYOK,
     @SerialName("capabilities") val capabilities: ModelCapabilities = ModelCapabilities(),
     @SerialName("token_limits") val tokenLimits: ModelTokenLimits = ModelTokenLimits(),
     @SerialName("compression_policy") val compressionPolicy: ModelCompressionPolicy? = null,
-    @SerialName("context_length") val contextLength: Long? = null,
-    @SerialName("max_output_tokens") val maxOutputTokens: Long? = null,
     @SerialName("tokenizer") val tokenizer: JsonObject? = null,
     @SerialName("parameter_overrides") val parameterOverrides: ParameterOverrides = ParameterOverrides(),
     @SerialName("enabled") val enabled: Boolean = true
 ) {
     val effectiveName: String
-        get() = displayName?.ifBlank { null } ?: name.ifBlank { null } ?: upstreamModelId
-
-    /** 未知 token limit 保持 null，不再伪造 200K/65K。 */
-    val effectiveContextWindow: Long?
-        get() = tokenLimits.contextWindow ?: contextLength
+        get() = displayName.ifBlank { providerModelId }
 }
 
 @Serializable
-data class VirtualModel(
-    @SerialName("id") val id: String,
-    @SerialName("name") val name: String = "",
-    @SerialName("display_name") val displayName: String? = null,
-    @SerialName("upstream_model_id") val upstreamModelId: String,
-    @SerialName("host_model_id") val hostModelId: String,
-    @SerialName("capabilities") val capabilities: ModelCapabilities = ModelCapabilities(),
+enum class ModelVariantKind {
+    @SerialName("direct")
+    DIRECT,
+
+    @SerialName("reasoning_variant")
+    REASONING_VARIANT,
+
+    @SerialName("tiered")
+    TIERED
+}
+
+@Serializable
+data class ReasoningProfile(
+    @SerialName("level") val level: ReasoningLevel? = null,
+    @SerialName("mapping") val mapping: ReasoningMapping? = null,
+    @SerialName("budget_tokens") val budgetTokens: Int? = null,
+    @SerialName("min_budget_tokens") val minBudgetTokens: Int? = null,
+    @SerialName("source") val source: ModelIdentitySource = ModelIdentitySource.UNKNOWN
+)
+
+@Serializable
+data class ModelRouteVariant(
+    @SerialName("variant_id") val variantId: String,
+    @SerialName("binding_id") val bindingId: String? = null,
+    @SerialName("catalog_model_id") val catalogModelId: String,
+    @SerialName("runtime_model_id") val runtimeModelId: String,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("kind") val kind: ModelVariantKind = ModelVariantKind.DIRECT,
+    @SerialName("reasoning_profile") val reasoningProfile: ReasoningProfile? = null,
+    @SerialName("tier_member_variant_ids") val tierMemberVariantIds: List<String> = emptyList(),
     @SerialName("parameter_overrides") val parameterOverrides: ParameterOverrides? = null,
-    @SerialName("default_reasoning_level") val defaultReasoningLevel: ReasoningLevel? = null,
     @SerialName("enabled") val enabled: Boolean = true
+)
+
+@Serializable
+enum class CompressionPolicyTargetType {
+    @SerialName("official_catalog_model")
+    OFFICIAL_CATALOG_MODEL,
+
+    @SerialName("provider_model_binding")
+    PROVIDER_MODEL_BINDING,
+
+    @SerialName("model_route_variant")
+    MODEL_ROUTE_VARIANT
+}
+
+@Serializable
+data class ModelCompressionPolicyAssignment(
+    @SerialName("target_type") val targetType: CompressionPolicyTargetType,
+    @SerialName("target_id") val targetId: String,
+    @SerialName("policy") val policy: ModelCompressionPolicy
 )

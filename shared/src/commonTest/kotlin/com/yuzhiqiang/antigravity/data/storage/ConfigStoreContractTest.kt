@@ -2,11 +2,11 @@ package com.yuzhiqiang.antigravity.data.storage
 
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
 import com.yuzhiqiang.antigravity.domain.model.ModelCapabilities
+import com.yuzhiqiang.antigravity.domain.model.ModelRouteVariant
 import com.yuzhiqiang.antigravity.domain.model.Provider
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 import com.yuzhiqiang.antigravity.domain.model.ReasoningCapability
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
-import com.yuzhiqiang.antigravity.domain.model.VirtualModel
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlinx.serialization.json.Json
@@ -41,7 +41,7 @@ class ConfigStoreContractTest {
 
     @Test
     fun configWithoutCurrentSchemaIsClearedInsteadOfMigrated() {
-        val configFile = tempDir.resolve("config.v1.json").toFile()
+        val configFile = tempDir.resolve("config.v2.json").toFile()
         configFile.writeText("""{"proxy_port": 9000}""")
 
         val store = ConfigStore(customRootDir = tempDir.toFile())
@@ -54,9 +54,9 @@ class ConfigStoreContractTest {
 
     @Test
     fun configWithUnknownFieldsIsClearedInsteadOfIgnored() {
-        val configFile = tempDir.resolve("config.v1.json").toFile()
+        val configFile = tempDir.resolve("config.v2.json").toFile()
         configFile.writeText(
-            """{"schema_version": 1, "proxy_port": 9000, "obsolete_option": true}"""
+            """{"schema_version": 2, "proxy_port": 9000, "obsolete_option": true}"""
         )
 
         val store = ConfigStore(customRootDir = tempDir.toFile())
@@ -74,10 +74,11 @@ class ConfigStoreContractTest {
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             baseUrl = "https://example.com/v1"
         )
-        val upstream = UpstreamModel(
-            id = "upstream",
-            providerId = provider.id,
-            upstreamModelId = "model",
+        val binding = ProviderModelBinding(
+            bindingId = "binding",
+            providerConfigId = provider.id,
+            providerModelId = "model",
+            displayName = "Model",
             capabilities = ModelCapabilities(
                 reasoning = ReasoningCapability(
                     supported = true,
@@ -92,16 +93,18 @@ class ConfigStoreContractTest {
         )
         val config = AppConfig(
             providers = listOf(provider),
-            upstreamModels = listOf(upstream),
-            virtualModels = listOf(
-                VirtualModel(
-                    id = "virtual",
-                    upstreamModelId = upstream.id,
-                    hostModelId = "MODEL_PLACEHOLDER_M400"
+            providerModelBindings = listOf(binding),
+            modelRouteVariants = listOf(
+                ModelRouteVariant(
+                    variantId = "variant",
+                    bindingId = binding.bindingId,
+                    catalogModelId = "byok-model",
+                    runtimeModelId = "MODEL_PLACEHOLDER_M400",
+                    displayName = binding.displayName
                 )
             )
         )
-        tempDir.resolve("config.v1.json").toFile().writeText(
+        tempDir.resolve("config.v2.json").toFile().writeText(
             testJson.encodeToString(AppConfig.serializer(), config)
         )
 
@@ -113,7 +116,7 @@ class ConfigStoreContractTest {
 
     @Test
     fun nonFileAccessFailureDoesNotDeleteTarget() {
-        val configPath = tempDir.resolve("config.v1.json")
+        val configPath = tempDir.resolve("config.v2.json")
         Files.createDirectory(configPath)
 
         val store = ConfigStore(customRootDir = tempDir.toFile())
@@ -124,7 +127,7 @@ class ConfigStoreContractTest {
 
     @Test
     fun danglingConfigSymlinkIsRemovedAndRebuilt() {
-        val configPath = tempDir.resolve("config.v1.json")
+        val configPath = tempDir.resolve("config.v2.json")
         val symlinkCreated = runCatching {
             Files.createSymbolicLink(configPath, tempDir.resolve("missing-config.json"))
         }.isSuccess
@@ -138,7 +141,7 @@ class ConfigStoreContractTest {
     }
 
     @Test
-    fun upstreamWithoutVirtualModelIsRejected() {
+    fun bindingWithoutRouteVariantIsRejected() {
         val store = ConfigStore(customRootDir = tempDir.toFile())
         val provider = Provider(
             id = "provider",
@@ -146,18 +149,18 @@ class ConfigStoreContractTest {
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             baseUrl = "https://example.com/v1"
         )
+        val binding = ProviderModelBinding(
+            bindingId = "binding",
+            providerConfigId = provider.id,
+            providerModelId = "model",
+            displayName = "Model"
+        )
 
         assertFailsWith<IllegalArgumentException> {
             store.saveConfig(
                 AppConfig(
                     providers = listOf(provider),
-                    upstreamModels = listOf(
-                        UpstreamModel(
-                            id = "upstream",
-                            providerId = provider.id,
-                            upstreamModelId = "model"
-                        )
-                    )
+                    providerModelBindings = listOf(binding)
                 )
             )
         }
@@ -165,9 +168,9 @@ class ConfigStoreContractTest {
 
     @Test
     fun currentSchemaLoadsWithoutCompatibilityProcessing() {
-        val configFile = tempDir.resolve("config.v1.json").toFile()
+        val configFile = tempDir.resolve("config.v2.json").toFile()
         configFile.writeText(
-            """{"schema_version": 1, "proxy_port": 9000, "language": "en", "theme_mode": "dark"}"""
+            """{"schema_version": 2, "proxy_port": 9000, "language": "en", "theme_mode": "dark"}"""
         )
         tempDir.resolve("studio-settings.json").toFile().writeText(
             """{"language": "zh-CN", "theme_mode": "light"}"""

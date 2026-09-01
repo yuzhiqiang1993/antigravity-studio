@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
+import com.yuzhiqiang.antigravity.proxy.model.normalizedNeutralUsage
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -19,10 +20,23 @@ internal object OfficialPassthroughJson {
 
 internal data class OfficialSseObservation(
     val usage: NeutralUsage? = null,
+    val responseModelId: String? = null,
     val hasMeaningfulContent: Boolean = false
 )
 
 internal object OfficialPassthroughUsage {
+    fun parseResponseModelId(jsonElement: JsonElement): String? {
+        val root = when (jsonElement) {
+            is JsonObject -> jsonElement
+            is JsonArray -> jsonElement.lastOrNull() as? JsonObject
+            else -> null
+        } ?: return null
+        val response = root["response"] as? JsonObject
+        return ((response?.get("modelVersion") ?: root["modelVersion"]) as? JsonPrimitive)
+            ?.contentOrNull
+            ?.takeIf(String::isNotBlank)
+    }
+
     fun parseGeminiUsage(jsonElement: JsonElement): NeutralUsage? {
         val root = when (jsonElement) {
             is JsonObject -> jsonElement
@@ -46,16 +60,14 @@ internal object OfficialPassthroughUsage {
         val cached = long("cachedContentTokenCount", "cached_content_token_count")
         val reasoning = long("thoughtsTokenCount", "thoughts_token_count")
         val output = long("candidatesTokenCount", "candidates_token_count")
-        val validCacheBreakdown = prompt != null && (cached ?: 0L) <= prompt
-        val validReasoningBreakdown = output != null && (reasoning ?: 0L) <= output
-        val computedTotal = prompt?.plus((output ?: 0L) + (reasoning ?: 0L))
-        val reportedTotal = long("totalTokenCount", "total_token_count")
-        return NeutralUsage(
+        val validCacheBreakdown = prompt != null && prompt >= 0L &&
+                (cached == null || cached in 0L..prompt)
+        return normalizedNeutralUsage(
             inputTokens = prompt?.let { total -> if (validCacheBreakdown) total - (cached ?: 0L) else total },
-            outputTokens = output?.let { total -> if (validReasoningBreakdown) total - (reasoning ?: 0L) else total },
+            outputTokens = output,
             cacheReadTokens = cached.takeIf { validCacheBreakdown },
-            reasoningTokens = reasoning.takeIf { validReasoningBreakdown },
-            totalTokens = reportedTotal?.takeIf { computedTotal == null || it >= computedTotal } ?: computedTotal
+            reasoningTokens = reasoning,
+            reportedTotalTokens = long("totalTokenCount", "total_token_count")
         )
     }
 
@@ -64,6 +76,7 @@ internal object OfficialPassthroughUsage {
         isFinal: Boolean = false
     ): OfficialSseObservation {
         var foundUsage: NeutralUsage? = null
+        var responseModelId: String? = null
         var hasMeaningfulContent = false
         while (true) {
             val boundary = findEventBoundary(buffer)
@@ -73,19 +86,25 @@ internal object OfficialPassthroughUsage {
                 buffer.delete(0, eventEndIndex + delimiterLength)
                 val observation = processRawSseEvent(rawEvent)
                 observation.usage?.let { foundUsage = it }
+                observation.responseModelId?.let { responseModelId = it }
                 hasMeaningfulContent = hasMeaningfulContent || observation.hasMeaningfulContent
             } else if (isFinal && buffer.isNotEmpty()) {
                 val rawEvent = buffer.toString()
                 buffer.clear()
                 val observation = processRawSseEvent(rawEvent)
                 observation.usage?.let { foundUsage = it }
+                observation.responseModelId?.let { responseModelId = it }
                 hasMeaningfulContent = hasMeaningfulContent || observation.hasMeaningfulContent
                 break
             } else {
                 break
             }
         }
-        return OfficialSseObservation(foundUsage, hasMeaningfulContent)
+        return OfficialSseObservation(
+            usage = foundUsage,
+            responseModelId = responseModelId,
+            hasMeaningfulContent = hasMeaningfulContent
+        )
     }
 
     fun extractUsageFromSseBuffer(buffer: StringBuilder, isFinal: Boolean = false): NeutralUsage? {
@@ -120,6 +139,7 @@ internal object OfficialPassthroughUsage {
         }.getOrNull() ?: return OfficialSseObservation()
         return OfficialSseObservation(
             usage = runCatching { parseGeminiUsage(jsonElement) }.getOrNull(),
+            responseModelId = runCatching { parseResponseModelId(jsonElement) }.getOrNull(),
             hasMeaningfulContent = runCatching { containsMeaningfulContent(jsonElement) }.getOrDefault(false)
         )
     }

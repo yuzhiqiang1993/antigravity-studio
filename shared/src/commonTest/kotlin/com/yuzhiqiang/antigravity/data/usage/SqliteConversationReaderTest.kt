@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.data.usage
 
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.sql.DriverManager
@@ -27,13 +28,19 @@ class SqliteConversationReaderTest {
             val first = dbResult.entries[0]
             assertTrue(first.input >= 0)
             assertTrue(first.output >= 0)
-            assertTrue(first.model.isNotBlank())
+            assertTrue(
+                listOf(
+                    first.modelObservation.responseModelId,
+                    first.modelObservation.runtimeModelId,
+                    first.modelObservation.displayName
+                ).any { !it.isNullOrBlank() }
+            )
             assertTrue(dbResult.title.isNotBlank())
         }
     }
 
     @Test
-    fun testReadsModelIdentityAndMatchesStepTimestampByUuid() {
+    fun testReadsRawModelObservationAndMatchesStepTimestampByUuid() {
         val dbFile = File.createTempFile("usage-reader-", ".db")
         try {
             val stepId = "step-not-matching-row-index"
@@ -56,13 +63,14 @@ class SqliteConversationReaderTest {
             assertTrue(result.complete)
             assertEquals(1, result.entries.size)
             val entry = result.entries.single()
-            assertEquals("openai/gpt-5.6-luna", entry.model)
-            assertEquals("GPT 5.6 Luna max(CPA)", entry.modelDisplayName)
-            assertEquals("openai/gpt-5.6-luna", entry.modelCanonicalId)
-            assertEquals("MODEL_PLACEHOLDER_M400", entry.modelRuntimeId)
-            assertEquals("session-display:gpt-5-6-luna-max-cpa", entry.modelAggregationId)
-            assertEquals(listOf("openai/gpt-5.6-luna"), entry.modelPricingIds)
-            assertEquals("response-model", entry.modelEvidenceSource)
+            assertEquals(
+                ModelObservation(
+                    runtimeModelId = "MODEL_PLACEHOLDER_M400",
+                    responseModelId = "openai/gpt-5.6-luna",
+                    displayName = "GPT 5.6 Luna max(CPA)"
+                ),
+                entry.modelObservation
+            )
             assertEquals(
                 java.time.Instant.ofEpochSecond(1_785_850_000L, 123_000_000L).toString(),
                 entry.timestamp

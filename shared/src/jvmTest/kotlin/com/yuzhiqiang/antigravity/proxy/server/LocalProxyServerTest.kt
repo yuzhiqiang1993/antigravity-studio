@@ -2,10 +2,10 @@ package com.yuzhiqiang.antigravity.proxy.server
 
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
+import com.yuzhiqiang.antigravity.domain.model.ModelRouteVariant
 import com.yuzhiqiang.antigravity.domain.model.Provider
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
-import com.yuzhiqiang.antigravity.domain.model.VirtualModel
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.net.HttpURLConnection
@@ -36,18 +36,21 @@ class LocalProxyServerTest {
                             generateEndpoint = "https://example.com/v1/chat/completions"
                         )
                     ),
-                    upstreamModels = listOf(
-                        UpstreamModel(
-                            id = "upstream",
-                            providerId = "provider",
-                            upstreamModelId = "gpt-test"
+                    providerModelBindings = listOf(
+                        ProviderModelBinding(
+                            bindingId = "upstream",
+                            providerConfigId = "provider",
+                            providerModelId = "gpt-test",
+                            displayName = "gpt-test"
                         )
                     ),
-                    virtualModels = listOf(
-                        VirtualModel(
-                            id = "custom-gpt-test",
-                            upstreamModelId = "upstream",
-                            hostModelId = "MODEL_PLACEHOLDER_M400"
+                    modelRouteVariants = listOf(
+                        ModelRouteVariant(
+                            variantId = "custom-gpt-test",
+                            bindingId = "upstream",
+                            catalogModelId = "custom-gpt-test",
+                            runtimeModelId = "MODEL_PLACEHOLDER_M400",
+                            displayName = "custom-gpt-test"
                         )
                     )
                 )

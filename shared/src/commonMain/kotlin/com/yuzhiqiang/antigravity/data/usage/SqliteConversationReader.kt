@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.data.usage
 
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
 import com.yuzhiqiang.antigravity.domain.model.usage.TokenEntry
 import java.io.File
 import java.sql.DriverManager
@@ -196,10 +197,9 @@ object SqliteConversationReader {
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?: "cli-gen-$idx"
-        val responseModel = ProtobufLite.findField(chatFields, 19, wireType = 2)?.asString()
-        val displayName = ProtobufLite.findField(chatFields, 21, wireType = 2)?.asString()
-        val runtimeModelId = readStringMetadata(chatFields, "model_enum")
-        val identity = UsageModelIdentityResolver.resolve(responseModel, displayName, runtimeModelId)
+        val responseModel = ProtobufLite.findField(chatFields, 19, wireType = 2)?.asString()?.observedValue()
+        val displayName = ProtobufLite.findField(chatFields, 21, wireType = 2)?.asString()?.observedValue()
+        val runtimeModelId = readStringMetadata(chatFields, "model_enum")?.observedValue()
 
         val topStepId = ProtobufLite.findField(topFields, 4, wireType = 2)
             ?.asString()
@@ -219,13 +219,11 @@ object SqliteConversationReader {
                 cacheRead = cacheRead,
                 cacheWrite = cacheWrite,
                 reasoning = reasoning,
-                model = identity.model,
-                modelDisplayName = identity.displayName,
-                modelCanonicalId = identity.canonicalId,
-                modelRuntimeId = identity.runtimeId,
-                modelAggregationId = identity.aggregationId,
-                modelPricingIds = identity.pricingModelIds,
-                modelEvidenceSource = identity.evidenceSource,
+                modelObservation = ModelObservation(
+                    runtimeModelId = runtimeModelId,
+                    responseModelId = responseModel,
+                    displayName = displayName
+                ),
                 missingUsageFields = missingUsageFields,
                 provider = "",
                 timestamp = timestamp,
@@ -320,4 +318,6 @@ object SqliteConversationReader {
             candidate > current
         }
     }
+
+    private fun String.observedValue(): String? = trim().takeIf(String::isNotEmpty)
 }

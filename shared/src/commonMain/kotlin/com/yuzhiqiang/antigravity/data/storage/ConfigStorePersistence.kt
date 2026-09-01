@@ -9,7 +9,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
 /**
- * 读写 canonical config.v1.json。
+ * 读写 canonical config.v2.json。
  *
  * Json 保持默认的未知字段拒绝行为；所有解析、校验失败都以无效配置返回，
  * 而文件读取和写入失败保持为 I/O 错误，由 ConfigStore 决定是否重置。

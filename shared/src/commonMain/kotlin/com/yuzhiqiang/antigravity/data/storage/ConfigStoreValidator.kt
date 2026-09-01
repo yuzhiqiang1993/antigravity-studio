@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.data.storage
 
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
+import com.yuzhiqiang.antigravity.domain.model.CompressionPolicyTargetType
 import com.yuzhiqiang.antigravity.domain.model.ModelIdentity
 import com.yuzhiqiang.antigravity.domain.model.ModelModality
 import com.yuzhiqiang.antigravity.domain.model.ModelRole
@@ -9,11 +10,11 @@ import com.yuzhiqiang.antigravity.domain.model.ParameterOverrides
 import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import java.net.URI
 
 /**
- * canonical config.v1.json 的领域约束校验。
+ * canonical config.v2.json 的领域约束校验。
  *
  * 校验只接受当前 AppConfig 契约，不负责补救不符合契约的数据。
  */
@@ -64,18 +65,34 @@ internal object ConfigStoreValidator {
         }
         require(providerIds.size == providerIds.toSet().size) { "Provider ID 不能重复" }
 
-        val upstreamIds = config.upstreamModels.map { model ->
-            require(model.id.isNotBlank()) { "UpstreamModel ID 不能为空" }
-            require(model.providerId in providerIds) {
-                "模型 ${model.id} 引用了不存在的 Provider ${model.providerId}"
+        val canonicalIds = config.canonicalModels.map { model ->
+            require(model.canonicalModelId.isNotBlank()) { "Canonical Model ID 不能为空" }
+            require(model.providerVendor.isNotBlank()) { "Canonical Model ${model.canonicalModelId} 的 Provider Vendor 不能为空" }
+            require(model.displayName.isNotBlank()) { "Canonical Model ${model.canonicalModelId} 的显示名称不能为空" }
+            model.canonicalModelId
+        }
+        require(canonicalIds.size == canonicalIds.toSet().size) { "Canonical Model ID 不能重复" }
+
+        val bindingIds = config.providerModelBindings.map { model ->
+            require(model.bindingId.isNotBlank()) { "Provider Model Binding ID 不能为空" }
+            require(model.providerConfigId in providerIds) {
+                "Binding ${model.bindingId} 引用了不存在的 Provider ${model.providerConfigId}"
             }
-            require(model.upstreamModelId.isNotBlank()) {
-                "模型 ${model.id} 的 upstream_model_id 不能为空"
+            require(model.providerModelId.isNotBlank()) {
+                "Binding ${model.bindingId} 的 provider_model_id 不能为空"
+            }
+            require(model.displayName.isNotBlank()) {
+                "Binding ${model.bindingId} 的 display_name 不能为空"
+            }
+            model.canonicalModelId?.let { canonicalModelId ->
+                require(canonicalModelId in canonicalIds) {
+                    "Binding ${model.bindingId} 引用了不存在的 Canonical Model $canonicalModelId"
+                }
             }
             validateModelCapabilities(model)
             validateReasoningCapabilities(
                 model,
-                config.providers.first { provider -> provider.id == model.providerId }.protocol
+                config.providers.first { provider -> provider.id == model.providerConfigId }.protocol
             )
             listOf(
                 model.tokenLimits.contextWindow,
@@ -83,82 +100,91 @@ internal object ConfigStoreValidator {
                 model.tokenLimits.outputTokenLimit
             ).filterNotNull().forEach { limit ->
                 require(limit in 1L..4_294_967_295L) {
-                    "模型 ${model.id} 的 Token 上限超出 byok 支持范围"
+                    "Binding ${model.bindingId} 的 Token 上限超出 BYOK 支持范围"
                 }
             }
             require(model.tokenLimits.contextWindow == null || model.tokenLimits.contextWindow >= 2L) {
-                "模型 ${model.id} 的 context_window 至少需要 2 Token"
+                "Binding ${model.bindingId} 的 context_window 至少需要 2 Token"
             }
             require(model.tokenLimits.inputTokenLimit == null || model.tokenLimits.inputTokenLimit >= 2L) {
-                "模型 ${model.id} 的 input_token_limit 至少需要 2 Token"
+                "Binding ${model.bindingId} 的 input_token_limit 至少需要 2 Token"
             }
             require(model.tokenLimits.outputTokenLimit == null || model.tokenLimits.outputTokenLimit > 0L) {
-                "模型 ${model.id} 的 output_token_limit 必须大于 0"
+                "Binding ${model.bindingId} 的 output_token_limit 必须大于 0"
             }
-            require(model.contextLength == null || model.contextLength in 1L..4_294_967_295L) {
-                "模型 ${model.id} 的 context_length 超出 byok 支持范围"
+            require(model.aliases.all { alias -> alias.value.isNotBlank() }) {
+                "Binding ${model.bindingId} 的 alias 不能为空"
             }
-            require(model.maxOutputTokens == null || model.maxOutputTokens in 1L..4_294_967_295L) {
-                "模型 ${model.id} 的 max_output_tokens 超出 byok 支持范围"
-            }
+            validateParameters(model.parameterOverrides, "Binding ${model.bindingId} parameter overrides")
+            model.compressionPolicy?.validate("Binding ${model.bindingId} compression_policy")
+            model.bindingId
+        }
+        require(bindingIds.size == bindingIds.toSet().size) { "Provider Model Binding ID 不能重复" }
 
-            validateParameters(model.parameterOverrides, "模型 ${model.id} parameter overrides")
-            model.compressionPolicy?.validate("模型 ${model.id} compression_policy")
-            model.id
-        }
-        require(upstreamIds.size == upstreamIds.toSet().size) { "UpstreamModel ID 不能重复" }
-
-        val virtualIds = config.virtualModels.map { model ->
-            require(model.id.isNotBlank()) { "VirtualModel ID 不能为空" }
-            require(model.upstreamModelId in upstreamIds) {
-                "虚拟模型 ${model.id} 引用了不存在的上游模型 ${model.upstreamModelId}"
+        val variantIds = config.modelRouteVariants.map { variant ->
+            require(variant.variantId.isNotBlank()) { "Model Route Variant ID 不能为空" }
+            require(variant.bindingId == null || variant.bindingId in bindingIds) {
+                "Route Variant ${variant.variantId} 引用了不存在的 Binding ${variant.bindingId}"
             }
-            require(isValidCustomHostModelId(model.hostModelId)) {
-                "虚拟模型 ${model.id} 的 host_model_id 必须位于 MODEL_PLACEHOLDER_M400-M599 槽位"
+            require(variant.catalogModelId.isNotBlank()) {
+                "Route Variant ${variant.variantId} 的 catalog_model_id 不能为空"
             }
-            model.id
+            require(isValidCustomRuntimeModelId(variant.runtimeModelId)) {
+                "Route Variant ${variant.variantId} 的 runtime_model_id 必须位于 MODEL_PLACEHOLDER_M400-M599 槽位"
+            }
+            require(variant.displayName.isNotBlank()) {
+                "Route Variant ${variant.variantId} 的 display_name 不能为空"
+            }
+            variant.variantId
         }
-        require(virtualIds.size == virtualIds.toSet().size) { "VirtualModel ID 不能重复" }
-        val linkedUpstreamIds = config.virtualModels.map { model -> model.upstreamModelId }.toSet()
-        require(upstreamIds.all { upstreamId -> upstreamId in linkedUpstreamIds }) {
-            "每个 UpstreamModel 都必须至少关联一个 VirtualModel"
+        require(variantIds.size == variantIds.toSet().size) { "Model Route Variant ID 不能重复" }
+        val linkedBindingIds = config.modelRouteVariants.mapNotNull { variant -> variant.bindingId }.toSet()
+        require(bindingIds.all(linkedBindingIds::contains)) {
+            "每个 Provider Model Binding 都必须至少关联一个 Model Route Variant"
         }
-        val acceptedVirtualIds = mutableMapOf<String, String>()
-        config.virtualModels.forEach { model ->
-            ModelIdentity.acceptedIds(model).forEach { acceptedId ->
-                val normalized = acceptedId.trim().removePrefix("models/")
-                val existingOwner = acceptedVirtualIds.putIfAbsent(normalized, model.id)
-                require(existingOwner == null || existingOwner == model.id) {
-                    "VirtualModel ${model.id} 与 $existingOwner 的可接受模型标识冲突：$normalized"
+        val acceptedIds = mutableMapOf<String, String>()
+        config.modelRouteVariants.forEach { variant ->
+            ModelIdentity.acceptedIds(variant).forEach { acceptedId ->
+                val normalized = ModelIdentity.normalizeModelId(acceptedId)
+                val existingOwner = acceptedIds.putIfAbsent(normalized, variant.variantId)
+                require(existingOwner == null || existingOwner == variant.variantId) {
+                    "Route Variant ${variant.variantId} 与 $existingOwner 的可接受模型标识冲突：$normalized"
                 }
             }
         }
-        config.virtualModels.forEach { model ->
-            validateParameters(model.parameterOverrides, "虚拟模型 ${model.id} parameter overrides")
-            val level = model.defaultReasoningLevel ?: return@forEach
+        config.modelRouteVariants.forEach { variant ->
+            validateParameters(variant.parameterOverrides, "Route Variant ${variant.variantId} parameter overrides")
+            val level = variant.reasoningProfile?.level ?: return@forEach
             if (level != com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.OFF &&
                 level != com.yuzhiqiang.antigravity.domain.model.ReasoningLevel.AUTO
             ) {
-                val upstream = config.upstreamModels.first { it.id == model.upstreamModelId }
-                val provider = config.providers.first { it.id == upstream.providerId }
+                val binding = config.providerModelBindings.first { it.bindingId == variant.bindingId }
+                val provider = config.providers.first { it.id == binding.providerConfigId }
                 val mapping = ReasoningMappingSupport.resolveMapping(
                     provider.protocol,
                     level,
-                    ReasoningMappingSupport.parse(upstream.capabilities.reasoning.levels),
-                    upstream.tokenLimits.outputTokenLimit
+                    ReasoningMappingSupport.parse(binding.capabilities.reasoning.levels),
+                    binding.tokenLimits.outputTokenLimit
                 )
                 require(mapping != null) {
-                    "虚拟模型 ${model.id} 的推理档位 ${level.label} 不受 Provider/上游支持"
+                    "Route Variant ${variant.variantId} 的推理档位 ${level.label} 不受 Provider/Binding 支持"
                 }
             }
         }
-        config.modelCompressionPolicies.forEach { (modelId, policy) ->
-            require(modelId.isNotBlank()) { "压缩策略模型 ID 不能为空" }
-            policy.validate("model_compression_policies[$modelId]")
+        val policyTargets = config.compressionPolicyAssignments.map { assignment ->
+            require(assignment.targetId.isNotBlank()) { "压缩策略目标 ID 不能为空" }
+            val targetExists = when (assignment.targetType) {
+                CompressionPolicyTargetType.OFFICIAL_CATALOG_MODEL -> true
+                CompressionPolicyTargetType.PROVIDER_MODEL_BINDING -> assignment.targetId in bindingIds
+                CompressionPolicyTargetType.MODEL_ROUTE_VARIANT -> assignment.targetId in variantIds
+            }
+            require(targetExists) {
+                "压缩策略引用了不存在的目标 ${assignment.targetType}:${assignment.targetId}"
+            }
+            assignment.policy.validate("compression_policy_assignments[${assignment.targetId}]")
+            assignment.targetType to assignment.targetId
         }
-        config.upstreamModels.forEach { model ->
-            model.compressionPolicy?.validate("upstream_models[${model.id}].compression_policy")
-        }
+        require(policyTargets.size == policyTargets.toSet().size) { "同一目标不能重复配置压缩策略" }
     }
 
     private fun validateEndpoint(endpoint: String?, label: String) {
@@ -181,7 +207,7 @@ internal object ConfigStoreValidator {
         return normalized == "localhost" || normalized == "127.0.0.1" || normalized == "::1"
     }
 
-    private fun isValidCustomHostModelId(value: String): Boolean {
+    private fun isValidCustomRuntimeModelId(value: String): Boolean {
         val number = value.removePrefix("MODEL_PLACEHOLDER_M")
         if (number.isEmpty() || (number.length > 1 && number.startsWith('0')) ||
             value != "MODEL_PLACEHOLDER_M$number"
@@ -223,38 +249,38 @@ internal object ConfigStoreValidator {
         }
     }
 
-    private fun validateModelCapabilities(model: UpstreamModel) {
+    private fun validateModelCapabilities(model: ProviderModelBinding) {
         val capabilities = model.capabilities
         require(capabilities.roles.isNotEmpty() && capabilities.roles.all { role ->
             role == ModelRole.AGENT || role == ModelRole.IMAGE_GENERATION
         }) {
-            "模型 ${model.id} 只能声明 agent 或 image_generation 角色"
+            "Binding ${model.bindingId} 只能声明 agent 或 image_generation 角色"
         }
         require(ModelModality.TEXT in capabilities.inputModalities) {
-            "模型 ${model.id} 必须支持 text 输入"
+            "Binding ${model.bindingId} 必须支持 text 输入"
         }
         require(capabilities.outputModalities.isNotEmpty() && capabilities.outputModalities.all { modality ->
             modality == ModelModality.TEXT || modality == ModelModality.IMAGE
         }) {
-            "模型 ${model.id} 的输出模态只能是 text 或 image"
+            "Binding ${model.bindingId} 的输出模态只能是 text 或 image"
         }
         val isAgent = ModelRole.AGENT in capabilities.roles
         val hasTextOutput = ModelModality.TEXT in capabilities.outputModalities
         require(isAgent == hasTextOutput) {
-            "模型 ${model.id} 的 agent 角色必须与 text 输出配对"
+            "Binding ${model.bindingId} 的 agent 角色必须与 text 输出配对"
         }
         val isImage = ModelRole.IMAGE_GENERATION in capabilities.roles
         val hasImageOutput = ModelModality.IMAGE in capabilities.outputModalities
         require(isImage == hasImageOutput) {
-            "模型 ${model.id} 的 image_generation 角色必须与 image 输出配对"
+            "Binding ${model.bindingId} 的 image_generation 角色必须与 image 输出配对"
         }
 
         val normalizedMimeTypes = capabilities.inputMimeTypes.map { it.trim().lowercase() }
         require(normalizedMimeTypes.all { it.isNotBlank() && it.contains('/') }) {
-            "模型 ${model.id} 的输入 MIME 类型无效"
+            "Binding ${model.bindingId} 的输入 MIME 类型无效"
         }
         require(normalizedMimeTypes.size == normalizedMimeTypes.toSet().size) {
-            "模型 ${model.id} 的输入 MIME 类型不能重复"
+            "Binding ${model.bindingId} 的输入 MIME 类型不能重复"
         }
         val declaredModalities = normalizedMimeTypes.map { mime ->
             when {
@@ -271,36 +297,36 @@ internal object ConfigStoreValidator {
             ModelModality.DOCUMENT
         ).forEach { modality ->
             require((modality in capabilities.inputModalities) == (modality in declaredModalities)) {
-                "模型 ${model.id} 的 $modality 输入模态必须与 MIME 类型声明一致"
+                "Binding ${model.bindingId} 的 $modality 输入模态必须与 MIME 类型声明一致"
             }
         }
     }
 
     private fun validateReasoningCapabilities(
-        model: UpstreamModel,
+        model: ProviderModelBinding,
         provider: ProviderProtocol
     ) {
         val reasoning = model.capabilities.reasoning
         val hasBudget = reasoning.thinkingBudget != null || reasoning.minThinkingBudget != null
         require(reasoning.thinkingBudget == null || reasoning.thinkingBudget >= -1) {
-            "模型 ${model.id} 的 thinking_budget 必须是 -1、0 或正整数"
+            "Binding ${model.bindingId} 的 thinking_budget 必须是 -1、0 或正整数"
         }
         require(reasoning.minThinkingBudget == null || reasoning.minThinkingBudget > 0) {
-            "模型 ${model.id} 的 min_thinking_budget 必须大于 0"
+            "Binding ${model.bindingId} 的 min_thinking_budget 必须大于 0"
         }
         if (hasBudget) {
             require(provider == ProviderProtocol.GEMINI_GENERATE_CONTENT) {
-                "模型 ${model.id} 只有 Gemini Provider 可以声明模型级 thinking budget"
+                "Binding ${model.bindingId} 只有 Gemini Provider 可以声明模型级 thinking budget"
             }
         }
         require(!(reasoning.supported == false && (hasBudget || ReasoningMappingSupport.hasConfiguredLevels(reasoning.levels)))) {
-            "模型 ${model.id} 不能在关闭推理时保留推理配置"
+            "Binding ${model.bindingId} 不能在关闭推理时保留推理配置"
         }
         val minimum = reasoning.minThinkingBudget
         val default = reasoning.thinkingBudget
         if (minimum != null && default != null) {
             require(default == -1 || (default > 0 && minimum <= default)) {
-                "模型 ${model.id} 的 min_thinking_budget 不能超过 thinking_budget"
+                "Binding ${model.bindingId} 的 min_thinking_budget 不能超过 thinking_budget"
             }
         }
         val mappings = ReasoningMappingSupport.parse(reasoning.levels)
@@ -310,13 +336,13 @@ internal object ConfigStoreValidator {
                 .mapNotNull(ReasoningMappingSupport::mappingValueAsInt)
                 .forEach { budget ->
                     require(budget >= minimum) {
-                        "模型 ${model.id} 的推理预算 $budget 低于 min_thinking_budget $minimum"
+                        "Binding ${model.bindingId} 的推理预算 $budget 低于 min_thinking_budget $minimum"
                     }
                 }
         }
         mappings.forEach { (_, mapping) ->
             require(ReasoningMappingSupport.isSupported(provider, mapping, model.tokenLimits.outputTokenLimit)) {
-                "模型 ${model.id} 的推理映射不受 ${provider.displayName} 支持"
+                "Binding ${model.bindingId} 的推理映射不受 ${provider.displayName} 支持"
             }
         }
     }

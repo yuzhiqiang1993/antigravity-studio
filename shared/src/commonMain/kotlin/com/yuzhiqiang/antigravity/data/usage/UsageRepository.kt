@@ -18,7 +18,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
-private const val USAGE_DISK_CACHE_VERSION = 5
+private const val USAGE_DISK_CACHE_VERSION = 6
 
 @Serializable
 data class UsageDiskCache(

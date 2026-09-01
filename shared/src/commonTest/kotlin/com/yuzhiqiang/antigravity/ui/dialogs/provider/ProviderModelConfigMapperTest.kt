@@ -10,9 +10,10 @@ import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMapping
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
 import com.yuzhiqiang.antigravity.domain.model.TokenLimitSource
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.proxy.catalog.DiscoveredModelInfo
 import kotlinx.serialization.json.JsonPrimitive
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -100,14 +101,15 @@ class ProviderModelConfigMapperTest {
         assertEquals(512, manualConfig.reasoningDraft.minThinkingBudget)
         assertEquals(TokenLimitSource.CONFIGURED, manualConfig.inputTokenLimitSource)
 
-        val saved = ProviderModelConfigMapper.buildFinalUpstreamModels(
+        val saved = ProviderModelConfigMapper.buildFinalProviderModelBindings(
             fetchedModelConfigs = listOf(manualConfig),
             selectedModelIds = setOf(manualConfig.id),
             initialModels = listOf(original),
-            providerId = original.providerId,
+            providerId = original.providerConfigId,
             protocol = ProviderProtocol.GEMINI_GENERATE_CONTENT
         ).single()
 
+        assertEquals(original.bindingId, saved.bindingId)
         assertEquals(original.capabilities.roles.toSet(), saved.capabilities.roles.toSet())
         assertEquals(original.capabilities.inputModalities.toSet(), saved.capabilities.inputModalities.toSet())
         assertEquals(original.capabilities.outputModalities.toSet(), saved.capabilities.outputModalities.toSet())
@@ -141,7 +143,7 @@ class ProviderModelConfigMapperTest {
             initialModels = emptyList()
         ).single()
 
-        val saved = ProviderModelConfigMapper.buildFinalUpstreamModels(
+        val saved = ProviderModelConfigMapper.buildFinalProviderModelBindings(
             fetchedModelConfigs = listOf(discoveredConfig),
             selectedModelIds = setOf(discoveredConfig.id),
             initialModels = emptyList(),
@@ -180,11 +182,11 @@ class ProviderModelConfigMapperTest {
         val manualConfig = ProviderModelConfigMapper.createManualCatalogConfigs(listOf(original)).single()
         assertTrue(manualConfig.isImageGeneration)
 
-        val saved = ProviderModelConfigMapper.buildFinalUpstreamModels(
+        val saved = ProviderModelConfigMapper.buildFinalProviderModelBindings(
             fetchedModelConfigs = listOf(manualConfig),
             selectedModelIds = setOf(manualConfig.id),
             initialModels = listOf(original),
-            providerId = original.providerId,
+            providerId = original.providerConfigId,
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS
         ).single()
 
@@ -197,16 +199,35 @@ class ProviderModelConfigMapperTest {
         assertEquals(2_048L, saved.tokenLimits.outputTokenLimit)
     }
 
+    @Test
+    fun newBindingUsesUuidAndPreservesProviderModelIdExactly() {
+        val providerModelId = "models/acme/model:latest"
+        val saved = ProviderModelConfigMapper.buildFinalProviderModelBindings(
+            fetchedModelConfigs = listOf(
+                CatalogModelConfig(
+                    id = providerModelId,
+                    name = "Acme Model"
+                )
+            ),
+            selectedModelIds = setOf(providerModelId),
+            initialModels = emptyList(),
+            providerId = "provider",
+            protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS
+        ).single()
+
+        assertEquals(providerModelId, saved.providerModelId)
+        assertEquals(saved.bindingId, UUID.fromString(saved.bindingId).toString())
+    }
+
     private fun createModel(
         capabilities: ModelCapabilities = ModelCapabilities(),
         tokenLimits: ModelTokenLimits = ModelTokenLimits()
-    ): UpstreamModel {
-        return UpstreamModel(
-            id = "provider-model",
-            providerId = "provider",
-            name = "Model",
+    ): ProviderModelBinding {
+        return ProviderModelBinding(
+            bindingId = "provider-model",
+            providerConfigId = "provider",
+            providerModelId = "model",
             displayName = "Display Model",
-            upstreamModelId = "model",
             capabilities = capabilities,
             tokenLimits = tokenLimits
         )

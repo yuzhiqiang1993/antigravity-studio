@@ -1,5 +1,8 @@
 package com.yuzhiqiang.antigravity.data.usage
 
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentityRegistryHolder
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentityStatus
+import com.yuzhiqiang.antigravity.domain.model.ResolvedModelIdentity
 import com.yuzhiqiang.antigravity.domain.model.usage.*
 import java.time.DayOfWeek
 import java.time.Instant
@@ -36,6 +39,7 @@ object UsageAggregator {
         val nowInstant = Instant.ofEpochMilli(nowMillis)
 
         val timeBounds = resolveTimeBounds(timeRange, nowInstant, zoneId, customDateRange)
+        val identityRegistry = ModelIdentityRegistryHolder.snapshot()
         val normalizedSelectedSources = selectedSources.mapTo(mutableSetOf(), ::normalizeSource)
         val allowAllSources = normalizedSelectedSources.isEmpty() || normalizedSelectedSources.contains("all")
 
@@ -94,26 +98,28 @@ object UsageAggregator {
                 val outsideFilter = !timeBounds.valid ||
                         (timeBounds.from != null && (instant == null || instant.isBefore(timeBounds.from))) ||
                         (timeBounds.toExclusive != null && (instant == null || !instant.isBefore(timeBounds.toExclusive)))
-                val identity = UsageModelIdentityResolver.fromEntry(entry)
+                val identity = identityRegistry.resolve(entry.modelObservation)
                 val input = entry.input.coerceAtLeast(0L)
                 val output = entry.output.coerceAtLeast(0L)
                 val cacheRead = entry.cacheRead.coerceAtLeast(0L)
                 val cacheWrite = entry.cacheWrite.coerceAtLeast(0L)
                 val reasoning = entry.reasoning.coerceAtLeast(0L)
                 val unattributed = entry.unattributed.coerceAtLeast(0L)
-                val costResult = pricingService.calculateCostAndSavings(
-                    input = input,
-                    output = output,
-                    cacheRead = cacheRead,
-                    cacheWrite = cacheWrite,
-                    reasoning = reasoning,
-                    modelId = identity.model,
-                    displayName = identity.displayName,
-                    modelPricingIds = identity.pricingModelIds,
-                    modelCanonicalId = identity.canonicalId,
-                    missingUsageFields = entry.missingUsageFields,
-                    unattributed = unattributed
-                )
+                val costResult = if (identity.status == ModelIdentityStatus.RESOLVED) {
+                    pricingService.calculateCostAndSavings(
+                        input = input,
+                        output = output,
+                        cacheRead = cacheRead,
+                        cacheWrite = cacheWrite,
+                        reasoning = reasoning,
+                        canonicalModelId = identity.canonicalModelId,
+                        registeredPricingIds = identity.pricingModelIds,
+                        missingUsageFields = entry.missingUsageFields,
+                        unattributed = unattributed
+                    )
+                } else {
+                    unpricedCostResult(entry.missingUsageFields, unattributed)
+                }
 
                 if (instant != null && !instant.isBefore(todayStart) && instant.isBefore(nowInstant)) {
                     todayInput += input
@@ -128,7 +134,7 @@ object UsageAggregator {
                     todayPricingMatched = todayPricingMatched && costResult.pricingMatched
                     todayCostLowerBound = todayCostLowerBound || costResult.lowerBound
                     todayConversationKeys += conversationKey
-                    todayModelKeys += (identity.aggregationId ?: identity.canonicalId ?: identity.model)
+                    todayModelKeys += identity.groupingKey
                 }
 
                 // 月度账单与插件一致：只要时间戳有效，就不受当前日/周筛选影响。
@@ -195,8 +201,8 @@ object UsageAggregator {
                     weekdayMap[dayOfWeekIdx]?.add(input, output, cacheRead, cacheWrite, reasoning, unattributed)
                 }
 
-                // 模型桶按稳定 aggregationId 分组，保留所有真实计费 ID。
-                val modelKey = identity.aggregationId ?: identity.canonicalId ?: identity.model
+                // 一级按 registry 的稳定 groupingKey 聚合，二级在桶内按 variantId 聚合。
+                val modelKey = identity.groupingKey
                 val modelAcc = modelMap.getOrPut(modelKey) {
                     ModelBucketAccumulator(identity)
                 }
@@ -433,13 +439,14 @@ object UsageAggregator {
         }
     }
 
-    private fun evidenceRank(source: String?): Int = when (source) {
-        "response-model" -> 4
-        "usage-model" -> 3
-        "display-name" -> 2
-        "runtime-model" -> 1
-        else -> 0
-    }
+    private fun unpricedCostResult(
+        missingUsageFields: Collection<String>,
+        unattributed: Long
+    ): CostCalculationResult = CostCalculationResult(
+        costUsd = 0.0,
+        savingsUsd = 0.0,
+        lowerBound = missingUsageFields.isNotEmpty() || unattributed > 0L
+    )
 
     private fun fillMissingMonthlyBuckets(monthlyMap: MutableMap<String, MonthlyBucketAccumulator>) {
         val first = monthlyMap.keys.minOrNull() ?: return
@@ -464,27 +471,6 @@ object UsageAggregator {
         }
     }
 
-    private fun formatModelDisplayName(rawModel: String, customDisplayName: String?): String {
-        if (!customDisplayName.isNullOrBlank()) return customDisplayName
-        val trimmed = rawModel.substringAfterLast("/")
-        return when {
-            trimmed.contains("claude-3-7-sonnet", ignoreCase = true) -> "Claude 3.7 Sonnet"
-            trimmed.contains("claude-3-5-sonnet", ignoreCase = true) -> "Claude 3.5 Sonnet"
-            trimmed.contains("claude-3-5-haiku", ignoreCase = true) -> "Claude 3.5 Haiku"
-            trimmed.contains("claude-3-opus", ignoreCase = true) -> "Claude 3 Opus"
-            trimmed.contains("gemini-3.1-pro", ignoreCase = true) -> "Gemini 3.1 Pro"
-            trimmed.contains("gemini-3.5-flash", ignoreCase = true) -> "Gemini 3.5 Flash"
-            trimmed.contains("gemini-3.6-flash", ignoreCase = true) -> "Gemini 3.6 Flash"
-            trimmed.contains("gemini-2.0-flash", ignoreCase = true) -> "Gemini 2.0 Flash"
-            trimmed.contains("gemini-2.0-pro", ignoreCase = true) -> "Gemini 2.0 Pro"
-            trimmed.contains("gpt-5.6-sol", ignoreCase = true) -> "GPT-5.6 Sol"
-            trimmed.contains("gpt-4o-mini", ignoreCase = true) -> "GPT-4o mini"
-            trimmed.contains("gpt-4o", ignoreCase = true) -> "GPT-4o"
-            trimmed.contains("deepseek-chat", ignoreCase = true) -> "DeepSeek V3"
-            trimmed.contains("deepseek-reasoner", ignoreCase = true) -> "DeepSeek R1"
-            else -> trimmed
-        }
-    }
 
     private fun normalizeSource(source: String): String = when (source.trim().lowercase()) {
         "app" -> "standalone"
@@ -661,7 +647,7 @@ object UsageAggregator {
         }
 
         fun addModel(
-            identity: UsageModelIdentity,
+            identity: ResolvedModelIdentity,
             input: Long,
             output: Long,
             cacheRead: Long,
@@ -671,7 +657,7 @@ object UsageAggregator {
             costResult: CostCalculationResult,
             missingUsageFields: List<String>
         ) {
-            val key = identity.aggregationId ?: identity.canonicalId ?: identity.model
+            val key = identity.groupingKey
             val acc = modelMap.getOrPut(key) { ModelBucketAccumulator(identity) }
             acc.add(
                 input = input,
@@ -770,15 +756,13 @@ object UsageAggregator {
         )
     }
 
-    private class ModelBucketAccumulator(identity: UsageModelIdentity) {
-        var modelId: String = identity.canonicalId ?: identity.model
-        var displayName: String = identity.displayName ?: formatModelDisplayName(identity.model, null)
-        var hasExplicitDisplayName: Boolean = identity.displayName != null
-        var canonicalId: String? = identity.canonicalId
-        var aggregationId: String? = identity.aggregationId
-        val pricingModelIds = identity.pricingModelIds.toMutableSet()
-        val rawModelIds = mutableSetOf(identity.model)
-        var modelEvidenceSource: String? = identity.evidenceSource.takeIf { it != "unknown" }
+    private class ModelBucketAccumulator(identity: ResolvedModelIdentity) {
+        val groupingKey: String = identity.groupingKey
+        val displayName: String = identity.displayName
+        var identityStatus: ModelIdentityStatus = identity.status
+        var canonicalModelId: String? = identity.canonicalModelId
+        val registeredPricingIds = identity.pricingModelIds.toMutableSet()
+        val variantMap = mutableMapOf<String?, ModelVariantBucketAccumulator>()
         var input: Long = 0L
         var output: Long = 0L
         var cacheRead: Long = 0L
@@ -814,7 +798,7 @@ object UsageAggregator {
             cacheWrite: Long,
             reasoning: Long,
             unattributed: Long,
-            identity: UsageModelIdentity,
+            identity: ResolvedModelIdentity,
             missingUsageFields: List<String>,
             costResult: CostCalculationResult,
             isLongContext: Boolean
@@ -843,21 +827,10 @@ object UsageAggregator {
             }
             costLowerBound = costLowerBound || costResult.lowerBound
             longContextPricingApplied = longContextPricingApplied || costResult.usedLongContextPricing
-            identity.canonicalId?.let {
-                if (canonicalId == null) canonicalId = it
-                if (UsageModelIdentityResolver.isOpaqueModelReference(modelId) || modelId == "unknown") modelId = it
-            }
-            identity.displayName?.let {
-                if (!hasExplicitDisplayName) {
-                    displayName = it
-                    hasExplicitDisplayName = true
-                }
-            }
-            identity.aggregationId?.let { if (aggregationId == null) aggregationId = it }
-            pricingModelIds += identity.pricingModelIds
-            rawModelIds += identity.model
-            if (evidenceRank(identity.evidenceSource) > evidenceRank(modelEvidenceSource)) {
-                modelEvidenceSource = identity.evidenceSource.takeIf { it != "unknown" }
+            if (identityStatus != identity.status) identityStatus = ModelIdentityStatus.CONFLICT
+            if (canonicalModelId == null) canonicalModelId = identity.canonicalModelId
+            if (identity.status == ModelIdentityStatus.RESOLVED) {
+                registeredPricingIds += identity.pricingModelIds
             }
             if ("input" in missingUsageFields) missingInputCalls += 1
             if ("output" in missingUsageFields) missingOutputCalls += 1
@@ -873,11 +846,29 @@ object UsageAggregator {
                 longContextUnattributed += unattributed
                 longContextCalls += 1
             }
+            variantMap.getOrPut(identity.variantId) {
+                ModelVariantBucketAccumulator(identity)
+            }.add(
+                input = input,
+                output = output,
+                cacheRead = cacheRead,
+                cacheWrite = cacheWrite,
+                reasoning = reasoning,
+                unattributed = unattributed,
+                identity = identity,
+                costResult = costResult
+            )
         }
 
         fun toModelBucket(): ModelUsageBucket = ModelUsageBucket(
-            modelId = modelId,
+            groupingKey = groupingKey,
             displayName = displayName,
+            identityStatus = identityStatus,
+            canonicalModelId = canonicalModelId,
+            registeredPricingIds = registeredPricingIds.toList(),
+            variantBuckets = variantMap.values
+                .map { it.toVariantBucket() }
+                .sortedByDescending { it.totalTokens },
             input = input,
             output = output,
             cacheRead = cacheRead,
@@ -887,11 +878,6 @@ object UsageAggregator {
             calls = calls,
             costUsd = costUsd,
             savingsUsd = savingsUsd,
-            canonicalId = canonicalId,
-            aggregationId = aggregationId,
-            pricingModelIds = pricingModelIds.toList(),
-            rawModelIds = rawModelIds.toList(),
-            modelEvidenceSource = modelEvidenceSource,
             missingUsage = if (
                 missingInputCalls + missingOutputCalls + missingCacheCalls +
                 missingCacheWriteCalls + missingReasoningCalls > 0
@@ -918,6 +904,71 @@ object UsageAggregator {
             pricingConfidence = pricingConfidence.name.lowercase(),
             costLowerBound = costLowerBound,
             longContextPricingApplied = longContextPricingApplied
+        )
+    }
+
+    private class ModelVariantBucketAccumulator(identity: ResolvedModelIdentity) {
+        val variantId: String? = identity.variantId
+        val displayName: String = identity.displayName
+        var identityStatus: ModelIdentityStatus = identity.status
+        var input: Long = 0L
+        var output: Long = 0L
+        var cacheRead: Long = 0L
+        var cacheWrite: Long = 0L
+        var reasoning: Long = 0L
+        var unattributed: Long = 0L
+        var calls: Long = 0L
+        var costUsd: Double = 0.0
+        var savingsUsd: Double = 0.0
+        var pricingMatched: Boolean = true
+        var costLowerBound: Boolean = false
+        var hasPricingResolution: Boolean = false
+
+        fun add(
+            input: Long,
+            output: Long,
+            cacheRead: Long,
+            cacheWrite: Long,
+            reasoning: Long,
+            unattributed: Long,
+            identity: ResolvedModelIdentity,
+            costResult: CostCalculationResult
+        ) {
+            this.input += input
+            this.output += output
+            this.cacheRead += cacheRead
+            this.cacheWrite += cacheWrite
+            this.reasoning += reasoning
+            this.unattributed += unattributed
+            calls += 1
+            costUsd += costResult.costUsd
+            savingsUsd += costResult.savingsUsd
+            pricingMatched = if (hasPricingResolution) {
+                pricingMatched && costResult.pricingMatched
+            } else {
+                costResult.pricingMatched
+            }
+            costLowerBound = costLowerBound || costResult.lowerBound
+            hasPricingResolution = true
+            if (identityStatus != identity.status) identityStatus = ModelIdentityStatus.CONFLICT
+        }
+
+        fun toVariantBucket(): ModelVariantUsageBucket = ModelVariantUsageBucket(
+            variantKey = variantId.orEmpty(),
+            variantId = variantId,
+            displayName = displayName,
+            identityStatus = identityStatus,
+            input = input,
+            output = output,
+            cacheRead = cacheRead,
+            cacheWrite = cacheWrite,
+            reasoning = reasoning,
+            unattributed = unattributed,
+            calls = calls,
+            costUsd = costUsd,
+            savingsUsd = savingsUsd,
+            pricingMatched = pricingMatched,
+            costLowerBound = costLowerBound
         )
     }
 

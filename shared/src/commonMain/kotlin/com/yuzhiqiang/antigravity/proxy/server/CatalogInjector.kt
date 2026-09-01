@@ -1,7 +1,7 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
-import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
+import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicyAssignment
 import kotlinx.serialization.json.*
 
 object CatalogInjector {
@@ -45,9 +45,9 @@ object CatalogInjector {
 
     fun applyOfficialCompressionPolicies(
         root: JsonObject,
-        policies: Map<String, ModelCompressionPolicy>
+        assignments: List<ModelCompressionPolicyAssignment>
     ): JsonObject {
-        return CatalogCompressionApplier.applyOfficialCompressionPolicies(root, policies)
+        return CatalogCompressionApplier.applyOfficialCompressionPolicies(root, assignments)
     }
 
     fun customCatalogEntries(
@@ -170,8 +170,13 @@ object CatalogInjector {
                 val arrayEntries = entries.filterNot { entry ->
                     entry["catalogKey"]?.jsonPrimitive?.contentOrNull?.endsWith("-tiered") == true
                 }
-                val existing = models.mapNotNull { CatalogModelFilter.catalogModelIds(it).firstOrNull() }.toSet()
-                val additions = arrayEntries.filterNot { CatalogModelFilter.catalogModelIds(it).any(existing::contains) }
+                val existing = models.mapNotNull { entry ->
+                    CatalogModelFilter.catalogModelId(entry)
+                }.toSet()
+                val additions = arrayEntries.filterNot { entry ->
+                    val catalogModelId = CatalogModelFilter.catalogModelId(entry)
+                    catalogModelId != null && catalogModelId in existing
+                }
                 JsonObject(container + ("models" to JsonArray(models + additions)))
             }
 
@@ -180,7 +185,7 @@ object CatalogInjector {
                 entries.forEach { entry ->
                     val key = entry["catalogKey"]?.jsonPrimitive?.contentOrNull
                         ?: entry["id"]?.jsonPrimitive?.contentOrNull
-                        ?: CatalogModelFilter.catalogModelIds(entry).firstOrNull()?.removePrefix("models/")
+                        ?: CatalogModelFilter.catalogModelId(entry)
                         ?: return@forEach
                     updated[key] = JsonObject(entry - setOf("id", "name"))
                 }

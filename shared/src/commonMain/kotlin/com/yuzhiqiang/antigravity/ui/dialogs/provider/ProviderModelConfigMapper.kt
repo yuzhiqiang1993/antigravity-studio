@@ -3,13 +3,14 @@ package com.yuzhiqiang.antigravity.ui.dialogs.provider
 import com.yuzhiqiang.antigravity.domain.model.*
 import com.yuzhiqiang.antigravity.proxy.catalog.DiscoveredModelInfo
 import com.yuzhiqiang.antigravity.ui.dialogs.ReasoningConfigDraft
+import java.util.UUID
 
 /**
  * Provider 模型目录与配置项的双向转换与合并映射器
  */
 internal object ProviderModelConfigMapper {
 
-    fun toCatalogModelConfig(model: UpstreamModel): CatalogModelConfig {
+    fun toCatalogModelConfig(model: ProviderModelBinding): CatalogModelConfig {
         val isImageGen =
             ModelRole.IMAGE_GENERATION in model.capabilities.roles && ModelRole.AGENT !in model.capabilities.roles
         val (inputTokenLimit, inputTokenLimitSource) = when {
@@ -24,8 +25,9 @@ internal object ProviderModelConfigMapper {
             else -> null to TokenLimitSource.UNKNOWN
         }
         return CatalogModelConfig(
-            id = model.upstreamModelId,
-            name = model.displayName ?: model.name,
+            id = model.providerModelId,
+            name = model.displayName,
+            vendor = model.providerVendor,
             inputTokenLimit = inputTokenLimit,
             inputTokenLimitSource = inputTokenLimitSource,
             outputTokenLimit = model.tokenLimits.outputTokenLimit,
@@ -44,22 +46,22 @@ internal object ProviderModelConfigMapper {
         )
     }
 
-    fun createManualCatalogConfigs(initialModels: List<UpstreamModel>): List<CatalogModelConfig> {
-        val existingMap = initialModels.associateBy { it.upstreamModelId }
+    fun createManualCatalogConfigs(initialModels: List<ProviderModelBinding>): List<CatalogModelConfig> {
+        val existingMap = initialModels.associateBy { it.providerModelId }
         return initialModels
-            .map { it.upstreamModelId }
+            .map { it.providerModelId }
             .distinct()
             .map { modelId -> toCatalogModelConfig(existingMap.getValue(modelId)) }
     }
 
     fun mergeDiscoveredCatalogConfigs(
         discoveredList: List<DiscoveredModelInfo>,
-        initialModels: List<UpstreamModel>
+        initialModels: List<ProviderModelBinding>
     ): List<CatalogModelConfig> {
         val discoveredMap = discoveredList.associateBy { it.id }
         val models = discoveredList.map { it.id }
-        val existingMap = initialModels.associateBy { it.upstreamModelId }
-        val modelIds = (models + initialModels.map { it.upstreamModelId }).distinct()
+        val existingMap = initialModels.associateBy { it.providerModelId }
+        val modelIds = (models + initialModels.map { it.providerModelId }).distinct()
 
         return modelIds.map { mName ->
             val existing = existingMap[mName]
@@ -136,7 +138,7 @@ internal object ProviderModelConfigMapper {
             CatalogModelConfig(
                 id = mName,
                 name = existing?.displayName ?: disc?.displayName ?: mName,
-                vendor = disc?.vendor,
+                vendor = existing?.providerVendor ?: disc?.vendor,
                 inputTokenLimit = inputLimit,
                 inputTokenLimitSource = inputSource,
                 outputTokenLimit = outputLimit,
@@ -157,21 +159,20 @@ internal object ProviderModelConfigMapper {
         }
     }
 
-    fun buildFinalUpstreamModels(
+    fun buildFinalProviderModelBindings(
         fetchedModelConfigs: List<CatalogModelConfig>,
         selectedModelIds: Set<String>,
-        initialModels: List<UpstreamModel>,
+        initialModels: List<ProviderModelBinding>,
         providerId: String,
         protocol: ProviderProtocol
-    ): List<UpstreamModel> {
+    ): List<ProviderModelBinding> {
         return fetchedModelConfigs
             .filter { it.id in selectedModelIds }
             .map { config ->
-                val cleanId = config.id.replace('/', '-').replace(':', '-')
                 val existing = initialModels.firstOrNull { model ->
-                    model.upstreamModelId == config.id
+                    model.providerConfigId == providerId && model.providerModelId == config.id
                 }
-                val modelId = existing?.id ?: "$providerId-$cleanId"
+                val bindingId = existing?.bindingId ?: UUID.randomUUID().toString()
                 val useDefaultImageCapabilities = config.isImageGeneration && existing == null
                 val inputModalities = if (useDefaultImageCapabilities) {
                     setOf(ModelModality.TEXT)
@@ -246,17 +247,18 @@ internal object ProviderModelConfigMapper {
                         )
                     }
                 )
-                (existing ?: UpstreamModel(
-                    id = modelId,
-                    providerId = providerId,
-                    name = config.name,
-                    upstreamModelId = config.id
+                (existing ?: ProviderModelBinding(
+                    bindingId = bindingId,
+                    providerConfigId = providerId,
+                    providerModelId = config.id,
+                    providerVendor = config.vendor,
+                    displayName = config.name
                 )).copy(
-                    id = modelId,
-                    providerId = providerId,
-                    name = config.name,
-                    displayName = existing?.displayName ?: config.name,
-                    upstreamModelId = config.id,
+                    bindingId = bindingId,
+                    providerConfigId = providerId,
+                    providerModelId = config.id,
+                    providerVendor = config.vendor ?: existing?.providerVendor,
+                    displayName = config.name,
                     tokenLimits = tokenLimits,
                     capabilities = capabilities,
                     compressionPolicy = if (useDefaultImageCapabilities) null else config.compressionPolicy

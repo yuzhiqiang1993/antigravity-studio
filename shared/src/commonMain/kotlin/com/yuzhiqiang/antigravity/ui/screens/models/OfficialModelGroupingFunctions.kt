@@ -12,7 +12,7 @@ fun filterMainAgentModels(models: List<OfficialCatalogModel>): List<OfficialCata
 
     return filtered.sortedWith(
         compareBy<OfficialCatalogModel> { it.agentSortOrder ?: Long.MAX_VALUE }
-            .thenBy { it.id }
+            .thenBy { it.catalogModelId }
     )
 }
 
@@ -25,7 +25,7 @@ fun groupOfficialModels(models: List<OfficialCatalogModel>): List<GroupedOfficia
     val baseItemMap = mutableMapOf<String, OfficialCatalogModel>()
 
     for (model in mainModels) {
-        val rawName = model.displayName.ifBlank { model.id }
+        val rawName = model.displayName.ifBlank { model.catalogModelId }
         val match = regex.find(rawName)
         val baseName = match?.groupValues?.getOrNull(1)?.trim() ?: rawName
         val variantLabel = match?.groupValues?.getOrNull(2)?.trim()?.ifBlank { null }

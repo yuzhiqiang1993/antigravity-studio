@@ -3,7 +3,7 @@ package com.yuzhiqiang.antigravity.data.storage
 import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
 import com.yuzhiqiang.antigravity.core.platform.AppDataPaths
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
-import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentityRegistryHolder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +37,7 @@ class ConfigStore(
 
     init {
         _configState.value = loadConfig()
+        ModelIdentityRegistryHolder.updateConfig(_configState.value)
     }
 
     val currentConfig: AppConfig
@@ -114,8 +115,8 @@ class ConfigStore(
             throw error
         }
         _configState.value = normalized
+        ModelIdentityRegistryHolder.updateConfig(normalized)
         _loadError.value = null
-        OfficialCatalogProbe.clearRawOfficialCatalog()
     }
 
     @Synchronized

@@ -280,7 +280,7 @@ fun ActivityScreen(
 
     if (showModelLatencyStats) {
         com.yuzhiqiang.antigravity.ui.dialogs.ModelLatencyStatsDialog(
-            logs = logs,
+            logs = displayedLogs,
             config = config,
             officialModels = officialModels,
             onDismiss = { showModelLatencyStats = false }

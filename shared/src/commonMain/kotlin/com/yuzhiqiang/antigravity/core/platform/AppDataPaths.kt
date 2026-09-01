@@ -8,7 +8,7 @@ import java.io.File
  * 外部宿主的凭据和配置路径不由此处解析；它们仍由对应的宿主服务负责。
  */
 object AppDataPaths {
-    const val CONFIG_FILE_NAME = "config.v1.json"
+    const val CONFIG_FILE_NAME = "config.v2.json"
     const val ACCOUNTS_FILE_NAME = "accounts.v1.json"
     const val QUOTAS_FILE_NAME = "quotas.v1.json"
     const val ENVIRONMENT_RECEIPT_FILE_NAME = "environment-ownership.json"

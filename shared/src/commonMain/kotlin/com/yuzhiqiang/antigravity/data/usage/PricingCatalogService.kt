@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -42,7 +43,8 @@ data class LongContextPricingRate(
     val output: Double = 0.0,
     val cacheRead: Double = 0.0,
     val cacheWrite: Double = 0.0,
-    val reasoning: Double = 0.0
+    val reasoning: Double = 0.0,
+    val thresholdTokens: Long = 272_000L
 )
 
 @Serializable
@@ -68,8 +70,8 @@ data class CostCalculationResult(
 /**
  * LiteLLM 动态价格目录服务。
  *
- * 价格只按真实模型身份做精确匹配，不根据模型族猜价；调用方应优先传入
- * metadata 中的 modelPricingIds/canonicalId，展示名仅作为最后的兼容候选。
+ * 价格只按 registry 解析出的 canonical ID 与已注册 pricing ID 做精确匹配，
+ * display、日期、variant、provider 补全与 slug 都不参与查询。
  */
 class PricingCatalogService(
     private val httpClient: HttpClient? = null,
@@ -79,6 +81,15 @@ class PricingCatalogService(
         const val DEFAULT_PRICING_URL = "https://models.dev/api.json"
         const val LONG_CONTEXT_THRESHOLD_TOKENS = 272_000L
         private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L
+
+        // 官方第一方与主流公有云提供商白名单
+        private val OFFICIAL_PROVIDER_IDS = setOf(
+            "openai", "anthropic", "google", "google-vertex", "google-vertex-anthropic",
+            "azure", "azure-cognitive-services", "amazon-bedrock", "deepseek", "mistral",
+            "meta", "xai", "cohere", "groq", "togetherai", "deepinfra", "cerebras",
+            "perplexity", "perplexity-agent", "minimax", "minimax-cn", "minimax-coding-plan",
+            "minimax-cn-coding-plan", "kimi-for-coding", "v0", "vercel", "cloudflare-workers-ai"
+        )
     }
 
     private val json = Json {
@@ -90,9 +101,8 @@ class PricingCatalogService(
 
     // 动态目录与自定义目录分开保存，准确报告 pricing source。
     private var pricingCatalog: Map<String, ModelPricingRate> = emptyMap()
-    private var pricingUnqualified: Map<String, ModelPricingRate> = emptyMap()
     private var customOverrides: Map<String, ModelPricingRate> = emptyMap()
-    private var customUnqualified: Map<String, ModelPricingRate> = emptyMap()
+
     private var lastFetchedAt: Long = 0L
 
     init {
@@ -101,15 +111,13 @@ class PricingCatalogService(
 
     suspend fun setCustomPricingSource(customPath: String?) = withContext(Dispatchers.IO) {
         customOverrides = emptyMap()
-        customUnqualified = emptyMap()
         val path = customPath?.trim().orEmpty()
         if (path.isBlank()) return@withContext
 
         try {
             val file = File(path)
             if (file.isFile) {
-                customOverrides = parsePricingJson(file.readText(Charsets.UTF_8))
-                customUnqualified = buildUnqualifiedIndex(customOverrides)
+                customOverrides = parsePricingJson(file.readText(Charsets.UTF_8), isCustomFile = true)
             }
         } catch (_: Exception) {
             customOverrides = emptyMap()
@@ -120,27 +128,41 @@ class PricingCatalogService(
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
             if (!force && (now - lastFetchedAt) < CACHE_TTL_MS && pricingCatalog.isNotEmpty()) {
+                com.yuzhiqiang.antigravity.logging.AppLog.d("Usage/Pricing") { "命中内存价格目录缓存，跳过刷新 (已缓存模型数=${pricingCatalog.size})" }
                 return@withContext Result.success(Unit)
             }
 
-            val client = httpClient ?: HttpClient()
+            com.yuzhiqiang.antigravity.logging.AppLog.d("Usage/Pricing") { "开始从远端拉取最新价格目录: $remoteUrl (force=$force)" }
+            val client = httpClient ?: HttpClient {
+                install(io.ktor.client.plugins.HttpTimeout) {
+                    requestTimeoutMillis = 4000L
+                    connectTimeoutMillis = 3000L
+                    socketTimeoutMillis = 4000L
+                }
+            }
             val ownsClient = httpClient == null
             try {
-                val response = client.get(remoteUrl)
-                if (response.status.value !in 200..299) {
-                    throw IllegalStateException("Pricing catalog HTTP ${response.status.value}")
+                kotlinx.coroutines.withTimeout(5000L) {
+                    val response = client.get(remoteUrl)
+                    if (response.status.value !in 200..299) {
+                        throw IllegalStateException("Pricing catalog HTTP ${response.status.value}")
+                    }
+                    val body = response.bodyAsText()
+                    val parsed = parsePricingJson(body, isCustomFile = false)
+                    if (parsed.isEmpty()) {
+                        throw IllegalStateException("Parsed pricing catalog is empty")
+                    }
+                    pricingCatalog = parsed
+                    lastFetchedAt = now
+                    saveToLocalCache(body)
+                    com.yuzhiqiang.antigravity.logging.AppLog.i("Usage/Pricing") { "远端官方价格目录拉取成功并已更新本地缓存: 官方模型数=${parsed.size}, 耗时=${System.currentTimeMillis() - now}ms" }
                 }
-                val body = response.bodyAsText()
-                val parsed = parsePricingJson(body)
-                if (parsed.isEmpty()) {
-                    return@withContext Result.failure(IllegalStateException("Parsed pricing catalog is empty"))
-                }
-                pricingCatalog = parsed
-                pricingUnqualified = buildUnqualifiedIndex(parsed)
-                lastFetchedAt = now
-                saveToLocalCache(body)
                 Result.success(Unit)
             } catch (error: Exception) {
+                com.yuzhiqiang.antigravity.logging.AppLog.w(
+                    "Usage/Pricing",
+                    error
+                ) { "远端价格目录更新失败/超时，安全回退至本地磁盘缓存快照: ${error.message}" }
                 loadFromLocalCache()
                 Result.failure(error)
             } finally {
@@ -149,43 +171,29 @@ class PricingCatalogService(
         }
 
     /**
-     * 按优先级解析费率：自定义 > 远端动态目录 (models.dev) > 未匹配零费率。
-     * 不维护内置硬编码价格，避免由于版本变动展示错误价格。
+     * 按优先级解析费率：自定义 > 远端动态目录 (models.dev 官方数据及其本地快照) > 未匹配零费率。
+     * 永远只使用远端官方真实数据，绝不硬编码假数据。
      */
     fun resolvePricing(
-        modelId: String,
-        displayName: String? = null,
-        modelPricingIds: List<String> = emptyList(),
-        modelCanonicalId: String? = null
+        canonicalModelId: String?,
+        registeredPricingIds: List<String> = emptyList()
     ): PricingResolution {
         val candidates = generateLookupCandidates(
-            *modelPricingIds.toTypedArray(),
-            modelCanonicalId,
-            modelId,
-            displayName
-        ).filterNot(UsageModelIdentityResolver::isOpaqueModelReference)
+            canonicalModelId,
+            *registeredPricingIds.toTypedArray()
+        )
 
         // 1. 用户自定义配置
         for (candidate in candidates) {
             customOverrides[candidate]?.let {
                 return PricingResolution(it, PricingSource.CUSTOM, PricingConfidence.HIGH, matched = true)
             }
-            unqualifiedCandidate(candidate)?.let {
-                customUnqualified[it]?.let { rate ->
-                    return PricingResolution(rate, PricingSource.CUSTOM, PricingConfidence.HIGH, matched = true)
-                }
-            }
         }
 
-        // 2. 远端动态价格大盘（models.dev）
+        // 2. 远端动态价格大盘（models.dev 官方权威数据及其本地磁盘缓存快照）
         for (candidate in candidates) {
             pricingCatalog[candidate]?.let {
                 return PricingResolution(it, PricingSource.EXTERNAL, PricingConfidence.HIGH, matched = true)
-            }
-            unqualifiedCandidate(candidate)?.let {
-                pricingUnqualified[it]?.let { rate ->
-                    return PricingResolution(rate, PricingSource.EXTERNAL, PricingConfidence.HIGH, matched = true)
-                }
             }
         }
 
@@ -198,13 +206,11 @@ class PricingCatalogService(
         )
     }
 
-    /** 兼容旧调用方；需要展示计费来源时请使用 resolvePricing。 */
+    /** 需要展示计费来源时请使用 [resolvePricing]。 */
     fun resolveRate(
-        modelId: String,
-        displayName: String? = null,
-        modelPricingIds: List<String> = emptyList(),
-        modelCanonicalId: String? = null
-    ): ModelPricingRate = resolvePricing(modelId, displayName, modelPricingIds, modelCanonicalId).rate
+        canonicalModelId: String?,
+        registeredPricingIds: List<String> = emptyList()
+    ): ModelPricingRate = resolvePricing(canonicalModelId, registeredPricingIds).rate
 
     fun calculateCostAndSavings(
         input: Long,
@@ -212,25 +218,26 @@ class PricingCatalogService(
         cacheRead: Long,
         cacheWrite: Long,
         reasoning: Long,
-        modelId: String,
-        displayName: String? = null,
-        modelPricingIds: List<String> = emptyList(),
-        modelCanonicalId: String? = null,
-        missingUsageFields: Collection<String> = emptyList()
+        canonicalModelId: String?,
+        registeredPricingIds: List<String> = emptyList(),
+        missingUsageFields: Collection<String> = emptyList(),
+        unattributed: Long = 0L
     ): CostCalculationResult {
-        val pricing = resolvePricing(modelId, displayName, modelPricingIds, modelCanonicalId)
+        val pricing = resolvePricing(canonicalModelId, registeredPricingIds)
         val rate = pricing.rate
-        val useLongContextPricing = input > LONG_CONTEXT_THRESHOLD_TOKENS && rate.above272k != null
-        val effectiveRate = if (useLongContextPricing) {
-            rate.above272k?.toModelRate() ?: rate
-        } else {
-            rate
-        }
         val safeInput = input.coerceAtLeast(0L)
         val safeOutput = output.coerceAtLeast(0L)
         val safeCacheRead = cacheRead.coerceAtLeast(0L)
         val safeCacheWrite = cacheWrite.coerceAtLeast(0L)
         val safeReasoning = reasoning.coerceAtLeast(0L)
+        val promptTokens = safeInput + safeCacheRead + safeCacheWrite
+        val longContextRate = rate.above272k
+        val useLongContextPricing = longContextRate != null && promptTokens > longContextRate.thresholdTokens
+        val effectiveRate = if (useLongContextPricing) {
+            longContextRate?.toModelRate() ?: rate
+        } else {
+            rate
+        }
         val cost = (
                 safeInput * effectiveRate.input +
                         safeOutput * effectiveRate.output +
@@ -249,47 +256,18 @@ class PricingCatalogService(
             pricingSource = pricing.source,
             pricingMatched = pricing.matched,
             pricingConfidence = pricing.confidence,
-            lowerBound = missingUsageFields.isNotEmpty(),
+            lowerBound = missingUsageFields.isNotEmpty() || unattributed > 0L,
             usedLongContextPricing = useLongContextPricing
         )
     }
 
-    internal fun generateLookupCandidates(vararg inputs: String?): List<String> {
-        val results = mutableListOf<String>()
-        val seen = mutableSetOf<String>()
-        fun add(value: String?) {
-            val candidate = value?.trim()?.lowercase().orEmpty()
-            if (candidate.isNotEmpty() && seen.add(candidate)) results += candidate
+    internal fun generateLookupCandidates(vararg inputs: String?): List<String> = inputs
+        .mapNotNull { value ->
+            value?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
         }
+        .distinct()
 
-        for (input in inputs) {
-            val raw = input?.trim()?.lowercase().orEmpty()
-            if (raw.isEmpty()) continue
-            add(raw)
-            val slug = raw
-                .replace("（", "(")
-                .replace("）", ")")
-                .replace(Regex("[\\s_]+"), "-")
-                .replace(Regex("-+"), "-")
-            add(slug)
-
-            // 剥离日期后缀（如 -20250219, -20241022, -2024-08-06）
-            val strippedDate = slug.replace(Regex("[-_]20\\d{2}[-_]?\\d{2}[-_]?\\d{2}$"), "")
-            if (strippedDate.isNotEmpty() && strippedDate != slug) {
-                add(strippedDate)
-            }
-
-            // 剥离版本与实验修饰后缀（如 -latest, -preview, -exp）
-            val strippedVariant = (if (strippedDate.isNotEmpty()) strippedDate else slug)
-                .replace(Regex("[-_](latest|preview|exp|experiment|online|chat|instruct)$"), "")
-            if (strippedVariant.isNotEmpty()) {
-                add(strippedVariant)
-            }
-        }
-        return results
-    }
-
-    private fun parsePricingJson(rawJson: String): Map<String, ModelPricingRate> {
+    private fun parsePricingJson(rawJson: String, isCustomFile: Boolean = false): Map<String, ModelPricingRate> {
         val result = mutableMapOf<String, ModelPricingRate>()
         try {
             val root = json.parseToJsonElement(rawJson) as? JsonObject ?: return result
@@ -313,7 +291,14 @@ class PricingCatalogService(
                             cacheRead = cacheRead,
                             cacheWrite = cacheWrite,
                             reasoning = reasoning,
-                            above272k = parseLongContextRateFromCostObj(costObj, input, output, cacheRead, cacheWrite, reasoning)
+                            above272k = parseLongContextRateFromCostObj(
+                                costObj,
+                                input,
+                                output,
+                                cacheRead,
+                                cacheWrite,
+                                reasoning
+                            )
                         )
                     } else null
                 } else {
@@ -338,39 +323,59 @@ class PricingCatalogService(
                     } else if (inputToken != null || outputToken != null) {
                         val input = (inputToken ?: 0.0) * 1_000_000.0
                         val output = (outputToken ?: 0.0) * 1_000_000.0
-                        val cacheRead = numberValue(objectValue, "cache_read_input_token_cost", "cacheReadCostPerToken")?.let { it * 1_000_000.0 } ?: (input * 0.1)
-                        val cacheWrite = numberValue(objectValue, "cache_creation_input_token_cost", "cacheWriteCostPerToken")?.let { it * 1_000_000.0 } ?: cacheRead
-                        val reasoning = numberValue(objectValue, "output_cost_per_reasoning_token", "reasoning_cost_per_token")?.let { it * 1_000_000.0 } ?: output
+                        val cacheRead = numberValue(
+                            objectValue,
+                            "cache_read_input_token_cost",
+                            "cacheReadCostPerToken"
+                        )?.let { it * 1_000_000.0 } ?: (input * 0.1)
+                        val cacheWrite = numberValue(
+                            objectValue,
+                            "cache_creation_input_token_cost",
+                            "cacheWriteCostPerToken"
+                        )?.let { it * 1_000_000.0 } ?: cacheRead
+                        val reasoning = numberValue(
+                            objectValue,
+                            "output_cost_per_reasoning_token",
+                            "reasoning_cost_per_token"
+                        )?.let { it * 1_000_000.0 } ?: output
                         ModelPricingRate(
                             input = input,
                             output = output,
                             cacheRead = cacheRead,
                             cacheWrite = cacheWrite,
                             reasoning = reasoning,
-                            above272k = parseLongContextRate(objectValue, input / 1_000_000.0, output / 1_000_000.0, cacheRead / 1_000_000.0, cacheWrite / 1_000_000.0, reasoning / 1_000_000.0)
+                            above272k = parseLongContextRate(
+                                objectValue,
+                                input / 1_000_000.0,
+                                output / 1_000_000.0,
+                                cacheRead / 1_000_000.0,
+                                cacheWrite / 1_000_000.0,
+                                reasoning / 1_000_000.0
+                            )
                         )
                     } else null
                 }
 
                 if (rate != null) {
                     val fullKey = if (!providerPrefix.isNullOrBlank()) "$providerPrefix/$key" else key
-                    val normalizedFull = fullKey.trim().lowercase()
-                    result[normalizedFull] = rate
-                    for (candidate in generateLookupCandidates(normalizedFull)) {
-                        result.putIfAbsent(candidate, rate)
-                    }
-                    if (providerPrefix == null) {
-                        val shortKey = key.trim().lowercase()
-                        result.putIfAbsent(shortKey, rate)
-                        for (candidate in generateLookupCandidates(shortKey)) {
-                            result.putIfAbsent(candidate, rate)
-                        }
+                    generateLookupCandidates(fullKey).singleOrNull()?.let { normalizedKey ->
+                        result[normalizedKey] = rate
                     }
                 }
             }
 
             for ((topKey, topValue) in root) {
                 val objectValue = topValue as? JsonObject ?: continue
+                val npm = stringValue(objectValue, "npm").orEmpty()
+                val isOfficialProvider = topKey.lowercase() in OFFICIAL_PROVIDER_IDS || (
+                        npm.startsWith("@ai-sdk/") && !npm.contains("compatible") && !npm.contains("openrouter")
+                        )
+
+                // 核心规则：仅保留官方 Provider 数据，第三方聚合/中继商数据彻底丢弃
+                if (!isCustomFile && !isOfficialProvider && customRootDir == null) {
+                    continue
+                }
+
                 val modelsObj = objectValue["models"] as? JsonObject
                 if (modelsObj != null) {
                     val providerId = stringValue(objectValue, "id") ?: topKey
@@ -396,6 +401,33 @@ class PricingCatalogService(
         baseCacheWrite: Double,
         baseReasoning: Double
     ): LongContextPricingRate? {
+        val contextTier = (costObj["tiers"] as? JsonArray)
+            ?.asSequence()
+            ?.mapNotNull { it as? JsonObject }
+            ?.firstOrNull { candidate ->
+                val tier = candidate["tier"] as? JsonObject ?: return@firstOrNull false
+                stringValue(tier, "type")?.equals("context", ignoreCase = true) == true &&
+                        (numberValue(tier, "size") ?: 0.0) >= 200_000.0
+            }
+        if (contextTier != null) {
+            val tier = contextTier["tier"] as? JsonObject
+            val thresholdTokens = tier?.let { numberValue(it, "size") }?.toLong()
+                ?: LONG_CONTEXT_THRESHOLD_TOKENS
+            val input = numberValue(contextTier, "input") ?: baseInput
+            val output = numberValue(contextTier, "output") ?: baseOutput
+            val cacheRead = numberValue(contextTier, "cache_read") ?: baseCacheRead
+            val cacheWrite = numberValue(contextTier, "cache_write") ?: baseCacheWrite
+            val reasoning = numberValue(contextTier, "reasoning") ?: baseReasoning
+            return LongContextPricingRate(
+                input = input,
+                output = output,
+                cacheRead = cacheRead,
+                cacheWrite = cacheWrite,
+                reasoning = reasoning,
+                thresholdTokens = thresholdTokens
+            )
+        }
+
         val over200k = costObj["context_over_200k"] as? JsonObject
         if (over200k != null) {
             val input = numberValue(over200k, "input") ?: baseInput
@@ -403,7 +435,14 @@ class PricingCatalogService(
             val cacheRead = numberValue(over200k, "cache_read") ?: baseCacheRead
             val cacheWrite = numberValue(over200k, "cache_write") ?: baseCacheWrite
             val reasoning = numberValue(over200k, "reasoning") ?: baseReasoning
-            return LongContextPricingRate(input, output, cacheRead, cacheWrite, reasoning)
+            return LongContextPricingRate(
+                input = input,
+                output = output,
+                cacheRead = cacheRead,
+                cacheWrite = cacheWrite,
+                reasoning = reasoning,
+                thresholdTokens = 200_000L
+            )
         }
         return null
     }
@@ -455,7 +494,8 @@ class PricingCatalogService(
             output = effectiveOutput * 1_000_000.0,
             cacheRead = effectiveCacheRead * 1_000_000.0,
             cacheWrite = effectiveCacheWrite * 1_000_000.0,
-            reasoning = effectiveReasoning * 1_000_000.0
+            reasoning = effectiveReasoning * 1_000_000.0,
+            thresholdTokens = LONG_CONTEXT_THRESHOLD_TOKENS
         )
     }
 
@@ -477,35 +517,13 @@ class PricingCatalogService(
             val parsed = parsePricingJson(cacheFile.readText(Charsets.UTF_8))
             if (parsed.isNotEmpty()) {
                 pricingCatalog = parsed
-                pricingUnqualified = buildUnqualifiedIndex(parsed)
                 lastFetchedAt = cacheFile.lastModified()
             }
         } catch (_: Exception) {
-            // 保留内置离线价格。
+            // 保留内存或已加载价格。
         }
     }
 
-    private fun unqualifiedCandidate(candidate: String): String? =
-        candidate.substringAfterLast('/', missingDelimiterValue = candidate)
-            .takeIf { it != candidate }
-
-    /** 仅保留目录中唯一的无 provider 前缀别名；同名不同价时保持未匹配。 */
-    private fun buildUnqualifiedIndex(catalog: Map<String, ModelPricingRate>): Map<String, ModelPricingRate> {
-        val owners = mutableMapOf<String, ModelPricingRate?>()
-        val ambiguous = mutableSetOf<String>()
-        for ((key, rate) in catalog) {
-            val shortKey = key.substringAfterLast('/')
-            if (shortKey.isBlank() || shortKey in ambiguous) continue
-            val previous = owners[shortKey]
-            if (!owners.containsKey(shortKey)) {
-                owners[shortKey] = rate
-            } else if (previous != rate) {
-                owners.remove(shortKey)
-                ambiguous += shortKey
-            }
-        }
-        return owners.mapNotNull { (key, value) -> value?.let { key to it } }.toMap()
-    }
 
     private fun saveToLocalCache(content: String) {
         try {

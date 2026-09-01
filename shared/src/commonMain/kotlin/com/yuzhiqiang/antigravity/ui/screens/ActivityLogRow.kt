@@ -165,7 +165,8 @@ internal fun ActivityLogRow(
                         }
 
                         val endpointInfo = remember(log.path) { ActivityEndpointRegistry.resolve(log.path) }
-                        val isAiChat = endpointInfo.category == ActivityEndpointCategory.AI_CHAT || endpointInfo.category == ActivityEndpointCategory.CODE_ASSIST
+                        val isAiChat =
+                            endpointInfo.category == ActivityEndpointCategory.AI_CHAT || endpointInfo.category == ActivityEndpointCategory.CODE_ASSIST
 
                         HighlightedText(
                             text = log.path,
@@ -174,7 +175,9 @@ internal fun ActivityLogRow(
                                 fontWeight = if (isAiChat) FontWeight.Bold else FontWeight.SemiBold,
                                 fontSize = 13.5.sp
                             ),
-                            color = if (isAiChat) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+                            color = if (isAiChat) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(
+                                alpha = 0.9f
+                            ),
                             maxLines = 1
                         )
 
@@ -187,7 +190,9 @@ internal fun ActivityLogRow(
                             },
                             border = BorderStroke(
                                 0.5.dp,
-                                if (isAiChat) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                if (isAiChat) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(
+                                    alpha = 0.4f
+                                )
                             )
                         ) {
                             Text(
@@ -269,9 +274,12 @@ internal fun ActivityLogRow(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val modelLabel = log.modelIdentity?.displayName ?: log.modelIdentity?.primaryModelId
                     val subtitleText = when {
-                        log.modelId != null && !log.isOfficialPassthrough -> "${log.providerName ?: s.activityUnknownProvider} / ${log.modelId}"
-                        log.modelId != null -> log.modelId
+                        modelLabel != null && !log.isOfficialPassthrough ->
+                            "${log.providerName ?: s.activityUnknownProvider} / $modelLabel"
+
+                        modelLabel != null -> modelLabel
                         log.isOfficialPassthrough -> s.activityPassthrough
                         else -> log.providerName.orEmpty()
                     }
@@ -298,7 +306,9 @@ internal fun ActivityLogRow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val hasDetailedTokens = log.inputTokens != null || log.outputTokens != null
+                        val hasDetailedTokens = log.inputTokens != null || log.outputTokens != null ||
+                                log.cacheReadTokens != null || log.cacheWriteTokens != null ||
+                                log.reasoningTokens != null || log.unattributedTokens != null
                         val hasAnyTokens = log.totalTokens != null || hasDetailedTokens
 
                         if (hasAnyTokens) {
@@ -339,7 +349,7 @@ internal fun ActivityLogRow(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
                                     )
                                 }
-                                if (log.cacheReadTokens != null && log.cacheReadTokens > 0) {
+                                if (log.cacheReadTokens != null && log.cacheReadTokens >= 0L) {
                                     val hitRate = calculateCacheHitRate(
                                         log.cacheReadTokens,
                                         log.inputTokens,
@@ -360,8 +370,14 @@ internal fun ActivityLogRow(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
                                     )
                                 }
-                                val total = log.totalTokens ?: ((log.inputTokens ?: 0L) + (log.outputTokens
-                                    ?: 0L)).takeIf { it > 0 }
+                                val total = log.totalTokens ?: listOfNotNull(
+                                    log.inputTokens,
+                                    log.outputTokens,
+                                    log.cacheReadTokens,
+                                    log.cacheWriteTokens,
+                                    log.reasoningTokens,
+                                    log.unattributedTokens
+                                ).sum().takeIf { it > 0L }
                                 if (total != null && total > 0) {
                                     Text(
                                         text = "${s.activityTokenTotal} ${formatTokens(total)}",

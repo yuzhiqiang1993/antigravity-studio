@@ -10,6 +10,7 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralMessage
 import com.yuzhiqiang.antigravity.proxy.model.NeutralRole
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
+import com.yuzhiqiang.antigravity.proxy.model.normalizedNeutralUsage
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.preparePost
@@ -35,15 +36,22 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
+internal data class AnthropicStreamEventResult(
+    val chunks: List<NeutralStreamChunk>,
+    val usage: NeutralUsage?
+)
+
 class AnthropicAdapter : ProviderAdapter {
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun sendStream(provider: Provider, request: NeutralChatRequest): Flow<NeutralStreamChunk> = flow {
         if (request.outputModalities.contains(ModelModality.IMAGE)) {
-            emit(NeutralStreamChunk.Error(
-                "Anthropic 不支持图像生成，请改用 Gemini 或 OpenAI 兼容的图像模型",
-                400
-            ))
+            emit(
+                NeutralStreamChunk.Error(
+                    "Anthropic 不支持图像生成，请改用 Gemini 或 OpenAI 兼容的图像模型",
+                    400
+                )
+            )
             return@flow
         }
         val model = request.targetUpstreamModelId.removePrefix("models/")
@@ -98,7 +106,12 @@ class AnthropicAdapter : ProviderAdapter {
                     if (!request.stream) {
                         val responseBody = ProviderAdapter.readResponseBodyText(response)
                         if (responseBody.isFailure) {
-                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Failed to read Anthropic response body", 502))
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    responseBody.exceptionOrNull()?.message ?: "Failed to read Anthropic response body",
+                                    502
+                                )
+                            )
                             return@execute
                         }
                         val parsed = parseNonStreamingResponse(responseBody.getOrThrow())
@@ -125,11 +138,17 @@ class AnthropicAdapter : ProviderAdapter {
                     while (!channel.isClosedForRead && !streamEnded) {
                         val event = ProviderAdapter.readSseDataEvent(channel)
                         if (event.isFailure) {
-                            emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid Anthropic SSE frame", 502, responseStarted = true))
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    event.exceptionOrNull()?.message ?: "Invalid Anthropic SSE frame",
+                                    502,
+                                    responseStarted = true
+                                )
+                            )
                             return@execute
                         }
                         val data = event.getOrNull() ?: break
-                        val parsed = parseEvent(data)
+                        val parsed = parseEvent(data, latestUsage)
                         if (parsed.isFailure) {
                             emit(
                                 NeutralStreamChunk.Error(
@@ -140,7 +159,9 @@ class AnthropicAdapter : ProviderAdapter {
                             )
                             return@execute
                         }
-                        for (chunk in parsed.getOrThrow()) {
+                        val eventResult = parsed.getOrThrow()
+                        latestUsage = eventResult.usage
+                        for (chunk in eventResult.chunks) {
                             val effectiveChunk = if (chunk is NeutralStreamChunk.Error) {
                                 chunk.copy(responseStarted = true)
                             } else {
@@ -148,9 +169,6 @@ class AnthropicAdapter : ProviderAdapter {
                             }
                             if (effectiveChunk is NeutralStreamChunk.Completed) {
                                 sawCompletion = true
-                                if (effectiveChunk.usage != null) {
-                                    latestUsage = effectiveChunk.usage
-                                }
                             }
                             if (effectiveChunk is NeutralStreamChunk.Error) streamEnded = true
                             emit(effectiveChunk)
@@ -170,7 +188,13 @@ class AnthropicAdapter : ProviderAdapter {
             }
         } catch (error: Exception) {
             val status = ProviderAdapter.upstreamFailureStatus(error)
-            emit(NeutralStreamChunk.Error("Anthropic request failed: ${error.message ?: "unknown error"}", status, responseStarted = responseStarted))
+            emit(
+                NeutralStreamChunk.Error(
+                    "Anthropic request failed: ${error.message ?: "unknown error"}",
+                    status,
+                    responseStarted = responseStarted
+                )
+            )
         }
     }
 
@@ -187,10 +211,11 @@ class AnthropicAdapter : ProviderAdapter {
     }
 
     override suspend fun fetchModelCatalog(provider: Provider): ProviderAdapter.ModelCatalogResult {
-        val url = ProviderAdapter.appendCpaCatalogVersion(provider.modelsEndpoint
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: normalizeUrl(provider.effectiveBaseUrl, "/models"))
+        val url = ProviderAdapter.appendCpaCatalogVersion(
+            provider.modelsEndpoint
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: normalizeUrl(provider.effectiveBaseUrl, "/models"))
         return try {
             val response = ProviderAdapter.sharedHttpClient.get(url) {
                 ProviderAdapter.applyHeaders(
@@ -350,17 +375,17 @@ class AnthropicAdapter : ProviderAdapter {
             return Result.success(
                 JsonArray(
                     listOf(
-                buildJsonObject {
-                    put("type", "text")
-                    put("text", contents.joinToString("\n") {
-                        when (it) {
-                            is NeutralContent.Text -> it.text
-                            is NeutralContent.Thinking -> it.text
-                            else -> ""
+                        buildJsonObject {
+                            put("type", "text")
+                            put("text", contents.joinToString("\n") {
+                                when (it) {
+                                    is NeutralContent.Text -> it.text
+                                    is NeutralContent.Thinking -> it.text
+                                    else -> ""
+                                }
+                            })
                         }
-                    })
-                }
-            )))
+                    )))
         }
         val toolInputs = mutableMapOf<String, JsonObject>()
         for (content in contents.filterIsInstance<NeutralContent.ToolCall>()) {
@@ -409,7 +434,10 @@ class AnthropicAdapter : ProviderAdapter {
         })
     }
 
-    private fun parseEvent(data: String): Result<List<NeutralStreamChunk>> {
+    internal fun parseEvent(
+        data: String,
+        previousUsage: NeutralUsage? = null
+    ): Result<AnthropicStreamEventResult> {
         return try {
             val root = json.parseToJsonElement(data).jsonObject
             if (root["type"]?.jsonPrimitive?.contentOrNull == "error") {
@@ -420,11 +448,21 @@ class AnthropicAdapter : ProviderAdapter {
                     ?: 502
                 val errorMsg = errorObj?.get("message")?.jsonPrimitive?.contentOrNull
                     ?: "Anthropic stream error"
-                return Result.success(listOf(NeutralStreamChunk.Error(errorMsg, statusCode, responseStarted = true)))
+                return Result.success(
+                    AnthropicStreamEventResult(
+                        chunks = listOf(NeutralStreamChunk.Error(errorMsg, statusCode, responseStarted = true)),
+                        usage = previousUsage
+                    )
+                )
             }
             val type = root["type"]?.jsonPrimitive?.contentOrNull
             val chunks = mutableListOf<NeutralStreamChunk>()
             when (type) {
+                "message_start" -> root["message"]?.jsonObject
+                    ?.get("model")?.jsonPrimitive?.contentOrNull
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { chunks += NeutralStreamChunk.ResponseMetadata(it) }
+
                 "content_block_start" -> {
                     val index = root["index"]?.jsonPrimitive?.intOrNull ?: 0
                     val block = root["content_block"]?.jsonObject
@@ -475,7 +513,7 @@ class AnthropicAdapter : ProviderAdapter {
 
                 "message_delta" -> {
                     val reason = root["delta"]?.jsonObject?.get("stop_reason")?.jsonPrimitive?.contentOrNull
-                    if (reason != null) chunks.add(NeutralStreamChunk.Completed(reason, parseUsage(root)))
+                    if (reason != null) chunks.add(NeutralStreamChunk.Completed(reason))
                 }
 
                 "message_stop" -> chunks.add(NeutralStreamChunk.Completed())
@@ -489,16 +527,27 @@ class AnthropicAdapter : ProviderAdapter {
                     )
                 }
             }
-            Result.success(chunks)
+            val latestUsage = mergeUsage(previousUsage, parseStreamUsage(root))
+            val effectiveChunks = chunks.map { chunk ->
+                if (chunk is NeutralStreamChunk.Completed) {
+                    chunk.copy(usage = mergeUsage(latestUsage, chunk.usage))
+                } else {
+                    chunk
+                }
+            }
+            Result.success(AnthropicStreamEventResult(effectiveChunks, latestUsage))
         } catch (error: Exception) {
             Result.failure(IllegalArgumentException("Failed to parse Anthropic stream event: ${error.message}", error))
         }
     }
 
-    private fun parseNonStreamingResponse(data: String): Result<List<NeutralStreamChunk>> {
+    internal fun parseNonStreamingResponse(data: String): Result<List<NeutralStreamChunk>> {
         return try {
             val root = json.parseToJsonElement(data).jsonObject
             val chunks = mutableListOf<NeutralStreamChunk>()
+            root["model"]?.jsonPrimitive?.contentOrNull
+                ?.takeIf(String::isNotBlank)
+                ?.let { chunks += NeutralStreamChunk.ResponseMetadata(it) }
             val usage = parseUsage(root)
             root["content"]?.jsonArray?.forEachIndexed { index, blockElement ->
                 val block = blockElement.jsonObject
@@ -555,32 +604,35 @@ class AnthropicAdapter : ProviderAdapter {
         val cacheRead = long("cache_read_input_tokens")
         val cacheWrite = long("cache_creation_input_tokens")
         val output = long("output_tokens")
-        val validCacheBreakdown = input != null &&
-                (cacheRead ?: 0L) + (cacheWrite ?: 0L) <= input
-        val computedTotal = input?.plus(output ?: 0L)
-        val reportedTotal = usage["total_tokens"]?.jsonPrimitive?.longOrNull
-        return NeutralUsage(
-            inputTokens = input?.let { total ->
-                if (validCacheBreakdown) total - (cacheRead ?: 0L) - (cacheWrite ?: 0L) else total
-            },
+        // Anthropic 的 input/cache-read/cache-creation 是并列计费维度，不是包含关系。
+        return normalizedNeutralUsage(
+            inputTokens = input,
             outputTokens = output,
-            cacheReadTokens = cacheRead.takeIf { validCacheBreakdown },
-            cacheWriteTokens = cacheWrite.takeIf { validCacheBreakdown },
-            totalTokens = reportedTotal?.takeIf { computedTotal == null || it >= computedTotal } ?: computedTotal
+            cacheReadTokens = cacheRead,
+            cacheWriteTokens = cacheWrite,
+            reportedTotalTokens = usage["total_tokens"]?.jsonPrimitive?.longOrNull
         )
     }
 
     private fun mergeUsage(base: NeutralUsage?, update: NeutralUsage?): NeutralUsage? {
         if (base == null) return update
         if (update == null) return base
-        return NeutralUsage(
-            inputTokens = update.inputTokens ?: base.inputTokens,
-            outputTokens = update.outputTokens ?: base.outputTokens,
-            cacheReadTokens = update.cacheReadTokens ?: base.cacheReadTokens,
-            cacheWriteTokens = update.cacheWriteTokens ?: base.cacheWriteTokens,
-            reasoningTokens = update.reasoningTokens ?: base.reasoningTokens,
-            totalTokens = update.totalTokens ?: base.totalTokens
-        )
+
+        val inputTokens = update.inputTokens ?: base.inputTokens
+        val outputTokens = update.outputTokens ?: base.outputTokens
+        val cacheReadTokens = update.cacheReadTokens ?: base.cacheReadTokens
+        val cacheWriteTokens = update.cacheWriteTokens ?: base.cacheWriteTokens
+        val reasoningTokens = update.reasoningTokens ?: base.reasoningTokens
+        val reportedTotal = listOfNotNull(base.totalTokens, update.totalTokens).maxOrNull()
+
+        return normalizedNeutralUsage(
+            inputTokens = inputTokens,
+            outputTokens = outputTokens,
+            cacheReadTokens = cacheReadTokens,
+            cacheWriteTokens = cacheWriteTokens,
+            reasoningTokens = reasoningTokens,
+            reportedTotalTokens = reportedTotal
+        ) ?: update
     }
 
     private fun parseJsonObject(value: JsonElement, label: String): Result<JsonObject> {

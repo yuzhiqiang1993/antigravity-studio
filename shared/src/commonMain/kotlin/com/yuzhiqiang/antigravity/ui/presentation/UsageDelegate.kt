@@ -30,6 +30,7 @@ class UsageDelegate(
     fun startInitialRefresh() {
         if (initialRefreshStarted) return
         initialRefreshStarted = true
+        com.yuzhiqiang.antigravity.logging.AppLog.i("Usage/Delegate") { "启动用量统计首次扫描 (force=false)" }
         scope.launch {
             usageRepository.refresh(force = false)
         }
@@ -40,12 +41,15 @@ class UsageDelegate(
      */
     fun refresh(force: Boolean = true) {
         initialRefreshStarted = true
+        com.yuzhiqiang.antigravity.logging.AppLog.i("Usage/Delegate") { "用户手动触发刷新用量统计 (force=$force)" }
         scope.launch {
             val result = usageRepository.refresh(force = force)
             val s = currentStrings()
             result.onSuccess { stats ->
+                com.yuzhiqiang.antigravity.logging.AppLog.i("Usage/Delegate") { "用量统计刷新成功: 会话总数=${stats.totalConversations}, 总Token=${stats.totalTokens}" }
                 showNotice(s.usageRefreshSuccessNotice(stats.totalConversations), NoticeKind.SUCCESS)
             }.onFailure { error ->
+                com.yuzhiqiang.antigravity.logging.AppLog.e("Usage/Delegate", error) { "用量统计刷新失败: ${error.message}" }
                 showNotice(error.message ?: "刷新用量失败", NoticeKind.ERROR)
             }
         }
@@ -85,6 +89,8 @@ class UsageDelegate(
      * 重新计算统计数据
      */
     fun recompute() {
-        usageRepository.recomputeStats()
+        scope.launch {
+            usageRepository.recomputeStats()
+        }
     }
 }

@@ -53,66 +53,77 @@ internal object ActivityEndpointRegistry {
                 category = ActivityEndpointCategory.AI_CHAT,
                 description = "核心大模型对话与流式文本生成"
             )
+
             clean.contains("generatecontent") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "内容生成 (非流式)",
                 category = ActivityEndpointCategory.AI_CHAT,
                 description = "大模型单次文本生成"
             )
+
             clean.contains("completecode") || clean.contains("inlinecompletion") || clean.contains("getcompletions") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "代码智能补全",
                 category = ActivityEndpointCategory.CODE_ASSIST,
                 description = "编辑器代码补全与续写"
             )
+
             clean.contains("recordcodeassistmetrics") || clean.contains("recordmetrics") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "指标数据上报",
                 category = ActivityEndpointCategory.SYSTEM,
                 description = "客户端性能监控与埋点"
             )
+
             clean.contains("fetchavailablemodels") || clean.contains("models") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "可用模型拉取",
                 category = ActivityEndpointCategory.SYSTEM,
                 description = "获取支持的模型目录"
             )
+
             clean.contains("retrieveuserquotassummary") || clean.contains("quotas") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "账号配额同步",
                 category = ActivityEndpointCategory.SYSTEM,
                 description = "查询当前生效账号配额"
             )
+
             clean.contains("fetchuserinfo") || clean.contains("userinfo") || clean.contains("getuserstatus") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "用户资料同步",
                 category = ActivityEndpointCategory.SYSTEM,
                 description = "用户账号信息获取"
             )
+
             clean.contains("listexperiments") || clean.contains("experiments") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "实验特性检测",
                 category = ActivityEndpointCategory.SYSTEM,
                 description = "灰度特性开关同步"
             )
+
             clean.contains("cascadenuxes") || clean.contains("nuxes") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "新手指引状态",
                 category = ActivityEndpointCategory.SYSTEM,
                 description = "新功能引导与打点"
             )
+
             clean.contains("loadcodeassist") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "辅助模块配置",
                 category = ActivityEndpointCategory.SYSTEM,
                 description = "IDE 辅助配置加载"
             )
+
             clean.contains("fetchadmincontrols") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "企业策略拉取",
                 category = ActivityEndpointCategory.SYSTEM,
                 description = "管理员控制策略"
             )
+
             else -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = cleanEndpointDisplayPath(path),
@@ -187,12 +198,11 @@ internal fun filterActivityLogs(
             add(log.statusCode.toString())
             listOfNotNull(
                 log.clientSource,
-                log.modelId,
-                log.requestedModelId,
                 log.providerName,
                 log.errorMessage,
                 log.errorSource
             ).forEach(::add)
+            addAll(log.modelIdentity?.searchTerms.orEmpty())
             addAll(additionalSearchTerms(log))
         }.any { it.lowercase().contains(normalizedQuery) }
 

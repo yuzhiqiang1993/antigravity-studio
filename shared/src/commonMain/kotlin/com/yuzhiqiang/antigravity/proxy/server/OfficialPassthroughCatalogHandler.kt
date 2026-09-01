@@ -1,6 +1,8 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
+import com.yuzhiqiang.antigravity.domain.model.resolveActivityIdentity
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
 import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
 import com.yuzhiqiang.antigravity.proxy.adapters.ProviderAdapter
@@ -94,11 +96,11 @@ internal class OfficialPassthroughCatalogHandler(
             OfficialCatalogProbe.setRawOfficialCatalog(body)
             val filtered = CatalogInjector.removeDisabledOfficialModels(
                 root,
-                configStore.currentConfig.disabledOfficialModels
+                configStore.currentConfig.disabledOfficialCatalogModelIds
             )
             val overridden = CatalogInjector.applyOfficialCompressionPolicies(
                 filtered,
-                configStore.currentConfig.modelCompressionPolicies
+                configStore.currentConfig.compressionPolicyAssignments
             )
             val responseJson = CatalogInjector.injectCustomModels(overridden, configStore.currentConfig)
             val clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call)
@@ -246,8 +248,9 @@ internal class OfficialPassthroughCatalogHandler(
         ActivityRecorder.record(
             method = method,
             path = path,
-            modelId = modelId,
-            requestedModelId = null,
+            modelIdentity = modelId?.let {
+                ModelObservation(requestedModelId = it, catalogModelId = it).resolveActivityIdentity()
+            },
             clientSource = clientSource,
             providerName = "Official Cloud Code",
             statusCode = status,

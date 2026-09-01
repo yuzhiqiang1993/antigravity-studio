@@ -66,9 +66,10 @@ class LanguageServerUsageReaderTest {
 
         assertNotNull(result)
         assertEquals(1, result.entries.size)
-        assertEquals(10L, result.entries.single().input)
-        assertEquals("vendor/model-a", result.entries.single().model)
-        assertEquals("Model A", result.entries.single().modelDisplayName)
+        val entry = result.entries.single()
+        assertEquals(10L, entry.input)
+        assertEquals("vendor/model-a", entry.modelObservation.responseModelId)
+        assertEquals("Model A", entry.modelObservation.displayName)
         assertEquals(
             listOf(0, 1),
             requests

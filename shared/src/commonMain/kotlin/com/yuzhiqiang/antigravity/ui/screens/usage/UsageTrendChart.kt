@@ -62,7 +62,7 @@ import kotlin.math.roundToInt
 fun UsageTrendChart(
     dailyBuckets: List<DailyUsageBucket>,
     hourlyBuckets: List<HourlyUsageBucket> = emptyList(),
-    timeRange: UsageTimeRange = UsageTimeRange.ROLLING_7D,
+    timeRange: UsageTimeRange = UsageTimeRange.CALENDAR_TODAY,
     modifier: Modifier = Modifier
 ) {
     val s = strings()
@@ -129,6 +129,7 @@ fun UsageTrendChart(
                 ChartLegendIndicator(s.usageTokenCacheWrite, colors.cacheWrite)
                 ChartLegendIndicator(s.usageTokenModelOutput, colors.output)
                 ChartLegendIndicator(s.usageTokenThinking, colors.reasoning)
+                ChartLegendIndicator(s.usageTokenUnattributed, colors.unattributed)
             }
 
             if (buckets.isEmpty()) {
@@ -161,13 +162,16 @@ fun UsageTrendChart(
                                         PointerEventType.Exit -> {
                                             if (selectedIndex != null) selectedIndex = null
                                         }
+
                                         PointerEventType.Move, PointerEventType.Enter -> {
                                             if (position != null) {
                                                 val plotStart = UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
-                                                val plotEnd = size.width - UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
+                                                val plotEnd =
+                                                    size.width - UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
                                                 val plotWidth = (plotEnd - plotStart).coerceAtLeast(1f)
                                                 val fraction = ((position.x - plotStart) / plotWidth).coerceIn(0f, 1f)
-                                                val newIndex = (fraction * (buckets.size - 1).coerceAtLeast(0)).roundToInt()
+                                                val newIndex =
+                                                    (fraction * (buckets.size - 1).coerceAtLeast(0)).roundToInt()
                                                 if (selectedIndex != newIndex) {
                                                     selectedIndex = newIndex
                                                 }
@@ -281,15 +285,28 @@ private fun SmoothUsagePlot(
             drawPath(
                 path = linePath,
                 color = colors.output,
-                style = Stroke(width = UsageVisualTokens.Chart.strokeWidth.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                style = Stroke(
+                    width = UsageVisualTokens.Chart.strokeWidth.toPx(),
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
             )
 
             // 5. 悬浮点高亮圆点
             selectedIndex?.let { index ->
                 points.getOrNull(index)?.let { point ->
-                    drawCircle(colors.output.copy(alpha = 0.22f), radius = UsageVisualTokens.Chart.dotHaloRadius.toPx(), center = point)
+                    drawCircle(
+                        colors.output.copy(alpha = 0.22f),
+                        radius = UsageVisualTokens.Chart.dotHaloRadius.toPx(),
+                        center = point
+                    )
                     drawCircle(Color.White, radius = UsageVisualTokens.Chart.dotRadius.toPx(), center = point)
-                    drawCircle(colors.output, radius = UsageVisualTokens.Chart.dotRadius.toPx(), center = point, style = Stroke(UsageVisualTokens.Chart.dotStrokeWidth.toPx()))
+                    drawCircle(
+                        colors.output,
+                        radius = UsageVisualTokens.Chart.dotRadius.toPx(),
+                        center = point,
+                        style = Stroke(UsageVisualTokens.Chart.dotStrokeWidth.toPx())
+                    )
                 }
             }
         }
@@ -309,11 +326,14 @@ private fun FloatingTrendTooltip(
 ) {
     val s = strings()
     val tooltipWidth = UsageVisualTokens.Tooltip.width
-    val leftOffset = (anchorX - tooltipWidth / 2).coerceIn(8.dp, (containerWidth - tooltipWidth - 8.dp).coerceAtLeast(8.dp))
-    val costText = when {
-        !bucket.pricingMatched -> s.usageCostUnavailable
-        else -> s.usageCostValue(UsageNumberFormatter.formatUsdAmount(bucket.costUsd))
-    }
+    val leftOffset =
+        (anchorX - tooltipWidth / 2).coerceIn(8.dp, (containerWidth - tooltipWidth - 8.dp).coerceAtLeast(8.dp))
+    val costText = usageBucketCostLabel(
+        bucket.costUsd,
+        bucket.pricingMatched,
+        bucket.costLowerBound,
+        s
+    )
     val cacheTotal = bucket.cacheRead + bucket.cacheWrite
     val arrowWidth = UsageVisualTokens.Tooltip.arrowWidth
     val arrowHeight = UsageVisualTokens.Tooltip.arrowHeight
@@ -366,7 +386,10 @@ private fun FloatingTrendTooltip(
                     )
                     Text(
                         text = UsageNumberFormatter.formatTokens(bucket.totalTokens),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = UsageVisualTokens.Typography.tooltipValue, fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = UsageVisualTokens.Typography.tooltipValue,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = UsageVisualTokens.Tooltip.tokenHighlightColor
                     )
                 }
@@ -384,14 +407,20 @@ private fun FloatingTrendTooltip(
                     )
                     Text(
                         text = UsageNumberFormatter.formatCount(bucket.calls),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = UsageVisualTokens.Typography.tooltipLabel, fontWeight = FontWeight.Medium),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = UsageVisualTokens.Typography.tooltipLabel,
+                            fontWeight = FontWeight.Medium
+                        ),
                         color = Color.White.copy(alpha = 0.95f)
                     )
                 }
 
                 if (bucket.totalTokens > 0L) {
                     // 输入
-                    TooltipLine(label = s.usageTokenPromptInput, value = UsageNumberFormatter.formatTokens(bucket.input))
+                    TooltipLine(
+                        label = s.usageTokenPromptInput,
+                        value = UsageNumberFormatter.formatTokens(bucket.input)
+                    )
 
                     // 缓存总计
                     TooltipLine(label = s.usageTokenCacheTotal, value = UsageNumberFormatter.formatTokens(cacheTotal))
@@ -411,11 +440,24 @@ private fun FloatingTrendTooltip(
                     )
 
                     // 输出
-                    TooltipLine(label = s.usageTokenModelOutput, value = UsageNumberFormatter.formatTokens(bucket.output))
+                    TooltipLine(
+                        label = s.usageTokenModelOutput,
+                        value = UsageNumberFormatter.formatTokens(bucket.output)
+                    )
 
                     // 思考推理 (if > 0)
                     if (bucket.reasoning > 0L) {
-                        TooltipLine(label = s.usageTokenThinking, value = UsageNumberFormatter.formatTokens(bucket.reasoning))
+                        TooltipLine(
+                            label = s.usageTokenThinking,
+                            value = UsageNumberFormatter.formatTokens(bucket.reasoning)
+                        )
+                    }
+
+                    if (bucket.unattributed > 0L) {
+                        TooltipLine(
+                            label = s.usageTokenUnattributed,
+                            value = UsageNumberFormatter.formatTokens(bucket.unattributed)
+                        )
                     }
                 }
 
@@ -432,7 +474,10 @@ private fun FloatingTrendTooltip(
                     )
                     Text(
                         text = costText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = UsageVisualTokens.Typography.tooltipLabel, fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = UsageVisualTokens.Typography.tooltipLabel,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = UsageVisualTokens.Tooltip.costHighlightColor
                     )
                 }
@@ -474,7 +519,10 @@ private fun TooltipLine(
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = UsageVisualTokens.Typography.tooltipLabel, fontWeight = if (subdued) FontWeight.Normal else FontWeight.Medium),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = UsageVisualTokens.Typography.tooltipLabel,
+                fontWeight = if (subdued) FontWeight.Normal else FontWeight.Medium
+            ),
             color = if (subdued) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.95f)
         )
     }
@@ -524,17 +572,21 @@ private fun UsageAxisLabels(
         val xStep = if (buckets.size <= 1) 0.dp else plotWidth / (buckets.size - 1)
         val itemApproxWidth = UsageVisualTokens.Chart.axisItemWidth
 
+        val minIndexGap = maxOf(2, labelStep)
         buckets.forEachIndexed { index, bucket ->
             val isFirst = index == 0
             val isLast = index == buckets.lastIndex
-            val show = isFirst || isLast || (index % labelStep == 0 && (buckets.lastIndex - index) >= labelStep / 2)
+            val show = isFirst || isLast || (index % labelStep == 0 && (buckets.lastIndex - index) >= minIndexGap && index >= minIndexGap)
             if (show) {
                 val isSelected = selectedIndex == index
                 val xPos = if (buckets.size <= 1) (plotStart + plotEnd) / 2 else plotStart + xStep * index
                 val leftOffset = when {
                     isFirst -> plotStart
                     isLast -> (plotEnd - itemApproxWidth).coerceAtLeast(plotStart)
-                    else -> (xPos - itemApproxWidth / 2).coerceIn(plotStart, (plotEnd - itemApproxWidth).coerceAtLeast(plotStart))
+                    else -> (xPos - itemApproxWidth / 2).coerceIn(
+                        plotStart,
+                        (plotEnd - itemApproxWidth).coerceAtLeast(plotStart)
+                    )
                 }
                 val alignment = when {
                     isFirst -> Alignment.Start
@@ -606,7 +658,7 @@ private fun formatDateLabel(date: String): String {
     }
 }
 
-private fun toHourlyTrendBuckets(
+internal fun toHourlyTrendBuckets(
     buckets: List<HourlyUsageBucket>,
     timeRange: UsageTimeRange
 ): List<DailyUsageBucket> {
@@ -627,6 +679,7 @@ private fun toHourlyTrendBuckets(
                 cacheRead = bucket.cacheRead,
                 cacheWrite = bucket.cacheWrite,
                 reasoning = bucket.reasoning,
+                unattributed = bucket.unattributed,
                 calls = bucket.calls,
                 costUsd = bucket.costUsd,
                 pricingMatched = bucket.pricingMatched,
@@ -636,7 +689,7 @@ private fun toHourlyTrendBuckets(
         .toList()
 }
 
-private fun downsampleDailyBuckets(buckets: List<DailyUsageBucket>): List<DailyUsageBucket> {
+internal fun downsampleDailyBuckets(buckets: List<DailyUsageBucket>): List<DailyUsageBucket> {
     val sorted = buckets.sortedBy { it.date }
     if (sorted.size <= 60) return sorted
     val bucketSize = ceil(sorted.size / 60.0).toInt()
@@ -648,6 +701,7 @@ private fun downsampleDailyBuckets(buckets: List<DailyUsageBucket>): List<DailyU
             cacheRead = chunk.sumOf { it.cacheRead },
             cacheWrite = chunk.sumOf { it.cacheWrite },
             reasoning = chunk.sumOf { it.reasoning },
+            unattributed = chunk.sumOf { it.unattributed },
             calls = chunk.sumOf { it.calls },
             costUsd = chunk.sumOf { it.costUsd },
             savingsUsd = chunk.sumOf { it.savingsUsd },
@@ -656,4 +710,3 @@ private fun downsampleDailyBuckets(buckets: List<DailyUsageBucket>): List<DailyU
         )
     }
 }
-

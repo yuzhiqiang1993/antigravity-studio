@@ -121,6 +121,7 @@ interface ActivityStrings {
     val activityDetailReasoningTokens: String
     val activityDetailCacheReadTokens: String
     val activityDetailCacheWriteTokens: String
+    val activityDetailUnattributedTokens: String
     val activityDetailErrorSection: String
     val activityDetailErrorSource: String
     val activityErrorSourceUpstreamResponse: String
@@ -242,6 +243,7 @@ object ActivityStringsZh : ActivityStrings {
             }
         }
     }
+
     override fun activityFilterMatches(shown: Int, total: Int) = "匹配 $shown / $total 条"
     override fun activityFilterSelectedDimension(label: String, count: Int) = "$label $count"
     override val activityTokenInput = "输入"
@@ -288,6 +290,7 @@ object ActivityStringsZh : ActivityStrings {
     override val activityDetailReasoningTokens = "推理 (Thinking)"
     override val activityDetailCacheReadTokens = "缓存读取 (Read)"
     override val activityDetailCacheWriteTokens = "缓存写入 (Write)"
+    override val activityDetailUnattributedTokens = "未归因 (Unattributed)"
     override val activityDetailErrorSection = "错误详情与服务端原始响应"
     override val activityDetailErrorSource = "错误来源"
     override val activityErrorSourceUpstreamResponse = "上游服务响应"
@@ -335,14 +338,16 @@ object ActivityStringsEn : ActivityStrings {
     override val activityAvgDuration = "Duration"
     override val activityCacheHitRate = "Cache Hit Rate"
     override val activityModelLatencyDialogTitle = "Model Speed & Latency"
-    override val activityModelLatencyDialogSubtitle = "Overview of first token response, generation speed, and total duration across models"
+    override val activityModelLatencyDialogSubtitle =
+        "Overview of first token response, generation speed, and total duration across models"
     override val activityModelLatencyTotalSamples = "Total Samples"
     override val activityModelLatencyActiveModels = "Models"
     override val activityModelLatencyOverallAvg = "Avg First Token"
     override val activityModelLatencyOverallAvgDuration = "Avg Duration"
     override val activityModelLatencyOverallAvgTps = "Avg Speed"
     override val activityModelLatencyEmpty = "No model latency recorded"
-    override val activityModelLatencyEmptyDesc = "First token response, speed, and session duration will be summarized here after model requests"
+    override val activityModelLatencyEmptyDesc =
+        "First token response, speed, and session duration will be summarized here after model requests"
     override val activityModelLatencyColModel = "Model"
     override val activityModelLatencyColSamples = "Samples"
     override val activityModelLatencyColAvgTtft = "First Token (TTFT)"
@@ -410,6 +415,7 @@ object ActivityStringsEn : ActivityStrings {
             }
         }
     }
+
     override fun activityFilterMatches(shown: Int, total: Int) = "$shown of $total matching"
     override fun activityFilterSelectedDimension(label: String, count: Int) = "$label: $count"
     override val activityTokenInput = "Input"
@@ -456,6 +462,7 @@ object ActivityStringsEn : ActivityStrings {
     override val activityDetailReasoningTokens = "Thinking Tokens"
     override val activityDetailCacheReadTokens = "Cache Read Tokens"
     override val activityDetailCacheWriteTokens = "Cache Write Tokens"
+    override val activityDetailUnattributedTokens = "Unattributed Tokens"
     override val activityDetailErrorSection = "Error Details & Upstream Response"
     override val activityDetailErrorSource = "Error Source"
     override val activityErrorSourceUpstreamResponse = "Upstream provider response"

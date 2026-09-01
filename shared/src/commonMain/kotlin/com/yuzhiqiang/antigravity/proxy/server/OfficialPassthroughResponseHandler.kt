@@ -92,12 +92,11 @@ internal class OfficialPassthroughResponseHandler(
             null
         }
 
-        val nonStreamingUsage = responseBodyString?.let { text ->
-            runCatching {
-                val jsonElement: JsonElement = OfficialPassthroughJson.catalog.parseToJsonElement(text)
-                OfficialPassthroughUsage.parseGeminiUsage(jsonElement)
-            }.getOrNull()
+        val nonStreamingJson = responseBodyString?.let { text ->
+            runCatching { OfficialPassthroughJson.catalog.parseToJsonElement(text) }.getOrNull()
         }
+        val nonStreamingUsage = nonStreamingJson?.let(OfficialPassthroughUsage::parseGeminiUsage)
+        val nonStreamingResponseModelId = nonStreamingJson?.let(OfficialPassthroughUsage::parseResponseModelId)
 
         ActivityRecorder.finishActivity(
             id = logId,
@@ -105,6 +104,7 @@ internal class OfficialPassthroughResponseHandler(
             durationMs = System.currentTimeMillis() - startTime,
             firstByteMs = responseReadyMs,
             usage = nonStreamingUsage,
+            responseModelId = nonStreamingResponseModelId,
             retryCount = attempt - 1,
             responseHeaders = responseHeaders,
             responseBody = if (isDebug) (responseBodyString ?: bodyBytes.decodeToString()) else null
@@ -155,12 +155,14 @@ internal class OfficialPassthroughResponseHandler(
         call.response.headers.append("X-Accel-Buffering", "no")
         OfficialPassthroughHttpSupport.copyForwardResponseHeaders(call, response)
         var latestUsage: NeutralUsage? = null
+        var latestResponseModelId: String? = null
         val sseBuffer = StringBuilder()
-        val debugStreamBody = if (isDebug) StringBuilder() else null
+        val debugStreamBody = if (isDebug) BoundedDebugTextBuffer() else null
         var streamErrorCaught: Throwable? = null
 
         fun recordObservation(observation: OfficialSseObservation, atMs: Long) {
             observation.usage?.let { latestUsage = it }
+            observation.responseModelId?.let { latestResponseModelId = it }
             if (observation.hasMeaningfulContent) {
                 val (elapsedMs, isFirst) = timingTracker.recordMeaningfulContent(atMs)
                 if (isFirst) ActivityRecorder.updateFirstToken(logId, elapsedMs)
@@ -230,6 +232,7 @@ internal class OfficialPassthroughResponseHandler(
                 stallCount = timing.stallCount,
                 stallDurationMs = timing.stallDurationMs,
                 usage = latestUsage,
+                responseModelId = latestResponseModelId,
                 errorMessage = streamErrorCaught?.message,
                 errorSource = streamErrorCaught?.let { StreamErrorSource.UPSTREAM_TRANSPORT.name },
                 retryCount = attempt - 1,
@@ -249,6 +252,7 @@ internal class OfficialPassthroughResponseHandler(
                     StreamErrorSource.STUDIO_PROXY.name
                 },
                 usage = latestUsage,
+                responseModelId = latestResponseModelId,
                 firstByteMs = timing.firstByteMs,
                 firstTokenMs = timing.firstTokenMs,
                 lastTokenMs = timing.lastTokenMs,

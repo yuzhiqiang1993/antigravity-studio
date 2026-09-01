@@ -2,8 +2,9 @@ package com.yuzhiqiang.antigravity.doctor.engine
 
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
 import com.yuzhiqiang.antigravity.doctor.model.*
+import com.yuzhiqiang.antigravity.domain.model.CompressionPolicyTargetType
 import com.yuzhiqiang.antigravity.domain.model.Provider
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import com.yuzhiqiang.antigravity.host.cli.CliHostManager
 import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
@@ -180,8 +181,10 @@ class DoctorEngine(
             )
         } else {
             for (provider in enabledProviders) {
-                val providerUpstreams = config.upstreamModels.filter { it.providerId == provider.id && it.enabled }
-                if (providerUpstreams.isEmpty()) {
+                val providerBindings = config.providerModelBindings.filter { binding ->
+                    binding.providerConfigId == provider.id && binding.enabled
+                }
+                if (providerBindings.isEmpty()) {
                     items.add(
                         DoctorCheckItem(
                             id = "provider.${provider.id}.no_models",
@@ -193,7 +196,7 @@ class DoctorEngine(
                         )
                     )
                 } else {
-                    diagnoseProvider(provider, providerUpstreams, items, s)
+                    diagnoseProvider(provider, providerBindings, items, s)
                 }
             }
         }
@@ -216,13 +219,17 @@ class DoctorEngine(
                             category = DoctorCheckCategory.HOST,
                             title = s.doctorCheckIdeMismatchTitle,
                             status = DoctorCheckStatus.WARNING,
-                            message = s.doctorCheckIdeMismatchMsg(ideStatus.configuredEndpoint ?: s.commonUnknown, actualPort),
+                            message = s.doctorCheckIdeMismatchMsg(
+                                ideStatus.configuredEndpoint ?: s.commonUnknown,
+                                actualPort
+                            ),
                             suggestion = s.doctorCheckIdeMismatchSugg,
                             autoFixable = true,
                             fixAction = DoctorFixAction.UpdateIdeSettings
                         )
                     )
                 }
+
                 ideStatus.isProxyActive -> {
                     val statusMsg = if (ideStatus.isRunning) s.doctorCheckIdeRunningSuffix else ""
                     items.add(
@@ -235,6 +242,7 @@ class DoctorEngine(
                         )
                     )
                 }
+
                 else -> {
                     items.add(
                         DoctorCheckItem(
@@ -266,13 +274,17 @@ class DoctorEngine(
                             category = DoctorCheckCategory.HOST,
                             title = s.doctorCheckAppMismatchTitle,
                             status = DoctorCheckStatus.WARNING,
-                            message = s.doctorCheckAppMismatchMsg(appStatus.configuredEndpoint ?: s.commonUnknown, actualPort),
+                            message = s.doctorCheckAppMismatchMsg(
+                                appStatus.configuredEndpoint ?: s.commonUnknown,
+                                actualPort
+                            ),
                             suggestion = s.doctorCheckAppMismatchSugg,
                             autoFixable = true,
                             fixAction = DoctorFixAction.UpdateAppEnvironment
                         )
                     )
                 }
+
                 appStatus.isProxyActive -> {
                     val statusMsg = if (appStatus.isRunning) s.doctorCheckAppRunningSuffix else ""
                     items.add(
@@ -285,6 +297,7 @@ class DoctorEngine(
                         )
                     )
                 }
+
                 else -> {
                     items.add(
                         DoctorCheckItem(
@@ -316,13 +329,17 @@ class DoctorEngine(
                             category = DoctorCheckCategory.HOST,
                             title = s.doctorCheckCliMismatchTitle,
                             status = DoctorCheckStatus.WARNING,
-                            message = s.doctorCheckCliMismatchMsg(cliStatus.configuredEndpoint ?: s.commonUnknown, actualPort),
+                            message = s.doctorCheckCliMismatchMsg(
+                                cliStatus.configuredEndpoint ?: s.commonUnknown,
+                                actualPort
+                            ),
                             suggestion = s.doctorCheckCliMismatchSugg,
                             autoFixable = true,
                             fixAction = DoctorFixAction.UpdateCliConfig
                         )
                     )
                 }
+
                 cliStatus.isProxyActive -> {
                     items.add(
                         DoctorCheckItem(
@@ -334,6 +351,7 @@ class DoctorEngine(
                         )
                     )
                 }
+
                 else -> {
                     items.add(
                         DoctorCheckItem(
@@ -363,7 +381,7 @@ class DoctorEngine(
 
     private suspend fun diagnoseProvider(
         provider: Provider,
-        providerUpstreams: List<UpstreamModel>,
+        providerBindings: List<ProviderModelBinding>,
         items: MutableList<DoctorCheckItem>,
         s: com.yuzhiqiang.antigravity.i18n.Strings
     ) {
@@ -372,9 +390,9 @@ class DoctorEngine(
             .map(::normalizeModelReference)
             .toSet()
         if (catalogIds.isNotEmpty()) {
-            val invalidModels = providerUpstreams
-                .filter { model -> normalizeModelReference(model.upstreamModelId) !in catalogIds }
-                .map(UpstreamModel::upstreamModelId)
+            val invalidModels = providerBindings
+                .filter { binding -> normalizeModelReference(binding.providerModelId) !in catalogIds }
+                .map(ProviderModelBinding::providerModelId)
             if (invalidModels.isNotEmpty()) {
                 items += DoctorCheckItem(
                     id = "provider.${provider.id}.invalid_models",
@@ -392,7 +410,7 @@ class DoctorEngine(
                     category = DoctorCheckCategory.PROVIDER,
                     title = s.doctorCheckProviderOkTitle(provider.name),
                     status = DoctorCheckStatus.PASSED,
-                    message = s.doctorCheckProviderOkMsg(providerUpstreams.size)
+                    message = s.doctorCheckProviderOkMsg(providerBindings.size)
                 )
             }
             return
@@ -423,25 +441,27 @@ class DoctorEngine(
     private fun pruneInvalidModels(action: DoctorFixAction.PruneInvalidModels): Boolean {
         val invalidIds = action.invalidModelIds.map(::normalizeModelReference).toSet()
         configStore.updateConfig { current ->
-            val removedUpstreams = current.upstreamModels.filter { model ->
-                model.providerId == action.providerId &&
-                        normalizeModelReference(model.upstreamModelId) in invalidIds
+            val removedBindings = current.providerModelBindings.filter { binding ->
+                binding.providerConfigId == action.providerId &&
+                        normalizeModelReference(binding.providerModelId) in invalidIds
             }
-            val removedUpstreamIds = removedUpstreams.map(UpstreamModel::id).toSet()
-            val removedVirtuals = current.virtualModels.filter { virtual ->
-                virtual.upstreamModelId in removedUpstreamIds
-            }
-            val removedVirtualIds = removedVirtuals.flatMap { virtual ->
-                listOf(virtual.id, virtual.hostModelId.orEmpty())
-            }.map(::normalizeModelReference).toSet()
-            val removedVirtualModelIds = removedVirtuals.map { virtual -> virtual.id }.toSet()
-            val removedReferences = invalidIds + removedUpstreamIds + removedVirtualIds
+            val removedBindingIds = removedBindings.map(ProviderModelBinding::bindingId).toSet()
+            val removedVariantIds = current.modelRouteVariants
+                .filter { variant -> variant.bindingId in removedBindingIds }
+                .mapTo(mutableSetOf()) { variant -> variant.variantId }
             current.copy(
-                upstreamModels = current.upstreamModels.filterNot { it.id in removedUpstreamIds },
-                virtualModels = current.virtualModels
-                    .filterNot { it.id in removedVirtualModelIds },
-                modelCompressionPolicies = current.modelCompressionPolicies.filterKeys { key ->
-                    normalizeModelReference(key) !in removedReferences
+                providerModelBindings = current.providerModelBindings.filterNot { binding ->
+                    binding.bindingId in removedBindingIds
+                },
+                modelRouteVariants = current.modelRouteVariants.filterNot { variant ->
+                    variant.variantId in removedVariantIds
+                },
+                compressionPolicyAssignments = current.compressionPolicyAssignments.filterNot { assignment ->
+                    when (assignment.targetType) {
+                        CompressionPolicyTargetType.PROVIDER_MODEL_BINDING -> assignment.targetId in removedBindingIds
+                        CompressionPolicyTargetType.MODEL_ROUTE_VARIANT -> assignment.targetId in removedVariantIds
+                        CompressionPolicyTargetType.OFFICIAL_CATALOG_MODEL -> false
+                    }
                 }
             )
         }

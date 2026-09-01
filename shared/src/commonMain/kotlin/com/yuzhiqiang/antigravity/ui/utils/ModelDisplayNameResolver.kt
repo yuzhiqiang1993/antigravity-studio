@@ -10,8 +10,8 @@ object ModelDisplayNameResolver {
 
     /**
      * 将 modelId 解析为易读的 displayName：
-     * 1. 优先在 officialModels 中匹配（精确或 baseModel + 档位）
-     * 2. 其次在 config.virtualModels / upstreamModels 中匹配配置好的 displayName
+     * 1. 优先在 officialModels 中匹配（精确或 catalogModel + 档位）
+     * 2. 其次在 config.modelRouteVariants / providerModelBindings 中匹配配置好的 displayName
      * 3. 兜底通过智能规则格式化（如去掉 custom- 前缀、识别常见模型名、推理档位格式化）
      */
     fun resolve(
@@ -25,54 +25,46 @@ object ModelDisplayNameResolver {
         // 1. 查找官方模型列表
         val effectiveOfficial = officialModels?.takeIf { it.isNotEmpty() }
             ?: OfficialCatalogProbe.lastParsedModels
-        val exactOfficial = effectiveOfficial.firstOrNull { it.id.equals(trimmed, ignoreCase = true) }
+        val exactOfficial = effectiveOfficial.firstOrNull { model ->
+            model.catalogModelId.equals(trimmed, ignoreCase = true) ||
+                    model.runtimeModelId?.equals(trimmed, ignoreCase = true) == true ||
+                    model.providerModelId?.equals(trimmed, ignoreCase = true) == true
+        }
         if (exactOfficial != null && exactOfficial.displayName.isNotBlank()) {
             return exactOfficial.displayName
         }
 
-        // 2. 查找配置中的自定义虚拟模型或上游模型
+        // 2. 查找配置中的路由变体或 Provider 模型 Binding
         if (config != null) {
-            val virtual = config.virtualModels.firstOrNull {
-                it.id.equals(trimmed, ignoreCase = true) ||
-                        it.hostModelId.equals(trimmed, ignoreCase = true) ||
-                        ModelIdentity.catalogKey(it).equals(trimmed, ignoreCase = true)
+            val variant = config.modelRouteVariants.firstOrNull { candidate ->
+                candidate.variantId.equals(trimmed, ignoreCase = true) ||
+                        candidate.catalogModelId.equals(trimmed, ignoreCase = true) ||
+                        candidate.runtimeModelId.equals(trimmed, ignoreCase = true)
             }
-            if (virtual != null) {
-                val rawName = virtual.displayName?.takeIf { it.isNotBlank() }
-                    ?: virtual.name.takeIf { it.isNotBlank() }
-                if (rawName != null) {
-                    val upstream = config.upstreamModels.firstOrNull { it.id == virtual.upstreamModelId }
-                    val provider = upstream?.let { up -> config.providers.firstOrNull { it.id == up.providerId && it.enabled } }
-                    return if (virtual.displayName.isNullOrBlank() && provider != null && upstream != null) {
-                        ModelIdentity.configuredModelDisplayName(
-                            modelName = rawName,
-                            reasoningLevel = virtual.defaultReasoningLevel,
-                            providerName = provider.name,
-                            supportsReasoning = upstream.capabilities.reasoning.supportsReasoning
-                        )
-                    } else {
-                        rawName
-                    }
+            if (variant != null) {
+                return variant.displayName.ifBlank {
+                    config.providerModelBindings
+                        .firstOrNull { binding -> binding.bindingId == variant.bindingId }
+                        ?.effectiveName
+                        ?: trimmed
                 }
             }
 
-            val upstream = config.upstreamModels.firstOrNull {
-                it.id.equals(trimmed, ignoreCase = true) ||
-                        it.upstreamModelId.equals(trimmed, ignoreCase = true)
+            val binding = config.providerModelBindings.firstOrNull { candidate ->
+                candidate.bindingId.equals(trimmed, ignoreCase = true) ||
+                        candidate.providerModelId.equals(trimmed, ignoreCase = true)
             }
-            if (upstream != null) {
-                val rawName = upstream.displayName?.takeIf { it.isNotBlank() }
-                    ?: upstream.name.takeIf { it.isNotBlank() }
-                if (rawName != null) {
-                    return rawName
-                }
+            if (binding != null) {
+                return binding.effectiveName
             }
         }
 
         // 3. 官方模型基础 ID + 推理档位尝试
         val (baseId, reasoningLevel) = extractReasoningLevel(trimmed)
         if (reasoningLevel != null) {
-            val baseOfficial = effectiveOfficial.firstOrNull { it.id.equals(baseId, ignoreCase = true) }
+            val baseOfficial = effectiveOfficial.firstOrNull { model ->
+                model.catalogModelId.equals(baseId, ignoreCase = true)
+            }
             if (baseOfficial != null && baseOfficial.displayName.isNotBlank()) {
                 val cleanBase = ModelIdentity.stripDisplayLevelSuffix(baseOfficial.displayName)
                 return "$cleanBase (${reasoningLevel.label})"

@@ -7,6 +7,7 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralMessage
 import com.yuzhiqiang.antigravity.proxy.model.NeutralRole
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
+import com.yuzhiqiang.antigravity.proxy.model.normalizedNeutralUsage
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -119,6 +120,9 @@ internal object OpenAiChatCompletionsCodec {
             }
             val usage = parseUsage(root)
             val chunks = mutableListOf<NeutralStreamChunk>()
+            root["model"]?.jsonPrimitive?.contentOrNull
+                ?.takeIf(String::isNotBlank)
+                ?.let { chunks += NeutralStreamChunk.ResponseMetadata(it) }
             val choices = root["choices"]?.jsonArray.orEmpty()
             if (choices.isEmpty()) {
                 usage?.let { chunks.add(NeutralStreamChunk.Completed(null, it)) }
@@ -165,6 +169,9 @@ internal object OpenAiChatCompletionsCodec {
             val root = json.parseToJsonElement(data).jsonObject
             val usage = parseUsage(root)
             val chunks = mutableListOf<NeutralStreamChunk>()
+            root["model"]?.jsonPrimitive?.contentOrNull
+                ?.takeIf(String::isNotBlank)
+                ?.let { chunks += NeutralStreamChunk.ResponseMetadata(it) }
             val choices = root["choices"]?.jsonArray.orEmpty()
             if (choices.isEmpty()) {
                 usage?.let { chunks.add(NeutralStreamChunk.Completed(null, it)) }
@@ -293,6 +300,7 @@ internal object OpenAiChatCompletionsCodec {
                     normalizeJsonSchema(child)
                 }
             })
+
             is JsonArray -> JsonArray(value.map(::normalizeJsonSchema))
             else -> value
         }
@@ -358,6 +366,7 @@ internal object OpenAiChatCompletionsCodec {
         fun long(vararg keys: String): Long? = keys.firstNotNullOfOrNull { key ->
             usage[key]?.jsonPrimitive?.longOrNull
         }
+
         val prompt = long("prompt_tokens", "input_tokens")
         val completion = long("completion_tokens", "output_tokens")
         val reasoning = usage["completion_tokens_details"]?.jsonObject
@@ -367,13 +376,15 @@ internal object OpenAiChatCompletionsCodec {
             ?.get("cached_tokens")?.jsonPrimitive?.longOrNull
             ?: long("cache_read_input_tokens", "cached_tokens")
         val cacheWrite = long("cache_creation_input_tokens", "cache_write_input_tokens")
-        val validCacheBreakdown = prompt != null &&
-                (cached ?: 0L) + (cacheWrite ?: 0L) <= prompt
-        val validReasoningBreakdown = completion != null &&
-                (reasoning ?: 0L) <= completion
-        val computedTotal = prompt?.plus(completion ?: 0L)
-        val reportedTotal = long("total_tokens")
-        return NeutralUsage(
+        val cachedTokens = cached ?: 0L
+        val cacheWriteTokens = cacheWrite ?: 0L
+        val reasoningTokens = reasoning ?: 0L
+        val validCacheBreakdown = prompt != null && prompt >= 0L &&
+                cachedTokens >= 0L && cacheWriteTokens in 0L..prompt &&
+                cachedTokens <= prompt - cacheWriteTokens
+        val validReasoningBreakdown = completion != null && completion >= 0L &&
+                reasoningTokens in 0L..completion
+        return normalizedNeutralUsage(
             inputTokens = prompt?.let { total ->
                 if (validCacheBreakdown) total - (cached ?: 0L) - (cacheWrite ?: 0L) else total
             },
@@ -383,7 +394,7 @@ internal object OpenAiChatCompletionsCodec {
             cacheReadTokens = cached.takeIf { validCacheBreakdown },
             cacheWriteTokens = cacheWrite.takeIf { validCacheBreakdown },
             reasoningTokens = reasoning.takeIf { validReasoningBreakdown },
-            totalTokens = reportedTotal?.takeIf { computedTotal == null || it >= computedTotal } ?: computedTotal
+            reportedTotalTokens = long("total_tokens")
         )
     }
 
@@ -408,6 +419,7 @@ internal object OpenAiChatCompletionsCodec {
                     }
                 }
             }
+
             else -> Unit
         }
     }

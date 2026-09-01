@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
+import com.yuzhiqiang.antigravity.domain.model.ActivityModelIdentity
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
 import com.yuzhiqiang.antigravity.proxy.adapters.AdapterFactory
 import com.yuzhiqiang.antigravity.proxy.adapters.ProviderAdapter
@@ -37,12 +38,27 @@ class ByokForwardHandler(
         val stream = route.request.stream
         val isDebug = configStore.currentConfig.isDebugMode
         val reqHeaders = if (isDebug) extractRequestHeaders(call) else null
+        val identity = route.modelExecutionIdentity
+        val activityIdentity = ActivityModelIdentity(
+            requestedModelId = identity.requestedModelId,
+            variantId = identity.variantId,
+            catalogModelId = identity.catalogModelId,
+            runtimeModelId = identity.runtimeModelId,
+            bindingId = identity.bindingId,
+            providerConfigId = identity.providerConfigId,
+            providerModelId = identity.providerModelId,
+            canonicalModelId = identity.canonicalModelId,
+            baseModelId = identity.baseModelId,
+            providerVendor = identity.providerVendor,
+            displayName = identity.displayName,
+            reasoningProfile = identity.reasoningProfile,
+            identityResolution = identity.identityResolution
+        )
 
         val logId = ActivityRecorder.startActivity(
             method = "POST",
             path = path,
-            modelId = route.virtualModel?.id ?: route.upstreamModel.id,
-            requestedModelId = route.requestedModelId,
+            modelIdentity = activityIdentity,
             clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
             providerName = route.provider.name,
             isOfficialPassthrough = false,
@@ -122,6 +138,9 @@ class ByokForwardHandler(
         val usage = collected.filterIsInstance<NeutralStreamChunk.Completed>()
             .lastOrNull { it.usage != null }
             ?.usage
+        val responseModelId = collected.filterIsInstance<NeutralStreamChunk.ResponseMetadata>()
+            .lastOrNull()
+            ?.responseModelId
         val body = encoded.getOrElse { error ->
             ResponseEncoder.encodeErrorToGeminiJson(
                 error.message ?: "Failed to encode provider response",
@@ -130,22 +149,18 @@ class ByokForwardHandler(
             )
         }
         val durationMs = System.currentTimeMillis() - startTime
-        val nonStreamingFirstTokenMs = if (status < 400 && collected.any(::isMeaningfulContentChunk)) {
-            durationMs
-        } else {
-            null
-        }
+        val firstTokenMs = resolveNonStreamingFirstTokenMs(status, durationMs, collected)
         ActivityRecorder.finishActivity(
             id = logId,
             statusCode = status,
             durationMs = durationMs,
-            modelId = route.virtualModel?.id ?: route.upstreamModel.id,
             providerName = route.provider.name,
             errorMessage = errorChunk?.message ?: encoderError?.message,
             errorSource = errorChunk?.source?.name
                 ?: encoderError?.let { StreamErrorSource.STUDIO_ADAPTER.name },
             usage = usage,
-            firstTokenMs = nonStreamingFirstTokenMs,
+            responseModelId = responseModelId,
+            firstTokenMs = firstTokenMs,
             retryCount = retryCount,
             responseBody = if (isDebug) body else null
         )
@@ -164,8 +179,9 @@ class ByokForwardHandler(
         var errorMessage: String? = null
         var errorSource: StreamErrorSource? = null
         var latestUsage: NeutralUsage? = null
+        var latestResponseModelId: String? = null
         var attempt = 0
-        val sseBuffer = if (isDebug) StringBuilder() else null
+        val sseBuffer = if (isDebug) BoundedDebugTextBuffer() else null
         val timingTracker = StreamTimingTracker(startTime)
 
         val maxRetries = maxOf(0, route.provider.maxRetries)
@@ -247,6 +263,7 @@ class ByokForwardHandler(
 
                     finalResult = attemptResult
                     latestUsage = attemptResult.usage
+                    latestResponseModelId = attemptResult.responseModelId ?: latestResponseModelId
                     if (attemptResult.isSuccessful || attemptResult.committed) break
 
                     val retryError = attemptResult.error ?: NeutralStreamChunk.Error(
@@ -301,11 +318,11 @@ class ByokForwardHandler(
             id = logId,
             statusCode = status,
             durationMs = System.currentTimeMillis() - startTime,
-            modelId = route.virtualModel?.id ?: route.upstreamModel.id,
             providerName = route.provider.name,
             errorMessage = errorMessage,
             errorSource = errorSource?.name,
             usage = latestUsage,
+            responseModelId = latestResponseModelId,
             firstByteMs = timing.firstByteMs,
             firstTokenMs = timing.firstTokenMs,
             lastTokenMs = timing.lastTokenMs,

@@ -183,9 +183,10 @@ fun ActivityDetailDialog(
                             s.activityDetailRouteMode,
                             if (log.isOfficialPassthrough) s.activityDetailPassthroughMode else s.activityDetailForwardMode
                         )
-                        log.modelId?.let { DetailItemRow(s.activityDetailTargetModel, it, isMonospace = true) }
-                        log.requestedModelId
-                            ?.takeIf { it != log.modelId }
+                        val activityModelId = log.modelIdentity?.primaryModelId
+                        activityModelId?.let { DetailItemRow(s.activityDetailTargetModel, it, isMonospace = true) }
+                        log.modelIdentity?.requestedModelId
+                            ?.takeIf { it != activityModelId }
                             ?.let { DetailItemRow(s.activityDetailRequestedModel, it, isMonospace = true) }
                         if (!log.isOfficialPassthrough) {
                             log.providerName?.let { DetailItemRow(s.activityDetailProvider, it) }
@@ -194,8 +195,8 @@ fun ActivityDetailDialog(
 
                     // 2. 速度与流式指标 (若存在)
                     val hasSpeedInfo = log.tokensPerSecond != null || log.timePerOutputTokenMs != null ||
-                        log.generationDurationMs != null || log.maxChunkGapMs != null || log.stallCount > 0 ||
-                        log.lastTokenMs != null || log.stallDurationMs != null
+                            log.generationDurationMs != null || log.maxChunkGapMs != null || log.stallCount > 0 ||
+                            log.lastTokenMs != null || log.stallDurationMs != null
                     if (hasSpeedInfo) {
                         DetailSectionCard(title = s.activityDetailSpeedSection) {
                             Row(
@@ -245,7 +246,9 @@ fun ActivityDetailDialog(
                     }
 
                     // 3. Token 消耗统计 (若存在)
-                    val hasTokenInfo = log.totalTokens != null || log.inputTokens != null || log.outputTokens != null
+                    val hasTokenInfo = log.totalTokens != null || log.inputTokens != null || log.outputTokens != null ||
+                            log.cacheReadTokens != null || log.cacheWriteTokens != null || log.reasoningTokens != null ||
+                            log.unattributedTokens != null
                     if (hasTokenInfo) {
                         DetailSectionCard(title = s.activityDetailTokenSection) {
                             Row(
@@ -270,7 +273,9 @@ fun ActivityDetailDialog(
                                 )
                             }
 
-                            if (log.reasoningTokens != null || log.cacheReadTokens != null || log.cacheWriteTokens != null) {
+                            if (log.reasoningTokens != null || log.cacheReadTokens != null || log.cacheWriteTokens != null ||
+                                log.unattributedTokens != null
+                            ) {
                                 val hitRate =
                                     calculateCacheHitRate(log.cacheReadTokens, log.inputTokens, log.cacheWriteTokens)
                                 Row(
@@ -292,6 +297,13 @@ fun ActivityDetailDialog(
                                         log.cacheWriteTokens?.let(::formatTokens) ?: "—",
                                         Modifier.weight(1f)
                                     )
+                                    log.unattributedTokens?.takeIf { it > 0L }?.let { unattributed ->
+                                        TokenMetricBadge(
+                                            s.activityDetailUnattributedTokens,
+                                            formatTokens(unattributed),
+                                            Modifier.weight(1f)
+                                        )
+                                    }
                                     if (hitRate != null) {
                                         TokenMetricBadge(
                                             label = s.activityDetailCacheHitRate,

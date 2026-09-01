@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.data.usage
 
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
 import com.yuzhiqiang.antigravity.domain.model.usage.TokenEntry
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -58,7 +59,7 @@ class UsageLogScannerTest {
                             TokenEntry(
                                 input = 123,
                                 output = 45,
-                                model = "vendor/model",
+                                modelObservation = ModelObservation(responseModelId = "vendor/model"),
                                 timestamp = "2026-08-31T00:00:00Z",
                                 conversationId = conversationId,
                                 appSource = appSource

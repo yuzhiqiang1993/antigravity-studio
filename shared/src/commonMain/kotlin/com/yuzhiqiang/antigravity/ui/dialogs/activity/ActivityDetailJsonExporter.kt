@@ -1,7 +1,9 @@
 package com.yuzhiqiang.antigravity.ui.dialogs.activity
 
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -45,8 +47,7 @@ fun ActivityLog.toJsonString(): String {
         log.stallDurationMs?.let { put("stallDurationMs", it) }
         put("clientSource", log.clientSource)
         put("isOfficialPassthrough", log.isOfficialPassthrough)
-        put("modelId", log.modelId)
-        put("requestedModelId", log.requestedModelId)
+        log.modelIdentity?.let { put("modelIdentity", Json.encodeToJsonElement(it)) }
         put("providerName", log.providerName)
         put("inputTokens", log.inputTokens)
         put("outputTokens", log.outputTokens)

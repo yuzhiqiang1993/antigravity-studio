@@ -7,6 +7,7 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralContent
 import com.yuzhiqiang.antigravity.proxy.model.NeutralRole
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
+import com.yuzhiqiang.antigravity.proxy.model.normalizedNeutralUsage
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.preparePost
@@ -50,11 +51,12 @@ class GeminiAdapter : ProviderAdapter {
             return@flow
         }
         val requestBody = requestBodyResult.getOrThrow()
-        val minimumRequestTimeoutMs = if (request.outputModalities.contains(com.yuzhiqiang.antigravity.domain.model.ModelModality.IMAGE)) {
-            120_000L
-        } else {
-            0L
-        }
+        val minimumRequestTimeoutMs =
+            if (request.outputModalities.contains(com.yuzhiqiang.antigravity.domain.model.ModelModality.IMAGE)) {
+                120_000L
+            } else {
+                0L
+            }
         var responseStarted = false
         try {
             ProviderAdapter.executeStreamingWithTimeout(provider, minimumRequestTimeoutMs = minimumRequestTimeoutMs) {
@@ -92,7 +94,13 @@ class GeminiAdapter : ProviderAdapter {
                         while (!channel.isClosedForRead && !streamEnded) {
                             val event = ProviderAdapter.readSseDataEvent(channel)
                             if (event.isFailure) {
-                                emit(NeutralStreamChunk.Error(event.exceptionOrNull()?.message ?: "Invalid Gemini SSE frame", 502, responseStarted = true))
+                                emit(
+                                    NeutralStreamChunk.Error(
+                                        event.exceptionOrNull()?.message ?: "Invalid Gemini SSE frame",
+                                        502,
+                                        responseStarted = true
+                                    )
+                                )
                                 return@execute
                             }
                             val data = event.getOrNull() ?: break
@@ -131,12 +139,21 @@ class GeminiAdapter : ProviderAdapter {
                     } else {
                         val responseBody = ProviderAdapter.readResponseBodyText(response)
                         if (responseBody.isFailure) {
-                            emit(NeutralStreamChunk.Error(responseBody.exceptionOrNull()?.message ?: "Failed to read Gemini response body", 502))
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    responseBody.exceptionOrNull()?.message ?: "Failed to read Gemini response body",
+                                    502
+                                )
+                            )
                             return@execute
                         }
                         val parsed = parseResponse(responseBody.getOrThrow())
                         if (parsed.isFailure) {
-                            emit(NeutralStreamChunk.Error(parsed.exceptionOrNull()?.message ?: "Invalid Gemini response", 502))
+                            emit(
+                                NeutralStreamChunk.Error(
+                                    parsed.exceptionOrNull()?.message ?: "Invalid Gemini response", 502
+                                )
+                            )
                             return@execute
                         }
                         parsed.getOrThrow().forEach { emit(it) }
@@ -171,10 +188,11 @@ class GeminiAdapter : ProviderAdapter {
     }
 
     override suspend fun fetchModelCatalog(provider: Provider): ProviderAdapter.ModelCatalogResult {
-        val url = ProviderAdapter.appendCpaCatalogVersion(provider.modelsEndpoint
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: appendPathBeforeQuery(provider.effectiveBaseUrl.trimEnd('/'), "/models"))
+        val url = ProviderAdapter.appendCpaCatalogVersion(
+            provider.modelsEndpoint
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: appendPathBeforeQuery(provider.effectiveBaseUrl.trimEnd('/'), "/models"))
         return try {
             val response = ProviderAdapter.sharedHttpClient.get(url) {
                 ProviderAdapter.applyHeaders(this, provider, authHeaders(provider))
@@ -399,7 +417,7 @@ class GeminiAdapter : ProviderAdapter {
         return Result.success(ProviderAdapter.mergeSafeExtraBody(baseBody, request))
     }
 
-    private fun parseResponse(data: String): Result<List<NeutralStreamChunk>> {
+    internal fun parseResponse(data: String): Result<List<NeutralStreamChunk>> {
         if (data == "[DONE]") return Result.success(listOf(NeutralStreamChunk.Completed()))
         return try {
             val root = json.parseToJsonElement(data).jsonObject
@@ -418,6 +436,9 @@ class GeminiAdapter : ProviderAdapter {
                 )
             }
             val chunks = mutableListOf<NeutralStreamChunk>()
+            root["modelVersion"]?.jsonPrimitive?.contentOrNull
+                ?.takeIf(String::isNotBlank)
+                ?.let { chunks += NeutralStreamChunk.ResponseMetadata(it) }
             val usage = parseUsage(root)
             val candidates = root["candidates"]?.jsonArray ?: JsonArray(emptyList())
             candidates.forEach { candidateElement ->
@@ -498,16 +519,14 @@ class GeminiAdapter : ProviderAdapter {
         val cached = long("cachedContentTokenCount")
         val reasoning = long("thoughtsTokenCount")
         val output = long("candidatesTokenCount")
-        val validCacheBreakdown = prompt != null && (cached ?: 0L) <= prompt
-        val validReasoningBreakdown = output != null && (reasoning ?: 0L) <= output
-        val computedTotal = prompt?.plus((output ?: 0L) + (reasoning ?: 0L))
-        val reportedTotal = long("totalTokenCount")
-        return NeutralUsage(
+        val validCacheBreakdown = prompt != null && prompt >= 0L &&
+                (cached == null || cached in 0L..prompt)
+        return normalizedNeutralUsage(
             inputTokens = prompt?.let { total -> if (validCacheBreakdown) total - (cached ?: 0L) else total },
-            outputTokens = output?.let { total -> if (validReasoningBreakdown) total - (reasoning ?: 0L) else total },
+            outputTokens = output,
             cacheReadTokens = cached.takeIf { validCacheBreakdown },
-            reasoningTokens = reasoning.takeIf { validReasoningBreakdown },
-            totalTokens = reportedTotal?.takeIf { computedTotal == null || it >= computedTotal } ?: computedTotal
+            reasoningTokens = reasoning,
+            reportedTotalTokens = long("totalTokenCount")
         )
     }
 

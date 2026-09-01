@@ -1,6 +1,6 @@
 package com.yuzhiqiang.antigravity.proxy.catalog
 
-import com.yuzhiqiang.antigravity.domain.model.OfficialCatalogModel
+import com.yuzhiqiang.antigravity.domain.model.*
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
 import io.ktor.client.HttpClient
@@ -60,19 +60,23 @@ object OfficialCatalogProbe {
     var lastParsedModels: List<OfficialCatalogModel> = emptyList()
         private set
 
+    var lastParsedSnapshot: OfficialCatalogSnapshot = OfficialCatalogSnapshot()
+        private set
+
     fun clearRawOfficialCatalog() {
         rawOfficialCatalogBody = null
         lastParsedModels = emptyList()
+        lastParsedSnapshot = OfficialCatalogSnapshot()
+        ModelIdentityRegistryHolder.updateOfficialModels(emptyList())
     }
 
     fun setRawOfficialCatalog(body: String) {
-        if (body.isNotBlank()) {
-            rawOfficialCatalogBody = body
-            val parsed = parseOfficialCatalogModels(body)
-            if (parsed.isNotEmpty()) {
-                lastParsedModels = parsed
-            }
-        }
+        if (body.isBlank()) return
+        rawOfficialCatalogBody = body
+        val snapshot = parseOfficialCatalogSnapshot(body)
+        lastParsedSnapshot = snapshot
+        lastParsedModels = snapshot.models
+        ModelIdentityRegistryHolder.updateOfficialModels(snapshot.models)
     }
 
     /**
@@ -190,12 +194,17 @@ object OfficialCatalogProbe {
                 if (response.status.value in 200..299) {
                     val responseBody = response.bodyAsText()
                     rawOfficialCatalogBody = responseBody
-                    val rawModels = parseOfficialCatalogModels(responseBody)
-                    val models = rawModels.filterNot { m ->
-                        m.id in excludedModelIds || m.displayName in excludedModelIds
+                    val snapshot = parseOfficialCatalogSnapshot(responseBody)
+                    val excludedCatalogKeys = excludedModelIds
+                        .map(ModelIdentity::normalizeModelId)
+                        .toSet()
+                    val models = snapshot.models.filterNot { model ->
+                        ModelIdentity.normalizeModelId(model.catalogModelId) in excludedCatalogKeys
                     }
-                    if (models.isNotEmpty()) {
+                    if (snapshot.models.isNotEmpty()) {
+                        lastParsedSnapshot = snapshot.copy(models = models)
                         lastParsedModels = models
+                        ModelIdentityRegistryHolder.updateOfficialModels(models)
                         return Result.success(models)
                     }
                 } else {
@@ -213,7 +222,8 @@ object OfficialCatalogProbe {
      * 获取格式化好的 Raw JSON 数据
      */
     fun getFormattedRawJson(): String {
-        val raw = rawOfficialCatalogBody ?: return if (com.yuzhiqiang.antigravity.i18n.I18nManager.currentLanguage == com.yuzhiqiang.antigravity.i18n.AppLanguage.ZH_CN) "(暂无原始数据)" else "(No raw data available)"
+        val raw = rawOfficialCatalogBody
+            ?: return if (com.yuzhiqiang.antigravity.i18n.I18nManager.currentLanguage == com.yuzhiqiang.antigravity.i18n.AppLanguage.ZH_CN) "(暂无原始数据)" else "(No raw data available)"
         return try {
             val element = json.parseToJsonElement(raw)
             json.encodeToString(JsonElement.serializer(), element)
@@ -229,7 +239,8 @@ object OfficialCatalogProbe {
         config: com.yuzhiqiang.antigravity.domain.model.AppConfig? = null,
         proxyPort: Int = 8045
     ): String {
-        val raw = rawOfficialCatalogBody ?: return if (com.yuzhiqiang.antigravity.i18n.I18nManager.currentLanguage == com.yuzhiqiang.antigravity.i18n.AppLanguage.ZH_CN) "(暂无原始数据，请先点击「刷新」拉取官方模型)" else "(No raw data available, please click Refresh to fetch official models first)"
+        val raw = rawOfficialCatalogBody
+            ?: return if (com.yuzhiqiang.antigravity.i18n.I18nManager.currentLanguage == com.yuzhiqiang.antigravity.i18n.AppLanguage.ZH_CN) "(暂无原始数据，请先点击「刷新」拉取官方模型)" else "(No raw data available, please click Refresh to fetch official models first)"
         return try {
             val parsedRoot = json.parseToJsonElement(raw) as? JsonObject
                 ?: return raw
@@ -240,12 +251,12 @@ object OfficialCatalogProbe {
             // 1. 过滤已禁用官方模型
             val filtered = com.yuzhiqiang.antigravity.proxy.server.CatalogInjector.removeDisabledOfficialModels(
                 root,
-                config.disabledOfficialModels
+                config.disabledOfficialCatalogModelIds
             )
             // 2. 注入官方模型压缩策略 (Checkpointer 实验)
             val overridden = com.yuzhiqiang.antigravity.proxy.server.CatalogInjector.applyOfficialCompressionPolicies(
                 filtered,
-                config.modelCompressionPolicies
+                config.compressionPolicyAssignments
             )
             // 3. 注入自定义虚拟模型与上游
             val responseJson = com.yuzhiqiang.antigravity.proxy.server.CatalogInjector.injectCustomModels(
@@ -265,127 +276,175 @@ object OfficialCatalogProbe {
         }
     }
 
-    /**
-     * 1:1 对标 Rust 版 parse_official_catalog_models
-     */
-    fun parseOfficialCatalogModels(body: String): List<OfficialCatalogModel> {
+    fun parseOfficialCatalogModels(body: String): List<OfficialCatalogModel> =
+        parseOfficialCatalogSnapshot(body).models
+
+    fun parseOfficialCatalogSnapshot(body: String): OfficialCatalogSnapshot {
         return try {
-            val root = json.parseToJsonElement(body).jsonObject
-            val responseObj = root["response"]?.jsonObject ?: root
-            val modelsObj = responseObj["models"]?.jsonObject ?: return emptyList()
-
-            // 1. 解析过时模型映射 (deprecatedModelIds)
-            val deprecatedMap = parseDeprecatedModelIds(responseObj)
-
-            // 2. 解析 Agent 模型排序 (agentModelSorts)
-            val agentSortOrderMap = parseAgentModelOrder(responseObj)
-
-            // 3. 解析模型角色 (clientModelRoles / defaultAgentModelId)
-            val (officialRoles, hasRoleMetadata) = parseOfficialModelRoles(responseObj, agentSortOrderMap)
-
-            val result = mutableListOf<OfficialCatalogModel>()
-
-            for ((modelId, value) in modelsObj) {
-                val item = value.jsonObject
-                val displayName = item["displayName"]?.jsonPrimitive?.contentOrNull
-                    ?: item["label"]?.jsonPrimitive?.contentOrNull
-                    ?: modelId
-
-                val maxTokens = item["maxTokens"]?.jsonPrimitive?.longOrNull
+            val root = json.parseToJsonElement(body) as? JsonObject ?: return OfficialCatalogSnapshot()
+            val response = root["response"] as? JsonObject ?: root
+            val modelsObject = response["models"] as? JsonObject ?: return OfficialCatalogSnapshot()
+            val deprecated = parseDeprecatedModelIds(response)
+            val agentOrder = parseAgentModelOrder(response)
+            val (roleByModel, hasRoleMetadata) = parseOfficialModelRoles(response, agentOrder)
+            val tierGroups = parseTierGroups(response["tieredModelIds"])
+            val tierGroupsByModel = buildMap<String, MutableList<String>> {
+                tierGroups.forEach { (groupId, modelIds) ->
+                    modelIds.forEach { modelId -> getOrPut(modelId) { mutableListOf() }.add(groupId) }
+                }
+            }
+            val replacements = deprecated.toMutableMap()
+            val models = modelsObject.mapNotNull { (rawCatalogModelId, value) ->
+                val item = value as? JsonObject ?: return@mapNotNull null
+                val catalogModelId = ModelIdentity.normalizeModelId(rawCatalogModelId)
+                if (catalogModelId.isBlank()) return@mapNotNull null
+                val runtimeModelId = item.string("model")?.let(ModelIdentity::normalizeModelId)
+                val providerModelId = item.string("vertexModelId")
+                val canonicalModelId = item.string("canonicalModelId") ?: providerModelId
+                val baseModelId = item.string("baseModelId")
+                val version = item.string("version")
+                val displayName = item.string("displayName", "label") ?: catalogModelId
+                val catalogApiProvider = item.string("apiProvider")
+                val providerVendor = item.string("modelProvider")
+                val thinkingBudget = item.int("thinkingBudget")
+                val minThinkingBudget = item.int("minThinkingBudget")
+                val reasoningLevel = parseReasoningLevel(item.string("thinkingLevel", "reasoningLevel"))
+                val reasoningProfile = if (
+                    thinkingBudget != null || minThinkingBudget != null || reasoningLevel != null
+                ) {
+                    ReasoningProfile(
+                        level = reasoningLevel,
+                        budgetTokens = thinkingBudget,
+                        minBudgetTokens = minThinkingBudget,
+                        source = ModelIdentitySource.OFFICIAL_PROVIDER_MODEL
+                    )
+                } else {
+                    null
+                }
+                val maxTokens = item.long("maxTokens")
                 val contextWindow = listOfNotNull(
-                    item["maxContextWindow"]?.jsonPrimitive?.longOrNull,
-                    item["max_context_window"]?.jsonPrimitive?.longOrNull,
-                    item["contextWindow"]?.jsonPrimitive?.longOrNull,
-                    item["context_window"]?.jsonPrimitive?.longOrNull,
+                    item.long("maxContextWindow", "max_context_window", "contextWindow", "context_window"),
                     maxTokens
                 ).maxOrNull()
-
                 val inputTokenLimit = listOfNotNull(
-                    item["maxInputTokens"]?.jsonPrimitive?.longOrNull,
-                    item["max_input_tokens"]?.jsonPrimitive?.longOrNull,
-                    item["inputTokenLimit"]?.jsonPrimitive?.longOrNull,
-                    item["input_token_limit"]?.jsonPrimitive?.longOrNull,
+                    item.long("maxInputTokens", "max_input_tokens", "inputTokenLimit", "input_token_limit"),
                     contextWindow,
                     maxTokens
                 ).maxOrNull()
-
-                val outputTokenLimit = item["outputTokenLimit"]?.jsonPrimitive?.longOrNull
-                    ?: item["output_token_limit"]?.jsonPrimitive?.longOrNull
-                    ?: item["maxOutputTokens"]?.jsonPrimitive?.longOrNull
-
-                val supportsVision = item["supportsImages"]?.jsonPrimitive?.booleanOrNull
-                    ?: item["supportsVision"]?.jsonPrimitive?.booleanOrNull
-                    ?: item["supportsImageInput"]?.jsonPrimitive?.booleanOrNull
-                    ?: true
-
-                val supportsTools = item["supportsTools"]?.jsonPrimitive?.booleanOrNull ?: true
-                val supportsThinking = item["supportsThinking"]?.jsonPrimitive?.booleanOrNull
-                    ?: item["supportsReasoning"]?.jsonPrimitive?.booleanOrNull
-                    ?: displayName.contains("thinking", ignoreCase = true)
-
-                val isRecommended = item["recommended"]?.jsonPrimitive?.booleanOrNull ?: true
-                val isDeprecated = deprecatedMap.containsKey(modelId)
-                val replacementModelId = deprecatedMap[modelId]
-
-                val roles = officialRoles[modelId] ?: if (hasRoleMetadata) emptyList() else listOf("agent")
-                val sortOrder = agentSortOrderMap[modelId]
-
-                result.add(
-                    OfficialCatalogModel(
-                        id = modelId,
-                        displayName = displayName,
-                        contextWindow = contextWindow,
-                        maxTokens = maxTokens,
-                        inputTokenLimit = inputTokenLimit,
-                        outputTokenLimit = outputTokenLimit,
-                        supportsVision = supportsVision,
-                        supportsTools = supportsTools,
-                        supportsReasoning = supportsThinking,
-                        isRecommended = isRecommended,
-                        isDeprecated = isDeprecated,
-                        replacementModelId = replacementModelId,
-                        agentSortOrder = sortOrder,
-                        roles = roles
+                val outputTokenLimit = item.long(
+                    "outputTokenLimit",
+                    "output_token_limit",
+                    "maxOutputTokens"
+                )
+                val itemReplacement = (parseReplacement(item["replacement"])
+                    ?: item.string("replacementModelId"))
+                    ?.let(ModelIdentity::normalizeModelId)
+                val replacementCatalogModelId = itemReplacement ?: deprecated[catalogModelId]
+                if (!replacementCatalogModelId.isNullOrBlank()) {
+                    replacements[catalogModelId] = replacementCatalogModelId
+                }
+                val directRoles = parseStringValues(item["roles"])
+                val roles = (roleByModel[catalogModelId].orEmpty() + directRoles)
+                    .distinct()
+                    .ifEmpty { if (hasRoleMetadata) emptyList() else listOf("agent") }
+                val quota = (item["quotaInfo"] as? JsonObject)?.let { quotaInfo ->
+                    OfficialModelQuotaInfo(
+                        remainingFraction = quotaInfo.double("remainingFraction", "remaining_fraction"),
+                        resetTime = quotaInfo.string("resetTime", "reset_time")
                     )
+                }
+                val tags = parseTags(item)
+                OfficialCatalogModel(
+                    catalogModelId = catalogModelId,
+                    runtimeModelId = runtimeModelId,
+                    providerModelId = providerModelId,
+                    canonicalModelId = canonicalModelId,
+                    baseModelId = baseModelId,
+                    version = version,
+                    displayName = displayName,
+                    catalogApiProvider = catalogApiProvider,
+                    providerVendor = providerVendor,
+                    reasoningProfile = reasoningProfile,
+                    identityResolution = ModelIdentityResolution(
+                        status = if (providerModelId != null || canonicalModelId != null) {
+                            ModelIdentityStatus.RESOLVED
+                        } else {
+                            ModelIdentityStatus.UNRESOLVED
+                        },
+                        source = ModelIdentitySource.OFFICIAL_PROVIDER_MODEL,
+                        confidence = if (providerModelId != null || canonicalModelId != null) {
+                            ModelIdentityConfidence.EXACT
+                        } else {
+                            ModelIdentityConfidence.UNKNOWN
+                        }
+                    ),
+                    contextWindow = contextWindow,
+                    maxTokens = maxTokens,
+                    inputTokenLimit = inputTokenLimit,
+                    outputTokenLimit = outputTokenLimit,
+                    supportsVision = item.bool("supportsImages", "supportsVision", "supportsImageInput") ?: true,
+                    supportsTools = item.bool("supportsTools") ?: true,
+                    supportsReasoning = item.bool("supportsThinking", "supportsReasoning")
+                        ?: (reasoningProfile != null),
+                    isRecommended = item.bool("recommended") ?: true,
+                    isDeprecated = replacementCatalogModelId != null,
+                    replacementCatalogModelId = replacementCatalogModelId,
+                    agentSortOrder = agentOrder[catalogModelId],
+                    roles = roles,
+                    tierGroupIds = tierGroupsByModel[catalogModelId].orEmpty().distinct(),
+                    quotaInfo = quota,
+                    tags = tags,
+                    rawExtra = item
                 )
-            }
-
-            // 按照官方排序：先排 agentSortOrder，再排 ID
-            if (agentSortOrderMap.isNotEmpty()) {
-                result.sortedWith(
-                    compareBy<OfficialCatalogModel> { it.agentSortOrder ?: Long.MAX_VALUE }
-                        .thenBy { it.id }
-                )
-            } else {
-                result.sortedBy { it.id }
-            }
+            }.sortedWith(
+                compareBy<OfficialCatalogModel> { it.agentSortOrder ?: Long.MAX_VALUE }
+                    .thenBy(OfficialCatalogModel::catalogModelId)
+            )
+            val roleModelIds = models
+                .flatMap { model -> model.roles.map { role -> role to model.catalogModelId } }
+                .groupBy({ it.first }, { it.second })
+            OfficialCatalogSnapshot(
+                models = models,
+                replacements = replacements.map { (oldId, newId) ->
+                    OfficialModelReplacement(oldId, newId)
+                },
+                tierGroups = tierGroups,
+                defaultAgentModelId = response.string("defaultAgentModelId")
+                    ?.let(ModelIdentity::normalizeModelId),
+                roleModelIds = roleModelIds,
+                fetchedAt = System.currentTimeMillis()
+            )
         } catch (_: Exception) {
-            emptyList()
+            OfficialCatalogSnapshot()
         }
     }
 
     private fun parseDeprecatedModelIds(response: JsonObject): Map<String, String> {
-        val deprecatedObj = response["deprecatedModelIds"]?.jsonObject ?: return emptyMap()
-        val map = mutableMapOf<String, String>()
-        for ((oldId, valElem) in deprecatedObj) {
-            val newId = valElem.jsonObject["newModelId"]?.jsonPrimitive?.contentOrNull
-            if (!oldId.isNullOrBlank() && !newId.isNullOrBlank()) {
-                map[oldId] = newId
-            }
-        }
-        return map
+        val deprecated = response["deprecatedModelIds"] as? JsonObject ?: return emptyMap()
+        return deprecated.mapNotNull { (oldId, value) ->
+            val replacement = parseReplacement(value) ?: return@mapNotNull null
+            val normalizedOldId = ModelIdentity.normalizeModelId(oldId)
+            val normalizedReplacement = ModelIdentity.normalizeModelId(replacement)
+            if (normalizedOldId.isBlank() || normalizedReplacement.isBlank()) null
+            else normalizedOldId to normalizedReplacement
+        }.toMap()
     }
 
     private fun parseAgentModelOrder(response: JsonObject): Map<String, Long> {
         val orderMap = mutableMapOf<String, Long>()
-        val sorts = response["agentModelSorts"]?.jsonArray ?: return orderMap
+        val sorts = response["agentModelSorts"] as? JsonArray ?: return orderMap
 
         for (sort in sorts) {
-            val groups = sort.jsonObject["groups"]?.jsonArray ?: continue
+            val sortObject = sort as? JsonObject ?: continue
+            val groups = sortObject["groups"] as? JsonArray ?: continue
             for (group in groups) {
-                val modelIds = group.jsonObject["modelIds"]?.jsonArray ?: continue
+                val groupObject = group as? JsonObject ?: continue
+                val modelIds = groupObject["modelIds"] as? JsonArray ?: continue
                 for (elem in modelIds) {
-                    val modelId = elem.jsonPrimitive.contentOrNull ?: continue
+                    val modelId = elem.jsonPrimitive.contentOrNull
+                        ?.let(ModelIdentity::normalizeModelId)
+                        ?.takeIf(String::isNotBlank)
+                        ?: continue
                     if (!orderMap.containsKey(modelId)) {
                         orderMap[modelId] = orderMap.size.toLong()
                     }
@@ -399,20 +458,7 @@ object OfficialCatalogProbe {
         response: JsonObject,
         agentSortOrder: Map<String, Long>
     ): Pair<Map<String, List<String>>, Boolean> {
-        val rolesMap = mutableMapOf<String, MutableSet<String>>()
-        var hasMetadata = false
-
-        for (modelId in agentSortOrder.keys) {
-            hasMetadata = true
-            rolesMap.getOrPut(modelId) { mutableSetOf() }.add("agent")
-        }
-
-        val defaultAgent = response["defaultAgentModelId"]?.jsonPrimitive?.contentOrNull
-        if (!defaultAgent.isNullOrBlank()) {
-            hasMetadata = true
-            rolesMap.getOrPut(defaultAgent) { mutableSetOf() }.add("agent")
-        }
-
+        val rolesByModel = mutableMapOf<String, MutableSet<String>>()
         val roleFields = listOf(
             "commandModelIds" to "command",
             "tabModelIds" to "tab",
@@ -422,18 +468,113 @@ object OfficialCatalogProbe {
             "commitMessageModelIds" to "commit_message",
             "audioTranscriptionModelIds" to "audio_transcription"
         )
+        var hasMetadata = agentSortOrder.isNotEmpty() ||
+                "agentModelSorts" in response ||
+                "defaultAgentModelId" in response ||
+                "clientModelRoles" in response ||
+                roleFields.any { (field, _) -> field in response }
 
-        for ((field, roleName) in roleFields) {
-            val array = response[field]?.jsonArray ?: continue
-            for (elem in array) {
-                val mId = elem.jsonPrimitive.contentOrNull ?: continue
-                if (mId.isNotBlank()) {
+        fun add(role: String, modelIds: List<String>) {
+            modelIds.forEach { rawId ->
+                val modelId = ModelIdentity.normalizeModelId(rawId)
+                if (modelId.isNotBlank()) {
                     hasMetadata = true
-                    rolesMap.getOrPut(mId) { mutableSetOf() }.add(roleName)
+                    rolesByModel.getOrPut(modelId) { linkedSetOf() }.add(role)
                 }
             }
         }
 
-        return rolesMap.mapValues { it.value.toList() } to hasMetadata
+        add("agent", agentSortOrder.keys.toList())
+        response.string("defaultAgentModelId")?.let { add("agent", listOf(it)) }
+        roleFields.forEach { (field, role) -> add(role, parseStringValues(response[field])) }
+
+        when (val clientRoles = response["clientModelRoles"]) {
+            is JsonObject -> clientRoles.forEach { (role, modelIds) ->
+                add(role.lowercase(), parseStringValues(modelIds))
+            }
+
+            is JsonArray -> clientRoles.forEach { element ->
+                val roleObject = element as? JsonObject ?: return@forEach
+                val role = roleObject.string("role", "name", "id")?.lowercase() ?: return@forEach
+                add(role, parseStringValues(roleObject["modelIds"] ?: roleObject["models"] ?: roleObject["ids"]))
+            }
+
+            else -> Unit
+        }
+        return rolesByModel.mapValues { (_, roles) -> roles.toList() } to hasMetadata
+    }
+
+    private fun parseTierGroups(value: JsonElement?): Map<String, List<String>> = when (value) {
+        is JsonObject -> value.mapValues { (_, modelIds) ->
+            parseStringValues(modelIds)
+                .map(ModelIdentity::normalizeModelId)
+                .filter(String::isNotBlank)
+                .distinct()
+        }
+
+        is JsonArray -> value.mapNotNull { element ->
+            val group = element as? JsonObject ?: return@mapNotNull null
+            val groupId = group.string("id", "tierId", "name") ?: return@mapNotNull null
+            val modelIds = parseStringValues(group["modelIds"] ?: group["models"] ?: group["ids"])
+                .map(ModelIdentity::normalizeModelId)
+                .filter(String::isNotBlank)
+                .distinct()
+            groupId to modelIds
+        }.toMap()
+
+        else -> emptyMap()
+    }
+
+    private fun parseTags(item: JsonObject): OfficialModelTags? {
+        val tag = item["tag"]
+        val title = when (tag) {
+            is JsonPrimitive -> tag.contentOrNull
+            is JsonObject -> tag.string("title", "name", "label")
+            else -> null
+        } ?: item.string("tagTitle")
+        val description = (tag as? JsonObject)?.string("description") ?: item.string("tagDescription")
+        return if (title == null && description == null) null else OfficialModelTags(title, description)
+    }
+
+    private fun parseReplacement(value: JsonElement?): String? = when (value) {
+        is JsonPrimitive -> value.contentOrNull
+        is JsonObject -> value.string("newModelId", "replacementModelId", "modelId", "replacement")
+        else -> null
+    }
+
+    private fun parseStringValues(value: JsonElement?): List<String> = when (value) {
+        is JsonPrimitive -> listOfNotNull(value.contentOrNull)
+        is JsonArray -> value.flatMap(::parseStringValues)
+        is JsonObject -> {
+            val explicit = value["modelIds"] ?: value["modelId"] ?: value["models"] ?: value["ids"]
+            if (explicit != null) parseStringValues(explicit) else emptyList()
+        }
+
+        else -> emptyList()
+    }
+
+    private fun parseReasoningLevel(value: String?): ReasoningLevel? {
+        val normalized = value?.trim()?.lowercase()?.replace('-', '_') ?: return null
+        return ReasoningLevel.entries.firstOrNull { level -> level.name.lowercase() == normalized }
+    }
+
+    private fun JsonObject.string(vararg names: String): String? = names.firstNotNullOfOrNull { name ->
+        (this[name] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotEmpty)
+    }
+
+    private fun JsonObject.long(vararg names: String): Long? = names.firstNotNullOfOrNull { name ->
+        (this[name] as? JsonPrimitive)?.longOrNull
+    }
+
+    private fun JsonObject.int(vararg names: String): Int? = long(*names)
+        ?.takeIf { value -> value in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }
+        ?.toInt()
+
+    private fun JsonObject.double(vararg names: String): Double? = names.firstNotNullOfOrNull { name ->
+        (this[name] as? JsonPrimitive)?.doubleOrNull
+    }
+
+    private fun JsonObject.bool(vararg names: String): Boolean? = names.firstNotNullOfOrNull { name ->
+        (this[name] as? JsonPrimitive)?.booleanOrNull
     }
 }

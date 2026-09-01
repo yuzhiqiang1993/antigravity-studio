@@ -21,8 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yuzhiqiang.antigravity.domain.model.CompressionPolicyTargetType
 import com.yuzhiqiang.antigravity.domain.model.Provider
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.ui.dialogs.*
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassSurface
@@ -56,8 +57,10 @@ fun ModelsScreen(
     var selectedTabId by remember { mutableStateOf("official") }
     var showAddProviderDialog by remember { mutableStateOf(false) }
     var editingProvider by remember { mutableStateOf<Provider?>(null) }
-    var editingSingleModel by remember { mutableStateOf<UpstreamModel?>(null) }
-    var policyEditingModelId by remember { mutableStateOf<String?>(null) }
+    var editingSingleModel by remember { mutableStateOf<ProviderModelBinding?>(null) }
+    var policyEditingTarget by remember {
+        mutableStateOf<Pair<CompressionPolicyTargetType, String>?>(null)
+    }
 
     var isTestingOfficial by remember { mutableStateOf(false) }
     var officialTestSummaryText by remember { mutableStateOf<String?>(null) }
@@ -87,7 +90,7 @@ fun ModelsScreen(
     val scrollState = rememberScrollState()
 
     val officialCount = groupedOfficial.size
-    val tabItems = remember(config.providers, config.upstreamModels, groupedOfficial, s, officialCount) {
+    val tabItems = remember(config.providers, config.providerModelBindings, groupedOfficial, s, officialCount) {
         val list = mutableListOf<ProviderTabItem>()
         list.add(
             ProviderTabItem(
@@ -98,7 +101,7 @@ fun ModelsScreen(
             )
         )
         config.providers.forEach { provider ->
-            val modelCount = config.upstreamModels.count { it.providerId == provider.id }
+            val modelCount = config.providerModelBindings.count { it.providerConfigId == provider.id }
             list.add(
                 ProviderTabItem(
                     id = provider.id,
@@ -214,8 +217,8 @@ fun ModelsScreen(
                 OfficialModelsView(
                     groupedModels = filteredOfficial,
                     isFetching = isFetchingOfficial,
-                    configDisabledModels = config.disabledOfficialModels,
-                    compressionPolicies = config.modelCompressionPolicies,
+                    disabledCatalogModelIds = config.disabledOfficialCatalogModelIds,
+                    compressionPolicyAssignments = config.compressionPolicyAssignments,
                     testSummary = officialTestSummaryText,
                     isTestSuccess = isOfficialTestSuccess,
                     isTesting = isTestingOfficial,
@@ -263,11 +266,13 @@ fun ModelsScreen(
                             )
                     },
                     onToggleGroup = { group ->
-                        val allIds = group.variants.map { it.model.id }.toSet()
-                        val isCurrentlyDisabled = allIds.any { it in config.disabledOfficialModels }
+                        val allIds = group.variants.map { it.model.catalogModelId }.toSet()
+                        val isCurrentlyDisabled = allIds.any { it in config.disabledOfficialCatalogModelIds }
                         viewModel.toggleOfficialModelGroup(allIds, isCurrentlyDisabled)
                     },
-                    onEditPolicy = { modelId -> policyEditingModelId = modelId },
+                    onEditPolicy = { catalogModelId ->
+                        policyEditingTarget = CompressionPolicyTargetType.OFFICIAL_CATALOG_MODEL to catalogModelId
+                    },
                     onOpenVisionDetail = { name, vision ->
                         activeMultimodalModelInfo = name to vision
                     },
@@ -282,7 +287,9 @@ fun ModelsScreen(
             } else {
                 val currentProvider = config.providers.find { it.id == currentTabId }
                 if (currentProvider != null) {
-                    val providerModels = config.upstreamModels.filter { it.providerId == currentProvider.id }
+                    val providerModels = config.providerModelBindings.filter {
+                        it.providerConfigId == currentProvider.id
+                    }
                     val filteredProviderModels = providerModels
 
                     val isProviderTesting = currentProvider.id in providerTestingIds
@@ -292,7 +299,7 @@ fun ModelsScreen(
                         models = filteredProviderModels,
                         modelTestStatuses = modelTestStatuses,
                         isProviderTesting = isProviderTesting,
-                        compressionPolicies = config.modelCompressionPolicies,
+                        compressionPolicyAssignments = config.compressionPolicyAssignments,
                         onEditProvider = {
                             editingProvider = currentProvider
                             editingSingleModel = null
@@ -327,13 +334,11 @@ fun ModelsScreen(
                             viewModel.showConfirmDialog(
                                 AppViewModel.ConfirmDialogState(
                                     title = s.modelsDeleteModelConfirmTitle,
-                                    message = s.modelsDeleteModelConfirmMessage(
-                                        model.displayName ?: model.upstreamModelId
-                                    ),
+                                    message = s.modelsDeleteModelConfirmMessage(model.effectiveName),
                                     confirmLabel = s.commonDelete,
                                     isDestructive = true,
                                     onConfirm = {
-                                        viewModel.deleteSingleModel(model.id)
+                                        viewModel.deleteSingleModel(model.bindingId)
                                     }
                                 )
                             )
@@ -342,9 +347,11 @@ fun ModelsScreen(
                             viewModel.testSingleModel(model, currentProvider)
                         },
                         onToggleModelEnabled = { model ->
-                            viewModel.toggleCustomModel(model.id)
+                            viewModel.toggleCustomModel(model.bindingId)
                         },
-                        onEditPolicy = { modelId -> policyEditingModelId = modelId },
+                        onEditPolicy = { bindingId ->
+                            policyEditingTarget = CompressionPolicyTargetType.PROVIDER_MODEL_BINDING to bindingId
+                        },
                         onOpenVisionDetail = { name, vision ->
                             activeMultimodalModelInfo = name to vision
                         },
@@ -363,7 +370,7 @@ fun ModelsScreen(
 
     if (showAddProviderDialog) {
         val currentModels = editingProvider?.let { provider ->
-            config.upstreamModels.filter { model -> model.providerId == provider.id }
+            config.providerModelBindings.filter { model -> model.providerConfigId == provider.id }
         }.orEmpty()
 
         ProviderEditorDialog(
@@ -383,7 +390,7 @@ fun ModelsScreen(
             onSave = { provider, models ->
                 val saved = if (editingSingleModel != null) {
                     val updated = models.firstOrNull { model ->
-                        model.upstreamModelId == editingSingleModel?.upstreamModelId
+                        model.providerModelId == editingSingleModel?.providerModelId
                     }
                     updated?.let(viewModel::updateSingleModel) == true
                 } else {
@@ -398,31 +405,44 @@ fun ModelsScreen(
         )
     }
 
-    policyEditingModelId?.let { modelId ->
-        val currentPolicy = config.modelCompressionPolicies[modelId]
-        val officialMatch = groupedOfficial.firstOrNull { group ->
-            group.baseItem.id == modelId || group.variants.any { it.model.id == modelId }
+    policyEditingTarget?.let { (targetType, targetId) ->
+        val currentPolicy = config.compressionPolicyAssignments.firstOrNull { assignment ->
+            assignment.targetType == targetType && assignment.targetId == targetId
+        }?.policy
+        val officialMatch = if (targetType == CompressionPolicyTargetType.OFFICIAL_CATALOG_MODEL) {
+            groupedOfficial.firstOrNull { group ->
+                group.baseItem.catalogModelId == targetId ||
+                        group.variants.any { it.model.catalogModelId == targetId }
+            }
+        } else {
+            null
         }
-        val customMatch = config.upstreamModels.firstOrNull { it.id == modelId }
+        val customMatch = if (targetType == CompressionPolicyTargetType.PROVIDER_MODEL_BINDING) {
+            config.providerModelBindings.firstOrNull { it.bindingId == targetId }
+        } else {
+            null
+        }
 
-        val modelDisplayName = officialMatch?.variants?.firstOrNull { it.model.id == modelId }?.model?.displayName
+        val modelDisplayName = officialMatch?.variants
+            ?.firstOrNull { it.model.catalogModelId == targetId }
+            ?.model
+            ?.displayName
             ?: officialMatch?.baseItem?.displayName
-            ?: customMatch?.displayName?.takeIf { it.isNotBlank() }
-            ?: customMatch?.upstreamModelId
-            ?: modelId
+            ?: customMatch?.effectiveName
+            ?: targetId
 
         val contextWindow = officialMatch?.baseItem?.let { it.contextWindow ?: it.maxTokens }
-            ?: customMatch?.tokenLimits?.contextWindow
+            ?: customMatch?.tokenLimits?.let { it.contextWindow ?: it.inputTokenLimit }
 
         PolicyEditorDialog(
-            modelId = modelId,
+            modelId = targetId,
             modelDisplayName = modelDisplayName,
             initialPolicy = currentPolicy,
             contextWindow = contextWindow,
-            onDismiss = { policyEditingModelId = null },
+            onDismiss = { policyEditingTarget = null },
             onSave = { policy ->
-                viewModel.saveCompressionPolicy(modelId, policy)
-                policyEditingModelId = null
+                viewModel.saveCompressionPolicy(targetType, targetId, policy)
+                policyEditingTarget = null
             }
         )
     }

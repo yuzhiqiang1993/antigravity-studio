@@ -1,8 +1,23 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
-import com.yuzhiqiang.antigravity.domain.model.*
+import com.yuzhiqiang.antigravity.domain.model.AppConfig
+import com.yuzhiqiang.antigravity.domain.model.CompressionPolicyTargetType
+import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentity
+import com.yuzhiqiang.antigravity.domain.model.ModelModality
+import com.yuzhiqiang.antigravity.domain.model.ModelRouteVariant
+import com.yuzhiqiang.antigravity.domain.model.ModelVariantKind
+import com.yuzhiqiang.antigravity.domain.model.Provider
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
+import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
+import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
+import com.yuzhiqiang.antigravity.domain.model.ReasoningProfile
 import com.yuzhiqiang.antigravity.proxy.routing.RouteResolver
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 internal object CustomCatalogBuilder {
 
@@ -12,223 +27,225 @@ internal object CustomCatalogBuilder {
         checkpointWorkers: Collection<String> = emptySet(),
         defaultCheckpointWorker: String? = null
     ): List<JsonObject> {
-        val routableVirtuals = config.virtualModels.filter { virtual ->
-            RouteResolver.isRoutableVirtualModel(config, virtual)
-        }
-        val entries = routableVirtuals.mapNotNull { virtual ->
-            val upstream = config.upstreamModels.firstOrNull { model ->
-                model.id == virtual.upstreamModelId
-            } ?: return@mapNotNull null
-            val provider = config.providers.firstOrNull { item -> item.id == upstream.providerId && item.enabled }
-                ?: return@mapNotNull null
-            val rawDisplayName = virtual.displayName?.takeIf { it.isNotBlank() }
-                ?: virtual.name.takeIf { it.isNotBlank() }
-                ?: upstream.displayName?.takeIf { it.isNotBlank() }
-                ?: upstream.name.takeIf { it.isNotBlank() }
-                ?: virtual.id
-            val displayName = ModelIdentity.configuredModelDisplayName(
-                modelName = rawDisplayName,
-                reasoningLevel = virtual.defaultReasoningLevel,
-                providerName = provider.name,
-                supportsReasoning = upstream.capabilities.reasoning.supportsReasoning
-            )
-            buildCatalogEntry(
-                upstream = upstream,
-                provider = provider,
-                modelName = RouteResolver.catalogKey(virtual),
-                displayName = displayName,
-                hostModelId = RouteResolver.effectiveHostModelId(virtual),
-                catalogKey = RouteResolver.catalogKey(virtual),
-                reasoningLevel = virtual.defaultReasoningLevel,
-                entryId = virtual.id,
-                policy = CatalogCompressionApplier.healCheckpointPolicy(
-                    config.modelCompressionPolicies[virtual.id]
-                        ?: config.modelCompressionPolicies[upstream.id]
-                        ?: upstream.compressionPolicy,
-                    checkpointWorkers,
-                    defaultCheckpointWorker
+        val directEntries = config.modelRouteVariants
+            .filter { variant -> variant.kind != ModelVariantKind.TIERED }
+            .mapNotNull { variant ->
+                val binding = bindingFor(config, variant) ?: return@mapNotNull null
+                val provider = providerFor(config, binding) ?: return@mapNotNull null
+                if (!RouteResolver.isRoutableModelRouteVariant(config, variant)) return@mapNotNull null
+                buildCatalogEntry(
+                    variant = variant,
+                    binding = binding,
+                    provider = provider,
+                    policy = healedPolicy(
+                        policyFor(config, variant, binding),
+                        checkpointWorkers,
+                        defaultCheckpointWorker
+                    )
                 )
-            )
-        }
-        return if (includeTiered) entries + buildTieredCatalogEntries(
+            }
+        if (!includeTiered) return directEntries
+        return directEntries + tieredCatalogEntries(
             config,
-            entries,
             checkpointWorkers,
             defaultCheckpointWorker
-        ) else entries
+        )
     }
 
-    fun buildTieredCatalogEntries(
+    private fun tieredCatalogEntries(
         config: AppConfig,
-        entries: List<JsonObject>,
         checkpointWorkers: Collection<String>,
         defaultCheckpointWorker: String?
     ): List<JsonObject> {
-        val virtualsWithUpstream = config.virtualModels
-            .filter { RouteResolver.isRoutableVirtualModel(config, it) }
-            .mapNotNull { virtual ->
-                val upstream = config.upstreamModels.firstOrNull {
-                    it.id == virtual.upstreamModelId && it.enabled
-                } ?: return@mapNotNull null
-                if (!upstream.capabilities.reasoning.supportsReasoning) return@mapNotNull null
-                val provider = config.providers.firstOrNull { it.id == upstream.providerId && it.enabled }
-                    ?: return@mapNotNull null
-                Triple(virtual, upstream, provider)
+        val concrete = config.modelRouteVariants.filter { variant ->
+            variant.kind != ModelVariantKind.TIERED &&
+                    RouteResolver.isRoutableModelRouteVariant(config, variant)
+        }
+        val explicit = config.modelRouteVariants
+            .filter { variant -> variant.kind == ModelVariantKind.TIERED && variant.enabled }
+            .mapNotNull { tiered ->
+                val member = preferredVariant(tiered.tierMemberVariantIds.mapNotNull { memberId ->
+                    concrete.firstOrNull { variant -> variant.variantId == memberId }
+                }) ?: return@mapNotNull null
+                val binding = bindingFor(config, member) ?: return@mapNotNull null
+                val provider = providerFor(config, binding) ?: return@mapNotNull null
+                buildCatalogEntry(
+                    variant = tiered,
+                    binding = binding,
+                    provider = provider,
+                    policy = healedPolicy(
+                        policyFor(config, tiered, binding),
+                        checkpointWorkers,
+                        defaultCheckpointWorker
+                    ),
+                    forceDynamicThinking = true
+                )
             }
-        if (virtualsWithUpstream.isEmpty()) return emptyList()
-
-        val groupMap = virtualsWithUpstream.groupBy { (virtual, upstream, _) ->
-            upstream.id to ModelIdentity.catalogFamilyBase(virtual)
-        }
-
-        val tieredEntries = mutableListOf<JsonObject>()
-        for ((groupKey, groupModels) in groupMap) {
-            val (_, familyBase) = groupKey
-            val (firstVm, upstream, provider) = groupModels.first()
-            val preferredVm = ModelIdentity.REASONING_LEVEL_PRIORITY.firstNotNullOfOrNull { level ->
-                groupModels.map { it.first }.firstOrNull { it.defaultReasoningLevel == level }
-            } ?: firstVm
-
-            val tieredKey = "$familyBase-tiered"
-            val rawName = firstVm.displayName?.takeIf { it.isNotBlank() }
-                ?: firstVm.name.takeIf { it.isNotBlank() }
-                ?: upstream.displayName?.takeIf { it.isNotBlank() }
-                ?: upstream.name
-            val baseDisplayName = ModelIdentity.stripDisplayLevelSuffix(
-                ModelIdentity.configuredModelDisplayName(
-                    modelName = rawName,
-                    reasoningLevel = null,
-                    providerName = provider.name,
-                    supportsReasoning = true
+        val explicitFamilies = config.modelRouteVariants
+            .filter { it.kind == ModelVariantKind.TIERED }
+            .map(ModelIdentity::catalogFamilyBase)
+            .toSet()
+        val synthetic = concrete
+            .filter { variant -> bindingFor(config, variant)?.capabilities?.reasoning?.supportsReasoning == true }
+            .groupBy { variant -> variant.bindingId to ModelIdentity.catalogFamilyBase(variant) }
+            .mapNotNull { (group, variants) ->
+                val family = group.second
+                if (family in explicitFamilies) return@mapNotNull null
+                val preferred = preferredVariant(variants) ?: return@mapNotNull null
+                val binding = bindingFor(config, preferred) ?: return@mapNotNull null
+                val provider = providerFor(config, binding) ?: return@mapNotNull null
+                buildCatalogEntry(
+                    variant = preferred.copy(
+                        variantId = "tiered:$family",
+                        catalogModelId = "$family-tiered",
+                        displayName = ModelIdentity.stripDisplayLevelSuffix(preferred.displayName),
+                        kind = ModelVariantKind.TIERED,
+                        reasoningProfile = null
+                    ),
+                    binding = binding,
+                    provider = provider,
+                    policy = healedPolicy(
+                        policyFor(config, null, binding),
+                        checkpointWorkers,
+                        defaultCheckpointWorker
+                    ),
+                    forceDynamicThinking = true
                 )
-            )
-            val tieredHostModelId = ModelIdentity.effectiveHostModelId(preferredVm)
-            val entry = buildCatalogEntry(
-                upstream = upstream,
-                provider = provider,
-                modelName = tieredKey,
-                displayName = baseDisplayName,
-                hostModelId = tieredHostModelId,
-                catalogKey = tieredKey,
-                reasoningLevel = null,
-                entryId = tieredKey,
-                policy = CatalogCompressionApplier.healCheckpointPolicy(
-                    config.modelCompressionPolicies[firstVm.id]
-                        ?: config.modelCompressionPolicies[upstream.id]
-                        ?: upstream.compressionPolicy,
-                    checkpointWorkers,
-                    defaultCheckpointWorker
-                )
-            )
-            val updatedEntry = JsonObject(
-                entry + mapOf(
-                    "thinkingBudget" to JsonPrimitive(-1)
-                )
-            )
-            tieredEntries += updatedEntry
-        }
-        return tieredEntries
+            }
+        return explicit + synthetic
     }
 
     fun buildCatalogEntry(
-        upstream: UpstreamModel,
+        variant: ModelRouteVariant,
+        binding: ProviderModelBinding,
         provider: Provider,
-        modelName: String,
-        displayName: String,
-        hostModelId: String,
-        catalogKey: String,
-        entryId: String,
         policy: ModelCompressionPolicy?,
-        reasoningLevel: ReasoningLevel? = null
+        forceDynamicThinking: Boolean = false
     ): JsonObject {
-        val defaultContextWindow = 128_000L
-        val defaultInputTokenLimit = 128_000L
-        val defaultOutputTokenLimit = 65_536L
-        val capabilities = upstream.capabilities
-        val contextWindow = upstream.tokenLimits.contextWindow ?: upstream.contextLength ?: defaultContextWindow
-        val inputLimit = upstream.tokenLimits.inputTokenLimit ?: contextWindow ?: defaultInputTokenLimit
-        val outputLimit = upstream.tokenLimits.outputTokenLimit ?: upstream.maxOutputTokens ?: defaultOutputTokenLimit
+        val catalogModelId = ModelIdentity.catalogKey(variant)
+        val runtimeModelId = ModelIdentity.effectiveRuntimeModelId(variant)
+        val limits = binding.tokenLimits
+        val contextWindow = limits.contextWindow ?: limits.inputTokenLimit
+        val inputLimit = limits.inputTokenLimit ?: limits.contextWindow
+        val outputLimit = limits.outputTokenLimit
         val resolvedPolicy = policy?.takeIf { it.enabled }?.resolveEffective(contextWindow, outputLimit)
-        val entry = buildJsonObject {
-            put("id", entryId)
-            put("name", "models/$hostModelId")
-            put("displayName", displayName)
-            put("description", "Custom BYOK Model (Provider: " + provider.name + ")")
-            put("hostModelId", hostModelId)
-            put("catalogKey", catalogKey)
-            put("model", hostModelId)
-            put("planModel", hostModelId)
-            put("requestedModel", hostModelId)
+        val capabilities = binding.capabilities
+        return buildJsonObject {
+            put("id", catalogModelId)
+            put("catalogKey", catalogModelId)
+            put("runtimeModelId", runtimeModelId)
+            put("providerModelId", binding.providerModelId)
+            put("variantId", variant.variantId)
+            put("bindingId", binding.bindingId)
+            put("name", "models/$runtimeModelId")
+            put("model", runtimeModelId)
+            put("planModel", runtimeModelId)
+            put("requestedModel", runtimeModelId)
+            put("displayName", variant.displayName.ifBlank { binding.effectiveName })
+            put("description", "Custom BYOK Model (Provider: ${provider.name})")
             put("apiProvider", "API_PROVIDER_GOOGLE_GEMINI")
             put("modelProvider", modelProvider(provider.protocol))
             put("recommended", false)
-            put("contextWindow", contextWindow)
-            put("inputTokenLimit", inputLimit)
-            put("maxTokens", inputLimit)
-            put("outputTokenLimit", outputLimit)
-            put("maxOutputTokens", outputLimit)
+            contextWindow?.let { put("contextWindow", it) }
+            inputLimit?.let { put("inputTokenLimit", it); put("maxTokens", it) }
+            outputLimit?.let { put("outputTokenLimit", it); put("maxOutputTokens", it) }
             put("supportsImages", ModelModality.IMAGE in capabilities.inputModalities)
             put("supportsAudio", ModelModality.AUDIO in capabilities.inputModalities)
             put("supportsVideo", ModelModality.VIDEO in capabilities.inputModalities)
             put("supportsTools", capabilities.tools)
             put("supportsThinking", capabilities.reasoning.supportsReasoning)
             put("roles", buildJsonArray {
-                capabilities.roles.forEach { add(JsonPrimitive(it.name.lowercase())) }
+                capabilities.roles.forEach { role -> add(JsonPrimitive(role.name.lowercase())) }
             })
             put("inputModalities", buildJsonArray {
-                capabilities.inputModalities.forEach { add(JsonPrimitive(it.name.lowercase())) }
+                capabilities.inputModalities.forEach { modality -> add(JsonPrimitive(modality.name.lowercase())) }
             })
             put("outputModalities", buildJsonArray {
-                capabilities.outputModalities.forEach { add(JsonPrimitive(it.name.lowercase())) }
+                capabilities.outputModalities.forEach { modality -> add(JsonPrimitive(modality.name.lowercase())) }
             })
             put("supportedMimeTypes", buildJsonObject {
                 capabilities.inputMimeTypes.forEach { mime -> put(mime, true) }
             })
             if (capabilities.reasoning.supportsReasoning) {
-                put("thinkingBudget", effectiveThinkingBudget(upstream, reasoningLevel, provider.protocol))
+                put(
+                    "thinkingBudget",
+                    if (forceDynamicThinking) -1 else effectiveThinkingBudget(binding, variant.reasoningProfile)
+                )
+                (variant.reasoningProfile?.minBudgetTokens ?: capabilities.reasoning.minThinkingBudget)
+                    ?.let { put("minThinkingBudget", it) }
             }
-            capabilities.reasoning.minThinkingBudget?.let { put("minThinkingBudget", it) }
             put("supportedGenerationMethods", buildJsonArray {
                 add(JsonPrimitive("generateContent"))
                 add(JsonPrimitive("streamGenerateContent"))
             })
-            provider.name.trim().takeIf { it.isNotEmpty() }?.let { name ->
+            provider.name.trim().takeIf(String::isNotEmpty)?.let { name ->
                 put("tagTitle", name)
                 put("tagDescription", "BYOK")
             }
-            resolvedPolicy?.let { resolved ->
-                put("modelExperiments", CatalogCompressionApplier.checkpointExperiments(resolved))
-            }
+            resolvedPolicy?.let { put("modelExperiments", CatalogCompressionApplier.checkpointExperiments(it)) }
         }
-        return entry
     }
 
-    fun effectiveThinkingBudget(
-        upstream: UpstreamModel,
-        reasoningLevel: ReasoningLevel?,
-        protocol: ProviderProtocol
+    private fun effectiveThinkingBudget(
+        binding: ProviderModelBinding,
+        profile: ReasoningProfile?
     ): Int {
-        val reasoning = upstream.capabilities.reasoning
-        val mapping = reasoningLevel?.let { level ->
-            ReasoningMappingSupport.parse(reasoning.levels)[level]
-                ?: ReasoningMappingSupport.defaultMapping(protocol, level)
+        profile?.budgetTokens?.let { return it }
+        profile?.mapping?.let(ReasoningMappingSupport::mappingValueAsInt)?.let { return it }
+        val levelMapping = profile?.level?.let { level ->
+            ReasoningMappingSupport.parse(binding.capabilities.reasoning.levels)[level]
         }
-        return when (mapping?.kind?.lowercase()) {
-            "budget_tokens" -> ReasoningMappingSupport.mappingValueAsInt(mapping)
-                ?: reasoning.thinkingBudget
-                ?: -1
-
-            "disabled" -> 0
-            else -> reasoning.thinkingBudget ?: -1
-        }
+        return levelMapping?.let(ReasoningMappingSupport::mappingValueAsInt)
+            ?: binding.capabilities.reasoning.thinkingBudget
+            ?: -1
     }
 
-    fun modelProvider(protocol: ProviderProtocol): String {
-        return when (protocol) {
-            ProviderProtocol.ANTHROPIC_MESSAGES -> "MODEL_PROVIDER_ANTHROPIC"
-            ProviderProtocol.GEMINI_GENERATE_CONTENT -> "MODEL_PROVIDER_GOOGLE"
-            ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
-            ProviderProtocol.OPENAI_RESPONSES -> "MODEL_PROVIDER_OPENAI"
+    private fun policyFor(
+        config: AppConfig,
+        variant: ModelRouteVariant?,
+        binding: ProviderModelBinding
+    ): ModelCompressionPolicy? {
+        val variantPolicy = variant?.let { routeVariant ->
+            config.compressionPolicyAssignments.firstOrNull { assignment ->
+                assignment.targetType == CompressionPolicyTargetType.MODEL_ROUTE_VARIANT &&
+                        assignment.targetId == routeVariant.variantId
+            }?.policy
         }
+        val bindingPolicy = config.compressionPolicyAssignments.firstOrNull { assignment ->
+            assignment.targetType == CompressionPolicyTargetType.PROVIDER_MODEL_BINDING &&
+                    assignment.targetId == binding.bindingId
+        }?.policy
+        return variantPolicy ?: bindingPolicy ?: binding.compressionPolicy
+    }
+
+    private fun healedPolicy(
+        policy: ModelCompressionPolicy?,
+        checkpointWorkers: Collection<String>,
+        defaultCheckpointWorker: String?
+    ): ModelCompressionPolicy? = CatalogCompressionApplier.healCheckpointPolicy(
+        policy,
+        checkpointWorkers,
+        defaultCheckpointWorker
+    )
+
+    private fun bindingFor(config: AppConfig, variant: ModelRouteVariant): ProviderModelBinding? {
+        val bindingId = variant.bindingId ?: return null
+        return config.providerModelBindings.firstOrNull { binding -> binding.bindingId == bindingId }
+    }
+
+    private fun providerFor(config: AppConfig, binding: ProviderModelBinding): Provider? =
+        config.providers.firstOrNull { provider -> provider.id == binding.providerConfigId && provider.enabled }
+
+    private fun preferredVariant(variants: List<ModelRouteVariant>): ModelRouteVariant? {
+        return ModelIdentity.REASONING_LEVEL_PRIORITY.firstNotNullOfOrNull { level ->
+            variants.firstOrNull { variant -> variant.reasoningProfile?.level == level }
+        } ?: variants.firstOrNull()
+    }
+
+    fun modelProvider(protocol: ProviderProtocol): String = when (protocol) {
+        ProviderProtocol.ANTHROPIC_MESSAGES -> "MODEL_PROVIDER_ANTHROPIC"
+        ProviderProtocol.GEMINI_GENERATE_CONTENT -> "MODEL_PROVIDER_GOOGLE"
+        ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+        ProviderProtocol.OPENAI_RESPONSES -> "MODEL_PROVIDER_OPENAI"
     }
 }

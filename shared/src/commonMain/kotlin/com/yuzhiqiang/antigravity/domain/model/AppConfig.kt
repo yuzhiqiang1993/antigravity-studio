@@ -30,14 +30,16 @@ data class AppConfig(
     val outboundProxy: OutboundProxyConfig = OutboundProxyConfig(),
     @SerialName("providers")
     val providers: List<Provider> = emptyList(),
-    @SerialName("upstream_models")
-    val upstreamModels: List<UpstreamModel> = emptyList(),
-    @SerialName("virtual_models")
-    val virtualModels: List<VirtualModel> = emptyList(),
-    @SerialName("model_compression_policies")
-    val modelCompressionPolicies: Map<String, ModelCompressionPolicy> = emptyMap(),
-    @SerialName("disabled_official_models")
-    val disabledOfficialModels: List<String> = emptyList(),
+    @SerialName("canonical_models")
+    val canonicalModels: List<CanonicalModel> = emptyList(),
+    @SerialName("provider_model_bindings")
+    val providerModelBindings: List<ProviderModelBinding> = emptyList(),
+    @SerialName("model_route_variants")
+    val modelRouteVariants: List<ModelRouteVariant> = emptyList(),
+    @SerialName("compression_policy_assignments")
+    val compressionPolicyAssignments: List<ModelCompressionPolicyAssignment> = emptyList(),
+    @SerialName("disabled_official_catalog_model_ids")
+    val disabledOfficialCatalogModelIds: List<String> = emptyList(),
     @SerialName("custom_host_paths")
     val customHostPaths: Map<String, String?> = emptyMap(),
     @SerialName("smart_switch_config")
@@ -82,6 +84,6 @@ data class AppConfig(
         get() = developerMode
 
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 1
+        const val CURRENT_SCHEMA_VERSION = 2
     }
 }

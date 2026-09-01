@@ -696,18 +696,21 @@ class AppViewModel(
 
     fun toggleCustomModel(modelId: String) = providerModelDelegate.toggleCustomModel(modelId)
 
-    fun saveProvider(provider: Provider, models: List<UpstreamModel>): Boolean =
-        providerModelDelegate.saveProvider(provider, models)
+    fun saveProvider(provider: Provider, bindings: List<ProviderModelBinding>): Boolean =
+        providerModelDelegate.saveProvider(provider, bindings)
 
     fun deleteProvider(providerId: String) = providerModelDelegate.deleteProvider(providerId)
 
     fun deleteSingleModel(modelId: String) = providerModelDelegate.deleteSingleModel(modelId)
 
-    fun updateSingleModel(updatedModel: UpstreamModel): Boolean =
-        providerModelDelegate.updateSingleModel(updatedModel)
+    fun updateSingleModel(updatedBinding: ProviderModelBinding): Boolean =
+        providerModelDelegate.updateSingleModel(updatedBinding)
 
-    fun saveCompressionPolicy(modelId: String, policy: ModelCompressionPolicy?) =
-        providerModelDelegate.saveCompressionPolicy(modelId, policy)
+    fun saveCompressionPolicy(
+        targetType: CompressionPolicyTargetType,
+        targetId: String,
+        policy: ModelCompressionPolicy?
+    ) = providerModelDelegate.saveCompressionPolicy(targetType, targetId, policy)
 
     fun clearActivityLogs() {
         ActivityRecorder.clear()
@@ -717,8 +720,8 @@ class AppViewModel(
         configStore.updateConfig { it.copy(activityAutoScroll = enabled) }
     }
 
-    fun testSingleModel(model: UpstreamModel, provider: Provider) =
-        providerModelDelegate.testSingleModel(model, provider)
+    fun testSingleModel(binding: ProviderModelBinding, provider: Provider) =
+        providerModelDelegate.testSingleModel(binding, provider)
 
     fun testProviderModels(providerId: String) = providerModelDelegate.testProviderModels(providerId)
 

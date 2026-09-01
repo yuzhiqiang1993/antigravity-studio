@@ -16,7 +16,8 @@ data class UsageTokenColors(
     val cacheRead: Color,
     val cacheWrite: Color,
     val output: Color,
-    val reasoning: Color
+    val reasoning: Color,
+    val unattributed: Color
 )
 
 @Composable
@@ -30,6 +31,7 @@ fun usageTokenColors(): UsageTokenColors {
         cacheRead = scheme.primary,
         cacheWrite = scheme.primary.copy(alpha = 0.62f),
         output = status.success,
-        reasoning = status.warning
+        reasoning = status.warning,
+        unattributed = scheme.outline
     )
 }

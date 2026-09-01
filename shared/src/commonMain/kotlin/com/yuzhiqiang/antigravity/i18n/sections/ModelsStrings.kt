@@ -86,7 +86,6 @@ interface ModelsStrings {
     fun modelsBatchTestSuccess(passed: Int, total: Int): String
     fun modelsBatchTestPartial(passed: Int, total: Int, failed: Int): String
     val modelsProviderNotFound: String
-    fun modelsVirtualModelNotFound(id: String): String
     val providerPresetCustomName: String
     val providerPresetCustomDesc: String
 
@@ -258,7 +257,6 @@ object ModelsStringsZh : ModelsStrings {
         "服务商测试完成：$passed/$total 项通过，${failed} 项失败"
 
     override val modelsProviderNotFound = "模型关联的服务商不存在"
-    override fun modelsVirtualModelNotFound(id: String) = "模型不存在：$id"
     override val providerPresetCustomName = "自定义"
     override val providerPresetCustomDesc = "手动配置兼容 OpenAI、Anthropic 或 Google Gemini 协议的 API 服务"
 
@@ -386,9 +384,11 @@ object ModelsStringsEn : ModelsStrings {
     override val modelsRawJson = "Raw JSON"
     override val modelsModifiedJson = "Modified JSON"
     override val modelsNoOfficialDetected = "No official models detected"
-    override val modelsNoOfficialHint = "Please sign in or import an active account in Accounts page, then click Refresh"
+    override val modelsNoOfficialHint =
+        "Please sign in or import an active account in Accounts page, then click Refresh"
     override val modelsNoAccountTitle = "No Active Account Found"
-    override val modelsNoAccountHint = "Please sign in or import an account first. Official models and quotas will be automatically synchronized."
+    override val modelsNoAccountHint =
+        "Please sign in or import an account first. Official models and quotas will be automatically synchronized."
     override val modelsGoToAccounts = "Import / Sign In"
     override val modelsCopiedProviderUrl = "Provider endpoint copied to clipboard"
     override val modelsCopiedJson = "JSON data copied to clipboard"
@@ -443,7 +443,6 @@ object ModelsStringsEn : ModelsStrings {
         "Provider test complete: $passed/$total passed, $failed failed"
 
     override val modelsProviderNotFound = "Associated provider not found for this model"
-    override fun modelsVirtualModelNotFound(id: String) = "VirtualModel not found: $id"
     override val providerPresetCustomName = "Custom"
     override val providerPresetCustomDesc = "Manually configure any OpenAI-compatible, Anthropic or Gemini service"
 

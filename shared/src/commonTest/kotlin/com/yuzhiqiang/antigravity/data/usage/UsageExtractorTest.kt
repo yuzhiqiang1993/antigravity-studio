@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.data.usage
 
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
 import com.yuzhiqiang.antigravity.domain.model.usage.TokenEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,7 +23,7 @@ class UsageExtractorTest {
         assertEquals(200L, entry.output)
         assertEquals(800L, entry.cacheRead)
         assertEquals(50L, entry.reasoning)
-        assertEquals("claude-3-7-sonnet", entry.model)
+        assertEquals("claude-3-7-sonnet", entry.modelObservation.responseModelId)
         assertEquals("2026-08-31T06:15:10Z", entry.timestamp)
         assertEquals("convo-1", entry.conversationId)
         assertEquals("ide", entry.appSource)
@@ -31,9 +32,24 @@ class UsageExtractorTest {
     @Test
     fun testDedupEntriesWithSameResponseId() {
         val entries = listOf(
-            TokenEntry(responseId = "resp-1", input = 100, output = 50, model = "gemini-2.0-flash"),
-            TokenEntry(responseId = "resp-1", input = 100, output = 50, model = "gemini-2.0-flash"),
-            TokenEntry(responseId = "resp-2", input = 200, output = 80, model = "gemini-2.0-flash")
+            TokenEntry(
+                responseId = "resp-1",
+                input = 100,
+                output = 50,
+                modelObservation = ModelObservation(responseModelId = "gemini-2.0-flash")
+            ),
+            TokenEntry(
+                responseId = "resp-1",
+                input = 100,
+                output = 50,
+                modelObservation = ModelObservation(responseModelId = "gemini-2.0-flash")
+            ),
+            TokenEntry(
+                responseId = "resp-2",
+                input = 200,
+                output = 80,
+                modelObservation = ModelObservation(responseModelId = "gemini-2.0-flash")
+            )
         )
 
         val deduped = UsageExtractor.dedupEntries(entries)
@@ -50,10 +66,8 @@ class UsageExtractorTest {
 
         val entry = UsageExtractor.extractFromTranscript(lines, "nested", "ide").single()
 
-        assertEquals("vendor/model-a", entry.model)
-        assertEquals("Model A", entry.modelDisplayName)
-        assertEquals("vendor/model-a", entry.modelCanonicalId)
-        assertEquals("session-display:model-a", entry.modelAggregationId)
+        assertEquals("vendor/model-a", entry.modelObservation.responseModelId)
+        assertEquals("Model A", entry.modelObservation.displayName)
         assertEquals("2026-08-31T06:15:10Z", entry.timestamp)
         assertEquals(listOf("output", "cache", "cacheWrite", "reasoning"), entry.missingUsageFields)
     }
@@ -67,7 +81,7 @@ class UsageExtractorTest {
         val entry = UsageExtractor.extractFromTranscript(lines, "step", "ide").single()
 
         assertEquals("2026-08-31T06:15:10Z", entry.timestamp)
-        assertEquals("model-a", entry.model)
+        assertEquals("model-a", entry.modelObservation.responseModelId)
     }
 
     @Test
@@ -152,8 +166,16 @@ class UsageExtractorTest {
     @Test
     fun testFallbackFingerprintKeepsCallsInTheSameSecondSeparateWhenMillisecondsDiffer() {
         val entries = listOf(
-            TokenEntry(input = 10, model = "model", timestamp = "2026-08-31T06:15:10.001Z"),
-            TokenEntry(input = 10, model = "model", timestamp = "2026-08-31T06:15:10.002Z")
+            TokenEntry(
+                input = 10,
+                modelObservation = ModelObservation(responseModelId = "model"),
+                timestamp = "2026-08-31T06:15:10.001Z"
+            ),
+            TokenEntry(
+                input = 10,
+                modelObservation = ModelObservation(responseModelId = "model"),
+                timestamp = "2026-08-31T06:15:10.002Z"
+            )
         )
 
         assertEquals(2, UsageExtractor.dedupEntries(entries).size)

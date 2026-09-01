@@ -55,6 +55,7 @@ data class NeutralUsage(
     val cacheReadTokens: Long? = null,
     val cacheWriteTokens: Long? = null,
     val reasoningTokens: Long? = null,
+    val unattributedTokens: Long? = null,
     val totalTokens: Long? = null
 )
 
@@ -87,6 +88,7 @@ enum class StreamErrorSource {
 }
 
 sealed class NeutralStreamChunk {
+    data class ResponseMetadata(val responseModelId: String) : NeutralStreamChunk()
     data class TextDelta(val text: String, val choiceIndex: Int = 0) : NeutralStreamChunk()
     data class ReasoningDelta(
         val thinkingText: String,

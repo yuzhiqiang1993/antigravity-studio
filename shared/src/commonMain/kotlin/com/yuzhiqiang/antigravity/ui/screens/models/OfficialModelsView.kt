@@ -16,7 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
+import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicyAssignment
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
@@ -26,8 +26,8 @@ import androidx.compose.ui.graphics.luminance
 fun OfficialModelsView(
     groupedModels: List<GroupedOfficialModel>,
     isFetching: Boolean,
-    configDisabledModels: List<String>,
-    compressionPolicies: Map<String, ModelCompressionPolicy>,
+    disabledCatalogModelIds: List<String>,
+    compressionPolicyAssignments: List<ModelCompressionPolicyAssignment>,
     testSummary: String?,
     isTestSuccess: Boolean,
     fetchError: String?,
@@ -137,8 +137,14 @@ fun OfficialModelsView(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        com.yuzhiqiang.antigravity.ui.components.SkeletonCard(modifier = Modifier.weight(1f), height = 180.dp)
-                        com.yuzhiqiang.antigravity.ui.components.SkeletonCard(modifier = Modifier.weight(1f), height = 180.dp)
+                        com.yuzhiqiang.antigravity.ui.components.SkeletonCard(
+                            modifier = Modifier.weight(1f),
+                            height = 180.dp
+                        )
+                        com.yuzhiqiang.antigravity.ui.components.SkeletonCard(
+                            modifier = Modifier.weight(1f),
+                            height = 180.dp
+                        )
                     }
                 }
             }
@@ -181,9 +187,16 @@ fun OfficialModelsView(
                             Button(
                                 onClick = onNavigateToAccounts,
                                 shape = RoundedCornerShape(AppTokens.Radius.medium),
-                                contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section, vertical = AppTokens.Spacing.xs)
+                                contentPadding = PaddingValues(
+                                    horizontal = AppTokens.Spacing.section,
+                                    vertical = AppTokens.Spacing.xs
+                                )
                             ) {
-                                Icon(Icons.Outlined.Login, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
+                                Icon(
+                                    Icons.Outlined.Login,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AppTokens.Size.iconSmall)
+                                )
                                 Spacer(Modifier.width(AppTokens.Spacing.xs))
                                 Text(s.modelsGoToAccounts, style = MaterialTheme.typography.labelMedium)
                             }
@@ -193,9 +206,16 @@ fun OfficialModelsView(
                                 onClick = onRefresh,
                                 enabled = !isFetching,
                                 shape = RoundedCornerShape(AppTokens.Radius.medium),
-                                contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section, vertical = AppTokens.Spacing.xs)
+                                contentPadding = PaddingValues(
+                                    horizontal = AppTokens.Spacing.section,
+                                    vertical = AppTokens.Spacing.xs
+                                )
                             ) {
-                                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
+                                Icon(
+                                    Icons.Outlined.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AppTokens.Size.iconSmall)
+                                )
                                 Spacer(Modifier.width(AppTokens.Spacing.xs))
                                 Text(s.modelsRefreshOfficial, style = MaterialTheme.typography.labelMedium)
                             }
@@ -204,9 +224,16 @@ fun OfficialModelsView(
                                 onClick = onRefresh,
                                 enabled = !isFetching,
                                 shape = RoundedCornerShape(AppTokens.Radius.medium),
-                                contentPadding = PaddingValues(horizontal = AppTokens.Spacing.section, vertical = AppTokens.Spacing.xs)
+                                contentPadding = PaddingValues(
+                                    horizontal = AppTokens.Spacing.section,
+                                    vertical = AppTokens.Spacing.xs
+                                )
                             ) {
-                                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(AppTokens.Size.iconSmall))
+                                Icon(
+                                    Icons.Outlined.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AppTokens.Size.iconSmall)
+                                )
                                 Spacer(Modifier.width(AppTokens.Spacing.xs))
                                 Text(s.commonRefresh, style = MaterialTheme.typography.labelMedium)
                             }
@@ -225,39 +252,40 @@ fun OfficialModelsView(
                 if (columnCount == 1) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         groupedModels.forEach { group ->
-                            key(group.baseItem.id) {
-                            UniversalModelCard(
-                                state = createOfficialCardState(
-                                    group = group,
-                                    configDisabledModels = configDisabledModels,
-                                    compressionPolicies = compressionPolicies,
-                                    onToggle = { onToggleGroup(group) },
-                                    onEditPolicy = { onEditPolicy(group.baseItem.id) },
-                                    onOpenVisionDetail = {
-                                        onOpenVisionDetail(
-                                            group.baseName,
-                                            group.baseItem.supportsVision
-                                        )
-                                    },
-                                    onOpenReasoningDetail = {
-                                        onOpenReasoningDetail(
-                                            group.baseName,
-                                            group.variants.map { it.label }
-                                        )
-                                    },
-                                    onOpenInfoDetail = {
-                                        onOpenInfoDetail(
-                                            ModelMetaInfo(
-                                                name = group.baseName,
-                                                id = group.baseItem.id,
-                                                contextLimit = group.baseItem.inputTokenLimit ?: group.baseItem.maxTokens,
-                                                outputLimit = group.baseItem.outputTokenLimit,
-                                                roles = group.baseItem.roles
+                            key(group.baseItem.catalogModelId) {
+                                UniversalModelCard(
+                                    state = createOfficialCardState(
+                                        group = group,
+                                        disabledCatalogModelIds = disabledCatalogModelIds,
+                                        compressionPolicyAssignments = compressionPolicyAssignments,
+                                        onToggle = { onToggleGroup(group) },
+                                        onEditPolicy = { onEditPolicy(group.baseItem.catalogModelId) },
+                                        onOpenVisionDetail = {
+                                            onOpenVisionDetail(
+                                                group.baseName,
+                                                group.baseItem.supportsVision
                                             )
-                                        )
-                                    }
+                                        },
+                                        onOpenReasoningDetail = {
+                                            onOpenReasoningDetail(
+                                                group.baseName,
+                                                group.variants.map { it.label }
+                                            )
+                                        },
+                                        onOpenInfoDetail = {
+                                            onOpenInfoDetail(
+                                                ModelMetaInfo(
+                                                    name = group.baseName,
+                                                    id = group.baseItem.catalogModelId,
+                                                    contextLimit = group.baseItem.inputTokenLimit
+                                                        ?: group.baseItem.maxTokens,
+                                                    outputLimit = group.baseItem.outputTokenLimit,
+                                                    roles = group.baseItem.roles
+                                                )
+                                            )
+                                        }
+                                    )
                                 )
-                            )
                             }
                         }
                     }
@@ -269,41 +297,41 @@ fun OfficialModelsView(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 rowGroups.forEach { group ->
-                                    key(group.baseItem.id) {
-                                    UniversalModelCard(
-                                        state = createOfficialCardState(
-                                            group = group,
-                                            configDisabledModels = configDisabledModels,
-                                            compressionPolicies = compressionPolicies,
-                                            onToggle = { onToggleGroup(group) },
-                                            onEditPolicy = { onEditPolicy(group.baseItem.id) },
-                                            onOpenVisionDetail = {
-                                                onOpenVisionDetail(
-                                                    group.baseName,
-                                                    group.baseItem.supportsVision
-                                                )
-                                            },
-                                            onOpenReasoningDetail = {
-                                                onOpenReasoningDetail(
-                                                    group.baseName,
-                                                    group.variants.map { it.label }
-                                                )
-                                            },
-                                            onOpenInfoDetail = {
-                                                onOpenInfoDetail(
-                                                    ModelMetaInfo(
-                                                        name = group.baseName,
-                                                        id = group.baseItem.id,
-                                                        contextLimit = group.baseItem.inputTokenLimit
-                                                            ?: group.baseItem.maxTokens,
-                                                        outputLimit = group.baseItem.outputTokenLimit,
-                                                        roles = group.baseItem.roles
+                                    key(group.baseItem.catalogModelId) {
+                                        UniversalModelCard(
+                                            state = createOfficialCardState(
+                                                group = group,
+                                                disabledCatalogModelIds = disabledCatalogModelIds,
+                                                compressionPolicyAssignments = compressionPolicyAssignments,
+                                                onToggle = { onToggleGroup(group) },
+                                                onEditPolicy = { onEditPolicy(group.baseItem.catalogModelId) },
+                                                onOpenVisionDetail = {
+                                                    onOpenVisionDetail(
+                                                        group.baseName,
+                                                        group.baseItem.supportsVision
                                                     )
-                                                )
-                                            }
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                                },
+                                                onOpenReasoningDetail = {
+                                                    onOpenReasoningDetail(
+                                                        group.baseName,
+                                                        group.variants.map { it.label }
+                                                    )
+                                                },
+                                                onOpenInfoDetail = {
+                                                    onOpenInfoDetail(
+                                                        ModelMetaInfo(
+                                                            name = group.baseName,
+                                                            id = group.baseItem.catalogModelId,
+                                                            contextLimit = group.baseItem.inputTokenLimit
+                                                                ?: group.baseItem.maxTokens,
+                                                            outputLimit = group.baseItem.outputTokenLimit,
+                                                            roles = group.baseItem.roles
+                                                        )
+                                                    )
+                                                }
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                                 val emptySlots = columnCount - rowGroups.size

@@ -100,22 +100,34 @@ internal fun rememberActivityStatistics(logs: List<ActivityLog>): ActivityStatis
 
 internal fun calculateActivityStatistics(logs: List<ActivityLog>): ActivityStatistics {
     val failedCount = logs.count { !it.isPending && it.statusCode >= 400 }
-    val averageDuration = logs.filter { !it.isPending && it.statusCode > 0 }
+    val successfulLogs = logs.filter { !it.isPending && it.statusCode in 200..399 }
+    val averageDuration = successfulLogs
         .takeIf { it.isNotEmpty() }
         ?.map { it.durationMs }
         ?.average()
         ?.toLong() ?: 0L
-    val averageFirstTokenMs = logs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
+    val averageFirstTokenMs = successfulLogs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
         .takeIf { it.isNotEmpty() }
         ?.average()
         ?.toLong() ?: 0L
-    val averageTps = logs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 && tps <= com.yuzhiqiang.antigravity.domain.model.MAX_REASONABLE_TPS } }
+    val averageTps = successfulLogs.mapNotNull {
+        it.tokensPerSecond?.takeIf { tps ->
+            tps > 0.0 && tps <= com.yuzhiqiang.antigravity.domain.model.MAX_REASONABLE_TPS
+        }
+    }
         .takeIf { it.isNotEmpty() }
         ?.average()
-    val totalInputTokens = logs.mapNotNull { it.inputTokens }.sum()
-    val totalCacheReadTokens = logs.mapNotNull { it.cacheReadTokens }.sum()
-    val totalCacheWriteTokens = logs.mapNotNull { it.cacheWriteTokens }.sum()
-    val overallCacheHitRate = calculateCacheHitRate(totalCacheReadTokens, totalInputTokens, totalCacheWriteTokens)
+    val cacheUsageSamples = logs.mapNotNull { log ->
+        val input = log.inputTokens?.takeIf { it >= 0L } ?: return@mapNotNull null
+        val cacheRead = log.cacheReadTokens?.takeIf { it >= 0L } ?: return@mapNotNull null
+        if (log.cacheWriteTokens != null && log.cacheWriteTokens < 0L) return@mapNotNull null
+        Triple(cacheRead, input, log.cacheWriteTokens ?: 0L)
+    }
+    val overallCacheHitRate = calculateCacheHitRate(
+        cacheReadTokens = cacheUsageSamples.sumOf { it.first },
+        uncachedInputTokens = cacheUsageSamples.sumOf { it.second },
+        cacheWriteTokens = cacheUsageSamples.sumOf { it.third }
+    )
 
     return ActivityStatistics(
         failedCount = failedCount,
@@ -134,20 +146,24 @@ internal fun rememberModelLatencyStats(logs: List<ActivityLog>): List<ModelLaten
 internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLatencyStat> {
     return logs
         .mapNotNull { log ->
-            val model = (log.modelId ?: log.requestedModelId)?.takeIf { it.isNotBlank() }
-            if (model != null) model to log else null
+            val identity = log.modelIdentity ?: return@mapNotNull null
+            val modelId = identity.primaryModelId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            Triple(identity.groupingKey, modelId, log)
         }
-        .groupBy({ it.first }, { it.second })
-        .map { (modelId, modelLogs) ->
-            val firstByteLogs = modelLogs.mapNotNull { it.firstByteMs?.takeIf { ms -> ms > 0L } }
-            val firstTokenLogs = modelLogs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
+        .groupBy({ it.first }, { it.second to it.third })
+        .map { (_, groupedLogs) ->
+            val modelId = groupedLogs.first().first
+            val modelLogs = groupedLogs.map { it.second }
+            val successfulLogs = modelLogs.filter { !it.isPending && it.statusCode in 200..399 }
+            val firstByteLogs = successfulLogs.mapNotNull { it.firstByteMs?.takeIf { ms -> ms > 0L } }
+            val firstTokenLogs = successfulLogs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }
             val avgFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.average().toLong() else 0L
             val minFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.minOrNull() ?: 0L else 0L
             val maxFirstToken = if (firstTokenLogs.isNotEmpty()) firstTokenLogs.maxOrNull() ?: 0L else 0L
             val p50FirstToken = calculatePercentile(firstTokenLogs, 50.0)
             val p95FirstToken = calculatePercentile(firstTokenLogs, 95.0)
 
-            val completedLogs = modelLogs.filter { !it.isPending && it.durationMs > 0 }
+            val completedLogs = successfulLogs.filter { it.durationMs > 0 }
             val durationLogs = completedLogs.map { it.durationMs }
             val avgDuration = if (durationLogs.isNotEmpty()) durationLogs.average().toLong() else 0L
             val minDuration = durationLogs.minOrNull() ?: 0L
@@ -155,22 +171,26 @@ internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLate
             val p50Duration = calculatePercentile(durationLogs, 50.0)
             val p95Duration = calculatePercentile(durationLogs, 95.0)
 
-            val tpsList = modelLogs.mapNotNull { it.tokensPerSecond?.takeIf { tps -> tps > 0.0 && tps <= com.yuzhiqiang.antigravity.domain.model.MAX_REASONABLE_TPS } }
+            val tpsList = successfulLogs.mapNotNull {
+                it.tokensPerSecond?.takeIf { tps ->
+                    tps > 0.0 && tps <= com.yuzhiqiang.antigravity.domain.model.MAX_REASONABLE_TPS
+                }
+            }
             val avgTps = if (tpsList.isNotEmpty()) tpsList.average() else null
             val minTps = tpsList.minOrNull()
             val maxTps = tpsList.maxOrNull()
             val p50Tps = calculateDoublePercentile(tpsList, 50.0)
 
-            val tpotList = modelLogs.mapNotNull { it.timePerOutputTokenMs?.takeIf { tpot -> tpot > 0.0 } }
+            val tpotList = successfulLogs.mapNotNull { it.timePerOutputTokenMs?.takeIf { tpot -> tpot > 0.0 } }
             val avgTpot = if (tpotList.isNotEmpty()) tpotList.average() else null
 
-            val gapList = modelLogs.mapNotNull { it.maxChunkGapMs?.takeIf { gap -> gap > 0 } }
+            val gapList = successfulLogs.mapNotNull { it.maxChunkGapMs?.takeIf { gap -> gap > 0 } }
             val p95MaxGap = calculatePercentile(gapList, 95.0)
 
-            val queueWaitList = modelLogs.mapNotNull { it.queueWaitMs }
+            val queueWaitList = successfulLogs.mapNotNull { it.queueWaitMs }
             val avgQueueWait = if (queueWaitList.isNotEmpty()) queueWaitList.average().toLong() else null
 
-            val totalStalls = modelLogs.sumOf { it.stallCount }
+            val totalStalls = successfulLogs.sumOf { it.stallCount }
 
             ModelLatencyStat(
                 modelId = modelId,

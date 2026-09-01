@@ -32,6 +32,14 @@ interface UsageStrings {
     val usageKpiCostTitle: String
     val usageKpiCostSavings: (savings: String) -> String
     val usageKpiTotalTokensTitle: String
+    val usageTotalInputTitle: String
+    val usageTotalOutputTitle: String
+    val usageCacheCardTitle: String
+    val usageSavedAmountLabel: String
+    val usageUncachedInputLabel: String
+    val usageCacheHitLabel: String
+    val usageCacheWriteLabel: String
+    val usageGenerationLabel: String
     val usageKpiTokensDetail: (input: String, output: String, reasoning: String) -> String
     val usageKpiCacheHitRatioTitle: String
     val usageKpiCacheReadDetail: (cacheRead: String) -> String
@@ -40,6 +48,7 @@ interface UsageStrings {
     val usageKpiActiveDays: (days: Int) -> String
     val usageKpiPricingWarning: String
     val usageCacheRate: (pct: String) -> String
+    val usageCacheHitRateTitle: String
 
     // 固定本地日统计
     val usageTodaySummaryTitle: String
@@ -62,6 +71,7 @@ interface UsageStrings {
     val usageTokenCacheWrite: String
     val usageTokenModelOutput: String
     val usageTokenThinking: String
+    val usageTokenUnattributed: String
 
     // 活跃度与周模式
     val usageActivityHeatmapTitle: String

@@ -2,6 +2,7 @@ package com.yuzhiqiang.antigravity.data.storage
 
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
 import com.yuzhiqiang.antigravity.domain.model.ModelCapabilities
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentity
 import com.yuzhiqiang.antigravity.domain.model.Provider
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 
@@ -13,21 +14,45 @@ import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 internal object ConfigStoreNormalizer {
     fun normalize(config: AppConfig): AppConfig {
         val providers = config.providers.map(::normalizeProvider)
-        val upstreams = config.upstreamModels.map { upstream ->
-            upstream.copy(capabilities = normalizeCapabilities(upstream.capabilities))
+        val bindings = config.providerModelBindings.map { binding ->
+            binding.copy(
+                providerModelId = binding.providerModelId.trim(),
+                canonicalModelId = binding.canonicalModelId?.trim()?.takeIf(String::isNotEmpty),
+                providerVendor = binding.providerVendor?.trim()?.takeIf(String::isNotEmpty),
+                displayName = binding.displayName.trim(),
+                aliases = binding.aliases
+                    .map { alias -> alias.copy(value = alias.value.trim()) }
+                    .filter { alias -> alias.value.isNotEmpty() }
+                    .distinctBy { alias -> alias.kind to alias.value },
+                capabilities = normalizeCapabilities(binding.capabilities)
+            )
         }
-        val virtuals = config.virtualModels.map { virtual ->
-            val upstream = upstreams.firstOrNull { model -> model.id == virtual.upstreamModelId }
-            virtual.copy(
-                name = virtual.name.ifBlank { virtual.displayName.orEmpty() },
-                capabilities = upstream?.capabilities ?: virtual.capabilities
+        val variants = config.modelRouteVariants.map { variant ->
+            variant.copy(
+                catalogModelId = ModelIdentity.normalizeModelId(variant.catalogModelId),
+                runtimeModelId = ModelIdentity.normalizeModelId(variant.runtimeModelId),
+                displayName = variant.displayName.trim()
             )
         }
         return config.copy(
             outboundProxy = config.outboundProxy.copy(host = config.outboundProxy.host.trim()),
             providers = providers,
-            upstreamModels = upstreams,
-            virtualModels = virtuals
+            canonicalModels = config.canonicalModels.map { model ->
+                model.copy(
+                    canonicalModelId = model.canonicalModelId.trim(),
+                    providerVendor = model.providerVendor.trim(),
+                    baseModelId = model.baseModelId?.trim()?.takeIf(String::isNotEmpty),
+                    version = model.version?.trim()?.takeIf(String::isNotEmpty),
+                    displayName = model.displayName.trim(),
+                    pricingAliases = model.pricingAliases.map(String::trim).filter(String::isNotEmpty).distinct()
+                )
+            },
+            providerModelBindings = bindings,
+            modelRouteVariants = variants,
+            disabledOfficialCatalogModelIds = config.disabledOfficialCatalogModelIds
+                .map(ModelIdentity::normalizeModelId)
+                .filter(String::isNotEmpty)
+                .distinct()
         )
     }
 

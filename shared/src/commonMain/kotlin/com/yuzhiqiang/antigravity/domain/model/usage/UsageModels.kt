@@ -1,5 +1,7 @@
 package com.yuzhiqiang.antigravity.domain.model.usage
 
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentityStatus
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
 import kotlinx.serialization.Serializable
 
 /**
@@ -15,16 +17,8 @@ data class TokenEntry(
     val reasoning: Long = 0L,
     /** Provider 只上报总量或总量大于已知分项时无法归属的 Token。 */
     val unattributed: Long = 0L,
-    /** 真实响应/计费模型；不要用运行时占位符覆盖它。 */
-    val model: String = "",
-    val modelDisplayName: String? = null,
-    val modelCanonicalId: String? = null,
-    val modelCatalogId: String? = null,
-    val modelRuntimeId: String? = null,
-    val modelAggregationId: String? = null,
-    val modelPricingIds: List<String> = emptyList(),
-    /** 例如 response-model、display-name、runtime-model、unknown。 */
-    val modelEvidenceSource: String? = null,
+    /** 扫描时捕获的原始模型证据；canonical identity 必须在聚合时动态解析。 */
+    val modelObservation: ModelObservation = ModelObservation(),
     /** 数据源没有返回的维度；与明确返回 0 区分。 */
     val missingUsageFields: List<String> = emptyList(),
     val provider: String = "",
@@ -38,11 +32,21 @@ data class TokenEntry(
     /** 用于去重的唯一特征指纹 */
     fun fingerprint(): String {
         if (!responseId.isNullOrBlank()) return "rid:$responseId"
-        val cleanModel = model.trim().lowercase()
+        val observationKey = listOf(
+            modelObservation.requestedModelId,
+            modelObservation.variantId,
+            modelObservation.catalogModelId,
+            modelObservation.runtimeModelId,
+            modelObservation.bindingId,
+            modelObservation.providerConfigId,
+            modelObservation.providerModelId,
+            modelObservation.responseModelId,
+            modelObservation.providerVendor
+        ).joinToString("\u0000") { it?.trim()?.lowercase().orEmpty() }
         val cleanProvider = provider.trim().lowercase()
-        // 保留毫秒，避免同一秒内没有 responseId 的两次调用被错误合并。
+        // 保留毫秒，避免同一秒内没有 responseId 的两次调用被错误合并；display 不参与 key。
         val tsKey = if (timestamp.length >= 23) timestamp.substring(0, 23) else timestamp
-        return "$input:$output:$cacheRead:$cacheWrite:$reasoning:$unattributed:$tsKey:$cleanModel:$cleanProvider"
+        return "$input:$output:$cacheRead:$cacheWrite:$reasoning:$unattributed:$tsKey:$observationKey:$cleanProvider"
     }
 }
 
@@ -182,12 +186,14 @@ data class MissingUsageCounts(
 )
 
 /**
- * 模型消耗聚合桶
+ * 同一 canonical 模型下的路由 variant 二级消耗桶。
  */
 @Serializable
-data class ModelUsageBucket(
-    val modelId: String,
+data class ModelVariantUsageBucket(
+    val variantKey: String,
+    val variantId: String? = null,
     val displayName: String,
+    val identityStatus: ModelIdentityStatus,
     val input: Long = 0L,
     val output: Long = 0L,
     val cacheRead: Long = 0L,
@@ -197,11 +203,33 @@ data class ModelUsageBucket(
     val calls: Long = 0L,
     val costUsd: Double = 0.0,
     val savingsUsd: Double = 0.0,
-    val canonicalId: String? = null,
-    val aggregationId: String? = null,
-    val pricingModelIds: List<String> = emptyList(),
-    val rawModelIds: List<String> = emptyList(),
-    val modelEvidenceSource: String? = null,
+    val pricingMatched: Boolean = false,
+    val costLowerBound: Boolean = false
+) {
+    val totalTokens: Long
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
+}
+
+/**
+ * 模型消耗一级聚合桶，稳定 key 直接来自 ResolvedModelIdentity.groupingKey。
+ */
+@Serializable
+data class ModelUsageBucket(
+    val groupingKey: String,
+    val displayName: String,
+    val identityStatus: ModelIdentityStatus,
+    val canonicalModelId: String? = null,
+    val registeredPricingIds: List<String> = emptyList(),
+    val variantBuckets: List<ModelVariantUsageBucket> = emptyList(),
+    val input: Long = 0L,
+    val output: Long = 0L,
+    val cacheRead: Long = 0L,
+    val cacheWrite: Long = 0L,
+    val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
+    val calls: Long = 0L,
+    val costUsd: Double = 0.0,
+    val savingsUsd: Double = 0.0,
     val missingUsage: MissingUsageCounts? = null,
     val longContext: LongContextUsageBucket? = null,
     /** 计费解析元数据；与插件的 matched/source/confidence 语义对应。 */

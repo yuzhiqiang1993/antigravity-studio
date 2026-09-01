@@ -67,7 +67,7 @@ fun ModelLatencyStatsDialog(
     val totalCompletedRequests = validStats.sumOf { it.completedCount }
     val activeModelCount = validStats.size
     // 与 calculateModelLatencyStats 保持相同的模型归属口径，避免无模型日志只进入均值分子。
-    val modelLatencyLogs = logs.filter { (it.modelId ?: it.requestedModelId)?.isNotBlank() == true }
+    val modelLatencyLogs = logs.filter { it.modelIdentity?.primaryModelId?.isNotBlank() == true }
 
     val overallAvgTtft = if (totalTtftSamples > 0) {
         val totalMs = modelLatencyLogs.mapNotNull { it.firstTokenMs?.takeIf { ms -> ms > 0 } }.sum()
@@ -256,7 +256,9 @@ private fun LatencySummaryCard(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(10.dp),
-        color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(
+            alpha = 0.35f
+        ),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.30f else 0.45f)
@@ -525,7 +527,9 @@ private fun MetricColumnCard(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(AppTokens.Radius.small),
-        color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+        color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(
+            alpha = 0.32f
+        ),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.25f else 0.38f)

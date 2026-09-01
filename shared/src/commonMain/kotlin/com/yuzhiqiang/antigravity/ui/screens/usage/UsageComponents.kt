@@ -35,8 +35,11 @@ import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlin.math.roundToInt
 
 /**
- * 插件大盘同款 Hero：两个主指标、一个五维构成条和紧凑明细行。
- * 将 Token 构成放回汇总区域，避免把核心信息拆成多个大卡片。
+ * 现代高阶 Hero 看板：
+ * 1. 突出真实消耗 Token（超大数字 + 紧凑万/亿换算，主视觉焦点）；
+ * 2. 弱化请求数与总成本（右上角紧凑微卡片承载）；
+ * 3. 结构化 2x2/2x3 Token 构成指标卡（带专属图标与百分比）；
+ * 4. 底部融合轻量缓存命中率进度条与多维色彩比例条。
  */
 @Composable
 fun UsageKpiGrid(
@@ -52,8 +55,16 @@ fun UsageKpiGrid(
     val costValue = when {
         stats.totalCalls == 0L -> s.usageCostValue(costAmount)
         allUnmatched && stats.estimatedCostUsd == 0.0 -> s.usageCostUnavailable
+        stats.costLowerBound -> s.usageCostLowerBound(costAmount)
         else -> s.usageCostValue(costAmount)
     }
+
+    val totalTokens = stats.totalTokens
+    val promptHitRatio = stats.promptCacheHitRatio
+    val cacheHitRatioText = promptHitRatio?.let { ratio ->
+        val prefix = if (stats.cacheHitRateIncomplete) "≈" else ""
+        "$prefix${tokenFormatter.formatPercent(ratio * 100.0)}%"
+    } ?: "—"
 
     StudioGlassCard(
         modifier = modifier.fillMaxWidth(),
@@ -64,133 +75,424 @@ fun UsageKpiGrid(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    horizontal = UsageVisualTokens.cardPadding,
-                    vertical = UsageVisualTokens.cardVerticalPadding
-                ),
-            verticalArrangement = Arrangement.spacedBy(UsageVisualTokens.cardGap)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // 1. 顶部 Hero 主视觉栏：左侧超大 Token 消耗 + 右侧弱化的请求与成本徽标卡
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = s.usageOverviewTitle,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = UsageVisualTokens.Typography.overviewTitle,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (stats.dateRangeFrom.isNotBlank()) {
-                    Text(
-                        text = "${UsageNumberFormatter.formatShortDate(stats.dateRangeFrom)} ~ " +
-                                UsageNumberFormatter.formatShortDate(stats.dateRangeTo),
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = UsageVisualTokens.Typography.heroSupporting),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                // 左侧主视觉：真实消耗 Tokens
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ElectricBolt,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = s.usageKpiTotalTokensTitle,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = tokenFormatter.formatCount(totalTokens),
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (totalTokens >= 10_000L) {
+                                Text(
+                                    text = "≈ ${tokenFormatter.formatTokens(totalTokens)}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                    modifier = Modifier.padding(bottom = 3.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 右侧弱化辅助指标卡：总请求数 + 预估成本
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.5.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
                     )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // 请求数
+                        Column(horizontalAlignment = Alignment.Start) {
+                            Text(
+                                text = s.usageKpiCallsTitle,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ShowChart,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = tokenFormatter.formatCount(stats.totalCalls),
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier.height(22.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                        )
+
+                        // 预估总成本
+                        Column(horizontalAlignment = Alignment.Start) {
+                            Text(
+                                text = s.usageKpiCostTitle,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = costValue,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = if (stats.estimatedCostUsd > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
 
+            // 2. 中层：输入 (Input)、输出 (Output)、缓存利用 (Cache) 三卡片并列对齐
+            val totalInputTokens = stats.totalInput + stats.totalCacheRead + stats.totalCacheWrite
+            val totalOutputTokens = stats.totalOutput + stats.totalReasoning
+            val inputPct = if (totalTokens > 0L) (totalInputTokens.toDouble() / totalTokens.toDouble() * 100.0) else 0.0
+            val outputPct =
+                if (totalTokens > 0L) (totalOutputTokens.toDouble() / totalTokens.toDouble() * 100.0) else 0.0
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(UsageVisualTokens.cardGap),
-                verticalAlignment = Alignment.Bottom
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                HeroMetric(
+                // 卡片 1：输入用量 (Prompt Input)
+                Surface(
                     modifier = Modifier.weight(1f),
-                    title = s.usageKpiCostTitle,
-                    value = costValue,
-                    supporting = when {
-                        hasUnmatchedPricing -> s.usageKpiPricingWarning
-                        else -> s.usageKpiCostSavings(tokenFormatter.formatUsdAmount(stats.estimatedSavingsUsd))
-                    },
-                    accent = MaterialTheme.colorScheme.onSurface
-                )
-                HeroMetric(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.5.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.FileDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = colors.input
+                                )
+                                Text(
+                                    text = s.usageTotalInputTitle,
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "${tokenFormatter.formatPercent(inputPct)}%",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = colors.input
+                            )
+                        }
+
+                        Text(
+                            text = tokenFormatter.formatTokens(totalInputTokens),
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        // 细项标签行
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SubmetricTag(
+                                label = s.usageUncachedInputLabel,
+                                value = tokenFormatter.formatTokens(stats.totalInput),
+                                dotColor = colors.input
+                            )
+                            if (stats.totalCacheWrite > 0L) {
+                                SubmetricTag(
+                                    label = s.usageCacheWriteLabel,
+                                    value = tokenFormatter.formatTokens(stats.totalCacheWrite),
+                                    dotColor = colors.cacheWrite
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 卡片 2：输出用量 (Model Output)
+                Surface(
                     modifier = Modifier.weight(1f),
-                    title = s.usageKpiTotalTokensTitle,
-                    value = tokenFormatter.formatTokens(stats.totalTokens),
-                    supporting = s.usageKpiTokensDetail(
-                        tokenFormatter.formatTokens(stats.totalInput),
-                        tokenFormatter.formatTokens(stats.totalOutput),
-                        tokenFormatter.formatTokens(stats.totalReasoning)
-                    ),
-                    accent = MaterialTheme.colorScheme.onSurface
-                )
-            }
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.5.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.FileUpload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = colors.output
+                                )
+                                Text(
+                                    text = s.usageTotalOutputTitle,
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "${tokenFormatter.formatPercent(outputPct)}%",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = colors.output
+                            )
+                        }
 
-            TokenCompositionBar(stats = stats, colors = colors)
+                        Text(
+                            text = tokenFormatter.formatTokens(totalOutputTokens),
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(UsageVisualTokens.Chart.legendSpacing),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CompositionLegendItem(s.usageTokenPromptInput, stats.totalInput, colors.input, stats.totalTokens)
-                CompositionLegendItem(s.usageTokenCacheRead, stats.totalCacheRead, colors.cacheRead, stats.totalTokens)
-                CompositionLegendItem(
-                    s.usageTokenCacheWrite,
-                    stats.totalCacheWrite,
-                    colors.cacheWrite,
-                    stats.totalTokens
-                )
-                CompositionLegendItem(s.usageTokenModelOutput, stats.totalOutput, colors.output, stats.totalTokens)
-                CompositionLegendItem(s.usageTokenThinking, stats.totalReasoning, colors.reasoning, stats.totalTokens)
-                Text(
-                    text = "${UsageNumberFormatter.formatCount(stats.totalCalls)} ${s.usageKpiCallsTitle} · " +
-                            s.usageCacheRate(UsageNumberFormatter.formatPercent(stats.cacheHitRatio * 100.0)),
-                    style = MaterialTheme.typography.labelMedium.copy(fontSize = UsageVisualTokens.Typography.legendText),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                        // 细项标签行
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SubmetricTag(
+                                label = s.usageGenerationLabel,
+                                value = tokenFormatter.formatTokens(stats.totalOutput),
+                                dotColor = colors.output
+                            )
+                            if (stats.totalReasoning > 0L) {
+                                SubmetricTag(
+                                    label = s.usageTokenThinking,
+                                    value = tokenFormatter.formatTokens(stats.totalReasoning),
+                                    dotColor = colors.reasoning
+                                )
+                            }
+                            if (stats.totalUnattributed > 0L) {
+                                SubmetricTag(
+                                    label = s.usageTokenUnattributed,
+                                    value = tokenFormatter.formatTokens(stats.totalUnattributed),
+                                    dotColor = colors.unattributed
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 卡片 3：缓存命中与效率 (Cache Performance)
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.5.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AutoAwesome,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = colors.cacheRead
+                                )
+                                Text(
+                                    text = s.usageCacheCardTitle,
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = cacheHitRatioText,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = colors.cacheRead
+                            )
+                        }
+
+                        Text(
+                            text = tokenFormatter.formatTokens(stats.totalCacheRead),
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        // 细项标签行：已省成本 + 命中 Tokens
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (stats.estimatedSavingsUsd > 0.0) {
+                                SubmetricTag(
+                                    label = s.usageSavedAmountLabel,
+                                    value = "$${tokenFormatter.formatUsdAmount(stats.estimatedSavingsUsd)}",
+                                    dotColor = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            SubmetricTag(
+                                label = s.usageCacheHitLabel,
+                                value = tokenFormatter.formatTokens(stats.totalCacheRead),
+                                dotColor = colors.cacheRead
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HeroMetric(
-    title: String,
+private fun SubmetricTag(
+    label: String,
     value: String,
-    supporting: String,
-    accent: Color,
+    dotColor: Color,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    Row(
         modifier = modifier,
-        shape = RoundedCornerShape(UsageVisualTokens.innerRadius),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.30f)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = UsageVisualTokens.Typography.heroTitle,
-                    fontWeight = FontWeight.Medium
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontSize = UsageVisualTokens.Typography.heroValue,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = accent
-            )
-            Text(
-                text = supporting,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = UsageVisualTokens.Typography.heroSupporting),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2
-            )
-        }
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(dotColor)
+        )
+        Text(
+            text = "$label: $value",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -209,6 +511,7 @@ private fun TokenCompositionBar(stats: DeepUsageStats, colors: UsageTokenColors)
             TokenCompositionSegment(stats.totalCacheWrite, colors.cacheWrite)
             TokenCompositionSegment(stats.totalOutput, colors.output)
             TokenCompositionSegment(stats.totalReasoning, colors.reasoning)
+            TokenCompositionSegment(stats.totalUnattributed, colors.unattributed)
         }
     }
 }
@@ -225,7 +528,7 @@ private fun RowScope.TokenCompositionSegment(value: Long, color: Color) {
     }
 }
 
-/** Token 五维构成彩色横向比例条与图例（独立复用版本）。 */
+/** Token 构成彩色横向比例条与图例（独立复用版本）。 */
 @Composable
 fun TokenCompositionCard(
     stats: DeepUsageStats,
@@ -267,6 +570,7 @@ fun TokenCompositionCard(
                 CompositionLegendItem(s.usageTokenCacheWrite, stats.totalCacheWrite, colors.cacheWrite, total)
                 CompositionLegendItem(s.usageTokenModelOutput, stats.totalOutput, colors.output, total)
                 CompositionLegendItem(s.usageTokenThinking, stats.totalReasoning, colors.reasoning, total)
+                CompositionLegendItem(s.usageTokenUnattributed, stats.totalUnattributed, colors.unattributed, total)
             }
         }
     }
@@ -507,8 +811,8 @@ fun TopModelsBreakdownCard(
                             bucket = item,
                             costFormatted = modelCostLabel(item, s),
                             tokensFormatted = UsageNumberFormatter.formatTokens(item.totalTokens) +
-                                    if (item.costLowerBound) "+" else "",
-                            inputFormatted = UsageNumberFormatter.formatTokens(item.input),
+                                    if (item.missingUsage != null && item.unattributed == 0L) "+" else "",
+                            inputFormatted = formatUsageValue(item.input, item.missingUsage?.input ?: 0L),
                             outputFormatted = formatUsageValue(item.output, item.missingUsage?.output ?: 0L),
                             cacheFormatted = formatUsageValue(item.cacheRead, item.missingUsage?.cache ?: 0L),
                             cacheWriteFormatted = formatUsageValue(
@@ -534,7 +838,7 @@ fun TopModelsBreakdownCard(
 private fun modelCostLabel(bucket: ModelUsageBucket, s: com.yuzhiqiang.antigravity.i18n.Strings): String =
     usageBucketCostLabel(bucket.costUsd, bucket.pricingMatched, bucket.costLowerBound, s)
 
-private fun usageBucketCostLabel(
+internal fun usageBucketCostLabel(
     costUsd: Double,
     pricingMatched: Boolean,
     costLowerBound: Boolean,
@@ -542,7 +846,7 @@ private fun usageBucketCostLabel(
 ): String {
     if (!pricingMatched) return s.usageCostUnavailable
     val amount = UsageNumberFormatter.formatUsdAmount(costUsd)
-    return s.usageCostValue(amount)
+    return if (costLowerBound) s.usageCostLowerBound(amount) else s.usageCostValue(amount)
 }
 
 private fun formatUsageValue(value: Long, missingCalls: Long): String {
@@ -564,10 +868,11 @@ private fun ModelBreakdownRow(
     tokenColors: UsageTokenColors
 ) {
     val s = strings()
-    val cacheBase = bucket.input + bucket.cacheRead
-    val cacheRate = if (cacheBase > 0L) {
-        bucket.cacheRead.toDouble() / cacheBase.toDouble() * 100.0
-    } else null
+    val cacheRate = calculatePromptCacheHitRatio(
+        cacheReadTokens = bucket.cacheRead,
+        uncachedInputTokens = bucket.input,
+        cacheWriteTokens = bucket.cacheWrite
+    )?.times(100.0)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -615,8 +920,12 @@ private fun ModelBreakdownRow(
                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
                 ) {
                     Text(
-                        text = if (cacheRate == null) s.usageCostUnavailable
-                        else s.usageCacheRate(UsageNumberFormatter.formatPercent(cacheRate)),
+                        text = if (cacheRate == null) {
+                            "—"
+                        } else {
+                            val prefix = if (bucket.cacheHitRateIncomplete) "≈" else ""
+                            s.usageCacheRate("$prefix${UsageNumberFormatter.formatPercent(cacheRate)}")
+                        },
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = UsageVisualTokens.Typography.badgeText),
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -647,7 +956,7 @@ private fun ModelBreakdownRow(
             }
         }
 
-        // 与插件模型卡片一致：输入、缓存读取、缓存写入、输出、思考使用独立分段。
+        // 输入、缓存读取、缓存写入、输出、思考与未归因 Token 使用独立分段。
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -660,6 +969,7 @@ private fun ModelBreakdownRow(
             TokenCompositionSegment(bucket.cacheWrite, tokenColors.cacheWrite)
             TokenCompositionSegment(bucket.output, tokenColors.output)
             TokenCompositionSegment(bucket.reasoning, tokenColors.reasoning)
+            TokenCompositionSegment(bucket.unattributed, tokenColors.unattributed)
         }
 
         Text(
@@ -669,7 +979,11 @@ private fun ModelBreakdownRow(
                 cacheFormatted,
                 cacheWriteFormatted,
                 reasoningFormatted
-            ),
+            ) + if (bucket.unattributed > 0L) {
+                " · ${s.usageTokenUnattributed} ${UsageNumberFormatter.formatTokens(bucket.unattributed)}"
+            } else {
+                ""
+            },
             style = MaterialTheme.typography.bodySmall.copy(fontSize = UsageVisualTokens.Typography.modelMeta),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -819,8 +1133,9 @@ fun TopConversationsCard(
 }
 
 /**
- * 自定义日期范围选择弹窗
+ * 自定义日期范围选择弹窗（Material 3 原生 DateRangePicker）
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomDateRangeDialog(
     initialStartDate: String,
@@ -830,167 +1145,86 @@ fun CustomDateRangeDialog(
     onDismiss: () -> Unit
 ) {
     val s = strings()
-    var start by remember { mutableStateOf(initialStartDate) }
-    var end by remember { mutableStateOf(initialEndDate) }
-    var followNow by remember { mutableStateOf(initialFollowNow) }
-    val dateRangeValid = remember(start, end, followNow) {
-        val startDate = runCatching { java.time.LocalDate.parse(start.trim()) }.getOrNull()
-        val endDate = runCatching { java.time.LocalDate.parse(end.trim()) }.getOrNull()
-        when {
-            startDate == null -> false
-            followNow -> !startDate.isAfter(java.time.LocalDate.now(java.time.ZoneId.systemDefault()))
-            endDate == null -> false
-            else -> !endDate.isBefore(startDate)
-        }
+    val initialStartMillis = remember(initialStartDate) {
+        runCatching {
+            java.time.LocalDate.parse(initialStartDate.trim())
+                .atStartOfDay(java.time.ZoneOffset.UTC)
+                .toInstant()
+                .toEpochMilli()
+        }.getOrNull()
     }
-    val dateRangeError = if (dateRangeValid) null else s.usageCustomDateInvalid
+    val initialEndMillis = remember(initialEndDate) {
+        runCatching {
+            java.time.LocalDate.parse(initialEndDate.trim())
+                .atStartOfDay(java.time.ZoneOffset.UTC)
+                .toInstant()
+                .toEpochMilli()
+        }.getOrNull()
+    }
 
-    Dialog(
+    val state = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = initialStartMillis,
+        initialSelectedEndDateMillis = initialEndMillis
+    )
+
+    val hasValidRange = state.selectedStartDateMillis != null && state.selectedEndDateMillis != null
+
+    DatePickerDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        StudioDialogSurface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 480.dp)
-                .padding(16.dp),
-            shape = RoundedCornerShape(20.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val startMillis = state.selectedStartDateMillis ?: return@TextButton
+                    val endMillis = state.selectedEndDateMillis ?: return@TextButton
+                    val startDate = java.time.Instant.ofEpochMilli(startMillis)
+                        .atZone(java.time.ZoneOffset.UTC)
+                        .toLocalDate()
+                        .toString()
+                    val endDate = java.time.Instant.ofEpochMilli(endMillis)
+                        .atZone(java.time.ZoneOffset.UTC)
+                        .toLocalDate()
+                        .toString()
+                    onConfirm(
+                        CustomDateRange(
+                            startDate = startDate,
+                            endDate = endDate,
+                            followNow = false
+                        )
+                    )
+                    onDismiss()
+                },
+                enabled = hasValidRange
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = s.usageCustomDateDialogTitle,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Outlined.Close, contentDescription = s.commonClose)
-                    }
-                }
-
-                // 快捷预设小胶囊
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val now = java.time.LocalDate.now(java.time.ZoneId.systemDefault())
-                    val quickPresets = listOf(
-                        s.usageCustomDatePreset3Days to now.minusDays(2).toString(),
-                        s.usageCustomDatePreset10Days to now.minusDays(9).toString(),
-                        s.usageCustomDatePreset60Days to now.minusDays(59).toString(),
-                        s.usageCustomDatePresetLastMonth to now.minusMonths(1).withDayOfMonth(1).toString()
-                    )
-
-                    quickPresets.forEach { (label, presetStart) ->
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.clickable {
-                                start = presetStart
-                                end = now.toString()
-                                followNow = true
-                            }
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = s.usageCustomDateStartLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    StudioTextField(
-                        value = start,
-                        onValueChange = { start = it },
-                        placeholder = s.usageCustomDatePlaceholder,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = s.usageCustomDateEndLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    StudioTextField(
-                        value = if (followNow) s.usageCustomDateNowValue else end,
-                        onValueChange = { if (!followNow) end = it },
-                        enabled = !followNow,
-                        placeholder = s.usageCustomDatePlaceholder,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
-
-                // 跟随当前时间开关
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { followNow = !followNow }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Checkbox(
-                        checked = followNow,
-                        onCheckedChange = { followNow = it }
-                    )
-                    Text(
-                        text = s.usageCustomDateFollowNow,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                if (dateRangeError != null) {
-                    Text(
-                        text = dateRangeError,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                Button(
-                    onClick = {
-                        if (dateRangeValid) {
-                            onConfirm(
-                                CustomDateRange(
-                                    startDate = start.trim(),
-                                    endDate = if (followNow) "" else end.trim(),
-                                    followNow = followNow
-                                )
-                            )
-                            onDismiss()
-                        }
-                    },
-                    enabled = dateRangeValid,
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(s.usageCustomDateConfirm, fontWeight = FontWeight.Bold)
-                }
+                Text(s.commonConfirm, fontWeight = FontWeight.Bold)
             }
-        }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(s.commonCancel)
+            }
+        },
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        DateRangePicker(
+            state = state,
+            modifier = Modifier.weight(1f, fill = false),
+            title = {
+                Text(
+                    text = s.usageCustomDateDialogTitle,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(start = 24.dp, top = 20.dp, bottom = 4.dp)
+                )
+            },
+            headline = {
+                DateRangePickerDefaults.DateRangePickerHeadline(
+                    selectedStartDateMillis = state.selectedStartDateMillis,
+                    selectedEndDateMillis = state.selectedEndDateMillis,
+                    displayMode = state.displayMode,
+                    dateFormatter = remember { DatePickerDefaults.dateFormatter() },
+                    modifier = Modifier.padding(start = 24.dp, end = 12.dp, bottom = 8.dp)
+                )
+            },
+            showModeToggle = false
+        )
     }
 }

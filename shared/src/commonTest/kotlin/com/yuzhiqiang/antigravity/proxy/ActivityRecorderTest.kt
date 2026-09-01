@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.proxy
 
+import com.yuzhiqiang.antigravity.domain.model.ActivityModelIdentity
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
 import kotlin.test.BeforeTest
@@ -22,8 +23,10 @@ class ActivityRecorderTest {
         val logId = ActivityRecorder.startActivity(
             method = "POST",
             path = "/v1internal:streamGenerateContent",
-            modelId = "custom-gpt-5",
-            requestedModelId = "gpt-5",
+            modelIdentity = ActivityModelIdentity(
+                requestedModelId = "gpt-5",
+                variantId = "custom-gpt-5"
+            ),
             clientSource = "Antigravity IDE",
             providerName = "OpenAI",
             isOfficialPassthrough = false,
@@ -61,7 +64,13 @@ class ActivityRecorderTest {
             stallDurationMs = 2_100L,
             errorMessage = "upstream failed",
             errorSource = "UPSTREAM_RESPONSE",
-            usage = NeutralUsage(inputTokens = 100, outputTokens = 200, totalTokens = 300),
+            responseModelId = "gpt-5-2026-08-07",
+            usage = NeutralUsage(
+                inputTokens = 100,
+                outputTokens = 200,
+                unattributedTokens = 50,
+                totalTokens = 350
+            ),
             retryCount = 2,
             responseHeaders = mapOf("content-type" to "application/json"),
             responseBody = "{\"status\":\"ok\"}"
@@ -82,8 +91,11 @@ class ActivityRecorderTest {
         assertEquals(450L, finishedLog.maxChunkGapMs)
         assertEquals(1, finishedLog.stallCount)
         assertEquals(2_100L, finishedLog.stallDurationMs)
-        assertEquals(300L, finishedLog.totalTokens)
+        assertEquals(50L, finishedLog.unattributedTokens)
+        assertEquals(350L, finishedLog.totalTokens)
         assertEquals("UPSTREAM_RESPONSE", finishedLog.errorSource)
+        assertEquals("custom-gpt-5", finishedLog.modelIdentity?.variantId)
+        assertEquals("gpt-5-2026-08-07", finishedLog.modelIdentity?.responseModelId)
         assertEquals(2, finishedLog.retryCount)
         assertEquals("{\"status\":\"ok\"}", finishedLog.responseBody)
         assertEquals("application/json", finishedLog.responseHeaders?.get("content-type"))
@@ -94,7 +106,7 @@ class ActivityRecorderTest {
         ActivityRecorder.record(
             method = "GET",
             path = "/v1beta/models",
-            modelId = null,
+            modelIdentity = null,
             providerName = "Studio Local Catalog",
             statusCode = 200,
             durationMs = 50L,
@@ -118,7 +130,7 @@ class ActivityRecorderTest {
         val logId = ActivityRecorder.startActivity(
             method = "POST",
             path = "/v1/chat",
-            modelId = "single-response",
+            modelIdentity = ActivityModelIdentity(variantId = "single-response"),
             providerName = "Test",
             isOfficialPassthrough = false
         )
@@ -143,7 +155,7 @@ class ActivityRecorderTest {
         val logId = ActivityRecorder.startActivity(
             method = "POST",
             path = "/v1internal:streamGenerateContent",
-            modelId = "custom-gpt-5-6-sol-x-high",
+            modelIdentity = ActivityModelIdentity(variantId = "custom-gpt-5-6-sol-x-high"),
             providerName = "OpenAI",
             isOfficialPassthrough = false
         )
@@ -170,7 +182,7 @@ class ActivityRecorderTest {
         val logId = ActivityRecorder.startActivity(
             method = "POST",
             path = "/v1/chat",
-            modelId = "gpt-4",
+            modelIdentity = ActivityModelIdentity(variantId = "gpt-4"),
             providerName = "OpenAI",
             isOfficialPassthrough = false,
             requestBody = hugeBody

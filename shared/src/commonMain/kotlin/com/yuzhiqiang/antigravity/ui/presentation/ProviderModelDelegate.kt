@@ -45,8 +45,8 @@ class ProviderModelDelegate(
                 val currentAccount = accountStore.currentActiveAccount()
                     ?: accountStore.currentAccounts().firstOrNull()
 
-                val excludedCustomIds = configStore.currentConfig.upstreamModels
-                    .map(UpstreamModel::id)
+                val excludedCustomIds = configStore.currentConfig.providerModelBindings
+                    .map(ProviderModelBinding::bindingId)
                     .toSet()
                 val result = OfficialCatalogProbe.fetchOfficialModels(
                     account = currentAccount,
@@ -71,50 +71,60 @@ class ProviderModelDelegate(
         }
     }
 
-    fun toggleOfficialModel(modelId: String) {
+    fun toggleOfficialModel(catalogModelId: String) {
         val current = configStore.currentConfig
-        val list = current.disabledOfficialModels.toMutableList()
-        if (list.contains(modelId)) list.remove(modelId) else list.add(modelId)
-        configStore.saveConfig(current.copy(disabledOfficialModels = list))
+        val disabledIds = current.disabledOfficialCatalogModelIds.toMutableList()
+        if (catalogModelId in disabledIds) disabledIds.remove(catalogModelId) else disabledIds.add(catalogModelId)
+        configStore.saveConfig(current.copy(disabledOfficialCatalogModelIds = disabledIds))
     }
 
-    fun toggleOfficialModelGroup(modelIds: Set<String>, enable: Boolean) {
+    fun toggleOfficialModelGroup(catalogModelIds: Set<String>, enable: Boolean) {
         val current = configStore.currentConfig
-        val set = current.disabledOfficialModels.toMutableSet()
-        if (enable) set.removeAll(modelIds) else set.addAll(modelIds)
-        configStore.saveConfig(current.copy(disabledOfficialModels = set.toList()))
+        val disabledIds = current.disabledOfficialCatalogModelIds.toMutableSet()
+        if (enable) disabledIds.removeAll(catalogModelIds) else disabledIds.addAll(catalogModelIds)
+        configStore.saveConfig(current.copy(disabledOfficialCatalogModelIds = disabledIds.toList()))
     }
 
-    fun toggleCustomModel(modelId: String) {
+    fun toggleCustomModel(bindingId: String) {
         val current = configStore.currentConfig
-        val updated = current.upstreamModels.map {
-            if (it.id == modelId) it.copy(enabled = !it.enabled) else it
+        val updatedBindings = current.providerModelBindings.map { binding ->
+            if (binding.bindingId == bindingId) binding.copy(enabled = !binding.enabled) else binding
         }
-        val affectedUpstream = updated.find { it.id == modelId }
-        val updatedVirtuals = if (affectedUpstream != null) {
-            current.virtualModels.map { virtual ->
-                if (virtual.upstreamModelId == modelId) virtual.copy(enabled = affectedUpstream.enabled) else virtual
+        val updatedBinding = updatedBindings.firstOrNull { it.bindingId == bindingId }
+        val updatedVariants = if (updatedBinding != null) {
+            current.modelRouteVariants.map { variant ->
+                if (variant.bindingId == bindingId) variant.copy(enabled = updatedBinding.enabled) else variant
             }
         } else {
-            current.virtualModels
+            current.modelRouteVariants
         }
-        configStore.saveConfig(current.copy(upstreamModels = updated, virtualModels = updatedVirtuals))
+        configStore.saveConfig(
+            current.copy(
+                providerModelBindings = updatedBindings,
+                modelRouteVariants = updatedVariants
+            )
+        )
     }
 
-    fun saveProvider(provider: Provider, models: List<UpstreamModel>): Boolean {
+    fun saveProvider(provider: Provider, bindings: List<ProviderModelBinding>): Boolean {
         return try {
             val syncResult = ProviderModelSynchronizer.synchronize(
                 config = configStore.currentConfig,
                 provider = provider,
-                selectedModels = models
+                selectedBindings = bindings
             ).getOrThrow()
 
             configStore.updateConfig { current ->
                 val updatedProviders = current.providers.filterNot { it.id == provider.id } + provider
                 current.copy(
                     providers = updatedProviders,
-                    upstreamModels = syncResult.upstreamModels,
-                    virtualModels = syncResult.virtualModels
+                    providerModelBindings = syncResult.providerModelBindings,
+                    modelRouteVariants = syncResult.modelRouteVariants,
+                    compressionPolicyAssignments = retainValidCompressionPolicyAssignments(
+                        assignments = current.compressionPolicyAssignments,
+                        bindings = syncResult.providerModelBindings,
+                        variants = syncResult.modelRouteVariants
+                    )
                 )
             }
             showNotice(s.modelsProviderSaved(provider.name), NoticeKind.SUCCESS)
@@ -128,21 +138,24 @@ class ProviderModelDelegate(
     fun deleteProvider(providerId: String) {
         val current = configStore.currentConfig
         val targetProvider = current.providers.find { it.id == providerId } ?: return
-        val removedUpstreams = current.upstreamModels.filter { it.providerId == providerId }
-        val removedVirtualModels = current.virtualModels.filter {
-            it.upstreamModelId in removedUpstreams.map(UpstreamModel::id).toSet()
-        }
+        val removedBindingIds = current.providerModelBindings
+            .filter { it.providerConfigId == providerId }
+            .mapTo(mutableSetOf(), ProviderModelBinding::bindingId)
+        val removedVariantIds = current.modelRouteVariants
+            .filter { it.bindingId in removedBindingIds }
+            .mapTo(mutableSetOf(), ModelRouteVariant::variantId)
         try {
             configStore.saveConfig(
                 current.copy(
                     providers = current.providers.filterNot { it.id == providerId },
-                    upstreamModels = current.upstreamModels.filterNot { it.providerId == providerId },
-                    virtualModels = current.virtualModels.filterNot { virtual ->
-                        virtual.upstreamModelId in removedUpstreams.map(UpstreamModel::id).toSet()
+                    providerModelBindings = current.providerModelBindings.filterNot {
+                        it.bindingId in removedBindingIds
                     },
-                    modelCompressionPolicies = current.modelCompressionPolicies.filterKeys { key ->
-                        key !in removedUpstreams.map(UpstreamModel::id).toSet() &&
-                                key !in removedVirtualModels.map(VirtualModel::id).toSet()
+                    modelRouteVariants = current.modelRouteVariants.filterNot {
+                        it.variantId in removedVariantIds
+                    },
+                    compressionPolicyAssignments = current.compressionPolicyAssignments.filterNot { assignment ->
+                        assignment.targetsAny(removedBindingIds, removedVariantIds)
                     }
                 )
             )
@@ -152,42 +165,52 @@ class ProviderModelDelegate(
         }
     }
 
-    fun deleteSingleModel(modelId: String) {
+    fun deleteSingleModel(bindingId: String) {
         val current = configStore.currentConfig
-        val targetModel = current.upstreamModels.find { it.id == modelId } ?: return
+        val targetBinding = current.providerModelBindings.find { it.bindingId == bindingId } ?: return
+        val removedVariantIds = current.modelRouteVariants
+            .filter { it.bindingId == bindingId }
+            .mapTo(mutableSetOf(), ModelRouteVariant::variantId)
         try {
             configStore.saveConfig(
                 current.copy(
-                    upstreamModels = current.upstreamModels.filterNot { it.id == modelId },
-                    virtualModels = current.virtualModels.filterNot { it.upstreamModelId == modelId },
-                    modelCompressionPolicies = current.modelCompressionPolicies - modelId
+                    providerModelBindings = current.providerModelBindings.filterNot { it.bindingId == bindingId },
+                    modelRouteVariants = current.modelRouteVariants.filterNot { it.variantId in removedVariantIds },
+                    compressionPolicyAssignments = current.compressionPolicyAssignments.filterNot { assignment ->
+                        assignment.targetsAny(setOf(bindingId), removedVariantIds)
+                    }
                 )
             )
-            showNotice(s.modelsModelDeleted(targetModel.displayName ?: targetModel.name), NoticeKind.SUCCESS)
+            showNotice(s.modelsModelDeleted(targetBinding.effectiveName), NoticeKind.SUCCESS)
         } catch (e: Exception) {
             showNotice(s.modelsModelDeleteFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
         }
     }
 
-    fun updateSingleModel(updatedModel: UpstreamModel): Boolean {
+    fun updateSingleModel(updatedBinding: ProviderModelBinding): Boolean {
         return try {
             configStore.updateConfig { current ->
-                val provider = current.providers.firstOrNull { item -> item.id == updatedModel.providerId }
+                val provider = current.providers.firstOrNull { item -> item.id == updatedBinding.providerConfigId }
                     ?: throw IllegalArgumentException(s.modelsProviderNotFound)
-                val providerModels = current.upstreamModels.map { model ->
-                    if (model.id == updatedModel.id) updatedModel else model
-                }.filter { model -> model.providerId == provider.id }
+                val providerBindings = current.providerModelBindings.map { binding ->
+                    if (binding.bindingId == updatedBinding.bindingId) updatedBinding else binding
+                }.filter { binding -> binding.providerConfigId == provider.id }
                 val synchronized = ProviderModelSynchronizer.synchronize(
                     config = current,
                     provider = provider,
-                    selectedModels = providerModels
+                    selectedBindings = providerBindings
                 ).getOrThrow()
                 current.copy(
-                    upstreamModels = synchronized.upstreamModels,
-                    virtualModels = synchronized.virtualModels
+                    providerModelBindings = synchronized.providerModelBindings,
+                    modelRouteVariants = synchronized.modelRouteVariants,
+                    compressionPolicyAssignments = retainValidCompressionPolicyAssignments(
+                        assignments = current.compressionPolicyAssignments,
+                        bindings = synchronized.providerModelBindings,
+                        variants = synchronized.modelRouteVariants
+                    )
                 )
             }
-            showNotice(s.modelsModelUpdated(updatedModel.displayName ?: updatedModel.name), NoticeKind.SUCCESS)
+            showNotice(s.modelsModelUpdated(updatedBinding.effectiveName), NoticeKind.SUCCESS)
             true
         } catch (e: Exception) {
             showNotice(s.modelsModelUpdateFailed(e.message ?: s.commonUnknown), NoticeKind.ERROR)
@@ -195,81 +218,50 @@ class ProviderModelDelegate(
         }
     }
 
-    fun saveCompressionPolicy(modelId: String, policy: ModelCompressionPolicy?) {
+    fun saveCompressionPolicy(
+        targetType: CompressionPolicyTargetType,
+        targetId: String,
+        policy: ModelCompressionPolicy?
+    ) {
         configStore.updateConfig { current ->
-            val updatedPolicies = current.modelCompressionPolicies.toMutableMap()
-            var updatedUpstreams = current.upstreamModels
-            val currentOfficial = officialModelsFlow.value
-            val matchedOfficial = currentOfficial.find { it.id == modelId }
-            if (matchedOfficial != null) {
-                val regex = Regex("""^(.*?)(?:\s*\((.*?)\))?$""")
-                val targetBaseName = regex.find(matchedOfficial.displayName.ifBlank { matchedOfficial.id })
-                    ?.groupValues?.getOrNull(1)?.trim() ?: matchedOfficial.id
-
-                val relatedIds = currentOfficial.filter { m ->
-                    val mBase = regex.find(m.displayName.ifBlank { m.id })?.groupValues?.getOrNull(1)?.trim() ?: m.id
-                    mBase.equals(targetBaseName, ignoreCase = true) ||
-                            m.replacementModelId == modelId || matchedOfficial.replacementModelId == m.id
-                }.map { it.id }.toMutableSet()
-                relatedIds.add(modelId)
-
-                // 补充模型族基础 ID 与 -tiered 父条目 ID，确保全量覆盖
-                val baseSlug = modelId.removeSuffix("-high")
-                    .removeSuffix("-medium")
-                    .removeSuffix("-low")
-                    .removeSuffix("-tiered")
-                relatedIds.add(baseSlug)
-                relatedIds.add("$baseSlug-tiered")
-
-                relatedIds.forEach { id ->
-                    if (policy != null) updatedPolicies[id] = policy else updatedPolicies.remove(id)
-                }
-            } else {
-                if (policy != null) updatedPolicies[modelId] = policy else updatedPolicies.remove(modelId)
-                // 同步更新 UpstreamModel 实体内部的 compressionPolicy 字段，确保双向一致
-                updatedUpstreams = current.upstreamModels.map { upstream ->
-                    val isDirectMatch = upstream.id == modelId || upstream.upstreamModelId == modelId
-                    val isVirtualMatch =
-                        current.virtualModels.any { it.id == modelId && it.upstreamModelId == upstream.id }
-                    if (isDirectMatch || isVirtualMatch) {
-                        upstream.copy(compressionPolicy = policy)
-                    } else {
-                        upstream
-                    }
-                }
+            val retainedAssignments = current.compressionPolicyAssignments.filterNot { assignment ->
+                assignment.targetType == targetType && assignment.targetId == targetId
             }
             current.copy(
-                upstreamModels = updatedUpstreams,
-                modelCompressionPolicies = updatedPolicies
+                compressionPolicyAssignments = if (policy == null) {
+                    retainedAssignments
+                } else {
+                    retainedAssignments + ModelCompressionPolicyAssignment(targetType, targetId, policy)
+                }
             )
         }
     }
 
-    fun testSingleModel(model: UpstreamModel, provider: Provider) {
+    fun testSingleModel(binding: ProviderModelBinding, provider: Provider) {
         scope.launch(Dispatchers.IO) {
             val updatedMap = modelTestStatusesFlow.value.toMutableMap()
-            updatedMap[model.id] = AppViewModel.ModelTestStatus(AppViewModel.ModelTestStatusKind.PENDING)
+            updatedMap[binding.bindingId] = AppViewModel.ModelTestStatus(AppViewModel.ModelTestStatusKind.PENDING)
             modelTestStatusesFlow.value = updatedMap
 
-            val result = ConnectionTester.testProvider(provider, model)
+            val result = ConnectionTester.testProvider(provider, binding)
             val finalMap = modelTestStatusesFlow.value.toMutableMap()
             if (result.success) {
-                finalMap[model.id] = AppViewModel.ModelTestStatus(
+                finalMap[binding.bindingId] = AppViewModel.ModelTestStatus(
                     status = AppViewModel.ModelTestStatusKind.SUCCESS,
                     latencyMs = result.latencyMs
                 )
                 showNotice(
-                    s.modelsModelTestSuccess(model.displayName ?: model.upstreamModelId, result.latencyMs),
+                    s.modelsModelTestSuccess(binding.effectiveName, result.latencyMs),
                     NoticeKind.SUCCESS
                 )
             } else {
-                finalMap[model.id] = AppViewModel.ModelTestStatus(
+                finalMap[binding.bindingId] = AppViewModel.ModelTestStatus(
                     status = AppViewModel.ModelTestStatusKind.ERROR,
                     error = result.error ?: "HTTP ${result.statusCode}"
                 )
                 showNotice(
                     s.modelsModelTestFailed(
-                        model.displayName ?: model.upstreamModelId,
+                        binding.effectiveName,
                         result.error ?: result.statusCode.toString()
                     ),
                     NoticeKind.ERROR
@@ -282,14 +274,14 @@ class ProviderModelDelegate(
     fun testProviderModels(providerId: String) {
         val current = configFlow.value
         val provider = current.providers.find { it.id == providerId } ?: return
-        val models = current.upstreamModels.filter { it.providerId == providerId }
+        val models = current.providerModelBindings.filter { it.providerConfigId == providerId }
         if (models.isEmpty()) return
 
         scope.launch(Dispatchers.IO) {
             providerTestingIdsFlow.value = providerTestingIdsFlow.value + providerId
             val pendingMap = modelTestStatusesFlow.value.toMutableMap()
             models.forEach {
-                pendingMap[it.id] = AppViewModel.ModelTestStatus(AppViewModel.ModelTestStatusKind.PENDING)
+                pendingMap[it.bindingId] = AppViewModel.ModelTestStatus(AppViewModel.ModelTestStatusKind.PENDING)
             }
             modelTestStatusesFlow.value = pendingMap
 
@@ -305,12 +297,12 @@ class ProviderModelDelegate(
                         testMutex.withLock {
                             if (result.success) {
                                 successCount++
-                                updatedMap[model.id] = AppViewModel.ModelTestStatus(
+                                updatedMap[model.bindingId] = AppViewModel.ModelTestStatus(
                                     status = AppViewModel.ModelTestStatusKind.SUCCESS,
                                     latencyMs = result.latencyMs
                                 )
                             } else {
-                                updatedMap[model.id] = AppViewModel.ModelTestStatus(
+                                updatedMap[model.bindingId] = AppViewModel.ModelTestStatus(
                                     status = AppViewModel.ModelTestStatusKind.ERROR,
                                     error = result.error ?: "HTTP ${result.statusCode}"
                                 )
@@ -335,5 +327,30 @@ class ProviderModelDelegate(
                 )
             }
         }
+    }
+
+    private fun retainValidCompressionPolicyAssignments(
+        assignments: List<ModelCompressionPolicyAssignment>,
+        bindings: List<ProviderModelBinding>,
+        variants: List<ModelRouteVariant>
+    ): List<ModelCompressionPolicyAssignment> {
+        val bindingIds = bindings.mapTo(mutableSetOf(), ProviderModelBinding::bindingId)
+        val variantIds = variants.mapTo(mutableSetOf(), ModelRouteVariant::variantId)
+        return assignments.filterNot { assignment ->
+            when (assignment.targetType) {
+                CompressionPolicyTargetType.OFFICIAL_CATALOG_MODEL -> false
+                CompressionPolicyTargetType.PROVIDER_MODEL_BINDING -> assignment.targetId !in bindingIds
+                CompressionPolicyTargetType.MODEL_ROUTE_VARIANT -> assignment.targetId !in variantIds
+            }
+        }
+    }
+
+    private fun ModelCompressionPolicyAssignment.targetsAny(
+        bindingIds: Set<String>,
+        variantIds: Set<String>
+    ): Boolean = when (targetType) {
+        CompressionPolicyTargetType.OFFICIAL_CATALOG_MODEL -> false
+        CompressionPolicyTargetType.PROVIDER_MODEL_BINDING -> targetId in bindingIds
+        CompressionPolicyTargetType.MODEL_ROUTE_VARIANT -> targetId in variantIds
     }
 }

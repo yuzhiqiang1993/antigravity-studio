@@ -1,77 +1,43 @@
 package com.yuzhiqiang.antigravity.proxy.routing
 
-import com.yuzhiqiang.antigravity.data.storage.ConfigStore
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
 import com.yuzhiqiang.antigravity.domain.model.ModelCapabilities
 import com.yuzhiqiang.antigravity.domain.model.ModelRole
+import com.yuzhiqiang.antigravity.domain.model.ModelRouteVariant
 import com.yuzhiqiang.antigravity.domain.model.Provider
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 import com.yuzhiqiang.antigravity.domain.model.ReasoningCapability
 import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
-import com.yuzhiqiang.antigravity.domain.model.VirtualModel
+import com.yuzhiqiang.antigravity.domain.model.ReasoningProfile
 import com.yuzhiqiang.antigravity.proxy.parser.AntigravityRequestParser
 import com.yuzhiqiang.antigravity.proxy.server.CatalogInjector
+
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+
 import kotlin.test.assertTrue
 
 class TieredModelRoutingTest {
 
     @Test
-    fun openAiChatCompletionsHandlesDynamicThinkingBudgetWithReasoningLevel() {
-        val config = AppConfig(
-            providers = listOf(
-                Provider(
-                    id = "p-1",
-                    name = "OpenRouter",
-                    protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
-                    baseUrl = "https://openrouter.ai/api/v1"
-                )
-            ),
-            upstreamModels = listOf(
-                UpstreamModel(
-                    id = "um-1",
-                    providerId = "p-1",
-                    upstreamModelId = "stealth/ox-alpha",
-                    capabilities = ModelCapabilities(
-                        roles = listOf(ModelRole.AGENT),
-                        reasoning = ReasoningCapability(supported = true)
-                    )
-                )
-            ),
-            virtualModels = listOf(
-                VirtualModel(
-                    id = "custom-stealthox-alpha-max",
-                    upstreamModelId = "um-1",
-                    hostModelId = "MODEL_PLACEHOLDER_M402",
-                    defaultReasoningLevel = ReasoningLevel.MAX
-                )
-            )
-        )
-
-        val request = AntigravityRequestParser.parse(
-            """
-            {
-              "model": "custom-stealthox-alpha-max",
-              "generationConfig": {
-                "thinkingConfig": {
-                  "thinkingBudget": -1
-                }
-              },
-              "contents": [{
-                "role": "user",
-                "parts": [{"text": "hello"}]
-              }]
-            }
-            """.trimIndent()
-        ).getOrThrow()
+    fun providerRequestUsesBindingProviderModelIdAndFreezesIdentity() {
+        val config = configWithVariants(ReasoningLevel.MAX)
+        val request = request("catalog-stealth-max")
 
         val route = RouteResolver.resolve(config, request).getOrThrow()
+
+        assertEquals("stealth/ox-alpha", route.request.targetUpstreamModelId)
+        assertEquals("variant-max", route.modelRouteVariant.variantId)
+        assertEquals("binding-1", route.providerModelBinding.bindingId)
+        assertEquals("catalog-stealth-max", route.modelExecutionIdentity.catalogModelId)
+        assertEquals("MODEL_PLACEHOLDER_M402", route.modelExecutionIdentity.runtimeModelId)
+        assertEquals("stealth/ox-alpha", route.modelExecutionIdentity.providerModelId)
         assertEquals("effort", route.request.reasoningMapping?.kind)
         assertEquals(
             "max",
@@ -80,157 +46,92 @@ class TieredModelRoutingTest {
     }
 
     @Test
-    fun modelCatalogRegistersTieredParentForReasoningVariants() {
-        val config = AppConfig(
-            providers = listOf(
-                Provider(
-                    id = "p-1",
-                    name = "OpenRouter",
-                    protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
-                    baseUrl = "https://openrouter.ai/api/v1"
-                )
-            ),
-            upstreamModels = listOf(
-                UpstreamModel(
-                    id = "um-1",
-                    providerId = "p-1",
-                    upstreamModelId = "stealth/ox-alpha",
-                    displayName = "stealth/ox-alpha",
-                    capabilities = ModelCapabilities(
-                        roles = listOf(ModelRole.AGENT),
-                        reasoning = ReasoningCapability(supported = true)
-                    )
-                )
-            ),
-            virtualModels = listOf(
-                VirtualModel(
-                    id = "custom-stealthox-alpha-low",
-                    upstreamModelId = "um-1",
-                    hostModelId = "MODEL_PLACEHOLDER_M400",
-                    defaultReasoningLevel = ReasoningLevel.LOW
-                ),
-                VirtualModel(
-                    id = "custom-stealthox-alpha-high",
-                    upstreamModelId = "um-1",
-                    hostModelId = "MODEL_PLACEHOLDER_M401",
-                    defaultReasoningLevel = ReasoningLevel.HIGH
-                ),
-                VirtualModel(
-                    id = "custom-stealthox-alpha-max",
-                    upstreamModelId = "um-1",
-                    hostModelId = "MODEL_PLACEHOLDER_M402",
-                    defaultReasoningLevel = ReasoningLevel.MAX
-                )
-            )
+    fun catalogKeepsCatalogRuntimeAndProviderIdsSeparate() {
+        val config = configWithVariants(ReasoningLevel.LOW, ReasoningLevel.HIGH)
+        val response = CatalogInjector.injectCustomModels(
+            buildJsonObject {
+                put("response", buildJsonObject { put("models", buildJsonObject {}) })
+            },
+            config
         )
+        val container = response["response"]!!.jsonObject
+        val models = container["models"]!!.jsonObject
+        val low = models["catalog-stealth-low"]!!.jsonObject
 
-        val root = File.createTempFile("studio-tiered-", ".dir").apply {
-            delete()
-            mkdirs()
-        }
-        try {
-            val store = ConfigStore(root)
-            store.saveConfig(config)
-            val response = CatalogInjector.injectCustomModels(
-                buildJsonObject {
-                    put("response", buildJsonObject {
-                        put("models", buildJsonObject {})
-                    })
-                },
-                config
-            ).toString()
-
-            assertTrue(response.contains("custom-stealthox-alpha-tiered"))
-            assertTrue(response.contains("stealth/ox-alpha"))
-            assertTrue(response.contains("stealth/ox-alpha (High)"))
-            assertTrue(response.contains("stealth/ox-alpha (Low)"))
-            assertTrue(response.contains("stealth/ox-alpha (Max)"))
-            assertTrue(response.contains("tieredModelIds") && response.contains("custom-stealthox-alpha-tiered"))
-        } finally {
-            root.deleteRecursively()
-        }
+        assertEquals("MODEL_PLACEHOLDER_M400", low["model"]?.jsonPrimitive?.content)
+        assertEquals("MODEL_PLACEHOLDER_M400", low["runtimeModelId"]?.jsonPrimitive?.content)
+        assertEquals("stealth/ox-alpha", low["providerModelId"]?.jsonPrimitive?.content)
+        assertTrue("catalog-stealth-tiered" in models)
+        assertTrue(container.toString().contains("catalog-stealth-tiered"))
     }
 
     @Test
-    fun upstreamModelCannotBeRoutedWithoutVirtualModel() {
-        val config = AppConfig(
-            providers = listOf(
-                Provider(
-                    id = "p-1",
-                    name = "OpenRouter",
-                    protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
-                    baseUrl = "https://openrouter.ai/api/v1"
-                )
-            ),
-            upstreamModels = listOf(
-                UpstreamModel(
-                    id = "um-1",
-                    providerId = "p-1",
-                    upstreamModelId = "stealth/ox-alpha"
-                )
-            )
-        )
-        val request = AntigravityRequestParser.parse(
-            """
-            {
-              "model": "um-1",
-              "contents": [{"role": "user", "parts": [{"text": "hi"}]}]
-            }
-            """.trimIndent()
-        ).getOrThrow()
+    fun bindingCannotBeRoutedWithoutRouteVariant() {
+        val base = configWithVariants(ReasoningLevel.LOW)
+        val config = base.copy(modelRouteVariants = emptyList())
 
-        val result = RouteResolver.resolve(config, request)
+        val result = RouteResolver.resolve(config, request("binding-1"))
 
         assertTrue(result.isFailure)
     }
 
     @Test
-    fun tieredParentResolvesToPreferredVariant() {
-        val config = AppConfig(
-            providers = listOf(
-                Provider(
-                    id = "p-1",
-                    name = "OpenRouter",
-                    protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
-                    baseUrl = "https://openrouter.ai/api/v1"
-                )
-            ),
-            upstreamModels = listOf(
-                UpstreamModel(
-                    id = "um-1",
-                    providerId = "p-1",
-                    upstreamModelId = "stealth/ox-alpha",
-                    capabilities = ModelCapabilities(
-                        reasoning = ReasoningCapability(supported = true)
-                    )
-                )
-            ),
-            virtualModels = listOf(
-                VirtualModel(
-                    id = "custom-stealthox-alpha-low",
-                    upstreamModelId = "um-1",
-                    hostModelId = "MODEL_PLACEHOLDER_M400",
-                    defaultReasoningLevel = ReasoningLevel.LOW
-                ),
-                VirtualModel(
-                    id = "custom-stealthox-alpha-high",
-                    upstreamModelId = "um-1",
-                    hostModelId = "MODEL_PLACEHOLDER_M401",
-                    defaultReasoningLevel = ReasoningLevel.HIGH
-                )
+    fun tieredCatalogKeyResolvesToPreferredConcreteVariant() {
+        val config = configWithVariants(ReasoningLevel.LOW, ReasoningLevel.HIGH)
+
+        val resolved = RouteResolver.resolve(config, request("catalog-stealth-tiered")).getOrThrow()
+
+        assertEquals("variant-high", resolved.modelRouteVariant.variantId)
+        assertEquals("stealth/ox-alpha", resolved.request.targetUpstreamModelId)
+    }
+
+    private fun configWithVariants(vararg levels: ReasoningLevel): AppConfig {
+        val provider = Provider(
+            id = "provider-1",
+            name = "OpenRouter",
+            protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
+            baseUrl = "https://openrouter.ai/api/v1"
+        )
+        val binding = ProviderModelBinding(
+            bindingId = "binding-1",
+            providerConfigId = provider.id,
+            providerModelId = "stealth/ox-alpha",
+            displayName = "Stealth Ox Alpha",
+            capabilities = ModelCapabilities(
+                roles = listOf(ModelRole.AGENT),
+                reasoning = ReasoningCapability(supported = true)
             )
         )
-
-        val requestTiered = AntigravityRequestParser.parse(
-            """
-            {
-              "model": "custom-stealthox-alpha-tiered",
-              "contents": [{"role": "user", "parts": [{"text": "hi"}]}]
+        val variants = levels.map { level ->
+            val suffix = level.name.lowercase()
+            val slot = when (level) {
+                ReasoningLevel.LOW -> 400
+                ReasoningLevel.HIGH -> 401
+                ReasoningLevel.MAX -> 402
+                else -> 403
             }
-            """.trimIndent()
-        ).getOrThrow()
-
-        val resolved = RouteResolver.resolve(config, requestTiered).getOrThrow()
-        assertEquals("custom-stealthox-alpha-high", resolved.virtualModel?.id)
+            ModelRouteVariant(
+                variantId = "variant-$suffix",
+                bindingId = binding.bindingId,
+                catalogModelId = "catalog-stealth-$suffix",
+                runtimeModelId = "MODEL_PLACEHOLDER_M$slot",
+                displayName = "Stealth Ox Alpha (${level.label})",
+                reasoningProfile = ReasoningProfile(level = level)
+            )
+        }
+        return AppConfig(
+            providers = listOf(provider),
+            providerModelBindings = listOf(binding),
+            modelRouteVariants = variants
+        )
     }
+
+    private fun request(modelId: String) = AntigravityRequestParser.parse(
+        """
+        {
+          "model": "$modelId",
+          "contents": [{"role": "user", "parts": [{"text": "hi"}]}]
+        }
+        """.trimIndent()
+    ).getOrThrow()
 }

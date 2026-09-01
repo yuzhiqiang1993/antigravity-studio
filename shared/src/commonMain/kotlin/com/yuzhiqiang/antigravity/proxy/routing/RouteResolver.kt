@@ -2,20 +2,23 @@ package com.yuzhiqiang.antigravity.proxy.routing
 
 import com.yuzhiqiang.antigravity.domain.model.AppConfig
 import com.yuzhiqiang.antigravity.domain.model.ModelIdentity
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentityResolution
 import com.yuzhiqiang.antigravity.domain.model.ModelModality
 import com.yuzhiqiang.antigravity.domain.model.ModelRole
+import com.yuzhiqiang.antigravity.domain.model.ModelRouteVariant
+import com.yuzhiqiang.antigravity.domain.model.ModelVariantKind
 import com.yuzhiqiang.antigravity.domain.model.ParameterOverrides
 import com.yuzhiqiang.antigravity.domain.model.Provider
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.domain.model.ProviderProtocol
 import com.yuzhiqiang.antigravity.domain.model.ReasoningLevel
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMapping
 import com.yuzhiqiang.antigravity.domain.model.ReasoningMappingSupport
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
-import com.yuzhiqiang.antigravity.domain.model.VirtualModel
+import com.yuzhiqiang.antigravity.domain.model.ReasoningProfile
 import com.yuzhiqiang.antigravity.proxy.model.NeutralChatRequest
 import com.yuzhiqiang.antigravity.proxy.model.NeutralContent
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -25,105 +28,122 @@ class RouteResolutionException(
     message: String
 ) : IllegalArgumentException(message)
 
+/**
+ * 请求开始执行时冻结的模型身份。Provider 请求只使用 [providerModelId]，宿主目录与
+ * Runtime slot 不参与 Provider 侧模型选择。
+ */
+data class ModelExecutionIdentity(
+    val requestedModelId: String,
+    val variantId: String,
+    val catalogModelId: String,
+    val runtimeModelId: String,
+    val bindingId: String,
+    val providerConfigId: String,
+    val providerModelId: String,
+    val canonicalModelId: String?,
+    val baseModelId: String?,
+    val providerVendor: String?,
+    val displayName: String,
+    val reasoningProfile: ReasoningProfile?,
+    val identityResolution: ModelIdentityResolution
+)
+
 data class ResolvedRoute(
     val requestedModelId: String,
-    val virtualModel: VirtualModel?,
-    val upstreamModel: UpstreamModel,
+    val modelRouteVariant: ModelRouteVariant,
+    val providerModelBinding: ProviderModelBinding,
     val provider: Provider,
+    val modelExecutionIdentity: ModelExecutionIdentity,
     /** 进入路由器时的请求；不含当前路由的参数默认值，供备用路由重新合并。 */
     val originalRequest: NeutralChatRequest,
     val request: NeutralChatRequest,
     val finalParameters: ParameterOverrides
 )
 
-/** 按 VirtualModel -> UpstreamModel -> Provider 解析请求，并完成参数优先级合并。 */
+/** 按 ModelRouteVariant -> ProviderModelBinding -> Provider 解析请求并合并参数。 */
 object RouteResolver {
-    private const val MODEL_NAMESPACE_PREFIX = "models/"
 
     fun resolve(config: AppConfig, request: NeutralChatRequest): Result<ResolvedRoute> {
-        val requestedModelId = normalizeModelId(request.originalModelId)
-        val matchedVirtual = config.virtualModels.firstOrNull { it.accepts(requestedModelId) }
-        if (matchedVirtual != null) {
-            if (!matchedVirtual.enabled) {
-                return failure(404, "Virtual model is disabled: $requestedModelId")
+        val requestedModelId = ModelIdentity.normalizeModelId(request.originalModelId)
+        val exactVariant = config.modelRouteVariants.firstOrNull { variant ->
+            requestedModelId in ModelIdentity.acceptedIds(variant)
+        }
+        if (exactVariant != null) {
+            if (!exactVariant.enabled) {
+                return failure(404, "Model route variant is disabled: $requestedModelId")
             }
-            val upstream = findUpstream(config, matchedVirtual.upstreamModelId)
-                ?: return failure(
-                    404,
-                    "Virtual model is not linked to an enabled upstream model: ${matchedVirtual.id}"
-                )
-            return buildResolvedRoute(config, requestedModelId, matchedVirtual, upstream, request)
+            val executionVariant = if (exactVariant.kind == ModelVariantKind.TIERED) {
+                resolveTierMember(config, exactVariant)
+                    ?: return failure(404, "Tiered model has no routable member: ${exactVariant.variantId}")
+            } else {
+                exactVariant
+            }
+            return buildResolvedRoute(config, requestedModelId, executionVariant, request)
         }
 
-        // 新版宿主会请求 tiered 母条目或未带推理后缀的模型族 ID；按 byok 的优先级
-        // 选择一个可路由的具体档位，但未知 ID 不做模糊猜测。
-        val tieredVirtual = resolveTieredVirtualModel(config, requestedModelId)
-        if (tieredVirtual != null) {
-            val upstream = findUpstream(config, tieredVirtual.upstreamModelId)
-                ?: return failure(404, "Tiered model is not linked to an enabled upstream model: ${tieredVirtual.id}")
-            return buildResolvedRoute(config, requestedModelId, tieredVirtual, upstream, request)
+        val tieredVariant = resolveSyntheticTieredVariant(config, requestedModelId)
+        if (tieredVariant != null) {
+            return buildResolvedRoute(config, requestedModelId, tieredVariant, request)
         }
 
-        // 官方图片模型 ID 或显式图片输出请求可以重定向到已配置的自定义生图模型。
-        val imageVirtual = resolveImageGenerationVirtualModel(config, requestedModelId, request)
-        if (imageVirtual != null) {
-            val upstream = findUpstream(config, imageVirtual.upstreamModelId)
-                ?: return failure(404, "Image model is not linked to an enabled upstream model: ${imageVirtual.id}")
-            return buildResolvedRoute(config, requestedModelId, imageVirtual, upstream, request)
+        // 官方图片模型 ID 或显式图片输出请求可以重定向到已配置的 BYOK 生图模型。
+        val imageVariant = resolveImageGenerationVariant(config, requestedModelId, request)
+        if (imageVariant != null) {
+            return buildResolvedRoute(config, requestedModelId, imageVariant, request)
         }
 
-        return failure(404, "Virtual model is not configured: $requestedModelId")
+        return failure(404, "Model route variant is not configured: $requestedModelId")
     }
-
 
     fun isPotentialCustomModelId(config: AppConfig, modelId: String): Boolean {
-        val normalized = normalizeModelId(modelId)
-        return config.virtualModels.any { it.accepts(normalized) } ||
-                resolveTieredVirtualModel(config, normalized) != null ||
-                (isOfficialImageModelId(normalized) && findActiveCustomImageModel(config) != null) ||
+        val normalized = ModelIdentity.normalizeModelId(modelId)
+        return config.modelRouteVariants.any { normalized in ModelIdentity.acceptedIds(it) } ||
+                resolveSyntheticTieredVariant(config, normalized) != null ||
+                (isOfficialImageModelId(normalized) && findActiveCustomImageVariant(config) != null) ||
                 normalized.startsWith("byok-") ||
-                normalized.startsWith("custom-") ||
-                normalized.startsWith(ModelIdentity.CUSTOM_HOST_MODEL_ID_PREFIX)
+                normalized.startsWith("variant-") ||
+                normalized.startsWith(ModelIdentity.CUSTOM_RUNTIME_MODEL_ID_PREFIX)
     }
 
-    fun isRoutableVirtualModel(config: AppConfig, virtualModel: VirtualModel): Boolean {
-        if (!virtualModel.enabled) return false
-        val upstream = findUpstream(config, virtualModel.upstreamModelId) ?: return false
-        return upstream.enabled && config.providers.any {
-            it.id == upstream.providerId && it.enabled
+    fun isRoutableModelRouteVariant(config: AppConfig, variant: ModelRouteVariant): Boolean {
+        if (!variant.enabled) return false
+        if (variant.kind == ModelVariantKind.TIERED) return resolveTierMember(config, variant) != null
+        val binding = findBinding(config, variant) ?: return false
+        return binding.enabled && config.providers.any { provider ->
+            provider.id == binding.providerConfigId && provider.enabled
         }
     }
 
-    fun effectiveHostModelId(virtualModel: VirtualModel): String {
-        return ModelIdentity.effectiveHostModelId(virtualModel)
-    }
+    fun effectiveRuntimeModelId(variant: ModelRouteVariant): String =
+        ModelIdentity.effectiveRuntimeModelId(variant)
 
-    fun catalogKey(virtualModel: VirtualModel): String {
-        return ModelIdentity.catalogKey(virtualModel)
-    }
+    fun catalogKey(variant: ModelRouteVariant): String = ModelIdentity.catalogKey(variant)
 
-    fun acceptedIds(virtualModel: VirtualModel): List<String> {
-        return ModelIdentity.acceptedIds(virtualModel)
-    }
+    fun acceptedIds(variant: ModelRouteVariant): List<String> = ModelIdentity.acceptedIds(variant)
 
     private fun buildResolvedRoute(
         config: AppConfig,
         requestedModelId: String,
-        virtualModel: VirtualModel?,
-        upstream: UpstreamModel,
+        variant: ModelRouteVariant,
         request: NeutralChatRequest
     ): Result<ResolvedRoute> {
-        if (!upstream.enabled) {
-            return failure(404, "Upstream model is disabled: ${upstream.id}")
+        if (!variant.enabled) {
+            return failure(404, "Model route variant is disabled: ${variant.variantId}")
         }
-        val provider = config.providers.firstOrNull { it.id == upstream.providerId }
-            ?: return failure(422, "Provider is not configured: ${upstream.providerId}")
+        val binding = findBinding(config, variant)
+            ?: return failure(
+                404,
+                "Model route variant is not linked to a Provider model binding: ${variant.variantId}"
+            )
+        if (!binding.enabled) {
+            return failure(404, "Provider model binding is disabled: ${binding.bindingId}")
+        }
+        val provider = config.providers.firstOrNull { it.id == binding.providerConfigId }
+            ?: return failure(422, "Provider is not configured: ${binding.providerConfigId}")
         if (!provider.enabled) {
             return failure(422, "Provider is disabled: ${provider.name}")
         }
 
-        // Studio 同时承接 default_parameters 与历史 parameter_overrides 时，
-        // 两者都应参与 Provider 层合并，不能因 default_parameters 存在而丢掉另一层。
         val providerParameters = (provider.parameterOverrides ?: ParameterOverrides())
             .mergeWith(provider.defaultParameters)
         val requestParameters = ParameterOverrides(
@@ -134,31 +154,35 @@ object RouteResolver {
             extraBody = request.extraBody
         )
         val finalParameters = providerParameters
-            .mergeWith(upstream.parameterOverrides)
-            .mergeWith(virtualModel?.parameterOverrides)
+            .mergeWith(binding.parameterOverrides)
+            .mergeWith(variant.parameterOverrides)
             .mergeWith(requestParameters)
             .withoutControlledExtraBody()
-        val finalReasoningLevel = request.reasoningLevel ?: virtualModel?.defaultReasoningLevel
+        val configuredProfile = variant.reasoningProfile
+        val finalReasoningLevel = request.reasoningLevel ?: configuredProfile?.level
+        val requestedBudget = request.reasoningBudgetTokens ?: configuredProfile?.budgetTokens
+
         validateInputTokenBudget(
             provider,
-            upstream,
+            binding,
             request.copy(extraBody = finalParameters.extraBody.orEmpty())
-        ).onFailure { error ->
-            return Result.failure(error)
-        }
+        ).onFailure { error -> return Result.failure(error) }
+
         val reasoningMappingResult = resolveReasoningMapping(
             provider = provider,
-            upstream = upstream,
+            binding = binding,
+            configuredProfile = configuredProfile,
             reasoningLevel = finalReasoningLevel,
-            requestedBudget = request.reasoningBudgetTokens
+            requestedBudget = requestedBudget
         )
         if (reasoningMappingResult.isFailure) {
             return Result.failure(
-                reasoningMappingResult.exceptionOrNull() ?: IllegalArgumentException("Reasoning mapping is invalid")
+                reasoningMappingResult.exceptionOrNull()
+                    ?: IllegalArgumentException("Reasoning mapping is invalid")
             )
         }
         val reasoningMapping = reasoningMappingResult.getOrNull()
-        val effectiveReasoningBudget = request.reasoningBudgetTokens
+        val effectiveReasoningBudget = requestedBudget
             ?: reasoningMapping?.let(ReasoningMappingSupport::mappingValueAsInt)
         val effectiveMaxTokens = finalParameters.maxTokens ?: if (
             provider.protocol == ProviderProtocol.ANTHROPIC_MESSAGES &&
@@ -166,7 +190,7 @@ object RouteResolver {
         ) {
             val budget = (effectiveReasoningBudget ?: 0).toLong()
             val generated = (budget + 4_096L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-            upstream.tokenLimits.outputTokenLimit
+            binding.tokenLimits.outputTokenLimit
                 ?.coerceAtMost(Int.MAX_VALUE.toLong())
                 ?.toInt()
                 ?.coerceAtMost(generated)
@@ -175,9 +199,24 @@ object RouteResolver {
             null
         }
         val effectiveParameters = finalParameters.copy(maxTokens = effectiveMaxTokens)
+        val executionProfile = if (
+            finalReasoningLevel != null || reasoningMapping != null || effectiveReasoningBudget != null ||
+            configuredProfile?.minBudgetTokens != null
+        ) {
+            ReasoningProfile(
+                level = finalReasoningLevel,
+                mapping = reasoningMapping,
+                budgetTokens = effectiveReasoningBudget,
+                minBudgetTokens = configuredProfile?.minBudgetTokens,
+                source = configuredProfile?.source
+                    ?: com.yuzhiqiang.antigravity.domain.model.ModelIdentitySource.ROUTE_SNAPSHOT
+            )
+        } else {
+            null
+        }
         val finalRequest = request.copy(
             originalModelId = requestedModelId,
-            targetUpstreamModelId = upstream.upstreamModelId,
+            targetUpstreamModelId = binding.providerModelId,
             temperature = effectiveParameters.temperature,
             maxTokens = effectiveParameters.maxTokens,
             topP = effectiveParameters.topP,
@@ -187,8 +226,8 @@ object RouteResolver {
             reasoningBudgetTokens = effectiveReasoningBudget,
             reasoningMapping = reasoningMapping,
             outputModalities = request.outputModalities.ifEmpty {
-                if (upstream.capabilities.roles.contains(ModelRole.IMAGE_GENERATION) &&
-                    !upstream.capabilities.roles.contains(ModelRole.AGENT)
+                if (binding.capabilities.roles.contains(ModelRole.IMAGE_GENERATION) &&
+                    !binding.capabilities.roles.contains(ModelRole.AGENT)
                 ) {
                     setOf(ModelModality.IMAGE)
                 } else {
@@ -196,12 +235,30 @@ object RouteResolver {
                 }
             }
         )
+        val identity = ModelExecutionIdentity(
+            requestedModelId = requestedModelId,
+            variantId = variant.variantId,
+            catalogModelId = ModelIdentity.catalogKey(variant),
+            runtimeModelId = ModelIdentity.effectiveRuntimeModelId(variant),
+            bindingId = binding.bindingId,
+            providerConfigId = binding.providerConfigId,
+            providerModelId = binding.providerModelId,
+            canonicalModelId = binding.canonicalModelId,
+            baseModelId = binding.canonicalModelId?.let { canonicalId ->
+                config.canonicalModels.firstOrNull { it.canonicalModelId == canonicalId }?.baseModelId
+            },
+            providerVendor = binding.providerVendor,
+            displayName = variant.displayName.ifBlank { binding.effectiveName },
+            reasoningProfile = executionProfile,
+            identityResolution = binding.identityResolution
+        )
         return Result.success(
             ResolvedRoute(
                 requestedModelId = requestedModelId,
-                virtualModel = virtualModel,
-                upstreamModel = upstream,
+                modelRouteVariant = variant,
+                providerModelBinding = binding,
                 provider = provider,
+                modelExecutionIdentity = identity,
                 originalRequest = request,
                 request = finalRequest,
                 finalParameters = effectiveParameters
@@ -211,131 +268,139 @@ object RouteResolver {
 
     private fun resolveReasoningMapping(
         provider: Provider,
-        upstream: UpstreamModel,
+        binding: ProviderModelBinding,
+        configuredProfile: ReasoningProfile?,
         reasoningLevel: ReasoningLevel?,
         requestedBudget: Int?
     ): Result<ReasoningMapping?> {
-        val reasoning = upstream.capabilities.reasoning
+        val reasoning = binding.capabilities.reasoning
         val configuredMappings = ReasoningMappingSupport.parse(reasoning.levels)
-        val outputLimit = upstream.tokenLimits.outputTokenLimit
-        if (reasoning.supported == false &&
-            (reasoningLevel != null && reasoningLevel != ReasoningLevel.OFF)
-        ) {
-            return Result.failure(IllegalArgumentException("${provider.protocol.displayName} 不支持模型 ${upstream.upstreamModelId} 的推理"))
+        val outputLimit = binding.tokenLimits.outputTokenLimit
+        if (reasoning.supported == false && reasoningLevel != null && reasoningLevel != ReasoningLevel.OFF) {
+            return Result.failure(
+                IllegalArgumentException("${provider.protocol.displayName} 不支持模型 ${binding.providerModelId} 的推理")
+            )
         }
         if (reasoningLevel != null) {
             if (reasoningLevel != ReasoningLevel.OFF) {
-                if (reasoning.supported == false) {
-                    return Result.failure(IllegalArgumentException("${provider.protocol.displayName} 不支持模型 ${upstream.upstreamModelId} 的推理"))
-                }
                 val hasReasoningCapability = reasoning.supported == true ||
                         configuredMappings.isNotEmpty() ||
                         reasoning.thinkingBudget != null ||
-                        reasoning.minThinkingBudget != null
+                        reasoning.minThinkingBudget != null ||
+                        configuredProfile?.mapping != null ||
+                        configuredProfile?.budgetTokens != null
                 if (!hasReasoningCapability) {
-                    return Result.failure(IllegalArgumentException("模型 ${upstream.upstreamModelId} 未声明推理能力"))
+                    return Result.failure(IllegalArgumentException("模型 ${binding.providerModelId} 未声明推理能力"))
                 }
             }
-            val mapping = ReasoningMappingSupport.resolveMapping(
+            val profileMapping = configuredProfile?.mapping
+                ?.takeIf { configuredProfile.level == null || configuredProfile.level == reasoningLevel }
+                ?.takeIf { ReasoningMappingSupport.isSupported(provider.protocol, it, outputLimit) }
+            val mapping = profileMapping ?: ReasoningMappingSupport.resolveMapping(
                 protocol = provider.protocol,
                 level = reasoningLevel,
                 configured = configuredMappings,
                 outputTokenLimit = outputLimit
             )
             if (mapping == null && reasoningLevel != ReasoningLevel.OFF && reasoningLevel != ReasoningLevel.AUTO) {
-                return Result.failure(IllegalArgumentException("${provider.protocol.displayName} 不支持推理档位 ${reasoningLevel.label}"))
+                return Result.failure(
+                    IllegalArgumentException("${provider.protocol.displayName} 不支持推理档位 ${reasoningLevel.label}")
+                )
             }
-            val finalMapping = if (mapping?.kind.equals(
-                    "budget_tokens",
-                    ignoreCase = true
-                ) && requestedBudget != null && requestedBudget > 0
+            val finalMapping = if (
+                mapping?.kind.equals("budget_tokens", ignoreCase = true) && requestedBudget != null
             ) {
                 ReasoningMapping("budget_tokens", JsonPrimitive(requestedBudget))
+                    .takeIf { ReasoningMappingSupport.isSupported(provider.protocol, it, outputLimit) }
+                    ?: return Result.failure(
+                        IllegalArgumentException("推理预算 $requestedBudget 不受 ${provider.protocol.displayName} 支持")
+                    )
             } else {
                 mapping
             }
             return Result.success(finalMapping)
         }
 
-        if (requestedBudget != null && requestedBudget > 0) {
-            val mapping = ReasoningMapping("budget_tokens", JsonPrimitive(requestedBudget))
+        configuredProfile?.mapping
+            ?.takeIf { ReasoningMappingSupport.isSupported(provider.protocol, it, outputLimit) }
+            ?.let { return Result.success(it) }
+        val budget = requestedBudget ?: reasoning.thinkingBudget
+        if (budget != null) {
+            val mapping = ReasoningMapping("budget_tokens", JsonPrimitive(budget))
             if (ReasoningMappingSupport.isSupported(provider.protocol, mapping, outputLimit)) {
                 return Result.success(mapping)
-            }
-        }
-        if (provider.protocol == ProviderProtocol.GEMINI_GENERATE_CONTENT) {
-            val budget = reasoning.thinkingBudget
-            if (budget != null) {
-                val mapping = ReasoningMapping("budget_tokens", JsonPrimitive(budget))
-                if (ReasoningMappingSupport.isSupported(provider.protocol, mapping, outputLimit)) {
-                    return Result.success(mapping)
-                }
             }
         }
         return Result.success(null)
     }
 
-    private fun findUpstream(config: AppConfig, modelId: String): UpstreamModel? {
-        val normalized = normalizeModelId(modelId)
-        return config.upstreamModels.firstOrNull { upstream ->
-            upstream.enabled && normalizeModelId(upstream.id) == normalized
-        }
+    private fun findBinding(config: AppConfig, variant: ModelRouteVariant): ProviderModelBinding? {
+        val bindingId = variant.bindingId ?: return null
+        return config.providerModelBindings.firstOrNull { binding -> binding.bindingId == bindingId }
     }
 
-    private fun VirtualModel.accepts(modelId: String): Boolean {
-        return normalizeModelId(modelId) in acceptedIds(this)
+    private fun resolveTierMember(config: AppConfig, tiered: ModelRouteVariant): ModelRouteVariant? {
+        val explicitMembers = tiered.tierMemberVariantIds.mapNotNull { memberId ->
+            config.modelRouteVariants.firstOrNull { variant -> variant.variantId == memberId }
+        }
+        val candidates = (explicitMembers.ifEmpty {
+            val familyBase = ModelIdentity.catalogFamilyBase(tiered)
+            config.modelRouteVariants.filter { variant ->
+                variant.kind != ModelVariantKind.TIERED &&
+                        variant.variantId != tiered.variantId &&
+                        ModelIdentity.catalogFamilyBase(variant) == familyBase
+            }
+        }).filter { variant -> isConcreteVariantRoutable(config, variant) }
+        return preferredVariant(candidates)
     }
 
-    private fun resolveTieredVirtualModel(config: AppConfig, requestedModelId: String): VirtualModel? {
-        val cleanId = normalizeModelId(requestedModelId)
-        if (config.virtualModels.any { it.accepts(cleanId) }) return null
-        val isTieredParent = cleanId.endsWith("-tiered")
-        val baseId = if (isTieredParent) {
-            cleanId.removeSuffix("-tiered")
-        } else {
-            val base = ModelIdentity.stripReasoningLevelSuffix(cleanId)
-            // 具体推理档位必须精确命中，只有母条目/无后缀族名才允许选择默认档位。
-            if (base != cleanId) return null
-            base
+    private fun resolveSyntheticTieredVariant(
+        config: AppConfig,
+        requestedModelId: String
+    ): ModelRouteVariant? {
+        val normalized = ModelIdentity.normalizeModelId(requestedModelId)
+        if (!normalized.endsWith("-tiered")) return null
+        val familyBase = normalized.removeSuffix("-tiered")
+        val candidates = config.modelRouteVariants.filter { variant ->
+            variant.kind != ModelVariantKind.TIERED &&
+                    ModelIdentity.catalogFamilyBase(variant) == familyBase &&
+                    isConcreteVariantRoutable(config, variant)
         }
-        val tieredFamilyBases = if (isTieredParent) {
-            config.virtualModels
-                .filter { ModelIdentity.matchesFamilyBase(it, baseId) }
-                .map { ModelIdentity.catalogFamilyBase(it) }
-        } else {
-            emptyList()
-        }
-        val candidates = config.virtualModels.filter { virtual ->
-            isRoutableVirtualModel(config, virtual) &&
-                    (ModelIdentity.matchesFamilyBase(virtual, baseId) ||
-                            (isTieredParent && tieredFamilyBases.any { ModelIdentity.catalogFamilyBase(virtual) == it }))
-        }
+        return preferredVariant(candidates)
+    }
+
+    private fun preferredVariant(candidates: List<ModelRouteVariant>): ModelRouteVariant? {
         if (candidates.isEmpty()) return null
         return ModelIdentity.REASONING_LEVEL_PRIORITY.firstNotNullOfOrNull { level ->
-            candidates.firstOrNull { it.defaultReasoningLevel == level }
+            candidates.firstOrNull { variant -> variant.reasoningProfile?.level == level }
         } ?: candidates.first()
     }
 
-    private fun resolveImageGenerationVirtualModel(
+    private fun isConcreteVariantRoutable(config: AppConfig, variant: ModelRouteVariant): Boolean {
+        if (!variant.enabled || variant.kind == ModelVariantKind.TIERED) return false
+        val binding = findBinding(config, variant) ?: return false
+        return binding.enabled && config.providers.any { provider ->
+            provider.id == binding.providerConfigId && provider.enabled
+        }
+    }
+
+    private fun resolveImageGenerationVariant(
         config: AppConfig,
         requestedModelId: String,
         request: NeutralChatRequest
-    ): VirtualModel? {
+    ): ModelRouteVariant? {
         val wantsImage = request.outputModalities.contains(ModelModality.IMAGE) ||
                 isOfficialImageModelId(requestedModelId)
         if (!wantsImage) return null
-        return findActiveCustomImageModel(config)
+        return findActiveCustomImageVariant(config)
     }
 
-    private fun findActiveCustomImageModel(config: AppConfig): VirtualModel? {
-        return config.virtualModels.firstOrNull { virtual ->
-            isRoutableVirtualModel(config, virtual) &&
-                    config.upstreamModels.firstOrNull { it.id == virtual.upstreamModelId }
-                        ?.capabilities
-                        ?.let { capabilities ->
-                            ModelRole.IMAGE_GENERATION in capabilities.roles ||
-                                    ModelModality.IMAGE in capabilities.outputModalities
-                        } == true
+    private fun findActiveCustomImageVariant(config: AppConfig): ModelRouteVariant? {
+        return config.modelRouteVariants.firstOrNull { variant ->
+            if (!isConcreteVariantRoutable(config, variant)) return@firstOrNull false
+            val capabilities = findBinding(config, variant)?.capabilities ?: return@firstOrNull false
+            ModelRole.IMAGE_GENERATION in capabilities.roles ||
+                    ModelModality.IMAGE in capabilities.outputModalities
         }
     }
 
@@ -346,41 +411,36 @@ object RouteResolver {
             "text-to-image", "text2image", "image-to-image", "image2image", "text-to-video",
             "text2video", "dall-e", "dalle", "gpt-image", "gpt_image", "flux", "midjourney",
             "sdxl", "stable-diffusion", "stable_diffusion", "stable-image", "recraft", "ideogram",
-            "kling", "cogview", "grok-imagine", "imagine", "hunyuan-image", "hunyuan-video", "doubao-image", "wanx"
+            "kling", "cogview", "grok-imagine", "imagine", "hunyuan-image", "hunyuan-video",
+            "doubao-image", "wanx"
         )
         if (keywords.any(lower::contains)) return true
         val imageIndex = lower.indexOf("image")
         if (imageIndex < 0) return false
-        val suffix = lower.substring(imageIndex + "image".length)
-            .trimStart('-', '_', ' ')
+        val suffix = lower.substring(imageIndex + "image".length).trimStart('-', '_', ' ')
         return suffix.firstOrNull()?.let { it.isDigit() || it == 'v' } == true
     }
 
-    private fun normalizeModelId(value: String): String {
-        return value.trim().removePrefix(MODEL_NAMESPACE_PREFIX)
-    }
-
-    private fun failure(statusCode: Int, message: String): Result<ResolvedRoute> {
-        return Result.failure(RouteResolutionException(statusCode, message))
-    }
+    private fun failure(statusCode: Int, message: String): Result<ResolvedRoute> =
+        Result.failure(RouteResolutionException(statusCode, message))
 
     /**
-     * byok 对 OpenAI 请求执行本地输入 Token 预检。Studio 没有引入 tiktoken 运行库，
-     * 这里使用保守字符估算并保留 5%/256 Token 安全余量；包含媒体时跳过，避免误拒绝。
+     * 对 OpenAI 请求执行本地输入 Token 预检。没有可靠 tokenizer 或包含媒体时跳过，
+     * 避免把估算值当作精确 Token 计数。
      */
     private fun validateInputTokenBudget(
         provider: Provider,
-        upstream: UpstreamModel,
+        binding: ProviderModelBinding,
         request: NeutralChatRequest
     ): Result<Unit> {
         if (provider.protocol != ProviderProtocol.OPENAI_CHAT_COMPLETIONS &&
             provider.protocol != ProviderProtocol.OPENAI_RESPONSES
         ) return Result.success(Unit)
-        val limit = upstream.tokenLimits.inputTokenLimit ?: return Result.success(Unit)
-        if (upstream.tokenLimits.inputTokenLimitSource != com.yuzhiqiang.antigravity.domain.model.TokenLimitSource.CATALOG &&
-            upstream.tokenLimits.inputTokenLimitSource != com.yuzhiqiang.antigravity.domain.model.TokenLimitSource.CONFIGURED
+        val limit = binding.tokenLimits.inputTokenLimit ?: return Result.success(Unit)
+        if (binding.tokenLimits.inputTokenLimitSource != com.yuzhiqiang.antigravity.domain.model.TokenLimitSource.CATALOG &&
+            binding.tokenLimits.inputTokenLimitSource != com.yuzhiqiang.antigravity.domain.model.TokenLimitSource.CONFIGURED
         ) return Result.success(Unit)
-        val tokenizer = upstream.tokenizer ?: return Result.success(Unit)
+        val tokenizer = binding.tokenizer ?: return Result.success(Unit)
         val encoding = tokenizer["encoding"]?.jsonPrimitive?.contentOrNull?.lowercase()
         if (encoding !in setOf("cl100k_base", "o200k_base")) return Result.success(Unit)
         if (request.messages.any { message ->
@@ -401,9 +461,8 @@ object RouteResolver {
                         8L + estimate(content.text)
                     }
 
-                    is NeutralContent.ToolCall -> 8L + estimate(content.id) + estimate(content.functionName) + estimate(
-                        content.argumentsJson
-                    )
+                    is NeutralContent.ToolCall -> 8L + estimate(content.id) +
+                            estimate(content.functionName) + estimate(content.argumentsJson)
 
                     is NeutralContent.ToolResult -> 8L + estimate(content.toolCallId) + estimate(content.content)
                     is NeutralContent.Image -> 0L
@@ -411,19 +470,20 @@ object RouteResolver {
             }
         }
         request.tools.forEach { tool ->
-            tokens += 8L + estimate(tool.name) + estimate(tool.description) + estimate(tool.parametersJson.toString())
+            tokens += 8L + estimate(tool.name) + estimate(tool.description) +
+                    estimate(tool.parametersJson.toString())
         }
         request.extraBody.forEach { (key, value) ->
             tokens += 8L + estimate(key) + estimate(value.toString())
         }
-        val protected = tokens + maxOf(256L, (tokens * 5L + 99L) / 100L)
-        return if (protected <= limit) {
+        val protectedTokens = tokens + maxOf(256L, (tokens * 5L + 99L) / 100L)
+        return if (protectedTokens <= limit) {
             Result.success(Unit)
         } else {
             Result.failure(
                 RouteResolutionException(
                     400,
-                    "本地 Token 预检拒绝请求：估算 ${protected} Token 超过模型输入上限 ${limit}"
+                    "本地 Token 预检拒绝请求：估算 $protectedTokens Token 超过模型输入上限 $limit"
                 )
             )
         }

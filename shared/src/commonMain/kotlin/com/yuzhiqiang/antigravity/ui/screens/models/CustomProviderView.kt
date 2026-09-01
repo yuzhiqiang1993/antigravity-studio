@@ -17,9 +17,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicy
+import com.yuzhiqiang.antigravity.domain.model.CompressionPolicyTargetType
+import com.yuzhiqiang.antigravity.domain.model.ModelCompressionPolicyAssignment
 import com.yuzhiqiang.antigravity.domain.model.Provider
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.ui.components.StatusBadge
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
@@ -31,17 +32,17 @@ import androidx.compose.ui.graphics.luminance
 @Composable
 fun CustomProviderView(
     provider: Provider,
-    models: List<UpstreamModel>,
+    models: List<ProviderModelBinding>,
     modelTestStatuses: Map<String, AppViewModel.ModelTestStatus>,
     isProviderTesting: Boolean,
-    compressionPolicies: Map<String, ModelCompressionPolicy>,
+    compressionPolicyAssignments: List<ModelCompressionPolicyAssignment>,
     onEditProvider: () -> Unit,
     onDeleteProvider: () -> Unit,
     onTestProvider: () -> Unit,
-    onEditSingleModel: (UpstreamModel) -> Unit,
-    onDeleteSingleModel: (UpstreamModel) -> Unit,
-    onTestSingleModel: (UpstreamModel) -> Unit,
-    onToggleModelEnabled: (UpstreamModel) -> Unit,
+    onEditSingleModel: (ProviderModelBinding) -> Unit,
+    onDeleteSingleModel: (ProviderModelBinding) -> Unit,
+    onTestSingleModel: (ProviderModelBinding) -> Unit,
+    onToggleModelEnabled: (ProviderModelBinding) -> Unit,
     onEditPolicy: (String) -> Unit,
     onOpenVisionDetail: (String, Boolean) -> Unit,
     onOpenReasoningDetail: (String, List<String>) -> Unit,
@@ -50,9 +51,18 @@ fun CustomProviderView(
 ) {
     val s = com.yuzhiqiang.antigravity.i18n.strings()
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val passedCount = models.count { modelTestStatuses[it.id]?.status == AppViewModel.ModelTestStatusKind.SUCCESS }
-    val failedCount = models.count { modelTestStatuses[it.id]?.status == AppViewModel.ModelTestStatusKind.ERROR }
+    val passedCount = models.count {
+        modelTestStatuses[it.bindingId]?.status == AppViewModel.ModelTestStatusKind.SUCCESS
+    }
+    val failedCount = models.count {
+        modelTestStatuses[it.bindingId]?.status == AppViewModel.ModelTestStatusKind.ERROR
+    }
     val hasTested = passedCount > 0 || failedCount > 0
+
+    fun compressionPolicyAssignment(bindingId: String) = compressionPolicyAssignments.firstOrNull { assignment ->
+        assignment.targetType == CompressionPolicyTargetType.PROVIDER_MODEL_BINDING &&
+                assignment.targetId == bindingId
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)) {
         Surface(
@@ -257,38 +267,39 @@ fun CustomProviderView(
                 if (columnCount == 1) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         models.forEach { model ->
-                            key(model.id) {
+                            key(model.bindingId) {
+                                val policyAssignment = compressionPolicyAssignment(model.bindingId)
                                 UniversalModelCard(
                                     state = createCustomCardState(
                                         model = model,
-                                        testStatus = modelTestStatuses[model.id],
-                                        hasPolicy = compressionPolicies.containsKey(model.id),
-                                        policy = compressionPolicies[model.id],
+                                        testStatus = modelTestStatuses[model.bindingId],
+                                        hasPolicy = policyAssignment != null,
+                                        policy = policyAssignment?.policy,
                                         onEditModel = { onEditSingleModel(model) },
                                         onDeleteModel = { onDeleteSingleModel(model) },
                                         onTestModel = { onTestSingleModel(model) },
                                         onToggleEnabled = { onToggleModelEnabled(model) },
-                                        onEditPolicy = { onEditPolicy(model.id) },
+                                        onEditPolicy = { onEditPolicy(model.bindingId) },
                                         onOpenVisionDetail = {
                                             onOpenVisionDetail(
-                                                model.displayName ?: model.upstreamModelId,
+                                                model.effectiveName,
                                                 model.capabilities.supportsVision
                                             )
                                         },
                                         onOpenReasoningDetail = {
                                             onOpenReasoningDetail(
-                                                model.displayName ?: model.upstreamModelId,
+                                                model.effectiveName,
                                                 listOf("Thinking / Reasoning")
                                             )
                                         },
                                         onOpenInfoDetail = {
                                             onOpenInfoDetail(
                                                 ModelMetaInfo(
-                                                    name = model.displayName ?: model.upstreamModelId,
-                                                    id = model.upstreamModelId,
-                                                    contextLimit = model.effectiveContextWindow,
+                                                    name = model.effectiveName,
+                                                    id = model.providerModelId,
+                                                    contextLimit = model.tokenLimits.contextWindow
+                                                        ?: model.tokenLimits.inputTokenLimit,
                                                     outputLimit = model.tokenLimits.outputTokenLimit
-                                                        ?: model.maxOutputTokens
                                                 )
                                             )
                                         }
@@ -305,38 +316,39 @@ fun CustomProviderView(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 rowModels.forEach { model ->
-                                    key(model.id) {
+                                    key(model.bindingId) {
+                                        val policyAssignment = compressionPolicyAssignment(model.bindingId)
                                         UniversalModelCard(
                                             state = createCustomCardState(
                                                 model = model,
-                                                testStatus = modelTestStatuses[model.id],
-                                                hasPolicy = compressionPolicies.containsKey(model.id),
-                                                policy = compressionPolicies[model.id],
+                                                testStatus = modelTestStatuses[model.bindingId],
+                                                hasPolicy = policyAssignment != null,
+                                                policy = policyAssignment?.policy,
                                                 onEditModel = { onEditSingleModel(model) },
                                                 onDeleteModel = { onDeleteSingleModel(model) },
                                                 onTestModel = { onTestSingleModel(model) },
                                                 onToggleEnabled = { onToggleModelEnabled(model) },
-                                                onEditPolicy = { onEditPolicy(model.id) },
+                                                onEditPolicy = { onEditPolicy(model.bindingId) },
                                                 onOpenVisionDetail = {
                                                     onOpenVisionDetail(
-                                                        model.displayName ?: model.upstreamModelId,
+                                                        model.effectiveName,
                                                         model.capabilities.supportsVision
                                                     )
                                                 },
                                                 onOpenReasoningDetail = {
                                                     onOpenReasoningDetail(
-                                                        model.displayName ?: model.upstreamModelId,
+                                                        model.effectiveName,
                                                         listOf("Thinking / Reasoning")
                                                     )
                                                 },
                                                 onOpenInfoDetail = {
                                                     onOpenInfoDetail(
                                                         ModelMetaInfo(
-                                                            name = model.displayName ?: model.upstreamModelId,
-                                                            id = model.upstreamModelId,
-                                                            contextLimit = model.effectiveContextWindow,
+                                                            name = model.effectiveName,
+                                                            id = model.providerModelId,
+                                                            contextLimit = model.tokenLimits.contextWindow
+                                                                ?: model.tokenLimits.inputTokenLimit,
                                                             outputLimit = model.tokenLimits.outputTokenLimit
-                                                                ?: model.maxOutputTokens
                                                         )
                                                     )
                                                 }

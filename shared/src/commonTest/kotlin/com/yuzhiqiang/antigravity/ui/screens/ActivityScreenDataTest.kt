@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
+import com.yuzhiqiang.antigravity.domain.model.ActivityModelIdentity
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -28,7 +29,7 @@ class ActivityScreenDataTest {
                 id = "1",
                 method = "POST",
                 path = "/v1/chat",
-                modelId = "claude-3-7-sonnet",
+                modelIdentity = ActivityModelIdentity(variantId = "claude-3-7-sonnet"),
                 statusCode = 200,
                 durationMs = 4000L,
                 firstByteMs = 600L,
@@ -46,7 +47,7 @@ class ActivityScreenDataTest {
                 id = "2",
                 method = "POST",
                 path = "/v1/chat",
-                modelId = "claude-3-7-sonnet",
+                modelIdentity = ActivityModelIdentity(variantId = "claude-3-7-sonnet"),
                 statusCode = 200,
                 durationMs = 6000L,
                 firstByteMs = 900L,
@@ -59,6 +60,19 @@ class ActivityScreenDataTest {
                 stallCount = 1,
                 stallDurationMs = 2500L,
                 queueWaitMs = 80L
+            ),
+            ActivityLog(
+                id = "failed",
+                method = "POST",
+                path = "/v1/chat",
+                modelIdentity = ActivityModelIdentity(variantId = "claude-3-7-sonnet"),
+                statusCode = 500,
+                durationMs = 100L,
+                firstByteMs = 50L,
+                firstTokenMs = 60L,
+                tokensPerSecond = 1000.0,
+                stallCount = 3,
+                queueWaitMs = 1L
             )
         )
 
@@ -83,6 +97,8 @@ class ActivityScreenDataTest {
         assertEquals(1, stat.totalStallCount)
         assertEquals(2500L, stat.p95MaxChunkGapMs)
         assertEquals(50L, stat.averageQueueWaitMs)
+        assertEquals(2, stat.completedCount)
+        assertEquals(3, stat.totalRequests)
     }
 
     @Test
@@ -107,8 +123,8 @@ class ActivityScreenDataTest {
                 path = "/v1/chat",
                 statusCode = 500,
                 durationMs = 1000L,
-                firstTokenMs = null,
-                tokensPerSecond = null,
+                firstTokenMs = 100L,
+                tokensPerSecond = 1000.0,
                 inputTokens = 500L,
                 cacheReadTokens = 0L,
                 cacheWriteTokens = 0L,
@@ -131,13 +147,54 @@ class ActivityScreenDataTest {
 
         val stats = calculateActivityStatistics(logs)
         assertEquals(1, stats.failedCount)
-        assertEquals(3000L, stats.averageDuration) // (3000 + 1000 + 5000) / 3 = 3000
+        assertEquals(4000L, stats.averageDuration) // 失败请求不进入完成耗时样本
         assertEquals(1500L, stats.averageFirstTokenMs) // (1000 + 2000) / 2 = 1500
         assertEquals(50.0, stats.averageTps) // (60 + 40) / 2 = 50
         assertNotNull(stats.overallCacheHitRate)
         // 总输入: (800+1000) + 500 + (200+1000) = 3500; 命中: 1000; 1000/3500 * 100 = 28.57%
         val hitRate = stats.overallCacheHitRate ?: 0.0
         assertEquals(28.57, kotlin.math.round(hitRate * 100) / 100.0)
+    }
+
+    @Test
+    fun testCacheHitRateExcludesLogsWithUnknownPromptDimensions() {
+        val stats = calculateActivityStatistics(
+            listOf(
+                ActivityLog(
+                    id = "known",
+                    method = "POST",
+                    path = "/v1/chat",
+                    inputTokens = 500L,
+                    cacheReadTokens = 500L
+                ),
+                ActivityLog(
+                    id = "unknown-cache",
+                    method = "POST",
+                    path = "/v1/chat",
+                    inputTokens = 9_000L,
+                    cacheReadTokens = null
+                )
+            )
+        )
+
+        assertEquals(50.0, stats.overallCacheHitRate)
+    }
+
+    @Test
+    fun testExplicitZeroCacheReadProducesZeroHitRate() {
+        val stats = calculateActivityStatistics(
+            listOf(
+                ActivityLog(
+                    id = "zero-hit",
+                    method = "POST",
+                    path = "/v1/chat",
+                    inputTokens = 1_000L,
+                    cacheReadTokens = 0L
+                )
+            )
+        )
+
+        assertEquals(0.0, stats.overallCacheHitRate)
     }
 
     @Test
@@ -150,4 +207,3 @@ class ActivityScreenDataTest {
         assertNull(stats.overallCacheHitRate)
     }
 }
-

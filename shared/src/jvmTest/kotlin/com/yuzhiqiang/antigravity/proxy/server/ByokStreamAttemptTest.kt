@@ -235,6 +235,27 @@ class ByokStreamAttemptTest {
     }
 
     @Test
+    fun responseMetadataIsObservedWithoutCommittingAttempt() = runBlocking {
+        val channel = Channel<NeutralStreamChunk>(Channel.UNLIMITED)
+        val frames = mutableListOf<String>()
+        channel.send(NeutralStreamChunk.ResponseMetadata("actual-model"))
+        channel.send(NeutralStreamChunk.Error("retryable", 502))
+        channel.close()
+
+        val result = streamProviderAttempt(
+            channel = channel,
+            encoder = ResponseEncoder.newStreamEncoder(modelVersion = "requested-model"),
+            requestStartTimeMs = 0L,
+            idleTimeoutMs = 1_000L,
+            onFrames = { frames += it }
+        )
+
+        assertEquals("actual-model", result.responseModelId)
+        assertFalse(result.committed)
+        assertTrue(frames.isEmpty())
+    }
+
+    @Test
     fun streamingAttemptKeepsToolOnlyFailureUncommittedForSafeRetry() = runBlocking {
         val channel = Channel<NeutralStreamChunk>(Channel.UNLIMITED)
         val frames = mutableListOf<String>()
@@ -260,5 +281,15 @@ class ByokStreamAttemptTest {
         assertFalse(result.isSuccessful)
         assertFalse(result.committed)
         assertTrue(frames.isEmpty())
+    }
+
+    @Test
+    fun nonStreamingFirstTokenRequiresSuccessfulMeaningfulContent() {
+        val metadataOnly = listOf(NeutralStreamChunk.ResponseMetadata("actual-model"))
+        assertEquals(null, resolveNonStreamingFirstTokenMs(200, 420L, metadataOnly))
+
+        val content = metadataOnly + NeutralStreamChunk.TextDelta("answer")
+        assertEquals(420L, resolveNonStreamingFirstTokenMs(200, 420L, content))
+        assertEquals(null, resolveNonStreamingFirstTokenMs(500, 420L, content))
     }
 }

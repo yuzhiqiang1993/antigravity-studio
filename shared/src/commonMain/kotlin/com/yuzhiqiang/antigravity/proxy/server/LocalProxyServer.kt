@@ -1,6 +1,8 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
+import com.yuzhiqiang.antigravity.domain.model.resolveActivityIdentity
 import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
 import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
@@ -439,7 +441,7 @@ class LocalProxyServer(
         val config = configStore.currentConfig
         val localCatalog = buildJsonObject { put("models", JsonArray(emptyList())) }
         val responseJson = CatalogInjector.injectCustomModels(
-            CatalogInjector.applyOfficialCompressionPolicies(localCatalog, config.modelCompressionPolicies),
+            CatalogInjector.applyOfficialCompressionPolicies(localCatalog, config.compressionPolicyAssignments),
             config,
             includeTiered = false
         )
@@ -447,8 +449,7 @@ class LocalProxyServer(
         ActivityRecorder.record(
             method = "GET",
             path = path,
-            modelId = null,
-            requestedModelId = null,
+            modelIdentity = null,
             clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
             providerName = "Studio Local Catalog",
             statusCode = 200,
@@ -566,8 +567,9 @@ class LocalProxyServer(
         ActivityRecorder.record(
             method = method,
             path = path,
-            modelId = modelId,
-            requestedModelId = null,
+            modelIdentity = modelId?.let {
+                ModelObservation(requestedModelId = it, catalogModelId = it).resolveActivityIdentity()
+            },
             clientSource = clientSource,
             providerName = null,
             statusCode = status,

@@ -17,10 +17,11 @@ class ProviderModelSynchronizerTest {
         )
         val lowMapping = ReasoningMapping("effort", JsonPrimitive("low"))
         val highMapping = ReasoningMapping("effort", JsonPrimitive("high"))
-        val upstream = UpstreamModel(
-            id = "provider-model",
-            providerId = provider.id,
-            upstreamModelId = "model",
+        val binding = ProviderModelBinding(
+            bindingId = "provider-model",
+            providerConfigId = provider.id,
+            providerModelId = "model",
+            displayName = "Model",
             capabilities = ModelCapabilities(
                 reasoning = ReasoningCapability(
                     supported = true,
@@ -35,25 +36,37 @@ class ProviderModelSynchronizerTest {
         )
         val config = AppConfig(
             providers = listOf(provider),
-            upstreamModels = listOf(upstream),
-            virtualModels = listOf(
-                VirtualModel(
-                    id = "model-low",
-                    upstreamModelId = upstream.id,
-                    hostModelId = "MODEL_PLACEHOLDER_M400",
-                    defaultReasoningLevel = ReasoningLevel.LOW
+            providerModelBindings = listOf(binding),
+            modelRouteVariants = listOf(
+                ModelRouteVariant(
+                    variantId = "model-low",
+                    bindingId = binding.bindingId,
+                    catalogModelId = "byok-model-low",
+                    runtimeModelId = "MODEL_PLACEHOLDER_M400",
+                    displayName = "Model (Low)",
+                    kind = ModelVariantKind.REASONING_VARIANT,
+                    reasoningProfile = ReasoningProfile(
+                        level = ReasoningLevel.LOW,
+                        source = ModelIdentitySource.PROVIDER_CATALOG
+                    )
                 ),
-                VirtualModel(
-                    id = "model-high",
-                    upstreamModelId = upstream.id,
-                    hostModelId = "MODEL_PLACEHOLDER_M401",
-                    defaultReasoningLevel = ReasoningLevel.HIGH
+                ModelRouteVariant(
+                    variantId = "model-high",
+                    bindingId = binding.bindingId,
+                    catalogModelId = "byok-model-high",
+                    runtimeModelId = "MODEL_PLACEHOLDER_M401",
+                    displayName = "Model (High)",
+                    kind = ModelVariantKind.REASONING_VARIANT,
+                    reasoningProfile = ReasoningProfile(
+                        level = ReasoningLevel.HIGH,
+                        source = ModelIdentitySource.PROVIDER_CATALOG
+                    )
                 )
             )
         )
-        val selectedModel = upstream.copy(
-            capabilities = upstream.capabilities.copy(
-                reasoning = upstream.capabilities.reasoning.copy(
+        val selectedBinding = binding.copy(
+            capabilities = binding.capabilities.copy(
+                reasoning = binding.capabilities.reasoning.copy(
                     levels = ReasoningMappingSupport.encode(mapOf(ReasoningLevel.HIGH to highMapping))
                 )
             )
@@ -62,50 +75,50 @@ class ProviderModelSynchronizerTest {
         val result = ProviderModelSynchronizer.synchronize(
             config = config,
             provider = provider,
-            selectedModels = listOf(selectedModel)
+            selectedBindings = listOf(selectedBinding)
         ).getOrThrow()
 
-        val retained = result.virtualModels.single()
-        assertEquals(ReasoningLevel.HIGH, retained.defaultReasoningLevel)
-        assertEquals("MODEL_PLACEHOLDER_M401", retained.hostModelId)
+        val retained = result.modelRouteVariants.single()
+        assertEquals(ReasoningLevel.HIGH, retained.reasoningProfile?.level)
+        assertEquals("MODEL_PLACEHOLDER_M401", retained.runtimeModelId)
     }
 
     @Test
-    fun synchronizerCreatesVirtualModelAsOnlyHostIdentityOwner() {
+    fun synchronizerCreatesRouteVariantAsOnlyRuntimeIdentityOwner() {
         val provider = Provider(
             id = "provider",
             name = "Provider",
             protocol = ProviderProtocol.OPENAI_CHAT_COMPLETIONS,
             baseUrl = "https://example.com/v1"
         )
-        val selectedModel = UpstreamModel(
-            id = "provider-model",
-            providerId = provider.id,
-            name = "Model",
-            upstreamModelId = "model"
+        val selectedBinding = ProviderModelBinding(
+            bindingId = "provider-model",
+            providerConfigId = provider.id,
+            providerModelId = "model",
+            displayName = "Model"
         )
 
         val firstResult = ProviderModelSynchronizer.synchronize(
-            config = AppConfig(),
+            config = AppConfig(providers = listOf(provider)),
             provider = provider,
-            selectedModels = listOf(selectedModel)
+            selectedBindings = listOf(selectedBinding)
         ).getOrThrow()
 
-        val upstream = firstResult.upstreamModels.single()
-        val virtual = firstResult.virtualModels.single()
-        assertEquals(upstream.id, virtual.upstreamModelId)
-        assertTrue(virtual.hostModelId.startsWith(ModelIdentity.CUSTOM_HOST_MODEL_ID_PREFIX))
+        val binding = firstResult.providerModelBindings.single()
+        val variant = firstResult.modelRouteVariants.single()
+        assertEquals(binding.bindingId, variant.bindingId)
+        assertTrue(variant.runtimeModelId.startsWith(ModelIdentity.CUSTOM_RUNTIME_MODEL_ID_PREFIX))
 
         val secondResult = ProviderModelSynchronizer.synchronize(
             config = AppConfig(
                 providers = listOf(provider),
-                upstreamModels = firstResult.upstreamModels,
-                virtualModels = firstResult.virtualModels
+                providerModelBindings = firstResult.providerModelBindings,
+                modelRouteVariants = firstResult.modelRouteVariants
             ),
             provider = provider,
-            selectedModels = firstResult.upstreamModels
+            selectedBindings = firstResult.providerModelBindings
         ).getOrThrow()
 
-        assertEquals(virtual.hostModelId, secondResult.virtualModels.single().hostModelId)
+        assertEquals(variant.runtimeModelId, secondResult.modelRouteVariants.single().runtimeModelId)
     }
 }

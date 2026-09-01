@@ -177,10 +177,10 @@ object ConnectionTester {
     /** 使用模型能力元数据执行与 byok 一致的生图连通性探测。 */
     suspend fun testProvider(
         provider: com.yuzhiqiang.antigravity.domain.model.Provider,
-        model: com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+        model: com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
     ): TestResult = testProviderInternal(
         provider,
-        model.upstreamModelId,
+        model.providerModelId,
         imageOnly = com.yuzhiqiang.antigravity.domain.model.ModelRole.IMAGE_GENERATION in model.capabilities.roles &&
                 com.yuzhiqiang.antigravity.domain.model.ModelRole.AGENT !in model.capabilities.roles
     )
@@ -188,7 +188,7 @@ object ConnectionTester {
     /** 以指定推理档位执行最小模型探测，保留 byok 的 reasoning mapping 语义。 */
     suspend fun testProvider(
         provider: com.yuzhiqiang.antigravity.domain.model.Provider,
-        model: com.yuzhiqiang.antigravity.domain.model.UpstreamModel,
+        model: com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding,
         reasoningLevel: ReasoningLevel
     ): TestResult {
         val mapping = ReasoningMappingSupport.resolveMapping(
@@ -199,7 +199,7 @@ object ConnectionTester {
         ) ?: return TestResult(success = false, error = "模型不支持推理档位 ${reasoningLevel.label}")
         return testProviderInternal(
             provider = provider,
-            modelId = model.upstreamModelId,
+            modelId = model.providerModelId,
             imageOnly = false,
             reasoningEffort = ReasoningMappingSupport.mappingValueAsString(mapping),
             reasoningBudget = ReasoningMappingSupport.mappingValueAsInt(mapping),

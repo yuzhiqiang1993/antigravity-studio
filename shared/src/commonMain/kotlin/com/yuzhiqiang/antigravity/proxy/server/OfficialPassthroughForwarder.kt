@@ -1,6 +1,8 @@
 package com.yuzhiqiang.antigravity.proxy.server
 
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
+import com.yuzhiqiang.antigravity.domain.model.resolveActivityIdentity
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
 import com.yuzhiqiang.antigravity.proxy.adapters.ProviderAdapter
 import com.yuzhiqiang.antigravity.proxy.encoder.ResponseEncoder
@@ -37,8 +39,9 @@ internal class OfficialPassthroughForwarder(
         val logId = ActivityRecorder.startActivity(
             method = call.request.httpMethod.value,
             path = path,
-            modelId = modelId,
-            requestedModelId = null,
+            modelIdentity = modelId?.let {
+                ModelObservation(requestedModelId = it, catalogModelId = it).resolveActivityIdentity()
+            },
             clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
             providerName = "Official Cloud Code",
             isOfficialPassthrough = true,

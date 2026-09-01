@@ -70,8 +70,7 @@ class ResponseEncoderTest {
                     inputTokens = 7,
                     outputTokens = 4,
                     cacheReadTokens = 3,
-                    reasoningTokens = 5,
-                    totalTokens = 19
+                    reasoningTokens = 5
                 ),
                 choiceIndex = 2
             )
@@ -81,7 +80,30 @@ class ResponseEncoderTest {
         assertTrue(frame.contains("\"index\":2"))
         assertTrue(frame.contains("\"text\":\"\""))
         assertTrue(frame.contains("\"promptTokenCount\":10"))
+        assertTrue(frame.contains("\"candidatesTokenCount\":4"))
         assertTrue(frame.contains("\"thoughtsTokenCount\":5"))
+        assertTrue(frame.contains("\"totalTokenCount\":19"))
+    }
+
+    @Test
+    fun geminiUsageKeepsUnattributedTokensOnlyInReportedTotal() {
+        val body = ResponseEncoder.encodeChunksToGeminiJson(
+            listOf(
+                NeutralStreamChunk.Completed(
+                    usage = NeutralUsage(
+                        inputTokens = 10,
+                        outputTokens = 5,
+                        unattributedTokens = 5,
+                        totalTokens = 20
+                    )
+                )
+            )
+        )
+
+        assertTrue(body.contains("\"promptTokenCount\":10"))
+        assertTrue(body.contains("\"candidatesTokenCount\":5"))
+        assertTrue(body.contains("\"totalTokenCount\":20"))
+        assertTrue(!body.contains("unattributed", ignoreCase = true))
     }
 
     @Test
@@ -117,6 +139,20 @@ class ResponseEncoderTest {
         assertTrue(frames.any { it.contains("\"error\"") && it.contains("\"code\":504") })
         assertTrue(frames.any { it.contains("[Studio 代理异常 (504)]") })
         assertTrue(frames.any { it.contains("\"finishReason\":\"OTHER\"") })
+    }
+
+    @Test
+    fun responseMetadataOverridesRequestedProviderModelId() {
+        val body = ResponseEncoder.encodeChunksToGeminiJson(
+            chunks = listOf(
+                NeutralStreamChunk.ResponseMetadata("provider-response-model"),
+                NeutralStreamChunk.Completed()
+            ),
+            modelVersion = "requested-provider-model"
+        )
+
+        assertTrue(body.contains("\"modelVersion\":\"provider-response-model\""))
+        assertTrue(!body.contains("requested-provider-model"))
     }
 
     @Test

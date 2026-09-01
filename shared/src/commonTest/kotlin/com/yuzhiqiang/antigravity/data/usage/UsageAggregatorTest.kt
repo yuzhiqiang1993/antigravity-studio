@@ -1,5 +1,12 @@
 package com.yuzhiqiang.antigravity.data.usage
 
+import com.yuzhiqiang.antigravity.domain.model.AppConfig
+import com.yuzhiqiang.antigravity.domain.model.CanonicalModel
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentityRegistryHolder
+import com.yuzhiqiang.antigravity.domain.model.ModelIdentityStatus
+import com.yuzhiqiang.antigravity.domain.model.ModelObservation
+import com.yuzhiqiang.antigravity.domain.model.ModelRouteVariant
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.domain.model.usage.ConversationUsageData
 import com.yuzhiqiang.antigravity.domain.model.usage.CustomDateRange
 import com.yuzhiqiang.antigravity.domain.model.usage.MissingUsageCounts
@@ -9,11 +16,70 @@ import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class UsageAggregatorTest {
+
+    private companion object {
+        const val TEST_PROVIDER_CONFIG_ID = "test-provider"
+    }
+
+    private val registeredModelIds = listOf(
+        "claude-3-7-sonnet",
+        "gemini-2.0-flash",
+        "gpt-4o",
+        "claude-3-5-sonnet",
+        "gpt-5.6-sol",
+        "model",
+        "sparse-model",
+        "model-a",
+        "model-b",
+        "provider/tiered-model"
+    )
+
+    @BeforeTest
+    fun setUpModelIdentityRegistry() {
+        ModelIdentityRegistryHolder.updateOfficialModels(emptyList())
+        ModelIdentityRegistryHolder.updateConfig(
+            AppConfig(
+                canonicalModels = registeredModelIds.map { modelId ->
+                    CanonicalModel(
+                        canonicalModelId = modelId,
+                        providerVendor = "test",
+                        displayName = modelId
+                    )
+                },
+                providerModelBindings = registeredModelIds.map { modelId ->
+                    ProviderModelBinding(
+                        bindingId = "binding:$modelId",
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        providerModelId = modelId,
+                        canonicalModelId = modelId,
+                        displayName = modelId
+                    )
+                },
+                modelRouteVariants = registeredModelIds.map { modelId ->
+                    ModelRouteVariant(
+                        variantId = "variant:$modelId",
+                        bindingId = "binding:$modelId",
+                        catalogModelId = "catalog:$modelId",
+                        runtimeModelId = "runtime:$modelId",
+                        displayName = modelId
+                    )
+                }
+            )
+        )
+    }
+
+    @AfterTest
+    fun tearDownModelIdentityRegistry() {
+        ModelIdentityRegistryHolder.updateConfig(AppConfig())
+        ModelIdentityRegistryHolder.updateOfficialModels(emptyList())
+    }
 
     private fun createTestPricingService(): PricingCatalogService {
         val root = File.createTempFile("aggregator-pricing-", "-root").apply {
@@ -47,7 +113,10 @@ class UsageAggregatorTest {
                     cacheRead = 50_000,
                     cacheWrite = 0,
                     reasoning = 10_000,
-                    model = "claude-3-7-sonnet",
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "claude-3-7-sonnet"
+                    ),
                     timestamp = "2026-08-31T00:00:00Z"
                 )
             )
@@ -63,7 +132,10 @@ class UsageAggregatorTest {
                     cacheRead = 100_000,
                     cacheWrite = 0,
                     reasoning = 0,
-                    model = "gemini-2.0-flash",
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "gemini-2.0-flash"
+                    ),
                     timestamp = "2026-08-31T01:00:00Z"
                 )
             )
@@ -127,13 +199,19 @@ class UsageAggregatorTest {
                 TokenEntry(
                     input = 50_000,
                     output = 10_000,
-                    model = "gpt-4o",
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "gpt-4o"
+                    ),
                     timestamp = tsPast
                 ),
                 TokenEntry(
                     input = 30_000,
                     output = 5_000,
-                    model = "gpt-4o",
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "gpt-4o"
+                    ),
                     timestamp = tsRecent
                 )
             )
@@ -167,13 +245,19 @@ class UsageAggregatorTest {
                 TokenEntry(
                     input = 10_000,
                     output = 2_000,
-                    model = "claude-3-5-sonnet",
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "claude-3-5-sonnet"
+                    ),
                     timestamp = "2026-08-20T10:00:00Z"
                 ),
                 TokenEntry(
                     input = 20_000,
                     output = 4_000,
-                    model = "claude-3-5-sonnet",
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "claude-3-5-sonnet"
+                    ),
                     timestamp = "2026-08-25T10:00:00Z"
                 )
             )
@@ -221,7 +305,10 @@ class UsageAggregatorTest {
                         entries = listOf(
                             TokenEntry(
                                 cacheWrite = 1_000_000,
-                                model = "gpt-5.6-sol",
+                                modelObservation = ModelObservation(
+                                    providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                                    responseModelId = "gpt-5.6-sol"
+                                ),
                                 timestamp = "2026-08-31T00:00:00Z"
                             )
                         )
@@ -255,7 +342,10 @@ class UsageAggregatorTest {
                             input = 1_000,
                             cacheRead = 6_000,
                             cacheWrite = 3_000,
-                            model = "gpt-4o",
+                            modelObservation = ModelObservation(
+                                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                                responseModelId = "gpt-4o"
+                            ),
                             timestamp = "2026-08-31T00:00:00Z"
                         )
                     )
@@ -281,7 +371,10 @@ class UsageAggregatorTest {
                         TokenEntry(
                             input = 1_000,
                             cacheRead = 0,
-                            model = "gpt-4o",
+                            modelObservation = ModelObservation(
+                                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                                responseModelId = "gpt-4o"
+                            ),
                             timestamp = "2026-08-31T00:00:00Z"
                         )
                     )
@@ -302,8 +395,22 @@ class UsageAggregatorTest {
         val conversation = ConversationUsageData(
             conversationId = "date-boundary",
             entries = listOf(
-                TokenEntry(input = 10, model = "gpt-4o", timestamp = "2026-08-25T23:59:59.999Z"),
-                TokenEntry(input = 20, model = "gpt-4o", timestamp = "2026-08-26T00:00:00Z")
+                TokenEntry(
+                    input = 10,
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "gpt-4o"
+                    ),
+                    timestamp = "2026-08-25T23:59:59.999Z"
+                ),
+                TokenEntry(
+                    input = 20,
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "gpt-4o"
+                    ),
+                    timestamp = "2026-08-26T00:00:00Z"
+                )
             )
         )
 
@@ -334,7 +441,16 @@ class UsageAggregatorTest {
 
     @Test
     fun testSameConversationIdFromDifferentSourcesStaysSeparate() {
-        val entries = listOf(TokenEntry(input = 10, model = "model", timestamp = "2026-08-31T00:00:00Z"))
+        val entries = listOf(
+            TokenEntry(
+                input = 10,
+                modelObservation = ModelObservation(
+                    providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                    responseModelId = "model"
+                ),
+                timestamp = "2026-08-31T00:00:00Z"
+            )
+        )
         val stats = UsageAggregator.aggregate(
             conversations = listOf(
                 ConversationUsageData(conversationId = "same", appSource = "ide", entries = entries),
@@ -359,7 +475,10 @@ class UsageAggregatorTest {
                     entries = listOf(
                         TokenEntry(
                             input = 100,
-                            model = "sparse-model",
+                            modelObservation = ModelObservation(
+                                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                                responseModelId = "sparse-model"
+                            ),
                             missingUsageFields = listOf("output", "cache", "cacheWrite", "reasoning"),
                             timestamp = "2026-08-31T00:00:00Z"
                         )
@@ -402,16 +521,20 @@ class UsageAggregatorTest {
                     entries = listOf(
                         TokenEntry(
                             input = 100,
-                            model = "model-a",
-                            modelCanonicalId = "model-a",
-                            modelRuntimeId = "MODEL_PLACEHOLDER_M400",
+                            modelObservation = ModelObservation(
+                                runtimeModelId = "MODEL_PLACEHOLDER_M400",
+                                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                                responseModelId = "model-a"
+                            ),
                             timestamp = "2026-08-31T00:00:00Z"
                         ),
                         TokenEntry(
                             input = 200,
-                            model = "model-b",
-                            modelCanonicalId = "model-b",
-                            modelRuntimeId = "MODEL_PLACEHOLDER_M400",
+                            modelObservation = ModelObservation(
+                                runtimeModelId = "MODEL_PLACEHOLDER_M400",
+                                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                                responseModelId = "model-b"
+                            ),
                             timestamp = "2026-08-31T00:01:00Z"
                         )
                     )
@@ -423,7 +546,25 @@ class UsageAggregatorTest {
         )
 
         assertEquals(2, stats.modelBuckets.size)
-        assertEquals(setOf("model-a", "model-b"), stats.modelBuckets.map { it.canonicalId }.toSet())
+        assertEquals(
+            setOf("model-a", "model-b"),
+            stats.modelBuckets.mapNotNull { it.canonicalModelId }.toSet()
+        )
+        assertEquals(
+            setOf("canonical:model-a", "canonical:model-b"),
+            stats.modelBuckets.map { it.groupingKey }.toSet()
+        )
+        assertTrue(stats.modelBuckets.all { it.identityStatus == ModelIdentityStatus.RESOLVED })
+        assertEquals(
+            setOf(listOf("model-a"), listOf("model-b")),
+            stats.modelBuckets.map { it.registeredPricingIds }.toSet()
+        )
+        assertEquals(
+            setOf("variant:model-a", "variant:model-b"),
+            stats.modelBuckets.flatMap { bucket ->
+                bucket.variantBuckets.mapNotNull { it.variantId }
+            }.toSet()
+        )
     }
 
     @Test
@@ -467,7 +608,10 @@ class UsageAggregatorTest {
                             TokenEntry(
                                 input = 100_000,
                                 cacheRead = 100_001,
-                                model = "provider/tiered-model",
+                                modelObservation = ModelObservation(
+                                    providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                                    responseModelId = "provider/tiered-model"
+                                ),
                                 timestamp = "2026-08-31T00:00:00Z"
                             )
                         )
@@ -503,7 +647,10 @@ class UsageAggregatorTest {
                         TokenEntry(
                             input = 1_000_000,
                             unattributed = 5,
-                            model = "gpt-4o",
+                            modelObservation = ModelObservation(
+                                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                                responseModelId = "gpt-4o"
+                            ),
                             timestamp = timestamp
                         )
                     )
@@ -542,13 +689,19 @@ class UsageAggregatorTest {
             cacheRead = 300,
             cacheWrite = 25,
             reasoning = 10,
-            model = "gpt-4o",
+            modelObservation = ModelObservation(
+                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                responseModelId = "gpt-4o"
+            ),
             timestamp = now.minusSeconds(60).toString()
         )
         val olderEntry = TokenEntry(
             input = 900,
             output = 100,
-            model = "gpt-4o",
+            modelObservation = ModelObservation(
+                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                responseModelId = "gpt-4o"
+            ),
             timestamp = now.minusSeconds(8 * 24 * 3600L).toString()
         )
         val conversation = ConversationUsageData(

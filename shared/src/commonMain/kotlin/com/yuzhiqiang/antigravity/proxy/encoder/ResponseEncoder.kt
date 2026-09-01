@@ -58,9 +58,11 @@ object ResponseEncoder {
         val candidates = linkedMapOf<Int, CandidateBuffer>()
         var usage: NeutralUsage? = null
         var error: NeutralStreamChunk.Error? = null
+        var responseModelId: String? = null
         fun candidate(index: Int): CandidateBuffer = candidates.getOrPut(index) { CandidateBuffer() }
         chunks.forEach { chunk ->
             when (chunk) {
+                is NeutralStreamChunk.ResponseMetadata -> responseModelId = chunk.responseModelId
                 is NeutralStreamChunk.TextDelta -> candidate(chunk.choiceIndex).parts.add(
                     buildJsonObject { put("text", chunk.text) }
                 )
@@ -130,7 +132,7 @@ object ResponseEncoder {
                         })
                     }
                 })
-                modelVersion?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
+                (responseModelId ?: modelVersion)?.takeIf { it.isNotBlank() }?.let { put("modelVersion", it) }
                 usage?.let { put("usageMetadata", usageMetadata(it)) }
             }
             Result.success(if (cloudCodeEnvelope) wrapEnvelope(response).toString() else response.toString())
@@ -163,10 +165,11 @@ object ResponseEncoder {
                     (usage.cacheReadTokens ?: 0L) +
                     (usage.cacheWriteTokens ?: 0L)
             val output = usage.outputTokens ?: 0L
+            val reasoning = usage.reasoningTokens ?: 0L
             put("promptTokenCount", prompt)
             put("candidatesTokenCount", output)
             usage.reasoningTokens?.let { put("thoughtsTokenCount", it) }
-            put("totalTokenCount", usage.totalTokens ?: prompt + output)
+            put("totalTokenCount", usage.totalTokens ?: prompt + output + reasoning)
             usage.cacheReadTokens?.let { put("cachedContentTokenCount", it) }
         }
     }
@@ -294,6 +297,11 @@ object ResponseEncoder {
         fun encode(chunk: NeutralStreamChunk): List<String> {
             if (streamFinished) return emptyList()
             return when (chunk) {
+                is NeutralStreamChunk.ResponseMetadata -> {
+                    modelVersion = chunk.responseModelId
+                    emptyList()
+                }
+
                 is NeutralStreamChunk.TextDelta -> listOf(sse(wrapIfNeeded(textPayload(chunk.choiceIndex, chunk.text))))
                 is NeutralStreamChunk.ReasoningDelta -> listOf(
                     sse(wrapIfNeeded(thinkingPayload(chunk.choiceIndex, chunk.thinkingText, chunk.signature)))

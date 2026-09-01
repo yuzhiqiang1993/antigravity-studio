@@ -2,7 +2,7 @@ package com.yuzhiqiang.antigravity.i18n.sections
 
 object UsageStringsEn : UsageStrings {
     override val navUsage: String = "Usage"
-    override val usageSubtitle: String = "Multi-client AI Token trends, five-way composition & cost estimation"
+    override val usageSubtitle: String = "Multi-client AI Token trends, composition & cost estimation"
     override val usageStatsBadge: (conversations: Long, activeDays: Int) -> String = { conversations, activeDays ->
         "$conversations conversations · $activeDays active days"
     }
@@ -39,6 +39,14 @@ object UsageStringsEn : UsageStrings {
     override val usageKpiCostTitle: String = "Estimated Cost"
     override val usageKpiCostSavings: (savings: String) -> String = { savings -> "Saved $$savings via caching" }
     override val usageKpiTotalTokensTitle: String = "Total Tokens"
+    override val usageTotalInputTitle: String = "Input Usage (Prompt Input)"
+    override val usageTotalOutputTitle: String = "Output Usage (Model Output)"
+    override val usageCacheCardTitle: String = "Cache Performance (Hit)"
+    override val usageSavedAmountLabel: String = "Cost Saved"
+    override val usageUncachedInputLabel: String = "Uncached Input"
+    override val usageCacheHitLabel: String = "Cache Hit"
+    override val usageCacheWriteLabel: String = "Cache Write"
+    override val usageGenerationLabel: String = "Generation"
     override val usageKpiTokensDetail: (input: String, output: String, reasoning: String) -> String =
         { input, output, reasoning ->
             "In $input · Out $output · Think $reasoning"
@@ -51,6 +59,7 @@ object UsageStringsEn : UsageStrings {
     override val usageKpiActiveDays: (days: Int) -> String = { days -> "Active $days days" }
     override val usageKpiPricingWarning: String = "Some models have no matched price; their cost is excluded"
     override val usageCacheRate: (pct: String) -> String = { pct -> "$pct%" }
+    override val usageCacheHitRateTitle: String = "Cache Hit Rate"
 
     override val usageTodaySummaryTitle: String = "Today's Usage"
     override val usageTodayActiveModels: (count: Long) -> String = { count -> "$count active models" }
@@ -72,6 +81,7 @@ object UsageStringsEn : UsageStrings {
     override val usageTokenCacheWrite: String = "Cache Write"
     override val usageTokenModelOutput: String = "Model Output"
     override val usageTokenThinking: String = "Thinking"
+    override val usageTokenUnattributed: String = "Unattributed"
 
     override val usageActivityHeatmapTitle: String = "Activity & Contributions"
     override val usageActivityHeatmapTip: (date: String, tokens: String, calls: Long) -> String =

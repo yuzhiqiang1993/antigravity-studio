@@ -23,10 +23,10 @@ import java.util.UUID
 @Composable
 fun ProviderEditorDialog(
     initialProvider: Provider? = null,
-    initialModels: List<UpstreamModel> = emptyList(),
-    editingSingleModel: UpstreamModel? = null,
+    initialModels: List<ProviderModelBinding> = emptyList(),
+    editingSingleModel: ProviderModelBinding? = null,
     onDismiss: () -> Unit,
-    onSave: (Provider, List<UpstreamModel>) -> Unit,
+    onSave: (Provider, List<ProviderModelBinding>) -> Unit,
     isDebugMode: Boolean = false,
     onViewModelCatalog: (String) -> Unit = {}
 ) {
@@ -59,7 +59,9 @@ fun ProviderEditorDialog(
     var isDirty by remember { mutableStateOf(false) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
 
-    fun markDirty() { if (!isDirty) isDirty = true }
+    fun markDirty() {
+        if (!isDirty) isDirty = true
+    }
 
     fun updateSuggestedEndpoints() {
         val (sugModels, sugGen) = suggestedEndpoints(baseUrl, protocol)
@@ -78,9 +80,9 @@ fun ProviderEditorDialog(
 
     var fetchedModelConfigs by remember {
         mutableStateOf(
-            if (isSingleModelMode && editingSingleModel != null) {
-                listOf(ProviderModelConfigMapper.toCatalogModelConfig(editingSingleModel))
-            } else if (initialModels.isNotEmpty()) {
+            editingSingleModel?.let { model ->
+                listOf(ProviderModelConfigMapper.toCatalogModelConfig(model))
+            } ?: if (initialModels.isNotEmpty()) {
                 initialModels.map { ProviderModelConfigMapper.toCatalogModelConfig(it) }
             } else {
                 emptyList()
@@ -91,9 +93,9 @@ fun ProviderEditorDialog(
     var selectedModelIds by remember {
         mutableStateOf(
             if (editingSingleModel != null) {
-                setOf(editingSingleModel.upstreamModelId)
+                setOf(editingSingleModel.providerModelId)
             } else {
-                initialModels.map { it.upstreamModelId }.toSet()
+                initialModels.map { it.providerModelId }.toSet()
             }
         )
     }
@@ -116,7 +118,7 @@ fun ProviderEditorDialog(
 
     fun skipFetchAndConfigureManually() {
         fetchedModelConfigs = ProviderModelConfigMapper.createManualCatalogConfigs(initialModels)
-        selectedModelIds = initialModels.map { it.upstreamModelId }.toSet()
+        selectedModelIds = initialModels.map { it.providerModelId }.toSet()
         fetchError = null
         currentStep = ProviderEditStep.SELECT_MODELS
         markDirty()
@@ -137,7 +139,7 @@ fun ProviderEditorDialog(
                         discoveredList = discoveredList,
                         initialModels = initialModels
                     )
-                    selectedModelIds = initialModels.map { it.upstreamModelId }.toSet()
+                    selectedModelIds = initialModels.map { it.providerModelId }.toSet()
                     currentStep = ProviderEditStep.SELECT_MODELS
                 } else {
                     fetchError = catalogResult.errorMessage?.let {
@@ -185,7 +187,7 @@ fun ProviderEditorDialog(
 
     fun handleSave() {
         val finalProvider = currentProvider()
-        val finalModels = ProviderModelConfigMapper.buildFinalUpstreamModels(
+        val finalModels = ProviderModelConfigMapper.buildFinalProviderModelBindings(
             fetchedModelConfigs = fetchedModelConfigs,
             selectedModelIds = selectedModelIds,
             initialModels = initialModels,
@@ -307,7 +309,8 @@ fun ProviderEditorDialog(
                                     markDirty()
                                 },
                                 onAddNewModel = { newModel ->
-                                    fetchedModelConfigs = listOf(newModel) + fetchedModelConfigs.filter { it.id != newModel.id }
+                                    fetchedModelConfigs =
+                                        listOf(newModel) + fetchedModelConfigs.filter { it.id != newModel.id }
                                     selectedModelIds = selectedModelIds + newModel.id
                                     markDirty()
                                 },

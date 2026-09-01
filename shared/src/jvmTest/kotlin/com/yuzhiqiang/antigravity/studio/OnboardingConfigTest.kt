@@ -22,23 +22,23 @@ class OnboardingConfigTest {
     }
 
     @Test
-    fun testLegacyJsonWithoutOnboardingFieldDefaultsToFalse() {
-        val legacyJson = """
+    fun testSchemaV2JsonWithoutOnboardingFieldDefaultsToFalse() {
+        val configJson = """
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "proxy_port": 8321,
                 "language": "zh-CN"
             }
         """.trimIndent()
-        val decoded = json.decodeFromString<AppConfig>(legacyJson)
-        assertFalse(decoded.hasCompletedOnboarding, "旧版配置文件兼容默认值应为 false")
+        val decoded = json.decodeFromString<AppConfig>(configJson)
+        assertFalse(decoded.hasCompletedOnboarding, "未设置新手引导状态时默认应为 false")
     }
 
     @Test
     fun testJsonWithOnboardingFieldTrueDecodesCorrectly() {
         val modernJson = """
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "proxy_port": 8321,
                 "has_completed_onboarding": true
             }

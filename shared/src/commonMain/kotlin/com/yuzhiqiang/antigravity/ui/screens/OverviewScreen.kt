@@ -130,9 +130,9 @@ fun OverviewScreen(
     }
     val upstreamSummary = remember(config, s) {
         val providerCount = config.providers.size
-        val upstreamModelCount = config.upstreamModels.size
+        val providerModelCount = config.providerModelBindings.size
         if (providerCount > 0) {
-            s.overviewCustomUpstreamSummary(providerCount, upstreamModelCount)
+            s.overviewCustomUpstreamSummary(providerCount, providerModelCount)
         } else {
             s.overviewOfficialDirect
         }

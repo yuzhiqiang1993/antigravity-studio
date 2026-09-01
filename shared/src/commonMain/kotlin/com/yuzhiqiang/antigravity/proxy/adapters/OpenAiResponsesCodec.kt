@@ -7,6 +7,7 @@ import com.yuzhiqiang.antigravity.proxy.model.NeutralMessage
 import com.yuzhiqiang.antigravity.proxy.model.NeutralRole
 import com.yuzhiqiang.antigravity.proxy.model.NeutralStreamChunk
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
+import com.yuzhiqiang.antigravity.proxy.model.normalizedNeutralUsage
 import com.yuzhiqiang.antigravity.proxy.model.StreamErrorSource
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -120,6 +121,9 @@ object OpenAiResponsesCodec {
             }
             val output = root["output"]?.jsonArray ?: JsonArray(emptyList())
             val chunks = mutableListOf<NeutralStreamChunk>()
+            root.stringValue("model")
+                ?.takeIf(String::isNotBlank)
+                ?.let { chunks += NeutralStreamChunk.ResponseMetadata(it) }
             var hasToolCall = false
             output.forEachIndexed { index, itemElement ->
                 val item = itemElement as? JsonObject ?: return@forEachIndexed
@@ -149,7 +153,7 @@ object OpenAiResponsesCodec {
             val root = json.parseToJsonElement(data).jsonObject
             val error = responseError(root)
             if (error != null) return Result.success(listOf(error))
-            when (root.stringValue("type")?.lowercase()) {
+            val chunksResult = when (root.stringValue("type")?.lowercase()) {
                 "response.output_text.delta" -> {
                     Result.success(root.stringValue("delta")?.let { listOf(NeutralStreamChunk.TextDelta(it)) }
                         ?: emptyList())
@@ -211,6 +215,12 @@ object OpenAiResponsesCodec {
                 )
 
                 else -> Result.success(emptyList())
+            }
+            val responseModelId = (root.objectValue("response") ?: root).stringValue("model")
+                ?.takeIf(String::isNotBlank)
+            chunksResult.map { chunks ->
+                if (responseModelId == null) chunks
+                else listOf(NeutralStreamChunk.ResponseMetadata(responseModelId)) + chunks
             }
         } catch (error: Exception) {
             Result.failure(IllegalArgumentException("解析 OpenAI Responses 流事件失败：${error.message}", error))
@@ -389,16 +399,16 @@ object OpenAiResponsesCodec {
             ?.get("cached_tokens")?.jsonPrimitive?.longOrNull
         val reasoning = usage["output_tokens_details"]?.jsonObject
             ?.get("reasoning_tokens")?.jsonPrimitive?.longOrNull
-        val validCacheBreakdown = input != null && (cached ?: 0L) <= input
-        val validReasoningBreakdown = output != null && (reasoning ?: 0L) <= output
-        val computedTotal = input?.plus(output ?: 0L)
-        val reportedTotal = long("total_tokens")
-        return NeutralUsage(
+        val validCacheBreakdown = input != null && input >= 0L &&
+                (cached == null || cached in 0L..input)
+        val validReasoningBreakdown = output != null && output >= 0L &&
+                (reasoning == null || reasoning in 0L..output)
+        return normalizedNeutralUsage(
             inputTokens = input?.let { total -> if (validCacheBreakdown) total - (cached ?: 0L) else total },
             outputTokens = output?.let { total -> if (validReasoningBreakdown) total - (reasoning ?: 0L) else total },
             cacheReadTokens = cached.takeIf { validCacheBreakdown },
             reasoningTokens = reasoning.takeIf { validReasoningBreakdown },
-            totalTokens = reportedTotal?.takeIf { computedTotal == null || it >= computedTotal } ?: computedTotal
+            reportedTotalTokens = long("total_tokens")
         )
     }
 

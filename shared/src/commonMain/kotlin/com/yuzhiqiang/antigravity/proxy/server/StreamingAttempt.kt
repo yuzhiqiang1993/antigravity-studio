@@ -11,6 +11,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 internal data class StreamAttemptResult(
     val error: NeutralStreamChunk.Error?,
     val usage: NeutralUsage?,
+    val responseModelId: String? = null,
     val firstByteMs: Long? = null,
     val firstTokenMs: Long? = null,
     val lastTokenMs: Long? = null,
@@ -42,6 +43,7 @@ internal suspend fun streamProviderAttempt(
     onHeartbeat: suspend () -> Unit = {}
 ): StreamAttemptResult {
     var latestUsage: NeutralUsage? = null
+    var responseModelId: String? = null
     var committed = false
     var sawCompleted = false
     var sawMeaningfulContent = false
@@ -67,6 +69,7 @@ internal suspend fun streamProviderAttempt(
         return StreamAttemptResult(
             error = error,
             usage = latestUsage,
+            responseModelId = responseModelId,
             firstByteMs = timing.firstByteMs,
             firstTokenMs = timing.firstTokenMs,
             lastTokenMs = timing.lastTokenMs,
@@ -146,6 +149,9 @@ internal suspend fun streamProviderAttempt(
         idleDeadlineMs = chunkReceivedAt + idleTimeoutMs
         if (chunk is NeutralStreamChunk.Error) return fail(chunk)
 
+        if (chunk is NeutralStreamChunk.ResponseMetadata) {
+            responseModelId = chunk.responseModelId
+        }
         if (chunk is NeutralStreamChunk.Completed) {
             latestUsage = chunk.usage ?: latestUsage
             sawCompleted = true
@@ -174,4 +180,12 @@ internal fun isMeaningfulContentChunk(chunk: NeutralStreamChunk?): Boolean = whe
     is NeutralStreamChunk.ToolCallDelta -> true
     is NeutralStreamChunk.InlineDataDelta -> true
     else -> false
+}
+
+internal fun resolveNonStreamingFirstTokenMs(
+    statusCode: Int,
+    durationMs: Long,
+    chunks: List<NeutralStreamChunk>
+): Long? = durationMs.takeIf {
+    statusCode < 400 && chunks.any(::isMeaningfulContentChunk)
 }

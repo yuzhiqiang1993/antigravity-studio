@@ -1,7 +1,9 @@
 package com.yuzhiqiang.antigravity.proxy.activity
 
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
+import com.yuzhiqiang.antigravity.domain.model.ActivityModelIdentity
 import com.yuzhiqiang.antigravity.domain.model.calculateSpeedMetrics
+import com.yuzhiqiang.antigravity.domain.model.withResponseModelId
 import com.yuzhiqiang.antigravity.proxy.model.NeutralUsage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,8 +24,7 @@ object ActivityRecorder {
     fun startActivity(
         method: String,
         path: String,
-        modelId: String?,
-        requestedModelId: String? = null,
+        modelIdentity: ActivityModelIdentity? = null,
         clientSource: String? = null,
         providerName: String?,
         isOfficialPassthrough: Boolean,
@@ -38,8 +39,7 @@ object ActivityRecorder {
             timestamp = timestamp,
             method = method,
             path = path,
-            modelId = modelId,
-            requestedModelId = requestedModelId,
+            modelIdentity = modelIdentity,
             clientSource = clientSource,
             providerName = providerName,
             statusCode = 0,
@@ -91,7 +91,8 @@ object ActivityRecorder {
         id: String,
         statusCode: Int,
         durationMs: Long,
-        modelId: String? = null,
+        modelIdentity: ActivityModelIdentity? = null,
+        responseModelId: String? = null,
         providerName: String? = null,
         errorMessage: String? = null,
         errorSource: String? = null,
@@ -121,7 +122,8 @@ object ActivityRecorder {
                     log.copy(
                         statusCode = statusCode,
                         durationMs = durationMs,
-                        modelId = modelId ?: log.modelId,
+                        modelIdentity = (modelIdentity ?: log.modelIdentity)
+                            ?.withResponseModelId(responseModelId),
                         providerName = providerName ?: log.providerName,
                         errorMessage = errorMessage,
                         errorSource = errorSource,
@@ -130,6 +132,7 @@ object ActivityRecorder {
                         cacheReadTokens = usage?.cacheReadTokens ?: log.cacheReadTokens,
                         cacheWriteTokens = usage?.cacheWriteTokens ?: log.cacheWriteTokens,
                         reasoningTokens = usage?.reasoningTokens ?: log.reasoningTokens,
+                        unattributedTokens = usage?.unattributedTokens ?: log.unattributedTokens,
                         totalTokens = usage?.totalTokens ?: log.totalTokens,
                         firstByteMs = firstByteMs ?: log.firstByteMs,
                         firstTokenMs = resolvedFirstTokenMs,
@@ -155,8 +158,7 @@ object ActivityRecorder {
     fun record(
         method: String,
         path: String,
-        modelId: String?,
-        requestedModelId: String? = null,
+        modelIdentity: ActivityModelIdentity? = null,
         clientSource: String? = null,
         providerName: String?,
         statusCode: Int,
@@ -190,8 +192,7 @@ object ActivityRecorder {
             timestamp = timestamp,
             method = method,
             path = path,
-            modelId = modelId,
-            requestedModelId = requestedModelId,
+            modelIdentity = modelIdentity,
             clientSource = clientSource,
             providerName = providerName,
             statusCode = statusCode,
@@ -205,6 +206,7 @@ object ActivityRecorder {
             cacheReadTokens = usage?.cacheReadTokens,
             cacheWriteTokens = usage?.cacheWriteTokens,
             reasoningTokens = usage?.reasoningTokens,
+            unattributedTokens = usage?.unattributedTokens,
             totalTokens = usage?.totalTokens,
             firstByteMs = firstByteMs,
             firstTokenMs = firstTokenMs,
@@ -237,9 +239,11 @@ object ActivityRecorder {
         _logs.value = emptyList()
     }
 
+
     private fun sanitizePayload(payload: String?): String? {
         if (payload == null) return null
         if (payload.length <= MAX_PAYLOAD_CHARS) return payload
-        return payload.substring(0, MAX_PAYLOAD_CHARS) + "\n\n... [Truncated: ${payload.length - MAX_PAYLOAD_CHARS} chars omitted for performance]"
+        return payload.substring(0, MAX_PAYLOAD_CHARS) +
+                "\n\n... [Truncated: ${payload.length - MAX_PAYLOAD_CHARS} chars omitted for performance]"
     }
 }

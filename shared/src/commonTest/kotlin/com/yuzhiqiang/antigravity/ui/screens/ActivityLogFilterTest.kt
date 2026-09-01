@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
+import com.yuzhiqiang.antigravity.domain.model.ActivityModelIdentity
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -148,7 +149,7 @@ class ActivityLogFilterTest {
         id = id,
         method = "POST",
         path = path,
-        modelId = "test-model",
+        modelIdentity = ActivityModelIdentity(variantId = "test-model"),
         clientSource = client,
         providerName = provider,
         statusCode = status,

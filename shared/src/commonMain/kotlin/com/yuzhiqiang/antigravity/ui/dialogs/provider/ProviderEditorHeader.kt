@@ -22,7 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.Provider
-import com.yuzhiqiang.antigravity.domain.model.UpstreamModel
+import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.i18n.strings
 
 private data class StepItem(val step: ProviderEditStep, val num: Int, val label: String)
@@ -30,7 +30,7 @@ private data class StepItem(val step: ProviderEditStep, val num: Int, val label:
 @Composable
 fun ProviderEditorHeader(
     isSingleModelMode: Boolean,
-    editingSingleModel: UpstreamModel?,
+    editingSingleModel: ProviderModelBinding?,
     initialProvider: Provider?,
     currentStep: ProviderEditStep,
     isFetching: Boolean,
@@ -58,8 +58,9 @@ fun ProviderEditorHeader(
                     Text(
                         text = when {
                             isSingleModelMode -> editingSingleModel?.let { model ->
-                                "${s.modelsEditModel} · ${model.displayName ?: model.upstreamModelId}"
+                                "${s.modelsEditModel} · ${model.displayName.ifBlank { model.providerModelId }}"
                             }.orEmpty()
+
                             initialProvider != null -> "${s.modelsEditProvider} · ${initialProvider.name}"
                             else -> s.modelsAddProvider
                         },

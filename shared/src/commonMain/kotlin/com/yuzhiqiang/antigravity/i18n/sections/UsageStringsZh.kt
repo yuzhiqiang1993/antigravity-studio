@@ -2,7 +2,7 @@ package com.yuzhiqiang.antigravity.i18n.sections
 
 object UsageStringsZh : UsageStrings {
     override val navUsage: String = "用量统计"
-    override val usageSubtitle: String = "多端 AI Token 消耗走势、五维结构拆解与费用折算"
+    override val usageSubtitle: String = "多端 AI Token 消耗走势、构成拆解与费用折算"
     override val usageStatsBadge: (conversations: Long, activeDays: Int) -> String = { conversations, activeDays ->
         "$conversations 个会话 · $activeDays 活跃天"
     }
@@ -20,11 +20,11 @@ object UsageStringsZh : UsageStrings {
         }
     }
 
-    override val usageTimeRange24h: String = "24小时"
+    override val usageTimeRangeToday: String = "今天"
+    override val usageTimeRange24h: String = "1天"
     override val usageTimeRange7d: String = "7天"
     override val usageTimeRange14d: String = "14天"
     override val usageTimeRange30d: String = "30天"
-    override val usageTimeRangeToday: String = "今日"
     override val usageTimeRangeThisWeek: String = "本周"
     override val usageTimeRangeThisMonth: String = "本月"
     override val usageTimeRangeAllTime: String = "全部"
@@ -39,6 +39,14 @@ object UsageStringsZh : UsageStrings {
     override val usageKpiCostTitle: String = "预估总花费"
     override val usageKpiCostSavings: (savings: String) -> String = { savings -> "通过缓存已省 $$savings" }
     override val usageKpiTotalTokensTitle: String = "总 Token 消耗"
+    override val usageTotalInputTitle: String = "输入用量 (Prompt Input)"
+    override val usageTotalOutputTitle: String = "输出用量 (Model Output)"
+    override val usageCacheCardTitle: String = "缓存命中 (Cache Hit)"
+    override val usageSavedAmountLabel: String = "已省成本"
+    override val usageUncachedInputLabel: String = "普通输入"
+    override val usageCacheHitLabel: String = "缓存命中"
+    override val usageCacheWriteLabel: String = "缓存创建"
+    override val usageGenerationLabel: String = "内容生成"
     override val usageKpiTokensDetail: (input: String, output: String, reasoning: String) -> String =
         { input, output, reasoning ->
             "入 $input · 出 $output · 思 $reasoning"
@@ -50,6 +58,7 @@ object UsageStringsZh : UsageStrings {
     override val usageKpiActiveDays: (days: Int) -> String = { days -> "活跃 $days 天" }
     override val usageKpiPricingWarning: String = "部分模型未匹配价格，费用不含这些模型"
     override val usageCacheRate: (pct: String) -> String = { pct -> "$pct%" }
+    override val usageCacheHitRateTitle: String = "缓存命中率"
 
     override val usageTodaySummaryTitle: String = "今日用量"
     override val usageTodayActiveModels: (count: Long) -> String = { count -> "$count 个活跃模型" }
@@ -71,6 +80,7 @@ object UsageStringsZh : UsageStrings {
     override val usageTokenCacheWrite: String = "缓存写入"
     override val usageTokenModelOutput: String = "模型输出"
     override val usageTokenThinking: String = "思考推理"
+    override val usageTokenUnattributed: String = "未归因"
 
     override val usageActivityHeatmapTitle: String = "年度活跃度贡献"
     override val usageActivityHeatmapTip: (date: String, tokens: String, calls: Long) -> String =
