@@ -48,13 +48,13 @@ class PricingCatalogServiceTest {
             assertEquals(1.0, rate.input)
             assertEquals(2.0, rate.output)
             assertEquals(0.1, rate.cacheRead, 0.000001)
-            // LiteLLM 未提供 cache-write 时，按已提供 cache-read 价格回退。
-            assertEquals(0.1, rate.cacheWrite, 0.000001)
+            // 未提供 cache-write 专属价格时，按普通输入价格回退，避免低估缓存创建费用。
+            assertEquals(1.0, rate.cacheWrite, 0.000001)
             assertEquals(3.0, rate.reasoning)
             assertEquals(2.0, rate.above272k?.input)
             assertEquals(4.0, rate.above272k?.output)
             assertEquals(0.1, rate.above272k?.cacheRead ?: 0.0, 0.000001)
-            assertEquals(0.1, rate.above272k?.cacheWrite ?: 0.0, 0.000001)
+            assertEquals(2.0, rate.above272k?.cacheWrite ?: 0.0, 0.000001)
             assertEquals(3.0, rate.above272k?.reasoning)
             assertEquals(272_000L, rate.above272k?.thresholdTokens)
 
@@ -125,7 +125,7 @@ class PricingCatalogServiceTest {
             assertEquals(10.0, rate.above272k?.input)
             assertEquals(45.0, rate.above272k?.output)
             assertEquals(1.0, rate.above272k?.cacheRead)
-            assertEquals(0.5, rate.above272k?.cacheWrite)
+            assertEquals(10.0, rate.above272k?.cacheWrite)
             assertEquals(30.0, rate.above272k?.reasoning)
             assertEquals(200_000L, rate.above272k?.thresholdTokens)
 
@@ -292,7 +292,7 @@ class PricingCatalogServiceTest {
     }
 
     @Test
-    fun testNormalizesReasoningTiersAndVendorPrefixes() {
+    fun testRequiresCanonicalProviderIdentityWithoutTierOrVendorGuessing() {
         val root = tempRoot()
         try {
             val cacheFile = File(root, "pricing_catalog.json")
@@ -307,25 +307,18 @@ class PricingCatalogServiceTest {
             )
             val service = PricingCatalogService(customRootDir = root)
 
-            // 1. 带有 (High) 括号修饰词的模型名，自动清洗并命中
-            val geminiRes = service.resolvePricing(canonicalModelId = "Gemini 3.7 Flash (High)")
+            val geminiRes = service.resolvePricing(canonicalModelId = "google/gemini-3.7-flash")
             assertTrue(geminiRes.matched)
             assertEquals(0.15, geminiRes.rate.input)
 
-            // 2. 带有 (Thinking) 括号修饰词的模型名，自动清洗并命中
-            val claudeRes = service.resolvePricing(canonicalModelId = "Claude 3.5 Sonnet (Thinking)")
-            assertTrue(claudeRes.matched)
-            assertEquals(3.0, claudeRes.rate.input)
+            val displayNameResult = service.resolvePricing(canonicalModelId = "Gemini 3.7 Flash (High)")
+            assertFalse(displayNameResult.matched)
 
-            // 3. 带有具体日期快照后缀的模型名，自动通配基础模型
-            val claudeDateRes = service.resolvePricing(canonicalModelId = "claude-3-5-sonnet-20241022")
-            assertTrue(claudeDateRes.matched)
-            assertEquals(3.0, claudeDateRes.rate.input)
+            val unqualifiedResult = service.resolvePricing(canonicalModelId = "gemini-3.7-flash")
+            assertFalse(unqualifiedResult.matched)
 
-            // 4. 带有连字符档位后缀 (-high) 的模型名
-            val gptTierRes = service.resolvePricing(canonicalModelId = "gpt-4o-high")
-            assertTrue(gptTierRes.matched)
-            assertEquals(2.5, gptTierRes.rate.input)
+            val tierResult = service.resolvePricing(canonicalModelId = "google/gemini-3.7-flash-high")
+            assertFalse(tierResult.matched)
         } finally {
             root.deleteRecursively()
         }

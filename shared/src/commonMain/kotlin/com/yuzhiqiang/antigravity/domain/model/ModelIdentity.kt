@@ -60,8 +60,9 @@ object ModelIdentity {
     }
 
     fun stripDisplayLevelSuffix(displayName: String): String {
-        val pattern =
-            Regex("(?i)\\s*(?:\\(|\\s)(?:adaptive|x-high|x_high|medium|auto|custom|default|high|max|low|off)\\)?$")
+        val pattern = Regex(
+            "(?i)\\s*(?:\\(\\s*(?:thinking(?:\\s+(?:adaptive|x-high|x_high|medium|auto|custom|default|high|max|low|off))?|adaptive|x-high|x_high|medium|auto|custom|default|high|max|low|off)\\s*\\)|\\s+(?:thinking|adaptive|x-high|x_high|medium|auto|custom|default|high|max|low|off))$"
+        )
         return displayName.replace(pattern, "").trim()
     }
 
@@ -74,7 +75,8 @@ object ModelIdentity {
     fun stripReasoningLevelSuffix(value: String): String {
         val normalized = normalizeModelId(value)
         val suffixes = listOf(
-            "-adaptive", "-x-high", "-x_high", "-medium", "-auto",
+            "-extra-low", "-adaptive", "-x-high", "-x_high", "-xhigh", "-medium",
+            "-standard", "-minimal", "-thinking", "-direct", "-default", "-auto",
             "-high", "-max", "-low", "-off"
         )
         return suffixes.firstNotNullOfOrNull { suffix ->

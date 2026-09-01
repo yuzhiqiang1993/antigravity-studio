@@ -81,6 +81,7 @@ class PricingCatalogService(
         const val DEFAULT_PRICING_URL = "https://models.dev/api.json"
         const val LONG_CONTEXT_THRESHOLD_TOKENS = 272_000L
         private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L
+        private val VERSION_HYPHEN_PATTERN = Regex("(\\d+)-(\\d+)")
 
         // 官方第一方与主流公有云提供商白名单
         private val OFFICIAL_PROVIDER_IDS = setOf(
@@ -180,7 +181,9 @@ class PricingCatalogService(
     ): PricingResolution {
         val candidates = generateLookupCandidates(
             canonicalModelId,
-            *registeredPricingIds.toTypedArray()
+            canonicalModelId?.substringAfterLast('/'),
+            *registeredPricingIds.toTypedArray(),
+            *registeredPricingIds.map { it.substringAfterLast('/') }.toTypedArray()
         )
 
         // 1. 用户自定义配置
@@ -263,94 +266,22 @@ class PricingCatalogService(
 
     internal fun generateLookupCandidates(vararg inputs: String?): List<String> = buildList {
         for (input in inputs) {
-            val raw = input?.trim()?.takeIf(String::isNotEmpty) ?: continue
-            val lower = raw.lowercase()
-            add(lower)
-
-            val withoutModels = lower.removePrefix("models/").removePrefix("models-").trim()
-            if (withoutModels.isNotEmpty() && withoutModels != lower) {
-                add(withoutModels)
+            val normalized = input
+                ?.trim()
+                ?.lowercase()
+                ?.removePrefix("models/")
+                ?.takeIf(String::isNotEmpty)
+                ?: continue
+            add(normalized)
+            if (normalized.contains('.')) {
+                add(normalized.replace('.', '-'))
             }
-
-            // 1. 符号连字符归一化
-            val hyphenated = withoutModels.replace(Regex("[\\s_]+"), "-").replace(Regex("-+"), "-").trim('-')
-            if (hyphenated.isNotEmpty()) {
-                add(hyphenated)
-            }
-
-            // 2. 剥离括号与档位修饰词 (如 (High), (Thinking), (X-High), -high, -tiered 等)
-            val withoutParentheses = withoutModels.replace(Regex("\\s*\\([^)]*\\)"), "").trim()
-            val cleanTier = stripTierSuffixes(withoutParentheses)
-            val cleanHyphenated = cleanTier.replace(Regex("[\\s_]+"), "-").replace(Regex("-+"), "-").trim('-')
-            if (cleanHyphenated.isNotEmpty()) {
-                add(cleanHyphenated)
-            }
-
-            // 3. 厂商前缀剥离与扩展及版本点号连字符互转
-            val baseCandidates = mutableListOf<String>()
-            if (hyphenated.isNotEmpty()) baseCandidates.add(hyphenated)
-            if (cleanHyphenated.isNotEmpty()) baseCandidates.add(cleanHyphenated)
-            
-            // 兼容点号与连字符互转 (例如 claude 3.5 sonnet -> claude-3-5-sonnet 或 gemini-3-7-flash -> gemini-3.7-flash)
-            val dotToHyphen = cleanHyphenated.replace('.', '-')
-            if (dotToHyphen.isNotEmpty()) baseCandidates.add(dotToHyphen)
-            val hyphenToDot = cleanHyphenated.replace(Regex("(?<=\\d)-(?=\\d)"), ".")
-            if (hyphenToDot.isNotEmpty()) baseCandidates.add(hyphenToDot)
-
-            val modelsToExpand = baseCandidates.distinct()
-
-            for (item in modelsToExpand) {
-                if (item.contains('/')) {
-                    val leaf = item.substringAfterLast('/')
-                    if (leaf.isNotEmpty()) add(leaf)
-                } else {
-                    for (vendor in KNOWN_VENDOR_PREFIXES) {
-                        add("$vendor/$item")
-                    }
-                }
-
-                // 4. 日期版本快照通配 (例如 claude-3-5-sonnet-20241022 -> claude-3-5-sonnet)
-                val withoutDate = stripDateSnapshotSuffix(item)
-                if (withoutDate != null && withoutDate != item) {
-                    add(withoutDate)
-                    if (!withoutDate.contains('/')) {
-                        for (vendor in KNOWN_VENDOR_PREFIXES) {
-                            add("$vendor/$withoutDate")
-                        }
-                    }
-                }
+            if (VERSION_HYPHEN_PATTERN.containsMatchIn(normalized)) {
+                add(normalized.replace(VERSION_HYPHEN_PATTERN, "$1.$2"))
             }
         }
     }.distinct()
 
-    private fun stripTierSuffixes(text: String): String {
-        var result = text.trim()
-        val suffixes = listOf(
-            "-adaptive", "-x-high", "-x_high", "-xhigh", "-medium", "-standard",
-            "-auto", "-high", "-max", "-low", "-minimal", "-thinking", "-direct",
-            "-tiered", "-preview", "-latest"
-        )
-        for (suffix in suffixes) {
-            if (result.endsWith(suffix, ignoreCase = true)) {
-                result = result.substring(0, result.length - suffix.length).trimEnd('-', '_', ' ')
-                break
-            }
-        }
-        return result
-    }
-
-    private fun stripDateSnapshotSuffix(text: String): String? {
-        val dateRegex = Regex("-(?:\\d{4}-\\d{2}-\\d{2}|\\d{8})$")
-        return if (dateRegex.containsMatchIn(text)) {
-            text.replace(dateRegex, "")
-        } else {
-            null
-        }
-    }
-
-    private val KNOWN_VENDOR_PREFIXES = listOf(
-        "google", "anthropic", "openai", "deepseek", "meta", "mistral", "xai", "cohere", "minimax"
-    )
 
     private fun parsePricingJson(rawJson: String, isCustomFile: Boolean = false): Map<String, ModelPricingRate> {
         val result = mutableMapOf<String, ModelPricingRate>()
@@ -368,7 +299,7 @@ class PricingCatalogService(
                     val output = numberValue(costObj, "output") ?: 0.0
                     if (input > 0.0 || output > 0.0) {
                         val cacheRead = numberValue(costObj, "cache_read") ?: (input * 0.1)
-                        val cacheWrite = numberValue(costObj, "cache_write") ?: cacheRead
+                        val cacheWrite = numberValue(costObj, "cache_write") ?: input
                         val reasoning = numberValue(costObj, "reasoning") ?: output
                         ModelPricingRate(
                             input = input,
@@ -396,7 +327,7 @@ class PricingCatalogService(
                         val input = inputM ?: 0.0
                         val output = outputM ?: 0.0
                         val cacheRead = numberValue(objectValue, "cache_read", "cache") ?: (input * 0.1)
-                        val cacheWrite = numberValue(objectValue, "cache_write", "cacheWrite") ?: cacheRead
+                        val cacheWrite = numberValue(objectValue, "cache_write", "cacheWrite") ?: input
                         val reasoning = numberValue(objectValue, "reasoning") ?: output
                         ModelPricingRate(
                             input = input,
@@ -417,7 +348,7 @@ class PricingCatalogService(
                             objectValue,
                             "cache_creation_input_token_cost",
                             "cacheWriteCostPerToken"
-                        )?.let { it * 1_000_000.0 } ?: cacheRead
+                        )?.let { it * 1_000_000.0 } ?: input
                         val reasoning = numberValue(
                             objectValue,
                             "output_cost_per_reasoning_token",
@@ -445,10 +376,6 @@ class PricingCatalogService(
                     val fullKey = if (!providerPrefix.isNullOrBlank()) "$providerPrefix/$key" else key
                     val normalizedKey = fullKey.trim().lowercase().removePrefix("models/")
                     result[normalizedKey] = rate
-                    if (!providerPrefix.isNullOrBlank()) {
-                        val leafKey = key.trim().lowercase().removePrefix("models/")
-                        result.putIfAbsent(leafKey, rate)
-                    }
                 }
             }
 
@@ -504,7 +431,7 @@ class PricingCatalogService(
             val input = numberValue(contextTier, "input") ?: baseInput
             val output = numberValue(contextTier, "output") ?: baseOutput
             val cacheRead = numberValue(contextTier, "cache_read") ?: baseCacheRead
-            val cacheWrite = numberValue(contextTier, "cache_write") ?: baseCacheWrite
+            val cacheWrite = numberValue(contextTier, "cache_write") ?: input
             val reasoning = numberValue(contextTier, "reasoning") ?: baseReasoning
             return LongContextPricingRate(
                 input = input,
@@ -521,7 +448,7 @@ class PricingCatalogService(
             val input = numberValue(over200k, "input") ?: baseInput
             val output = numberValue(over200k, "output") ?: baseOutput
             val cacheRead = numberValue(over200k, "cache_read") ?: baseCacheRead
-            val cacheWrite = numberValue(over200k, "cache_write") ?: baseCacheWrite
+            val cacheWrite = numberValue(over200k, "cache_write") ?: input
             val reasoning = numberValue(over200k, "reasoning") ?: baseReasoning
             return LongContextPricingRate(
                 input = input,
@@ -575,7 +502,7 @@ class PricingCatalogService(
         val effectiveInput = longInput ?: input
         val effectiveOutput = longOutput ?: output
         val effectiveCacheRead = longCacheRead ?: cacheRead ?: input * 0.1
-        val effectiveCacheWrite = longCacheWrite ?: cacheWrite ?: longCacheRead ?: cacheRead ?: effectiveInput
+        val effectiveCacheWrite = longCacheWrite ?: effectiveInput
         val effectiveReasoning = longReasoning ?: reasoning ?: effectiveOutput
         return LongContextPricingRate(
             input = effectiveInput * 1_000_000.0,

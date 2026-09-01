@@ -6,6 +6,7 @@ import com.yuzhiqiang.antigravity.domain.model.ModelIdentityRegistryHolder
 import com.yuzhiqiang.antigravity.domain.model.ModelIdentityStatus
 import com.yuzhiqiang.antigravity.domain.model.ModelObservation
 import com.yuzhiqiang.antigravity.domain.model.ModelRouteVariant
+import com.yuzhiqiang.antigravity.domain.model.OfficialCatalogModel
 import com.yuzhiqiang.antigravity.domain.model.ProviderModelBinding
 import com.yuzhiqiang.antigravity.domain.model.usage.ConversationUsageData
 import com.yuzhiqiang.antigravity.domain.model.usage.CustomDateRange
@@ -740,4 +741,109 @@ class UsageAggregatorTest {
         assertEquals(1L, outsideToday.todayCalls)
         assertEquals(485L, outsideToday.todayTokens)
     }
+
+    @Test
+    fun testOfficialReasoningVariantsAggregateAndPriceByProviderResponseModel() {
+        val root = File.createTempFile("usage-official-pricing-", "-root").apply {
+            delete()
+            mkdirs()
+        }
+        File(root, "pricing_catalog.json").writeText(
+            """
+            {
+              "google": {
+                "id": "google",
+                "models": {
+                  "gemini-3.7-flash": {
+                    "cost": {
+                      "input": 0.75,
+                      "output": 3.75,
+                      "cache_read": 0.075
+                    }
+                  }
+                }
+              }
+            }
+            """.trimIndent()
+        )
+        ModelIdentityRegistryHolder.updateConfig(AppConfig())
+        ModelIdentityRegistryHolder.updateOfficialModels(
+            listOf(
+                OfficialCatalogModel(
+                    catalogModelId = "gemini-3.7-flash-high",
+                    runtimeModelId = "MODEL_PLACEHOLDER_M298",
+                    displayName = "Gemini 3.7 Flash (High)",
+                    providerVendor = "MODEL_PROVIDER_GOOGLE"
+                ),
+                OfficialCatalogModel(
+                    catalogModelId = "gemini-3.7-flash-low",
+                    runtimeModelId = "MODEL_PLACEHOLDER_M300",
+                    displayName = "Gemini 3.7 Flash (Low)",
+                    providerVendor = "MODEL_PROVIDER_GOOGLE"
+                )
+            )
+        )
+
+        try {
+            val conversations = listOf(
+                ConversationUsageData(
+                    conversationId = "reasoning-variants",
+                    entries = listOf(
+                        createOfficialGeminiEntry(
+                            runtimeModelId = "MODEL_PLACEHOLDER_M298",
+                            responseModelId = "gemini-3.7-flash",
+                            input = 1_000_000
+                        ),
+                        createOfficialGeminiEntry(
+                            runtimeModelId = "MODEL_PLACEHOLDER_M300",
+                            responseModelId = "gemini-3.7-flash-control",
+                            output = 1_000_000
+                        ),
+                        createOfficialGeminiEntry(
+                            runtimeModelId = "MODEL_PLACEHOLDER_M298",
+                            responseModelId = null,
+                            cacheRead = 1_000_000
+                        ),
+                        createOfficialGeminiEntry(
+                            runtimeModelId = null,
+                            responseModelId = "gemini-3.7-flash-high",
+                            input = 1_000_000
+                        )
+                    )
+                )
+            )
+            val stats = UsageAggregator.aggregate(
+                conversations = conversations,
+                pricingService = PricingCatalogService(customRootDir = root),
+                timeRange = UsageTimeRange.ALL_TIME,
+                zoneId = ZoneId.of("UTC")
+            )
+
+            val model = stats.modelBuckets.single()
+            assertEquals("google/gemini-3.7-flash", model.canonicalModelId)
+            assertEquals("Gemini 3.7 Flash", model.displayName)
+            assertEquals(3, model.variantBuckets.size)
+            assertEquals(5.325, stats.estimatedCostUsd, 0.000001)
+            assertTrue(model.pricingMatched)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    private fun createOfficialGeminiEntry(
+        runtimeModelId: String?,
+        responseModelId: String?,
+        input: Long = 0L,
+        output: Long = 0L,
+        cacheRead: Long = 0L
+    ): TokenEntry = TokenEntry(
+        input = input,
+        output = output,
+        cacheRead = cacheRead,
+        modelObservation = ModelObservation(
+            runtimeModelId = runtimeModelId,
+            responseModelId = responseModelId
+        ),
+        timestamp = "2026-09-01T00:00:00Z"
+    )
 }

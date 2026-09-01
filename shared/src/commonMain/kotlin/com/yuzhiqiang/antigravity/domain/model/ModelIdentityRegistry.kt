@@ -96,23 +96,44 @@ class ModelIdentityRegistry private constructor(
             return unresolved(observation, ModelIdentityStatus.CONFLICT, evidenceCandidates.flatMap { it.evidence })
         }
         val record = resolved.singleOrNull()
-            ?: return unresolved(
+            ?: return resolveKnownProviderFamily(
+                observation = observation,
+                evidence = evidenceCandidates.flatMap { it.evidence }
+            ) ?: unresolved(
                 observation,
                 ModelIdentityStatus.UNRESOLVED,
                 evidenceCandidates.flatMap { it.evidence })
         val binding = record.bindingId?.let(bindings::get)
         val variant = record.variantId?.let(variants::get)
-        val canonical = record.canonicalModelId?.let { canonicalModelId ->
-            canonicalModels[normalized(canonicalModelId)]
-        }
+        val canonicalModelId = record.canonicalModelId ?: providerCanonicalModelId(
+            providerVendor = record.providerVendor ?: observation.providerVendor,
+            providerModelId = observation.responseModelId
+                ?: observation.providerModelId
+                ?: record.providerModelId
+        )
+        val canonical = canonicalModelId?.let { canonicalModels[normalized(it)] }
         val pricingIds = buildList {
             addAll(canonical?.pricingAliases.orEmpty())
             addAll(binding?.aliases.orEmpty().filter { it.kind == ModelAliasKind.PRICING }.map(ModelAlias::value))
-            record.canonicalModelId?.let(::add)
+            canonicalModelId?.let(::add)
         }.map(String::trim).filter(String::isNotEmpty).distinct()
+        val rawDisplayName = canonical?.displayName
+            ?: variant?.displayName
+            ?: binding?.displayName
+            ?: record.displayName
+            ?: observation.displayName
+            ?: observation.responseModelId
+            ?: observation.providerModelId
+            ?: observation.catalogModelId
+            ?: observation.runtimeModelId
+            ?: "Unknown"
         return ResolvedModelIdentity(
-            status = ModelIdentityStatus.RESOLVED,
-            canonicalModelId = record.canonicalModelId,
+            status = if (canonicalModelId != null) {
+                ModelIdentityStatus.RESOLVED
+            } else {
+                ModelIdentityStatus.UNRESOLVED
+            },
+            canonicalModelId = canonicalModelId,
             baseModelId = canonical?.baseModelId ?: record.baseModelId,
             bindingId = record.bindingId,
             variantId = record.variantId,
@@ -121,16 +142,11 @@ class ModelIdentityRegistry private constructor(
             providerConfigId = record.providerConfigId ?: observation.providerConfigId,
             providerModelId = record.providerModelId ?: observation.providerModelId,
             responseModelId = observation.responseModelId,
-            displayName = canonical?.displayName
-                ?: variant?.displayName
-                ?: binding?.displayName
-                ?: record.displayName
-                ?: observation.displayName
-                ?: observation.responseModelId
-                ?: observation.providerModelId
-                ?: observation.catalogModelId
-                ?: observation.runtimeModelId
-                ?: "Unknown",
+            displayName = if (canonicalModelId != null) {
+                ModelIdentity.stripDisplayLevelSuffix(rawDisplayName)
+            } else {
+                rawDisplayName
+            },
             reasoningProfile = variant?.reasoningProfile ?: record.reasoningProfile,
             pricingModelIds = pricingIds,
             evidence = evidenceCandidates.flatMap { it.evidence }.distinct()
@@ -143,9 +159,9 @@ class ModelIdentityRegistry private constructor(
         source: ModelIdentitySource
     ): Candidate? {
         val key = normalized(value) ?: return null
-        val records = index[key].orEmpty().distinctBy { it.identityKey }
+        val records = index[key].orEmpty()
         val evidence = listOf(ModelIdentityEvidence(source, value.orEmpty()))
-        return Candidate(records.singleOrNull(), evidence)
+        return Candidate(selectRecord(records), evidence)
     }
 
     private fun scoped(
@@ -155,17 +171,20 @@ class ModelIdentityRegistry private constructor(
     ): Candidate? {
         val provider = normalized(providerConfigId) ?: return null
         val model = normalized(modelId) ?: return null
-        val records = recordsByScopedProviderId[ScopedModelId(provider, model)]
-            .orEmpty()
-            .distinctBy { it.identityKey }
-        return Candidate(records.singleOrNull(), listOf(ModelIdentityEvidence(source, modelId.orEmpty())))
+        val records = recordsByScopedProviderId[ScopedModelId(provider, model)].orEmpty()
+        return Candidate(selectRecord(records), listOf(ModelIdentityEvidence(source, modelId.orEmpty())))
     }
 
     private fun uniqueUnscoped(modelId: String?, source: ModelIdentitySource): Candidate? {
         val key = normalized(modelId) ?: return null
-        val records = recordsByProviderId[key].orEmpty().distinctBy { it.identityKey }
+        val records = providerResponseCandidates(key)
+            .asSequence()
+            .map(recordsByProviderId::get)
+            .filterNotNull()
+            .firstOrNull(List<IdentityRecord>::isNotEmpty)
+            .orEmpty()
         return Candidate(
-            records.singleOrNull(),
+            selectRecord(records),
             listOf(ModelIdentityEvidence(source, modelId.orEmpty()))
         )
     }
@@ -176,14 +195,109 @@ class ModelIdentityRegistry private constructor(
         val catalogRecords = recordsByCatalogId[catalog].orEmpty().map { it.identityKey }.toSet()
         val records = recordsByRuntimeId[runtime].orEmpty()
             .filter { it.identityKey in catalogRecords }
-            .distinctBy { it.identityKey }
         return Candidate(
-            records.singleOrNull(),
+            selectRecord(records),
             listOf(
                 ModelIdentityEvidence(ModelIdentitySource.REGISTERED_ALIAS, catalogModelId.orEmpty()),
                 ModelIdentityEvidence(ModelIdentitySource.REGISTERED_ALIAS, runtimeModelId.orEmpty())
             )
         )
+    }
+
+    private fun providerResponseCandidates(modelId: String): List<String> = buildList {
+        add(modelId)
+        add(ModelIdentity.modelFamilyBase(modelId))
+        add(modelId.replace(INTERNAL_RESPONSE_SUFFIX, ""))
+    }.filter(String::isNotEmpty).distinct()
+
+    private fun selectRecord(records: List<IdentityRecord>): IdentityRecord? {
+        if (records.isEmpty()) return null
+        if (records.size == 1) return records.single()
+
+        val canonicalIds = records.mapNotNull { normalized(it.canonicalModelId) }.distinct()
+        if (canonicalIds.size != 1 || records.any { it.canonicalModelId == null }) return null
+
+        val first = records.first()
+        return first.copy(
+            bindingId = records.map(IdentityRecord::bindingId).distinct().singleOrNull(),
+            variantId = records.map(IdentityRecord::variantId).distinct().singleOrNull(),
+            catalogModelId = records.map(IdentityRecord::catalogModelId).distinct().singleOrNull(),
+            runtimeModelId = records.map(IdentityRecord::runtimeModelId).distinct().singleOrNull(),
+            providerConfigId = records.map(IdentityRecord::providerConfigId).distinct().singleOrNull(),
+            providerModelId = records.map(IdentityRecord::providerModelId).distinct().singleOrNull(),
+            providerVendor = records.map(IdentityRecord::providerVendor).distinct().singleOrNull(),
+            displayName = ModelIdentity.stripDisplayLevelSuffix(first.displayName.orEmpty())
+                .takeIf(String::isNotEmpty),
+            reasoningProfile = records.map(IdentityRecord::reasoningProfile).distinct().singleOrNull()
+        )
+    }
+
+    private fun resolveKnownProviderFamily(
+        observation: ModelObservation,
+        evidence: List<ModelIdentityEvidence>
+    ): ResolvedModelIdentity? {
+        val explicitModelId = observation.responseModelId ?: observation.providerModelId
+        val observedModelId = explicitModelId
+            ?: observation.displayName?.let(::modelIdFromDisplayName)
+            ?: return null
+        val provider = providerNamespaceFromModelId(observedModelId)
+            ?: providerNamespace(observation.providerVendor)
+            ?: return null
+        val canonicalLeaf = normalizeProviderModelId(observedModelId) ?: return null
+        val canonicalModelId = "$provider/$canonicalLeaf"
+        return ResolvedModelIdentity(
+            status = ModelIdentityStatus.RESOLVED,
+            canonicalModelId = canonicalModelId,
+            runtimeModelId = observation.runtimeModelId,
+            providerConfigId = observation.providerConfigId,
+            providerModelId = observation.providerModelId,
+            responseModelId = observation.responseModelId,
+            displayName = canonicalDisplayName(
+                observation.displayName
+                    ?: observation.responseModelId
+                    ?: observation.providerModelId
+                    ?: canonicalLeaf
+            ),
+            pricingModelIds = listOf(canonicalModelId),
+            evidence = (evidence + ModelIdentityEvidence(
+                if (explicitModelId != null) {
+                    ModelIdentitySource.PROVIDER_RESPONSE
+                } else {
+                    ModelIdentitySource.UNKNOWN
+                },
+                observedModelId
+            )).distinct()
+        )
+    }
+
+    private fun modelIdFromDisplayName(value: String): String? = ModelIdentity
+        .stripDisplayLevelSuffix(value)
+        .trim()
+        .lowercase()
+        .replace('.', '-')
+        .replace(Regex("[\\s_]+"), "-")
+        .replace(Regex("-+"), "-")
+        .trim('-')
+        .takeIf(String::isNotEmpty)
+
+    private fun canonicalDisplayName(value: String): String {
+        val cleaned = ModelIdentity.stripDisplayLevelSuffix(value)
+            .replace(Regex("(?i)^models/"), "")
+            .replace(INTERNAL_RESPONSE_SUFFIX, "")
+        val parts = cleaned.split('-', '_', ' ').filter(String::isNotBlank)
+        val formatted = parts.map { part ->
+            when {
+                part.equals("gpt", ignoreCase = true) -> "GPT"
+                part.equals("claude", ignoreCase = true) -> "Claude"
+                part.equals("gemini", ignoreCase = true) -> "Gemini"
+                part.equals("grok", ignoreCase = true) -> "Grok"
+                part.matches(Regex("\\d+(?:\\.\\d+)?")) -> part
+                else -> part.replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase() else char.toString()
+                }
+            }
+        }
+        return formatted.joinToString(" ").replace(Regex("(?<=\\d) (?=\\d)"), ".")
     }
 
     private fun unresolved(
@@ -222,6 +336,7 @@ class ModelIdentityRegistry private constructor(
         val runtimeModelId: String?,
         val providerConfigId: String?,
         val providerModelId: String?,
+        val providerVendor: String?,
         val displayName: String?,
         val reasoningProfile: ReasoningProfile?
     ) {
@@ -255,17 +370,19 @@ class ModelIdentityRegistry private constructor(
                     runtimeModelId = variant.runtimeModelId,
                     providerConfigId = binding.providerConfigId,
                     providerModelId = binding.providerModelId,
+                    providerVendor = binding.providerVendor,
                     displayName = variant.displayName,
                     reasoningProfile = variant.reasoningProfile
                 )
             }
 
             officialModels.forEach { model ->
-                val bindingKey = model.canonicalModelId
+                val canonicalModelId = officialCanonicalModelId(model)
+                val bindingKey = canonicalModelId
                     ?: model.tierGroupIds.sorted().firstOrNull()?.let { "tier:$it" }
                     ?: "catalog:${model.catalogModelId}"
                 records += IdentityRecord(
-                    canonicalModelId = model.canonicalModelId,
+                    canonicalModelId = canonicalModelId,
                     baseModelId = model.baseModelId,
                     bindingId = "official-binding:$bindingKey",
                     variantId = "official-variant:${model.catalogModelId}",
@@ -273,6 +390,7 @@ class ModelIdentityRegistry private constructor(
                     runtimeModelId = model.runtimeModelId,
                     providerConfigId = OFFICIAL_PROVIDER_CONFIG_ID,
                     providerModelId = model.providerModelId,
+                    providerVendor = model.providerVendor,
                     displayName = model.displayName,
                     reasoningProfile = model.reasoningProfile
                 )
@@ -295,6 +413,14 @@ class ModelIdentityRegistry private constructor(
             }
             val unscoped = mutableListOf<Pair<String, IdentityRecord>>()
             scoped.forEach { (key, record) -> unscoped += key.modelId to record }
+            records.forEach { record ->
+                normalized(record.canonicalModelId)?.let { canonicalId ->
+                    unscoped += canonicalId to record
+                    canonicalId.substringAfterLast('/')
+                        .takeIf { leaf -> leaf != canonicalId && leaf.isNotEmpty() }
+                        ?.let { leaf -> unscoped += leaf to record }
+                }
+            }
 
             return ModelIdentityRegistry(
                 canonicalModels = canonicalModels,
@@ -310,6 +436,83 @@ class ModelIdentityRegistry private constructor(
         }
 
         private const val OFFICIAL_PROVIDER_CONFIG_ID = "official-cloud-code"
+        private val INTERNAL_RESPONSE_SUFFIX = Regex("-(?:control|safety(?:-[a-z0-9]+)*|exp(?:-[a-z0-9]+)*)$")
+
+        private fun officialCanonicalModelId(model: OfficialCatalogModel): String? {
+            model.canonicalModelId?.trim()?.takeIf(String::isNotEmpty)?.let { canonicalModelId ->
+                providerCanonicalModelId(model.providerVendor, canonicalModelId)?.let { return it }
+            }
+            model.providerModelId?.let { providerModelId ->
+                providerCanonicalModelId(model.providerVendor, providerModelId)?.let { return it }
+            }
+            val normalizedCatalogId = ModelIdentity.normalizeModelId(model.catalogModelId)
+            val familyBase = ModelIdentity.modelFamilyBase(normalizedCatalogId)
+            if (familyBase == normalizedCatalogId) return null
+            return providerCanonicalModelId(
+                providerVendor = model.providerVendor,
+                providerModelId = familyBase
+            )
+        }
+
+        private fun providerCanonicalModelId(providerVendor: String?, providerModelId: String?): String? {
+            val provider = providerNamespace(providerVendor) ?: return null
+            val normalizedModelId = normalized(providerModelId) ?: return null
+            if (normalizedModelId.contains('/')) return normalizedModelId
+            val model = normalizeProviderModelId(normalizedModelId) ?: return null
+            return "$provider/$model"
+        }
+
+        private fun normalizeProviderModelId(value: String): String? {
+            val normalized = normalized(value)
+                ?.takeUnless { modelId ->
+                    modelId.startsWith("model_placeholder_") || modelId.startsWith("model_chat_")
+                }
+                ?: return null
+            val deploymentNormalized = when {
+                normalized.endsWith("@default") -> normalized.removeSuffix("@default")
+                '@' in normalized -> normalized.replace('@', '-')
+                else -> normalized
+            }
+            val base = ModelIdentity.modelFamilyBase(
+                deploymentNormalized
+                    .replace(Regex("^gemini-(\\d+)p(\\d+)-"), "gemini-$1.$2-")
+                    .replace(INTERNAL_RESPONSE_SUFFIX, "")
+            )
+            return if (!base.startsWith("claude-")) {
+                base.replace(Regex("(?<=\\d)-(?=\\d)"), ".")
+            } else {
+                base
+            }
+        }
+
+        private fun providerNamespaceFromModelId(modelId: String): String? {
+            val model = normalized(modelId) ?: return null
+            return when {
+                model.startsWith("gemini-") -> "google"
+                model.startsWith("gpt-") || model.startsWith("o1-") || model.startsWith("o3-") -> "openai"
+                model.startsWith("claude-") -> "anthropic"
+                model.startsWith("grok-") -> "xai"
+                else -> null
+            }
+        }
+
+        private fun providerNamespace(value: String?): String? {
+            val normalized = value
+                ?.trim()
+                ?.lowercase()
+                ?.replace('_', '-')
+                ?.takeIf(String::isNotEmpty)
+                ?: return null
+            return when {
+                normalized == "api-provider-google-gemini" || normalized == "google-gemini" -> "google"
+                normalized.startsWith("model-provider-") -> normalized
+                    .removePrefix("model-provider-")
+                    .takeIf(String::isNotEmpty)
+
+                normalized.startsWith("api-provider-") -> null
+                else -> normalized
+            }
+        }
 
         private fun normalized(value: String?): String? = value
             ?.trim()
