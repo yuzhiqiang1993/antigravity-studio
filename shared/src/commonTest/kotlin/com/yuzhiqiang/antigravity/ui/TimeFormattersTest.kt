@@ -58,22 +58,58 @@ class TimeFormattersTest {
         // 首字响应延迟 (TTFT)
         assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(null))
         assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(0L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.FAST, com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(450L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.FAST, com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(2000L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE, com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(2001L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE, com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(5000L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW, com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(5001L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW, com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(12000L))
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.FAST,
+            com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(450L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.FAST,
+            com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(2000L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE,
+            com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(2001L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE,
+            com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(5000L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW,
+            com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(5001L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW,
+            com.yuzhiqiang.antigravity.ui.utils.getFirstTokenLatencyTier(12000L)
+        )
 
         // 总耗时 (Duration)
         assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(null))
         assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(0L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.FAST, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(1200L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.FAST, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(5000L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(5001L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(15000L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(15001L))
-        assertEquals(com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW, com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(35000L))
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.FAST,
+            com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(1200L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.FAST,
+            com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(5000L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE,
+            com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(5001L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.MODERATE,
+            com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(15000L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW,
+            com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(15001L)
+        )
+        assertEquals(
+            com.yuzhiqiang.antigravity.ui.utils.LatencyTier.SLOW,
+            com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier(35000L)
+        )
     }
 
     @Test
@@ -93,11 +129,15 @@ class TimeFormattersTest {
     @Test
     fun testCacheHitRate() {
         assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(null, 1000L))
-        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(0L, 1000L))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(1000L, null))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(-1L, 1000L))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(1000L, -1L))
+        assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(1000L, 0L, -1L))
+        assertEquals(0.0, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(0L, 1000L))
 
         // 1. 无未命中输入，全命中 (100%)
         assertEquals(100.0, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(1000L, 0L))
-        assertEquals(100.0, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(1000L, null))
+        assertEquals(100.0, com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate(1000L, 0L, null))
         assertEquals("100%", com.yuzhiqiang.antigravity.ui.utils.formatHitRate(100.0))
 
         // 2. 50% 命中 (500 缓存读取 + 500 未缓存输入 = 1000 总 Prompt)
@@ -133,4 +173,3 @@ class TimeFormattersTest {
         assertEquals(null, com.yuzhiqiang.antigravity.ui.utils.splitHitRate(null))
     }
 }
-

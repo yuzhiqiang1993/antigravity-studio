@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.ui.utils
 
+import com.yuzhiqiang.antigravity.domain.model.usage.calculatePromptCacheHitRatio
 import kotlin.math.round
 
 /**
@@ -167,24 +168,18 @@ fun LatencyTier?.toColor(defaultColor: androidx.compose.ui.graphics.Color = andr
 }
 
 /**
- * 计算上下文缓存命中率（百分比数值 0.0 ~ 100.0%）：
- * - 如果 cacheReadTokens 为空或 <= 0，返回 null；
- * - 分母为实际总输入量：cacheReadTokens + uncachedInputTokens + cacheWriteTokens；
- * - 命中率 = (cacheReadTokens / totalPromptTokens) * 100.0。
+ * 计算 Prompt Token 缓存命中率（百分比数值 0.0 ~ 100.0%）。
+ * 分母为普通输入、缓存读取与缓存创建之和；缺少缓存读取或普通输入时不可计算。
  */
 fun calculateCacheHitRate(
     cacheReadTokens: Long?,
     uncachedInputTokens: Long?,
     cacheWriteTokens: Long? = 0L
-): Double? {
-    if (cacheReadTokens == null || cacheReadTokens <= 0L) return null
-    val uncached = uncachedInputTokens?.coerceAtLeast(0L) ?: 0L
-    val write = cacheWriteTokens?.coerceAtLeast(0L) ?: 0L
-    val totalPrompt = cacheReadTokens + uncached + write
-    if (totalPrompt <= 0L) return null
-    val percentage = (cacheReadTokens.toDouble() / totalPrompt.toDouble()) * 100.0
-    return percentage.coerceIn(0.0, 100.0)
-}
+): Double? = calculatePromptCacheHitRatio(
+    cacheReadTokens = cacheReadTokens,
+    uncachedInputTokens = uncachedInputTokens,
+    cacheWriteTokens = cacheWriteTokens
+)?.times(100.0)
 
 /**
  * 格式化缓存命中率展示（如 "82.5%", "100%", "0%"）
@@ -207,7 +202,10 @@ fun formatHitRate(rate: Double?): String {
  * - 其他/null: 默认中性色
  */
 @androidx.compose.runtime.Composable
-fun getCacheHitRateColor(rate: Double?, defaultColor: androidx.compose.ui.graphics.Color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant): androidx.compose.ui.graphics.Color {
+fun getCacheHitRateColor(
+    rate: Double?,
+    defaultColor: androidx.compose.ui.graphics.Color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+): androidx.compose.ui.graphics.Color {
     val statusColors = com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
     return when {
         rate == null -> defaultColor
@@ -258,4 +256,3 @@ fun splitHitRate(rate: Double?): Pair<String, String>? {
     val text = if (rounded == rounded.toLong().toDouble()) "${rounded.toLong()}" else "$rounded"
     return text to "%"
 }
-
