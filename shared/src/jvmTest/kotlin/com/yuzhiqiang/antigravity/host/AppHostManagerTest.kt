@@ -172,6 +172,38 @@ class AppHostManagerTest {
     }
 
     @Test
+    fun installedShimWithMatchingEnvironmentIsNotMarkedForUpdate() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        if (isWindows) {
+            File(tempAppDir, "Antigravity.exe").writeText("EXE")
+        } else {
+            File(tempAppDir, "Contents/MacOS/Antigravity").apply {
+                parentFile.mkdirs()
+                writeText("BIN")
+            }
+        }
+        val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+        lsBinary.writeText("RAW_BINARY_CONTENT")
+
+        try {
+            assertTrue(
+                com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.enableEnvironment(
+                    com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.APP,
+                    8330
+                ).isSuccess
+            )
+            assertTrue(AppHostManager.installLanguageServerShim(8330, tempAppDir.absolutePath))
+
+            val status = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
+            assertFalse(status.needsUpdate, "A ready Shim with the matching environment must not require an update")
+            assertTrue(status.isProxyActive)
+        } finally {
+            AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
+            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+        }
+    }
+
+    @Test
     fun testInspectWhenAppNotInstalledAndCliEnabledDoesNotShowMismatch() {
         try {
             com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.enableEnvironment(

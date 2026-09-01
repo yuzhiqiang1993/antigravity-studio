@@ -327,7 +327,9 @@ object AppHostManager {
     }
 
     private fun hasShimResidue(customInstallation: String? = null): Boolean {
-        return isShimInstalled(customInstallation)
+        // 正常接入时也会同时存在 Shim 与 .original 备份；只有缺少可用 Shim
+        // 的 .original 才是上一次接入未完成留下的残留。
+        return hasOriginalLanguageServer(customInstallation) && !isShimReady(customInstallation)
     }
 
     private fun copyFile(source: File, target: File): Boolean {
