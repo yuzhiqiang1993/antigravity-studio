@@ -291,6 +291,46 @@ class PricingCatalogServiceTest {
         }
     }
 
+    @Test
+    fun testNormalizesReasoningTiersAndVendorPrefixes() {
+        val root = tempRoot()
+        try {
+            val cacheFile = File(root, "pricing_catalog.json")
+            cacheFile.writeText(
+                """
+                {
+                  "google/gemini-3.7-flash": {"cost": {"input": 0.15, "output": 0.6, "cache_read": 0.0375, "cache_write": 0.15, "reasoning": 0.6}},
+                  "anthropic/claude-3-5-sonnet": {"cost": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75, "reasoning": 15.0}},
+                  "gpt-4o": {"cost": {"input": 2.5, "output": 10.0, "cache_read": 1.25, "cache_write": 2.5, "reasoning": 10.0}}
+                }
+                """.trimIndent()
+            )
+            val service = PricingCatalogService(customRootDir = root)
+
+            // 1. 带有 (High) 括号修饰词的模型名，自动清洗并命中
+            val geminiRes = service.resolvePricing(canonicalModelId = "Gemini 3.7 Flash (High)")
+            assertTrue(geminiRes.matched)
+            assertEquals(0.15, geminiRes.rate.input)
+
+            // 2. 带有 (Thinking) 括号修饰词的模型名，自动清洗并命中
+            val claudeRes = service.resolvePricing(canonicalModelId = "Claude 3.5 Sonnet (Thinking)")
+            assertTrue(claudeRes.matched)
+            assertEquals(3.0, claudeRes.rate.input)
+
+            // 3. 带有具体日期快照后缀的模型名，自动通配基础模型
+            val claudeDateRes = service.resolvePricing(canonicalModelId = "claude-3-5-sonnet-20241022")
+            assertTrue(claudeDateRes.matched)
+            assertEquals(3.0, claudeDateRes.rate.input)
+
+            // 4. 带有连字符档位后缀 (-high) 的模型名
+            val gptTierRes = service.resolvePricing(canonicalModelId = "gpt-4o-high")
+            assertTrue(gptTierRes.matched)
+            assertEquals(2.5, gptTierRes.rate.input)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     private fun tempRoot(): File = File.createTempFile("usage-pricing-", "-root").apply {
         delete()
         mkdirs()

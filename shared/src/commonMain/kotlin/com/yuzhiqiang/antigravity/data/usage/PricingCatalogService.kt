@@ -261,11 +261,96 @@ class PricingCatalogService(
         )
     }
 
-    internal fun generateLookupCandidates(vararg inputs: String?): List<String> = inputs
-        .mapNotNull { value ->
-            value?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
+    internal fun generateLookupCandidates(vararg inputs: String?): List<String> = buildList {
+        for (input in inputs) {
+            val raw = input?.trim()?.takeIf(String::isNotEmpty) ?: continue
+            val lower = raw.lowercase()
+            add(lower)
+
+            val withoutModels = lower.removePrefix("models/").removePrefix("models-").trim()
+            if (withoutModels.isNotEmpty() && withoutModels != lower) {
+                add(withoutModels)
+            }
+
+            // 1. 符号连字符归一化
+            val hyphenated = withoutModels.replace(Regex("[\\s_]+"), "-").replace(Regex("-+"), "-").trim('-')
+            if (hyphenated.isNotEmpty()) {
+                add(hyphenated)
+            }
+
+            // 2. 剥离括号与档位修饰词 (如 (High), (Thinking), (X-High), -high, -tiered 等)
+            val withoutParentheses = withoutModels.replace(Regex("\\s*\\([^)]*\\)"), "").trim()
+            val cleanTier = stripTierSuffixes(withoutParentheses)
+            val cleanHyphenated = cleanTier.replace(Regex("[\\s_]+"), "-").replace(Regex("-+"), "-").trim('-')
+            if (cleanHyphenated.isNotEmpty()) {
+                add(cleanHyphenated)
+            }
+
+            // 3. 厂商前缀剥离与扩展及版本点号连字符互转
+            val baseCandidates = mutableListOf<String>()
+            if (hyphenated.isNotEmpty()) baseCandidates.add(hyphenated)
+            if (cleanHyphenated.isNotEmpty()) baseCandidates.add(cleanHyphenated)
+            
+            // 兼容点号与连字符互转 (例如 claude 3.5 sonnet -> claude-3-5-sonnet 或 gemini-3-7-flash -> gemini-3.7-flash)
+            val dotToHyphen = cleanHyphenated.replace('.', '-')
+            if (dotToHyphen.isNotEmpty()) baseCandidates.add(dotToHyphen)
+            val hyphenToDot = cleanHyphenated.replace(Regex("(?<=\\d)-(?=\\d)"), ".")
+            if (hyphenToDot.isNotEmpty()) baseCandidates.add(hyphenToDot)
+
+            val modelsToExpand = baseCandidates.distinct()
+
+            for (item in modelsToExpand) {
+                if (item.contains('/')) {
+                    val leaf = item.substringAfterLast('/')
+                    if (leaf.isNotEmpty()) add(leaf)
+                } else {
+                    for (vendor in KNOWN_VENDOR_PREFIXES) {
+                        add("$vendor/$item")
+                    }
+                }
+
+                // 4. 日期版本快照通配 (例如 claude-3-5-sonnet-20241022 -> claude-3-5-sonnet)
+                val withoutDate = stripDateSnapshotSuffix(item)
+                if (withoutDate != null && withoutDate != item) {
+                    add(withoutDate)
+                    if (!withoutDate.contains('/')) {
+                        for (vendor in KNOWN_VENDOR_PREFIXES) {
+                            add("$vendor/$withoutDate")
+                        }
+                    }
+                }
+            }
         }
-        .distinct()
+    }.distinct()
+
+    private fun stripTierSuffixes(text: String): String {
+        var result = text.trim()
+        val suffixes = listOf(
+            "-adaptive", "-x-high", "-x_high", "-xhigh", "-medium", "-standard",
+            "-auto", "-high", "-max", "-low", "-minimal", "-thinking", "-direct",
+            "-tiered", "-preview", "-latest"
+        )
+        for (suffix in suffixes) {
+            if (result.endsWith(suffix, ignoreCase = true)) {
+                result = result.substring(0, result.length - suffix.length).trimEnd('-', '_', ' ')
+                break
+            }
+        }
+        return result
+    }
+
+    private fun stripDateSnapshotSuffix(text: String): String? {
+        val dateRegex = Regex("-(?:\\d{4}-\\d{2}-\\d{2}|\\d{8})$")
+        return if (dateRegex.containsMatchIn(text)) {
+            text.replace(dateRegex, "")
+        } else {
+            null
+        }
+    }
+
+    private val KNOWN_VENDOR_PREFIXES = listOf(
+        "google", "anthropic", "openai", "deepseek", "meta", "mistral", "xai", "cohere", "minimax"
+    )
 
     private fun parsePricingJson(rawJson: String, isCustomFile: Boolean = false): Map<String, ModelPricingRate> {
         val result = mutableMapOf<String, ModelPricingRate>()
@@ -358,8 +443,11 @@ class PricingCatalogService(
 
                 if (rate != null) {
                     val fullKey = if (!providerPrefix.isNullOrBlank()) "$providerPrefix/$key" else key
-                    generateLookupCandidates(fullKey).singleOrNull()?.let { normalizedKey ->
-                        result[normalizedKey] = rate
+                    val normalizedKey = fullKey.trim().lowercase().removePrefix("models/")
+                    result[normalizedKey] = rate
+                    if (!providerPrefix.isNullOrBlank()) {
+                        val leafKey = key.trim().lowercase().removePrefix("models/")
+                        result.putIfAbsent(leafKey, rate)
                     }
                 }
             }
