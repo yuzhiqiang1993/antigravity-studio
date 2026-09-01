@@ -52,15 +52,14 @@ object StudioMotionDefaults {
 }
 
 /**
- * 通用高级流光扫光 Modifier：
- * 采用动态线性渐变 (LinearGradient)，自动适配浅色/深色主题，为骨架屏、加载占位提供统一的高级光影质感
+ * 通用高级流光扫光 Brush：
+ * 在父级或大盘中共享同一个 Brush，避免为每个骨架块创建独立的 Transition，极大降低 CPU/GPU 负载与 Recomposition。
  */
 @Composable
-fun Modifier.studioShimmer(
-    shape: Shape = RoundedCornerShape(4.dp),
+fun rememberStudioShimmerBrush(
     isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
     durationMillis: Int = AppTokens.Motion.durationShimmer
-): Modifier {
+): Brush {
     val transition = rememberInfiniteTransition(label = "studio_shimmer_transition")
     val translateAnim by transition.animateFloat(
         initialValue = -300f,
@@ -84,15 +83,32 @@ fun Modifier.studioShimmer(
         Color(0xFFFFFFFF).copy(alpha = 0.95f)
     }
 
-    val brush = Brush.linearGradient(
+    return Brush.linearGradient(
         colors = listOf(baseColor, highlightColor, baseColor),
         start = Offset(translateAnim, translateAnim),
         end = Offset(translateAnim + 220f, translateAnim + 220f)
     )
+}
 
-    return this
-        .clip(shape)
-        .background(brush)
+/**
+ * 通用流光扫光 Modifier（共享 Brush 版本，推荐大盘与复杂骨架屏使用）
+ */
+fun Modifier.studioShimmer(
+    brush: Brush,
+    shape: Shape = RoundedCornerShape(4.dp)
+): Modifier = this.clip(shape).background(brush)
+
+/**
+ * 通用高级流光扫光 Modifier（独立单组件便捷版本）
+ */
+@Composable
+fun Modifier.studioShimmer(
+    shape: Shape = RoundedCornerShape(4.dp),
+    isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
+    durationMillis: Int = AppTokens.Motion.durationShimmer
+): Modifier {
+    val brush = rememberStudioShimmerBrush(isDark = isDark, durationMillis = durationMillis)
+    return this.studioShimmer(brush = brush, shape = shape)
 }
 
 /**

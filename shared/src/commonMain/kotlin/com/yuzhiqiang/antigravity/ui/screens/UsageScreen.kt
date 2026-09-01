@@ -63,7 +63,7 @@ fun UsageScreen(
                 .align(Alignment.CenterHorizontally)
         )
 
-        // 2. 现代毛玻璃操作栏：[滚动时间] │ [日历时间] │ [全部/自定义] + [来源过滤] + [刷新按钮]
+        // 2. 现代毛玻璃操作栏：[精炼时间分段] + [来源多选分段] + [刷新按钮]
         StudioGlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -77,119 +77,125 @@ fun UsageScreen(
                     .fillMaxWidth()
                     .horizontalScroll(controlsScrollState)
                     .padding(
-                        horizontal = AppTokens.Spacing.compact,
-                        vertical = AppTokens.Spacing.xs
+                        horizontal = 8.dp,
+                        vertical = 6.dp
                     ),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左侧：时间范围筛选胶囊（对齐插件分组）
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                // 左侧：精炼时间范围分段选择器（今日 · 7天 · 30天 · 全部 · 自定义）
+                Surface(
+                    shape = RoundedCornerShape(AppTokens.Radius.pill),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.5.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                    )
                 ) {
-                    TimeRangeChip(
-                        label = s.usageTimeRange24h,
-                        selected = currentTimeRange == UsageTimeRange.ROLLING_24H,
-                        onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_24H) }
-                    )
-                    TimeRangeChip(
-                        label = s.usageTimeRange7d,
-                        selected = currentTimeRange == UsageTimeRange.ROLLING_7D,
-                        onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_7D) }
-                    )
-                    TimeRangeChip(
-                        label = s.usageTimeRange14d,
-                        selected = currentTimeRange == UsageTimeRange.ROLLING_14D,
-                        onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_14D) }
-                    )
-                    TimeRangeChip(
-                        label = s.usageTimeRange30d,
-                        selected = currentTimeRange == UsageTimeRange.ROLLING_30D,
-                        onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_30D) }
-                    )
+                    Row(
+                        modifier = Modifier.padding(3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        ModernTimeTab(
+                            label = s.usageTimeRangeToday,
+                            selected = currentTimeRange == UsageTimeRange.CALENDAR_TODAY,
+                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.CALENDAR_TODAY) }
+                        )
+                        ModernTimeTab(
+                            label = s.usageTimeRange24h,
+                            selected = currentTimeRange == UsageTimeRange.ROLLING_24H,
+                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_24H) }
+                        )
+                        ModernTimeTab(
+                            label = s.usageTimeRange7d,
+                            selected = currentTimeRange == UsageTimeRange.ROLLING_7D,
+                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_7D) }
+                        )
+                        ModernTimeTab(
+                            label = s.usageTimeRange14d,
+                            selected = currentTimeRange == UsageTimeRange.ROLLING_14D,
+                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_14D) }
+                        )
+                        ModernTimeTab(
+                            label = s.usageTimeRange30d,
+                            selected = currentTimeRange == UsageTimeRange.ROLLING_30D,
+                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_30D) }
+                        )
 
-                    VerticalDivider(
-                        modifier = Modifier.height(16.dp).padding(horizontal = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-
-                    TimeRangeChip(
-                        label = s.usageTimeRangeToday,
-                        selected = currentTimeRange == UsageTimeRange.CALENDAR_TODAY,
-                        onClick = { viewModel.setUsageTimeRange(UsageTimeRange.CALENDAR_TODAY) }
-                    )
-                    TimeRangeChip(
-                        label = s.usageTimeRangeThisWeek,
-                        selected = currentTimeRange == UsageTimeRange.CALENDAR_THIS_WEEK,
-                        onClick = { viewModel.setUsageTimeRange(UsageTimeRange.CALENDAR_THIS_WEEK) }
-                    )
-                    TimeRangeChip(
-                        label = s.usageTimeRangeThisMonth,
-                        selected = currentTimeRange == UsageTimeRange.CALENDAR_THIS_MONTH,
-                        onClick = { viewModel.setUsageTimeRange(UsageTimeRange.CALENDAR_THIS_MONTH) }
-                    )
-
-                    VerticalDivider(
-                        modifier = Modifier.height(16.dp).padding(horizontal = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-
-                    TimeRangeChip(
-                        label = s.usageTimeRangeAllTime,
-                        selected = currentTimeRange == UsageTimeRange.ALL_TIME,
-                        onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ALL_TIME) }
-                    )
-                    TimeRangeChip(
-                        label = s.usageTimeRangeCustom,
-                        selected = currentTimeRange == UsageTimeRange.CUSTOM,
-                        onClick = { showCustomDateDialog = true }
-                    )
+                        // 自定义日期 Tab
+                        val isCustom = currentTimeRange == UsageTimeRange.CUSTOM
+                        val customLabel = if (isCustom && customDateRange != null && customDateRange?.startDate?.isNotBlank() == true) {
+                            "${UsageNumberFormatter.formatShortDate(customDateRange!!.startDate)}~${UsageNumberFormatter.formatShortDate(customDateRange!!.endDate)}"
+                        } else {
+                            s.usageTimeRangeCustom
+                        }
+                        ModernTimeTab(
+                            label = customLabel,
+                            icon = Icons.Outlined.CalendarMonth,
+                            selected = isCustom,
+                            onClick = { showCustomDateDialog = true }
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 // 右侧：来源筛选与刷新
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 来源多选组
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    Surface(
+                        shape = RoundedCornerShape(AppTokens.Radius.pill),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            0.5.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                        )
                     ) {
-                        SourceFilterChip(
-                            label = s.usageSourceAll,
-                            selected = selectedSources.contains("all"),
-                            onClick = { viewModel.toggleUsageSource("all") }
-                        )
-                        SourceFilterChip(
-                            label = s.usageSourceIde,
-                            selected = selectedSources.contains("ide"),
-                            onClick = { viewModel.toggleUsageSource("ide") }
-                        )
-                        SourceFilterChip(
-                            label = s.usageSourceApp,
-                            selected = selectedSources.contains("standalone"),
-                            onClick = { viewModel.toggleUsageSource("standalone") }
-                        )
-                        SourceFilterChip(
-                            label = s.usageSourceCli,
-                            selected = selectedSources.contains("cli"),
-                            onClick = { viewModel.toggleUsageSource("cli") }
-                        )
+                        Row(
+                            modifier = Modifier.padding(3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            ModernSourceTab(
+                                label = s.usageSourceAll,
+                                selected = selectedSources.contains("all"),
+                                onClick = { viewModel.toggleUsageSource("all") }
+                            )
+                            ModernSourceTab(
+                                label = s.usageSourceIde,
+                                selected = selectedSources.contains("ide"),
+                                onClick = { viewModel.toggleUsageSource("ide") }
+                            )
+                            ModernSourceTab(
+                                label = s.usageSourceApp,
+                                selected = selectedSources.contains("standalone"),
+                                onClick = { viewModel.toggleUsageSource("standalone") }
+                            )
+                            ModernSourceTab(
+                                label = s.usageSourceCli,
+                                selected = selectedSources.contains("cli"),
+                                onClick = { viewModel.toggleUsageSource("cli") }
+                            )
+                        }
                     }
+
+                    VerticalDivider(
+                        modifier = Modifier.height(18.dp).padding(horizontal = 2.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
 
                     // 刷新按钮
                     StudioTooltip(text = s.accountsRefreshAllTooltip) {
                         IconButton(
                             onClick = { viewModel.refreshUsageStats(force = true) },
-                            modifier = Modifier.size(AppTokens.Size.compactControlHeight)
+                            modifier = Modifier.size(30.dp)
                         ) {
                             if (isRefreshing) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(AppTokens.Size.iconMedium),
+                                    modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -197,7 +203,7 @@ fun UsageScreen(
                                 Icon(
                                     imageVector = Icons.Outlined.Refresh,
                                     contentDescription = s.accountsRefreshAllTooltip,
-                                    modifier = Modifier.size(AppTokens.Size.iconMedium),
+                                    modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -208,6 +214,8 @@ fun UsageScreen(
         }
 
         // 3. 滚动主看板区域
+        val isInitialLoading = isRefreshing && stats.totalTokens == 0L && stats.totalCalls == 0L
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -217,27 +225,41 @@ fun UsageScreen(
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // A. 当前时间范围的 Hero KPI（用量概览：费用、总 Token、五维构成条、调用总数）
-            UsageKpiGrid(stats = stats)
+            com.yuzhiqiang.antigravity.ui.animation.StudioCrossfade(
+                targetState = isInitialLoading,
+                label = "usage_dashboard_crossfade"
+            ) { loading ->
+                if (loading) {
+                    UsageDashboardSkeleton()
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // A. 当前时间范围的 Hero KPI（用量概览：费用、总 Token、五维构成条、调用总数）
+                        UsageKpiGrid(stats = stats)
 
-            // B. 每日/每小时消耗走势平滑面积图（完整五维 tooltip）
-            UsageTrendChart(
-                dailyBuckets = stats.dailyBuckets,
-                hourlyBuckets = stats.hourlyBuckets,
-                timeRange = currentTimeRange
-            )
+                        // B. 每日/每小时消耗走势平滑面积图（完整五维 tooltip）
+                        UsageTrendChart(
+                            dailyBuckets = stats.dailyBuckets,
+                            hourlyBuckets = stats.hourlyBuckets,
+                            timeRange = currentTimeRange
+                        )
 
-            // D. 插件 up dashboard 的年度活跃度网格
-            ActivityHeatmapCard(dailyBuckets = stats.dailyBuckets)
+                        // D. 插件 up dashboard 的年度活跃度网格
+                        ActivityHeatmapCard(dailyBuckets = stats.dailyBuckets)
 
-            // E. 热门模型使用排行 & 数据来源分布
-            TopModelsAndSourcesSection(
-                modelBuckets = stats.modelBuckets,
-                sourceBuckets = stats.sourceBuckets
-            )
+                        // E. 热门模型使用排行 & 数据来源分布
+                        TopModelsAndSourcesSection(
+                            modelBuckets = stats.modelBuckets,
+                            sourceBuckets = stats.sourceBuckets
+                        )
 
-            // H. 高消耗会话排行榜 (Top Conversations)
-            TopConversationsCard(conversations = stats.topConversations)
+                        // H. 高消耗会话排行榜 (Top Conversations)
+                        TopConversationsCard(conversations = stats.topConversations)
+                    }
+                }
+            }
         }
     }
 
@@ -254,70 +276,86 @@ fun UsageScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TimeRangeChip(
+private fun ModernTimeTab(
     label: String,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
-    FilterChip(
-        selected = selected,
+    val containerColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        androidx.compose.ui.graphics.Color.Transparent
+    }
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
         onClick = onClick,
-        label = {
+        shape = RoundedCornerShape(AppTokens.Radius.pill),
+        color = containerColor,
+        modifier = Modifier.height(28.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = contentColor
+                )
+            }
             Text(
                 text = label,
-                fontSize = 11.5.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor
             )
-        },
-        shape = RoundedCornerShape(AppTokens.Radius.pill),
-        modifier = Modifier.height(28.dp),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-            selectedBorderColor = MaterialTheme.colorScheme.primary
-        ),
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-    )
+        }
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SourceFilterChip(
+private fun ModernSourceTab(
     label: String,
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    FilterChip(
-        selected = selected,
+    val containerColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+    } else {
+        androidx.compose.ui.graphics.Color.Transparent
+    }
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+    }
+
+    Surface(
         onClick = onClick,
-        label = {
+        shape = RoundedCornerShape(AppTokens.Radius.pill),
+        color = containerColor,
+        modifier = Modifier.height(28.dp)
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
                 text = label,
-                fontSize = 11.5.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                color = contentColor
             )
-        },
-        shape = RoundedCornerShape(6.dp),
-        modifier = Modifier.height(28.dp),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-            selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-        ),
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-            selectedLabelColor = MaterialTheme.colorScheme.primary
-        )
-    )
+        }
+    }
 }
