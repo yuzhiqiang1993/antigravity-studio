@@ -60,18 +60,33 @@ internal object OfficialPassthroughRequestSupport {
     }
 }
 
-internal fun extractRequestHeaders(call: ApplicationCall): Map<String, String> {
+private const val REDACTED_HEADER_VALUE = "<redacted>"
+
+private val SENSITIVE_DEBUG_HEADERS = setOf(
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key",
+    "api-key",
+    "x-goog-api-key",
+    "anthropic-api-key"
+)
+
+internal fun sanitizeDebugHeaders(headers: Headers): Map<String, String> {
     val map = LinkedHashMap<String, String>()
-    call.request.headers.forEach { key, values ->
-        map[key] = values.joinToString(", ")
+    headers.forEach { key, values ->
+        map[key] = if (key.lowercase() in SENSITIVE_DEBUG_HEADERS) {
+            REDACTED_HEADER_VALUE
+        } else {
+            values.joinToString(", ")
+        }
     }
     return map
 }
 
-internal fun extractResponseHeaders(headers: Headers): Map<String, String> {
-    val map = LinkedHashMap<String, String>()
-    headers.forEach { key, values ->
-        map[key] = values.joinToString(", ")
-    }
-    return map
-}
+internal fun extractRequestHeaders(call: ApplicationCall): Map<String, String> =
+    sanitizeDebugHeaders(call.request.headers)
+
+internal fun extractResponseHeaders(headers: Headers): Map<String, String> =
+    sanitizeDebugHeaders(headers)
