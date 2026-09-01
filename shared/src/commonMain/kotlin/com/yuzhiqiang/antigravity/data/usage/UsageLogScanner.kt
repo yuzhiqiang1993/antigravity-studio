@@ -1,6 +1,8 @@
 package com.yuzhiqiang.antigravity.data.usage
 
 import com.yuzhiqiang.antigravity.domain.model.usage.ConversationUsageData
+import com.yuzhiqiang.antigravity.domain.model.usage.TokenEntry
+import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -17,8 +19,10 @@ data class ScannedConversationTarget(
     val appSource: String,
     val targetFile: File,
     val isDatabase: Boolean,
-    /** db、WAL 和共享日志中可见的最新修改时间。 */
-    val lastModified: Long
+    /** db、WAL、SHM 和共享日志共同生成的变更签名。 */
+    val lastModified: Long,
+    /** SQLite 读取失败或 usage 维度不完整时使用的本地 JSONL。 */
+    val fallbackTranscriptFile: File? = null
 )
 
 data class UsageScanSnapshot(
@@ -109,6 +113,8 @@ class UsageLogScanner(
             return@withContext UsageParseBatchResult(emptyList(), emptySet(), emptySet())
         }
 
+        val startMs = System.currentTimeMillis()
+        AppLog.d("Usage/Scanner") { "开始并发解析目标: 总数=${targets.size}, 分块大小=30" }
         val results = mutableListOf<ParsedTargetResult>()
         for (chunk in targets.chunked(30)) {
             results += coroutineScope {
@@ -118,11 +124,13 @@ class UsageLogScanner(
             }
         }
 
-        UsageParseBatchResult(
+        val batchResult = UsageParseBatchResult(
             conversations = results.mapNotNull { it.conversation },
             successfulKeys = results.filter { it.complete }.mapTo(mutableSetOf()) { it.key },
             failedKeys = results.filterNot { it.complete }.mapTo(mutableSetOf()) { it.key }
         )
+        AppLog.d("Usage/Scanner") { "并发解析完成: 有效会话=${batchResult.conversations.size}, 成功Key=${batchResult.successfulKeys.size}, 失败Key=${batchResult.failedKeys.size}, 耗时=${System.currentTimeMillis() - startMs}ms" }
+        batchResult
     }
 
     /** 兼容旧 API；不返回不完整目标。 */
@@ -144,15 +152,14 @@ class UsageLogScanner(
                     appSource = target.appSource
                 )
                 if (dbResult.complete) {
-                    val entries = if (dbResult.entries.any { it.missingUsageFields.isNotEmpty() }) {
-                        val supplement = remoteReader?.read(target.conversationId, target.appSource)
-                        if (supplement?.complete == true) {
-                            UsageExtractor.dedupEntries(dbResult.entries + supplement.entries)
-                        } else {
-                            dbResult.entries
+                    var entries = dbResult.entries
+                    if (entries.any { it.missingUsageFields.isNotEmpty() }) {
+                        val responseIds = entries.mapNotNull { it.responseId }.toSet()
+                        val localEntries = readFallbackTranscript(target)
+                            ?.filter { it.responseId != null && it.responseId in responseIds }
+                        if (!localEntries.isNullOrEmpty()) {
+                            entries = UsageExtractor.dedupEntries(entries + localEntries)
                         }
-                    } else {
-                        dbResult.entries
                     }
                     return ParsedTargetResult(
                         key = key,
@@ -161,6 +168,20 @@ class UsageLogScanner(
                             title = dbResult.title,
                             appSource = target.appSource,
                             entries = entries
+                        ),
+                        complete = true
+                    )
+                }
+
+                val localEntries = readFallbackTranscript(target)
+                if (!localEntries.isNullOrEmpty()) {
+                    return ParsedTargetResult(
+                        key = key,
+                        conversation = ConversationUsageData(
+                            conversationId = target.conversationId,
+                            title = dbResult.title.ifBlank { "会话 ${target.conversationId.take(8)}" },
+                            appSource = target.appSource,
+                            entries = localEntries
                         ),
                         complete = true
                     )
@@ -184,12 +205,13 @@ class UsageLogScanner(
                 if (target.targetFile.length() <= 0L) {
                     return ParsedTargetResult(key, null, complete = false)
                 }
-                val lines = target.targetFile.useLines { it.toList() }
-                val entries = UsageExtractor.extractFromTranscript(
-                    lines = lines.asSequence(),
-                    conversationId = target.conversationId,
-                    appSource = target.appSource
-                )
+                val entries = target.targetFile.useLines { lines ->
+                    UsageExtractor.extractFromTranscript(
+                        lines = lines,
+                        conversationId = target.conversationId,
+                        appSource = target.appSource
+                    )
+                }
                 ParsedTargetResult(
                     key = key,
                     conversation = ConversationUsageData(
@@ -223,12 +245,15 @@ class UsageLogScanner(
 
             val key = sourceKey(appSource, id)
             if (!seenKeys.add(key)) continue
+            val fallbackTranscript = conversationsDir.parentFile
+                ?.let { root -> findTranscriptFile(File(root, "brain/$id")) }
             out += ScannedConversationTarget(
                 conversationId = id,
                 appSource = appSource,
                 targetFile = file,
                 isDatabase = true,
-                lastModified = databaseLastModified(file)
+                lastModified = databaseChangeSignature(file, fallbackTranscript),
+                fallbackTranscriptFile = fallbackTranscript
             )
         }
         return true
@@ -253,12 +278,7 @@ class UsageLogScanner(
             val key = sourceKey(appSource, id)
             if (seenKeys.contains(key)) continue // .db 是更完整的来源
 
-            val logs = listOf(
-                File(directory, ".system_generated/logs/transcript.jsonl"),
-                File(directory, ".system_generated/logs/transcript_full.jsonl")
-            )
-            val logFile = logs.firstOrNull { it.isFile && it.length() > 0L }
-                ?: logs.firstOrNull { it.isFile }
+            val logFile = findTranscriptFile(directory)
             if (logFile == null) {
                 val logsDirectory = File(directory, ".system_generated/logs")
                 if (logsDirectory.exists() && logsDirectory.isDirectory && logsDirectory.listFiles() == null) {
@@ -272,18 +292,51 @@ class UsageLogScanner(
                 appSource = appSource,
                 targetFile = logFile,
                 isDatabase = false,
-                lastModified = maxOf(logFile.lastModified(), directory.lastModified())
+                lastModified = combineFileSignatures(listOf(logFile, directory))
             )
         }
         return complete
     }
 
-    private fun databaseLastModified(database: File): Long {
-        return listOf(
-            database,
-            File("${database.path}-wal"),
-            File("${database.path}-shm")
-        ).maxOf { it.takeIf(File::exists)?.lastModified() ?: 0L }
+    private fun readFallbackTranscript(target: ScannedConversationTarget): List<TokenEntry>? {
+        val file = target.fallbackTranscriptFile
+            ?.takeIf { it.isFile && it.length() > 0L }
+            ?: return null
+        return file.useLines { lines ->
+            UsageExtractor.extractFromTranscript(
+                lines = lines,
+                conversationId = target.conversationId,
+                appSource = target.appSource
+            )
+        }
+    }
+
+    private fun findTranscriptFile(conversationDir: File): File? {
+        val logs = listOf(
+            File(conversationDir, ".system_generated/logs/transcript.jsonl"),
+            File(conversationDir, ".system_generated/logs/transcript_full.jsonl")
+        )
+        return logs.firstOrNull { it.isFile && it.length() > 0L }
+            ?: logs.firstOrNull { it.isFile }
+    }
+
+    private fun databaseChangeSignature(database: File, transcript: File?): Long {
+        return combineFileSignatures(
+            listOfNotNull(
+                database,
+                File("${database.path}-wal"),
+                File("${database.path}-shm"),
+                transcript
+            )
+        )
+    }
+
+    private fun combineFileSignatures(files: List<File>): Long {
+        return files.fold(17L) { signature, file ->
+            val modified = file.takeIf(File::exists)?.lastModified() ?: 0L
+            val length = file.takeIf(File::isFile)?.length() ?: 0L
+            (signature * 31L + modified) * 31L + length
+        }
     }
 
     private fun sourceKey(source: String, conversationId: String): String = "$source:$conversationId"

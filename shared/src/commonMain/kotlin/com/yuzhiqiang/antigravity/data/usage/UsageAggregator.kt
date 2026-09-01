@@ -27,7 +27,7 @@ object UsageAggregator {
     fun aggregate(
         conversations: List<ConversationUsageData>,
         pricingService: PricingCatalogService,
-        timeRange: UsageTimeRange = UsageTimeRange.ROLLING_7D,
+        timeRange: UsageTimeRange = UsageTimeRange.CALENDAR_TODAY,
         customDateRange: CustomDateRange? = null,
         selectedSources: Set<String> = setOf("all"),
         zoneId: ZoneId = ZoneId.systemDefault()
@@ -44,9 +44,11 @@ object UsageAggregator {
         var totalCacheRead = 0L
         var totalCacheWrite = 0L
         var totalReasoning = 0L
+        var totalUnattributed = 0L
         var totalCalls = 0L
         var totalCost = 0.0
         var totalSavings = 0.0
+        var totalCostLowerBound = false
 
         val conversationIdSet = mutableSetOf<String>()
         val activeDatesSet = mutableSetOf<String>()
@@ -67,6 +69,7 @@ object UsageAggregator {
         var todayCacheRead = 0L
         var todayCacheWrite = 0L
         var todayReasoning = 0L
+        var todayUnattributed = 0L
         var todayCalls = 0L
         var todayCost = 0.0
         var todaySavings = 0.0
@@ -97,6 +100,7 @@ object UsageAggregator {
                 val cacheRead = entry.cacheRead.coerceAtLeast(0L)
                 val cacheWrite = entry.cacheWrite.coerceAtLeast(0L)
                 val reasoning = entry.reasoning.coerceAtLeast(0L)
+                val unattributed = entry.unattributed.coerceAtLeast(0L)
                 val costResult = pricingService.calculateCostAndSavings(
                     input = input,
                     output = output,
@@ -107,7 +111,8 @@ object UsageAggregator {
                     displayName = identity.displayName,
                     modelPricingIds = identity.pricingModelIds,
                     modelCanonicalId = identity.canonicalId,
-                    missingUsageFields = entry.missingUsageFields
+                    missingUsageFields = entry.missingUsageFields,
+                    unattributed = unattributed
                 )
 
                 if (instant != null && !instant.isBefore(todayStart) && instant.isBefore(nowInstant)) {
@@ -116,6 +121,7 @@ object UsageAggregator {
                     todayCacheRead += cacheRead
                     todayCacheWrite += cacheWrite
                     todayReasoning += reasoning
+                    todayUnattributed += unattributed
                     todayCalls += 1
                     todayCost += costResult.costUsd
                     todaySavings += costResult.savingsUsd
@@ -132,7 +138,7 @@ object UsageAggregator {
                     val monthlyAcc = monthlyMap.getOrPut(ymStr) {
                         MonthlyBucketAccumulator(ymStr, formatMonthLabel(ymStr))
                     }
-                    monthlyAcc.add(input, output, cacheRead, cacheWrite, reasoning, costResult)
+                    monthlyAcc.add(input, output, cacheRead, cacheWrite, reasoning, unattributed, costResult)
                     monthlyAcc.addModel(
                         identity = identity,
                         input = input,
@@ -140,6 +146,7 @@ object UsageAggregator {
                         cacheRead = cacheRead,
                         cacheWrite = cacheWrite,
                         reasoning = reasoning,
+                        unattributed = unattributed,
                         costResult = costResult,
                         missingUsageFields = entry.missingUsageFields
                     )
@@ -153,9 +160,11 @@ object UsageAggregator {
                 totalCacheRead += cacheRead
                 totalCacheWrite += cacheWrite
                 totalReasoning += reasoning
+                totalUnattributed += unattributed
                 totalCalls += 1
                 totalCost += costResult.costUsd
                 totalSavings += costResult.savingsUsd
+                totalCostLowerBound = totalCostLowerBound || costResult.lowerBound
 
                 val zonedDateTime = instant?.atZone(zoneId)
                 if (zonedDateTime != null) {
@@ -169,6 +178,7 @@ object UsageAggregator {
                         cacheRead,
                         cacheWrite,
                         reasoning,
+                        unattributed,
                         costResult
                     )
 
@@ -178,10 +188,11 @@ object UsageAggregator {
                         cacheRead,
                         cacheWrite,
                         reasoning,
+                        unattributed,
                         costResult
                     )
                     val dayOfWeekIdx = zonedDateTime.dayOfWeek.value - 1
-                    weekdayMap[dayOfWeekIdx]?.add(input, output, cacheRead, cacheWrite, reasoning)
+                    weekdayMap[dayOfWeekIdx]?.add(input, output, cacheRead, cacheWrite, reasoning, unattributed)
                 }
 
                 // 模型桶按稳定 aggregationId 分组，保留所有真实计费 ID。
@@ -195,15 +206,16 @@ object UsageAggregator {
                     cacheRead = cacheRead,
                     cacheWrite = cacheWrite,
                     reasoning = reasoning,
+                    unattributed = unattributed,
                     identity = identity,
                     missingUsageFields = entry.missingUsageFields,
                     costResult = costResult,
-                    isLongContext = input > PricingCatalogService.LONG_CONTEXT_THRESHOLD_TOKENS
+                    isLongContext = costResult.usedLongContextPricing
                 )
 
                 val srcDisplayName = formatAppSourceDisplayName(entrySource)
                 val srcAcc = sourceMap.getOrPut(entrySource) { SourceBucketAccumulator(entrySource, srcDisplayName) }
-                srcAcc.add(input, output, cacheRead, cacheWrite, reasoning, costResult)
+                srcAcc.add(input, output, cacheRead, cacheWrite, reasoning, unattributed, costResult)
 
                 val convoAcc = convoMap.getOrPut(conversationKey) {
                     ConversationBucketAccumulator(
@@ -212,7 +224,16 @@ object UsageAggregator {
                         appSource
                     )
                 }
-                convoAcc.add(input, output, cacheRead, cacheWrite, reasoning, costResult, entry.timestamp)
+                convoAcc.add(
+                    input,
+                    output,
+                    cacheRead,
+                    cacheWrite,
+                    reasoning,
+                    unattributed,
+                    costResult,
+                    entry.timestamp
+                )
             }
 
             if (convoHasMatchedEntry) conversationIdSet.add(conversationKey)
@@ -290,17 +311,20 @@ object UsageAggregator {
             totalCacheRead = totalCacheRead,
             totalCacheWrite = totalCacheWrite,
             totalReasoning = totalReasoning,
+            totalUnattributed = totalUnattributed,
             totalCalls = totalCalls,
             totalConversations = conversationIdSet.size.toLong(),
             daysActive = activeDatesSet.size,
             estimatedCostUsd = totalCost,
             estimatedSavingsUsd = totalSavings,
+            costLowerBound = totalCostLowerBound,
             todayDate = todayDate.toString(),
             todayInput = todayInput,
             todayOutput = todayOutput,
             todayCacheRead = todayCacheRead,
             todayCacheWrite = todayCacheWrite,
             todayReasoning = todayReasoning,
+            todayUnattributed = todayUnattributed,
             todayCalls = todayCalls,
             todayConversations = todayConversationKeys.size.toLong(),
             todayActiveModels = todayModelKeys.size.toLong(),
@@ -483,6 +507,7 @@ object UsageAggregator {
         var cacheRead: Long = 0L
         var cacheWrite: Long = 0L
         var reasoning: Long = 0L
+        var unattributed: Long = 0L
         var calls: Long = 0L
         var costUsd: Double = 0.0
         var savingsUsd: Double = 0.0
@@ -490,12 +515,13 @@ object UsageAggregator {
         var costLowerBound: Boolean = false
         var hasPricingResolution: Boolean = false
 
-        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, costResult: CostCalculationResult) {
+        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, u: Long, costResult: CostCalculationResult) {
             input += i
             output += o
             cacheRead += cr
             cacheWrite += cw
             reasoning += r
+            unattributed += u
             calls += 1
             costUsd += costResult.costUsd
             savingsUsd += costResult.savingsUsd
@@ -515,6 +541,7 @@ object UsageAggregator {
             cacheRead = cacheRead,
             cacheWrite = cacheWrite,
             reasoning = reasoning,
+            unattributed = unattributed,
             calls = calls,
             costUsd = costUsd,
             savingsUsd = savingsUsd,
@@ -529,18 +556,20 @@ object UsageAggregator {
         var cacheRead: Long = 0L
         var cacheWrite: Long = 0L
         var reasoning: Long = 0L
+        var unattributed: Long = 0L
         var calls: Long = 0L
         var costUsd: Double = 0.0
         var pricingMatched: Boolean = true
         var costLowerBound: Boolean = false
         var hasPricingResolution: Boolean = false
 
-        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, costResult: CostCalculationResult) {
+        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, u: Long, costResult: CostCalculationResult) {
             input += i
             output += o
             cacheRead += cr
             cacheWrite += cw
             reasoning += r
+            unattributed += u
             calls += 1
             costUsd += costResult.costUsd
             pricingMatched = if (hasPricingResolution) {
@@ -559,6 +588,7 @@ object UsageAggregator {
             cacheRead = cacheRead,
             cacheWrite = cacheWrite,
             reasoning = reasoning,
+            unattributed = unattributed,
             calls = calls,
             costUsd = costUsd,
             pricingMatched = pricingMatched,
@@ -572,14 +602,16 @@ object UsageAggregator {
         var cacheRead: Long = 0L
         var cacheWrite: Long = 0L
         var reasoning: Long = 0L
+        var unattributed: Long = 0L
         var calls: Long = 0L
 
-        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long) {
+        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, u: Long) {
             input += i
             output += o
             cacheRead += cr
             cacheWrite += cw
             reasoning += r
+            unattributed += u
             calls += 1
         }
 
@@ -591,6 +623,7 @@ object UsageAggregator {
             cacheRead = cacheRead,
             cacheWrite = cacheWrite,
             reasoning = reasoning,
+            unattributed = unattributed,
             calls = calls
         )
     }
@@ -601,6 +634,7 @@ object UsageAggregator {
         var cacheRead: Long = 0L
         var cacheWrite: Long = 0L
         var reasoning: Long = 0L
+        var unattributed: Long = 0L
         var calls: Long = 0L
         var costUsd: Double = 0.0
         var hasPricingResolution: Boolean = false
@@ -608,12 +642,13 @@ object UsageAggregator {
         var costLowerBound: Boolean = false
         val modelMap = mutableMapOf<String, ModelBucketAccumulator>()
 
-        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, costResult: CostCalculationResult) {
+        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, u: Long, costResult: CostCalculationResult) {
             input += i
             output += o
             cacheRead += cr
             cacheWrite += cw
             reasoning += r
+            unattributed += u
             calls += 1
             costUsd += costResult.costUsd
             if (!hasPricingResolution) {
@@ -632,6 +667,7 @@ object UsageAggregator {
             cacheRead: Long,
             cacheWrite: Long,
             reasoning: Long,
+            unattributed: Long,
             costResult: CostCalculationResult,
             missingUsageFields: List<String>
         ) {
@@ -643,10 +679,11 @@ object UsageAggregator {
                 cacheRead = cacheRead,
                 cacheWrite = cacheWrite,
                 reasoning = reasoning,
+                unattributed = unattributed,
                 identity = identity,
                 missingUsageFields = missingUsageFields,
                 costResult = costResult,
-                isLongContext = input > PricingCatalogService.LONG_CONTEXT_THRESHOLD_TOKENS
+                isLongContext = costResult.usedLongContextPricing
             )
         }
 
@@ -658,6 +695,7 @@ object UsageAggregator {
             cacheRead = cacheRead,
             cacheWrite = cacheWrite,
             reasoning = reasoning,
+            unattributed = unattributed,
             calls = calls,
             costUsd = costUsd,
             topModels = modelMap.values.map { it.toModelBucket() }.sortedByDescending { it.totalTokens }.take(5),
@@ -676,6 +714,7 @@ object UsageAggregator {
         var cacheRead: Long = 0L
         var cacheWrite: Long = 0L
         var reasoning: Long = 0L
+        var unattributed: Long = 0L
         var calls: Long = 0L
         var costUsd: Double = 0.0
         var lastActiveTs: String = ""
@@ -683,12 +722,22 @@ object UsageAggregator {
         var costLowerBound: Boolean = false
         var hasPricingResolution: Boolean = false
 
-        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, costResult: CostCalculationResult, ts: String) {
+        fun add(
+            i: Long,
+            o: Long,
+            cr: Long,
+            cw: Long,
+            r: Long,
+            u: Long,
+            costResult: CostCalculationResult,
+            ts: String
+        ) {
             input += i
             output += o
             cacheRead += cr
             cacheWrite += cw
             reasoning += r
+            unattributed += u
             calls += 1
             costUsd += costResult.costUsd
             pricingMatched = if (hasPricingResolution) {
@@ -712,6 +761,7 @@ object UsageAggregator {
             cacheRead = cacheRead,
             cacheWrite = cacheWrite,
             reasoning = reasoning,
+            unattributed = unattributed,
             calls = calls,
             costUsd = costUsd,
             lastActiveTimestamp = lastActiveTs,
@@ -734,6 +784,7 @@ object UsageAggregator {
         var cacheRead: Long = 0L
         var cacheWrite: Long = 0L
         var reasoning: Long = 0L
+        var unattributed: Long = 0L
         var calls: Long = 0L
         var costUsd: Double = 0.0
         var savingsUsd: Double = 0.0
@@ -742,7 +793,9 @@ object UsageAggregator {
         var longContextCacheRead: Long = 0L
         var longContextCacheWrite: Long = 0L
         var longContextReasoning: Long = 0L
+        var longContextUnattributed: Long = 0L
         var longContextCalls: Long = 0L
+        var missingInputCalls: Long = 0L
         var missingOutputCalls: Long = 0L
         var missingCacheCalls: Long = 0L
         var missingCacheWriteCalls: Long = 0L
@@ -760,6 +813,7 @@ object UsageAggregator {
             cacheRead: Long,
             cacheWrite: Long,
             reasoning: Long,
+            unattributed: Long,
             identity: UsageModelIdentity,
             missingUsageFields: List<String>,
             costResult: CostCalculationResult,
@@ -770,6 +824,7 @@ object UsageAggregator {
             this.cacheRead += cacheRead
             this.cacheWrite += cacheWrite
             this.reasoning += reasoning
+            this.unattributed += unattributed
             calls += 1
             costUsd += costResult.costUsd
             savingsUsd += costResult.savingsUsd
@@ -804,6 +859,7 @@ object UsageAggregator {
             if (evidenceRank(identity.evidenceSource) > evidenceRank(modelEvidenceSource)) {
                 modelEvidenceSource = identity.evidenceSource.takeIf { it != "unknown" }
             }
+            if ("input" in missingUsageFields) missingInputCalls += 1
             if ("output" in missingUsageFields) missingOutputCalls += 1
             if ("cache" in missingUsageFields) missingCacheCalls += 1
             if ("cacheWrite" in missingUsageFields) missingCacheWriteCalls += 1
@@ -814,6 +870,7 @@ object UsageAggregator {
                 longContextCacheRead += cacheRead
                 longContextCacheWrite += cacheWrite
                 longContextReasoning += reasoning
+                longContextUnattributed += unattributed
                 longContextCalls += 1
             }
         }
@@ -826,6 +883,7 @@ object UsageAggregator {
             cacheRead = cacheRead,
             cacheWrite = cacheWrite,
             reasoning = reasoning,
+            unattributed = unattributed,
             calls = calls,
             costUsd = costUsd,
             savingsUsd = savingsUsd,
@@ -834,8 +892,12 @@ object UsageAggregator {
             pricingModelIds = pricingModelIds.toList(),
             rawModelIds = rawModelIds.toList(),
             modelEvidenceSource = modelEvidenceSource,
-            missingUsage = if (missingOutputCalls + missingCacheCalls + missingCacheWriteCalls + missingReasoningCalls > 0) {
+            missingUsage = if (
+                missingInputCalls + missingOutputCalls + missingCacheCalls +
+                missingCacheWriteCalls + missingReasoningCalls > 0
+            ) {
                 MissingUsageCounts(
+                    input = missingInputCalls,
                     output = missingOutputCalls,
                     cache = missingCacheCalls,
                     cacheWrite = missingCacheWriteCalls,
@@ -848,6 +910,7 @@ object UsageAggregator {
                 cacheRead = longContextCacheRead,
                 cacheWrite = longContextCacheWrite,
                 reasoning = longContextReasoning,
+                unattributed = longContextUnattributed,
                 calls = longContextCalls
             ) else null,
             pricingSource = pricingSource.id,
@@ -864,18 +927,20 @@ object UsageAggregator {
         var cacheRead: Long = 0L
         var cacheWrite: Long = 0L
         var reasoning: Long = 0L
+        var unattributed: Long = 0L
         var calls: Long = 0L
         var costUsd: Double = 0.0
         var pricingMatched: Boolean = true
         var costLowerBound: Boolean = false
         var hasPricingResolution: Boolean = false
 
-        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, costResult: CostCalculationResult) {
+        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, u: Long, costResult: CostCalculationResult) {
             input += i
             output += o
             cacheRead += cr
             cacheWrite += cw
             reasoning += r
+            unattributed += u
             calls += 1
             costUsd += costResult.costUsd
             pricingMatched = if (hasPricingResolution) {
@@ -895,6 +960,7 @@ object UsageAggregator {
             cacheRead = cacheRead,
             cacheWrite = cacheWrite,
             reasoning = reasoning,
+            unattributed = unattributed,
             calls = calls,
             costUsd = costUsd,
             pricingMatched = pricingMatched,

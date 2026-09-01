@@ -177,8 +177,13 @@ object SqliteConversationReader {
         val input = tokenCount(usageFields, 1)
         val output = tokenCount(usageFields, 9).takeIf { it > 0L }
             ?: tokenCount(usageFields, 2)
-        val cacheRead = tokenCount(usageFields, 3)
-        val cacheWrite = tokenCount(usageFields, 5)
+        val field3 = tokenCount(usageFields, 3)
+        val field5 = tokenCount(usageFields, 5)
+        val (cacheRead, cacheWrite) = if (field5 > 0L) {
+            field5 to field3
+        } else {
+            field3 to 0L
+        }
         val reasoning = tokenCount(usageFields, 10)
         val missingUsageFields = missingUsageFields(usageFields)
 
@@ -250,14 +255,16 @@ object SqliteConversationReader {
     }
 
     private fun missingUsageFields(fields: List<ProtobufLite.Field>): List<String> {
-        fun has(fieldNumber: Int): Boolean = fields.any {
-            it.number == fieldNumber && it.wireType == 0
+        fun hasValid(fieldNumber: Int): Boolean = fields.any {
+            it.number == fieldNumber && it.wireType == 0 && it.varint?.let { value -> value >= 0L } == true
         }
 
-        return if (has(2) || has(3) || has(5) || has(9) || has(10)) {
-            emptyList()
-        } else {
-            listOf("output", "cache", "cacheWrite", "reasoning")
+        return buildList {
+            if (!hasValid(1)) add("input")
+            if (!hasValid(9) && !hasValid(2)) add("output")
+            if (!hasValid(3)) add("cache")
+            if (!hasValid(5)) add("cacheWrite")
+            if (!hasValid(10)) add("reasoning")
         }
     }
 

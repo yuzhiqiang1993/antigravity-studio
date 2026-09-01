@@ -83,7 +83,8 @@ class UsageAggregatorTest {
         assertEquals(10_000L, stats.totalReasoning)
         assertEquals(2L, stats.totalCalls)
         assertEquals(2L, stats.totalConversations)
-        assertEquals(150_000.0 / 520_000.0, stats.cacheHitRatio, 0.000001)
+        assertEquals(150_000.0 / 450_000.0, stats.cacheHitRatio, 0.000001)
+        assertEquals(150_000.0 / 450_000.0, stats.promptCacheHitRatio ?: -1.0, 0.000001)
         assertTrue(stats.estimatedCostUsd > 0.0)
         assertTrue(stats.estimatedSavingsUsd > 0.0)
         assertTrue(stats.modelBuckets.all { it.pricingMatched })
@@ -244,6 +245,58 @@ class UsageAggregatorTest {
     }
 
     @Test
+    fun testPromptCacheHitRatioIncludesCacheWriteTokens() {
+        val stats = UsageAggregator.aggregate(
+            conversations = listOf(
+                ConversationUsageData(
+                    conversationId = "cache-ratio",
+                    entries = listOf(
+                        TokenEntry(
+                            input = 1_000,
+                            cacheRead = 6_000,
+                            cacheWrite = 3_000,
+                            model = "gpt-4o",
+                            timestamp = "2026-08-31T00:00:00Z"
+                        )
+                    )
+                )
+            ),
+            pricingService = createTestPricingService(),
+            timeRange = UsageTimeRange.ALL_TIME,
+            zoneId = ZoneId.of("UTC")
+        )
+
+        assertEquals(0.6, stats.promptCacheHitRatio ?: -1.0, 0.000001)
+        assertEquals(0.6, stats.cacheHitRatio, 0.000001)
+        assertTrue(!stats.cacheHitRateIncomplete)
+    }
+
+    @Test
+    fun testExplicitZeroCacheReadRemainsAValidAggregatedRatio() {
+        val stats = UsageAggregator.aggregate(
+            conversations = listOf(
+                ConversationUsageData(
+                    conversationId = "zero-cache-hit",
+                    entries = listOf(
+                        TokenEntry(
+                            input = 1_000,
+                            cacheRead = 0,
+                            model = "gpt-4o",
+                            timestamp = "2026-08-31T00:00:00Z"
+                        )
+                    )
+                )
+            ),
+            pricingService = createTestPricingService(),
+            timeRange = UsageTimeRange.ALL_TIME,
+            zoneId = ZoneId.of("UTC")
+        )
+
+        assertEquals(0.0, stats.promptCacheHitRatio ?: -1.0)
+        assertTrue(!stats.cacheHitRateIncomplete)
+    }
+
+    @Test
     fun testCustomEndDateIsInclusiveAndInvalidRangeDoesNotBecomeAllTime() {
         val pricing = createTestPricingService()
         val conversation = ConversationUsageData(
@@ -323,6 +376,9 @@ class UsageAggregatorTest {
             stats.modelBuckets.single().missingUsage
         )
         assertEquals("unmatched", stats.modelBuckets.single().pricingSource)
+        assertTrue(stats.modelBuckets.single().cacheHitRateIncomplete)
+        assertTrue(stats.cacheHitRateIncomplete)
+        assertTrue(stats.costLowerBound)
         assertTrue(!stats.modelBuckets.single().pricingMatched)
         assertTrue(stats.modelBuckets.single().costLowerBound)
         assertTrue(!stats.monthlyBuckets.single().pricingMatched)
@@ -371,6 +427,112 @@ class UsageAggregatorTest {
     }
 
     @Test
+    fun testLongContextBucketUsesFullPromptSizeAndDynamicThreshold() {
+        val root = File.createTempFile("usage-long-context-", "-root").apply {
+            delete()
+            mkdirs()
+        }
+        File(root, "pricing_catalog.json").writeText(
+            """
+            {
+              "provider": {
+                "models": {
+                  "tiered-model": {
+                    "cost": {
+                      "input": 5,
+                      "output": 30,
+                      "cache_read": 0.5,
+                      "tiers": [
+                        {
+                          "input": 10,
+                          "output": 45,
+                          "cache_read": 1,
+                          "tier": {"type": "context", "size": 200000}
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+            """.trimIndent()
+        )
+
+        try {
+            val stats = UsageAggregator.aggregate(
+                conversations = listOf(
+                    ConversationUsageData(
+                        conversationId = "cached-long-context",
+                        entries = listOf(
+                            TokenEntry(
+                                input = 100_000,
+                                cacheRead = 100_001,
+                                model = "provider/tiered-model",
+                                timestamp = "2026-08-31T00:00:00Z"
+                            )
+                        )
+                    )
+                ),
+                pricingService = PricingCatalogService(customRootDir = root),
+                timeRange = UsageTimeRange.ALL_TIME,
+                zoneId = ZoneId.of("UTC")
+            )
+
+            val model = stats.modelBuckets.single()
+            val longContext = model.longContext ?: error("长上下文调用应进入独立子桶")
+            assertEquals(100_000L, longContext.input)
+            assertEquals(100_001L, longContext.cacheRead)
+            assertEquals(1L, longContext.calls)
+            assertEquals(1.100001, model.costUsd, 0.000001)
+            assertTrue(model.longContextPricingApplied)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testUnattributedTokensFlowThroughAllBucketsAndMarkCostAsLowerBound() {
+        val zone = ZoneId.of("UTC")
+        val timestamp = Instant.now().minusSeconds(1).toString()
+        val stats = UsageAggregator.aggregate(
+            conversations = listOf(
+                ConversationUsageData(
+                    conversationId = "unattributed",
+                    appSource = "ide",
+                    entries = listOf(
+                        TokenEntry(
+                            input = 1_000_000,
+                            unattributed = 5,
+                            model = "gpt-4o",
+                            timestamp = timestamp
+                        )
+                    )
+                )
+            ),
+            pricingService = createTestPricingService(),
+            timeRange = UsageTimeRange.ALL_TIME,
+            zoneId = zone
+        )
+
+        assertEquals(5L, stats.totalUnattributed)
+        assertEquals(1_000_005L, stats.totalTokens)
+        assertEquals(2.5, stats.estimatedCostUsd, 0.000001)
+        assertTrue(stats.costLowerBound)
+        assertEquals(5L, stats.todayUnattributed)
+        assertEquals(5L, stats.dailyBuckets.single().unattributed)
+        assertTrue(stats.dailyBuckets.single().costLowerBound)
+        assertEquals(5L, stats.hourlyBuckets.single { it.unattributed > 0L }.unattributed)
+        assertEquals(5L, stats.weekdayBuckets.single { it.unattributed > 0L }.unattributed)
+        assertEquals(5L, stats.monthlyBuckets.single().unattributed)
+        assertEquals(5L, stats.monthlyBuckets.single().topModels.single().unattributed)
+        assertEquals(5L, stats.modelBuckets.single().unattributed)
+        assertEquals(5L, stats.sourceBuckets.single().unattributed)
+        assertEquals(5L, stats.topConversations.single().unattributed)
+        assertTrue(stats.modelBuckets.single().pricingMatched)
+        assertTrue(stats.modelBuckets.single().costLowerBound)
+    }
+
+    @Test
     fun testTodaySummaryIsIndependentOfSelectedRange() {
         val zone = ZoneId.of("UTC")
         val now = Instant.now()
@@ -409,7 +571,7 @@ class UsageAggregatorTest {
         assertEquals(25L, allTime.todayCacheWrite)
         assertEquals(1L, allTime.todayConversations)
         assertEquals(1L, allTime.todayActiveModels)
-        assertEquals(300.0 / 485.0, allTime.todayCacheHitRatio, 0.000001)
+        assertEquals(300.0 / 425.0, allTime.todayCacheHitRatio ?: -1.0, 0.000001)
 
         val outsideToday = UsageAggregator.aggregate(
             conversations = listOf(conversation),

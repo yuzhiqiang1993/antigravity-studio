@@ -98,6 +98,33 @@ class SqliteConversationReaderTest {
     }
 
     @Test
+    fun testTracksMissingUsageFieldsPerDimension() {
+        val dbFile = File.createTempFile("usage-reader-missing-", ".db")
+        try {
+            val usage = concat(
+                varintField(9, 7),
+                stringField(11, "output-only")
+            )
+            createDatabase(
+                dbFile,
+                listOf(0 to messageField(1, messageField(4, usage))),
+                emptyList()
+            )
+
+            val result = SqliteConversationReader.readConversationDb(dbFile, "cid", "ide")
+
+            assertTrue(result.complete)
+            assertEquals(7L, result.entries.single().output)
+            assertEquals(
+                listOf("input", "cache", "cacheWrite", "reasoning"),
+                result.entries.single().missingUsageFields
+            )
+        } finally {
+            dbFile.delete()
+        }
+    }
+
+    @Test
     fun testUsesFileMtimeWhenChatAndStepTimestampsAreUnavailable() {
         val dbFile = File.createTempFile("usage-reader-mtime-", ".db")
         try {

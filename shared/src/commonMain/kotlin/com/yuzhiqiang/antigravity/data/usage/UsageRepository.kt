@@ -6,6 +6,7 @@ import com.yuzhiqiang.antigravity.domain.model.usage.ConversationUsageData
 import com.yuzhiqiang.antigravity.domain.model.usage.CustomDateRange
 import com.yuzhiqiang.antigravity.domain.model.usage.DeepUsageStats
 import com.yuzhiqiang.antigravity.domain.model.usage.UsageTimeRange
+import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,9 +18,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
+private const val USAGE_DISK_CACHE_VERSION = 5
+
 @Serializable
 data class UsageDiskCache(
-    val version: Int = 2,
+    val version: Int = USAGE_DISK_CACHE_VERSION,
     val updatedAt: Long = 0L,
     val sourceMtimes: Map<String, Long> = emptyMap(),
     val conversations: List<ConversationUsageData> = emptyList()
@@ -60,7 +63,7 @@ class UsageRepository(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    private val _selectedTimeRange = MutableStateFlow(UsageTimeRange.ROLLING_7D)
+    private val _selectedTimeRange = MutableStateFlow(UsageTimeRange.CALENDAR_TODAY)
     val selectedTimeRange: StateFlow<UsageTimeRange> = _selectedTimeRange.asStateFlow()
 
     private val _customDateRange = MutableStateFlow<CustomDateRange?>(null)
@@ -73,26 +76,39 @@ class UsageRepository(
         loadDiskCache()
     }
 
-    suspend fun setTimeRange(timeRange: UsageTimeRange, customRange: CustomDateRange? = null) {
+    suspend fun setTimeRange(timeRange: UsageTimeRange, customRange: CustomDateRange? = null) = mutex.withLock {
+        AppLog.d("Usage/Repository") { "切换时间范围: $timeRange, customRange=$customRange" }
         _selectedTimeRange.value = timeRange
         _customDateRange.value = customRange
-        recomputeStats()
+        _usageStats.value = aggregateCurrentAsync()
+        AppLog.i("Usage/Repository") { "时间范围切换完成: $timeRange, 当前总Token=${_usageStats.value.totalTokens}, 调用=${_usageStats.value.totalCalls}" }
     }
 
-    suspend fun setSelectedSources(sources: Set<String>) {
+    suspend fun setSelectedSources(sources: Set<String>) = mutex.withLock {
+        AppLog.d("Usage/Repository") { "切换数据来源: $sources" }
         _selectedSources.value = if (sources.isEmpty()) setOf("all") else sources
-        recomputeStats()
+        _usageStats.value = aggregateCurrentAsync()
+        AppLog.i("Usage/Repository") { "数据来源切换完成: ${_selectedSources.value}, 聚合会话数=${_usageStats.value.totalConversations}" }
     }
 
     suspend fun refresh(force: Boolean = false): Result<DeepUsageStats> = mutex.withLock {
         withContext(Dispatchers.IO) {
+            val startMs = System.currentTimeMillis()
+            AppLog.i("Usage/Repository") { "开始刷新用量统计 (force=$force, 当前已缓存会话=${_conversations.value.size})" }
             _isRefreshing.value = true
             try {
                 if (refreshPricingCatalog) {
-                    // 价格目录失败不应阻断本地 Token 统计；服务本身会保留旧目录。
-                    pricingService.refreshCatalog(force = force)
+                    val priceStartMs = System.currentTimeMillis()
+                    // 价格目录失败/超时不应阻断本地 Token 统计与即时呈现
+                    val priceResult = runCatching {
+                        kotlinx.coroutines.withTimeoutOrNull(2500L) {
+                            pricingService.refreshCatalog(force = force)
+                        }
+                    }
+                    AppLog.d("Usage/Repository") { "价格目录刷新尝试完毕 (耗时=${System.currentTimeMillis() - priceStartMs}ms, 结果=${priceResult.getOrNull()})" }
                 }
 
+                val snapshotStartMs = System.currentTimeMillis()
                 val snapshot = scanner.discoverSnapshot()
                 val targets = snapshot.targets
                 val currentKeys = targets.mapTo(mutableSetOf()) { sourceKey(it.appSource, it.conversationId) }
@@ -103,9 +119,13 @@ class UsageRepository(
                     val key = sourceKey(target.appSource, target.conversationId)
                     force || key !in cachedConversationKeys || sourceMtimes[key] != target.lastModified
                 }
+                AppLog.d("Usage/Repository") { "扫描发现目标完成: 发现总数=${targets.size}, 待增量/全量解析数=${changedTargets.size}, 发现耗时=${System.currentTimeMillis() - snapshotStartMs}ms" }
+
+                val parseStartMs = System.currentTimeMillis()
                 val parsed = scanner.parseConversationResults(changedTargets)
                 val freshByKey = parsed.conversations.associateBy { sourceKey(it.appSource, it.conversationId) }
                 val incompleteSources = snapshot.incompleteSources
+                AppLog.d("Usage/Repository") { "目标解析完成: 成功解析=${parsed.successfulKeys.size}, 失败=${parsed.failedKeys.size}, 解析耗时=${System.currentTimeMillis() - parseStartMs}ms" }
 
                 val merged = _conversations.value
                     .filter { conversation ->
@@ -125,10 +145,13 @@ class UsageRepository(
                 )
                 saveDiskCache(merged, sourceMtimes)
 
-                val stats = aggregateCurrent()
+                val stats = aggregateCurrentAsync()
                 _usageStats.value = stats
+                val totalCostMs = System.currentTimeMillis() - startMs
+                AppLog.i("Usage/Repository") { "用量刷新全流程完成! 总耗时=${totalCostMs}ms, 最终会话总数=${merged.size}, 当前时间范围(${_selectedTimeRange.value})聚合Token=${stats.totalTokens}, 调用=${stats.totalCalls}" }
                 Result.success(stats)
             } catch (error: Exception) {
+                AppLog.e("Usage/Repository", error) { "用量刷新流程发生异常: ${error.message}" }
                 Result.failure(error)
             } finally {
                 _isRefreshing.value = false
@@ -136,8 +159,12 @@ class UsageRepository(
         }
     }
 
-    fun recomputeStats() {
-        _usageStats.value = aggregateCurrent()
+    suspend fun recomputeStats() = mutex.withLock {
+        _usageStats.value = aggregateCurrentAsync()
+    }
+
+    private suspend fun aggregateCurrentAsync(): DeepUsageStats = withContext(Dispatchers.Default) {
+        aggregateCurrent()
     }
 
     private fun aggregateCurrent(): DeepUsageStats = UsageAggregator.aggregate(
@@ -172,15 +199,24 @@ class UsageRepository(
 
     private fun loadDiskCache() {
         try {
-            if (!cacheFile.exists()) return
+            if (!cacheFile.exists()) {
+                AppLog.d("Usage/Repository") { "未发现本地磁盘用量缓存: ${cacheFile.absolutePath}" }
+                return
+            }
+            val startMs = System.currentTimeMillis()
             val cache = json.decodeFromString<UsageDiskCache>(cacheFile.readText(Charsets.UTF_8))
+            if (cache.version != USAGE_DISK_CACHE_VERSION) {
+                AppLog.d("Usage/Repository") { "磁盘用量缓存版本过期 (cache.version=${cache.version}, current=$USAGE_DISK_CACHE_VERSION), 忽略旧缓存" }
+                return
+            }
             _conversations.value = cache.conversations
                 .distinctBy { sourceKey(it.appSource, it.conversationId) }
             sourceMtimes.clear()
             sourceMtimes.putAll(cache.sourceMtimes)
-            recomputeStats()
-        } catch (_: Exception) {
-            // 快照损坏时从磁盘重新扫描；不能让损坏缓存阻断应用启动。
+            _usageStats.value = aggregateCurrent()
+            AppLog.i("Usage/Repository") { "成功恢复本地用量磁盘缓存: 会话数=${_conversations.value.size}, 缓存版本=${cache.version}, 耗时=${System.currentTimeMillis() - startMs}ms, 初始Token=${_usageStats.value.totalTokens}" }
+        } catch (error: Exception) {
+            AppLog.w("Usage/Repository", error) { "读取本地用量磁盘缓存失败 (将回退至冷扫描): ${error.message}" }
         }
     }
 
@@ -189,8 +225,9 @@ class UsageRepository(
         mtimes: Map<String, Long>
     ) {
         try {
+            val startMs = System.currentTimeMillis()
             val cache = UsageDiskCache(
-                version = 2,
+                version = USAGE_DISK_CACHE_VERSION,
                 updatedAt = System.currentTimeMillis(),
                 sourceMtimes = mtimes.toMap(),
                 conversations = conversations
@@ -201,8 +238,9 @@ class UsageRepository(
                 content = text,
                 permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY
             )
-        } catch (_: Exception) {
-            // 统计仍可使用内存结果；下一轮刷新会再次尝试持久化。
+            AppLog.d("Usage/Repository") { "持久化用量磁盘缓存成功: 会话数=${conversations.size}, 耗时=${System.currentTimeMillis() - startMs}ms" }
+        } catch (error: Exception) {
+            AppLog.w("Usage/Repository", error) { "持久化用量磁盘缓存失败: ${error.message}" }
         }
     }
 

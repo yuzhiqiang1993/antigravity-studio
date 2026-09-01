@@ -71,6 +71,85 @@ class UsageExtractorTest {
     }
 
     @Test
+    fun testInvalidTokenValuesAreMarkedMissingButExplicitZeroIsKnown() {
+        val lines = sequenceOf(
+            """{"usage":{"input_tokens":"invalid","output_tokens":5,"cache_read_tokens":-1,"cache_write_tokens":0,"reasoning_tokens":false,"model":"model-a"}}"""
+        )
+
+        val entry = UsageExtractor.extractFromTranscript(lines, "invalid-values", "ide").single()
+
+        assertEquals(5L, entry.output)
+        assertEquals(0L, entry.cacheWrite)
+        assertEquals(listOf("input", "cache", "reasoning"), entry.missingUsageFields)
+    }
+
+    @Test
+    fun testZeroAliasDoesNotHideLaterPositiveValue() {
+        val lines = sequenceOf(
+            """{"usage":{"input_tokens":0,"prompt_tokens":"12","output_tokens":0,"cache_read_tokens":0,"cache_write_tokens":0,"reasoning_tokens":0,"model":"model-a"}}"""
+        )
+
+        val entry = UsageExtractor.extractFromTranscript(lines, "aliases", "ide").single()
+
+        assertEquals(12L, entry.input)
+        assertEquals(emptyList(), entry.missingUsageFields)
+    }
+
+    @Test
+    fun testTotalOnlyUsageIsRetainedAsUnattributed() {
+        val entry = UsageExtractor.extractFromTranscript(
+            sequenceOf("""{"usage":{"total_tokens":42,"response_id":"total-only"}}"""),
+            "total-only",
+            "ide"
+        ).single()
+
+        assertEquals(42L, entry.unattributed)
+        assertEquals(42L, entry.totalTokens)
+    }
+
+    @Test
+    fun testReportedTotalGapIsRetainedAsUnattributed() {
+        val entry = UsageExtractor.extractFromTranscript(
+            sequenceOf("""{"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":20}}"""),
+            "reported-gap",
+            "ide"
+        ).single()
+
+        assertEquals(5L, entry.unattributed)
+        assertEquals(20L, entry.totalTokens)
+    }
+
+    @Test
+    fun testReportedTotalCannotReduceKnownComponents() {
+        val entry = UsageExtractor.extractFromTranscript(
+            sequenceOf("""{"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":8}}"""),
+            "small-total",
+            "ide"
+        ).single()
+
+        assertEquals(0L, entry.unattributed)
+        assertEquals(15L, entry.totalTokens)
+    }
+
+    @Test
+    fun testTotalOnlyAndDetailedDuplicateMergeWithoutDoubleCounting() {
+        val entries = UsageExtractor.extractFromTranscript(
+            sequenceOf(
+                """{"usage":{"total_tokens":20,"response_id":"same-response"}}""",
+                """{"usage":{"input_tokens":10,"output_tokens":5,"response_id":"same-response"}}"""
+            ),
+            "merged-total",
+            "ide"
+        )
+
+        val entry = entries.single()
+        assertEquals(10L, entry.input)
+        assertEquals(5L, entry.output)
+        assertEquals(5L, entry.unattributed)
+        assertEquals(20L, entry.totalTokens)
+    }
+
+    @Test
     fun testFallbackFingerprintKeepsCallsInTheSameSecondSeparateWhenMillisecondsDiffer() {
         val entries = listOf(
             TokenEntry(input = 10, model = "model", timestamp = "2026-08-31T06:15:10.001Z"),

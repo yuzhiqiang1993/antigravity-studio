@@ -15,6 +15,11 @@ object UsageExtractor {
         val timestampContainer: JsonObject? = null
     )
 
+    private data class TokenFieldValue(
+        val value: Long,
+        val known: Boolean
+    )
+
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -162,8 +167,11 @@ object UsageExtractor {
         appSource: String,
         modelContext: JsonObject? = null
     ): TokenEntry? {
-        val input = getLong(usage, "input_tokens", "inputTokens", "prompt_tokens", "promptTokens", "input")
-        val output = getLong(
+        val input = readTokenField(
+            usage,
+            "input_tokens", "inputTokens", "prompt_tokens", "promptTokens", "input"
+        )
+        val output = readTokenField(
             usage,
             "output_tokens",
             "outputTokens",
@@ -173,7 +181,7 @@ object UsageExtractor {
             "response_output_tokens",
             "responseOutputTokens"
         )
-        val cacheRead = getLong(
+        val cacheRead = readTokenField(
             usage,
             "cache_read_tokens",
             "cacheReadTokens",
@@ -181,7 +189,7 @@ object UsageExtractor {
             "cacheReadInputTokens",
             "cache_read"
         )
-        val cacheWrite = getLong(
+        val cacheWrite = readTokenField(
             usage,
             "cache_write_tokens",
             "cacheWriteTokens",
@@ -189,7 +197,7 @@ object UsageExtractor {
             "cacheCreationInputTokens",
             "cache_write"
         )
-        val reasoning = getLong(
+        val reasoning = readTokenField(
             usage,
             "thinking_output_tokens",
             "thinkingOutputTokens",
@@ -197,10 +205,26 @@ object UsageExtractor {
             "reasoningTokens",
             "thinking"
         )
+        val reportedTotal = readTokenField(
+            usage,
+            "total_tokens",
+            "totalTokens",
+            "total_token_count",
+            "totalTokenCount"
+        )
+        val attributedTotal = saturatedSum(
+            input.value,
+            output.value,
+            cacheRead.value,
+            cacheWrite.value,
+            reasoning.value
+        )
+        val unattributed = reportedTotal.value
+            .takeIf { reportedTotal.known && it > attributedTotal }
+            ?.minus(attributedTotal)
+            ?: 0L
 
-        if (input == 0L && output == 0L && cacheRead == 0L && cacheWrite == 0L && reasoning == 0L) {
-            return null
-        }
+        if (attributedTotal == 0L && unattributed == 0L) return null
 
         val usageModel = getString(usage, "model", "model_id", "modelId", "response_model", "responseModel")
         val contextModel = modelContext?.let {
@@ -226,11 +250,12 @@ object UsageExtractor {
 
         return TokenEntry(
             responseId = responseId.takeIf { it.isNotBlank() },
-            input = input,
-            output = output,
-            cacheRead = cacheRead,
-            cacheWrite = cacheWrite,
-            reasoning = reasoning,
+            input = input.value,
+            output = output.value,
+            cacheRead = cacheRead.value,
+            cacheWrite = cacheWrite.value,
+            reasoning = reasoning.value,
+            unattributed = unattributed,
             model = identity.model,
             modelDisplayName = identity.displayName,
             modelCanonicalId = identity.canonicalId,
@@ -238,7 +263,7 @@ object UsageExtractor {
             modelAggregationId = identity.aggregationId,
             modelPricingIds = identity.pricingModelIds,
             modelEvidenceSource = identity.evidenceSource,
-            missingUsageFields = missingUsageFields(usage),
+            missingUsageFields = missingUsageFields(input, output, cacheRead, cacheWrite, reasoning),
             provider = provider,
             timestamp = ts,
             conversationId = conversationId,
@@ -246,41 +271,40 @@ object UsageExtractor {
         )
     }
 
-    private fun getLong(obj: JsonObject, vararg keys: String): Long {
-        // 与插件 firstNonZeroTokenCount 对齐：同义字段中前面的 0 不能遮蔽后面的真实值。
-        for (k in keys) {
-            val el = obj[k] ?: continue
-            val prim = el.jsonPrimitive
-            val num = prim.longOrNull
-            if (num != null && num > 0L) return num
-            val parsed = prim.contentOrNull?.toLongOrNull()
-            if (parsed != null && parsed > 0L) return parsed
+    private fun saturatedSum(vararg values: Long): Long {
+        var total = 0L
+        for (value in values) {
+            total = if (value > Long.MAX_VALUE - total) Long.MAX_VALUE else total + value
         }
-        return 0L
+        return total
     }
 
-    private fun missingUsageFields(usage: JsonObject): List<String> = buildList {
-        fun has(vararg keys: String): Boolean = keys.any { usage[it] != null }
-        if (!has(
-                "output_tokens", "outputTokens", "completion_tokens", "completionTokens",
-                "output", "response_output_tokens", "responseOutputTokens"
-            )
-        ) add("output")
-        if (!has(
-                "cache_read_tokens", "cacheReadTokens", "cache_read_input_tokens",
-                "cacheReadInputTokens", "cache_read"
-            )
-        ) add("cache")
-        if (!has(
-                "cache_write_tokens", "cacheWriteTokens", "cache_creation_input_tokens",
-                "cacheCreationInputTokens", "cache_write"
-            )
-        ) add("cacheWrite")
-        if (!has(
-                "thinking_output_tokens", "thinkingOutputTokens", "reasoning_tokens",
-                "reasoningTokens", "thinking"
-            )
-        ) add("reasoning")
+    private fun readTokenField(obj: JsonObject, vararg keys: String): TokenFieldValue {
+        var hasValidZero = false
+        for (key in keys) {
+            val primitive = obj[key] as? JsonPrimitive ?: continue
+            val parsed = primitive.longOrNull ?: primitive.contentOrNull?.toLongOrNull()
+            when {
+                parsed == null || parsed < 0L -> Unit
+                parsed > 0L -> return TokenFieldValue(parsed, known = true)
+                else -> hasValidZero = true
+            }
+        }
+        return TokenFieldValue(0L, known = hasValidZero)
+    }
+
+    private fun missingUsageFields(
+        input: TokenFieldValue,
+        output: TokenFieldValue,
+        cacheRead: TokenFieldValue,
+        cacheWrite: TokenFieldValue,
+        reasoning: TokenFieldValue
+    ): List<String> = buildList {
+        if (!input.known) add("input")
+        if (!output.known) add("output")
+        if (!cacheRead.known) add("cache")
+        if (!cacheWrite.known) add("cacheWrite")
+        if (!reasoning.known) add("reasoning")
     }
 
     private fun isMissingModelValue(value: String): Boolean =
@@ -328,13 +352,22 @@ object UsageExtractor {
             .firstOrNull { !isMissingModelValue(it) && !UsageModelIdentityResolver.isOpaqueModelReference(it) }
         val catalogId = listOfNotNull(first.modelCatalogId, second.modelCatalogId)
             .firstOrNull { !isMissingModelValue(it) && !UsageModelIdentityResolver.isOpaqueModelReference(it) }
+        val input = maxOf(first.input, second.input)
+        val output = maxOf(first.output, second.output)
+        val cacheRead = maxOf(first.cacheRead, second.cacheRead)
+        val cacheWrite = maxOf(first.cacheWrite, second.cacheWrite)
+        val reasoning = maxOf(first.reasoning, second.reasoning)
+        val reportedTotal = maxOf(first.totalTokens, second.totalTokens)
+        val unattributed = (reportedTotal - saturatedSum(input, output, cacheRead, cacheWrite, reasoning))
+            .coerceAtLeast(0L)
         return first.copy(
             responseId = first.responseId ?: second.responseId,
-            input = maxOf(first.input, second.input),
-            output = maxOf(first.output, second.output),
-            cacheRead = maxOf(first.cacheRead, second.cacheRead),
-            cacheWrite = maxOf(first.cacheWrite, second.cacheWrite),
-            reasoning = maxOf(first.reasoning, second.reasoning),
+            input = input,
+            output = output,
+            cacheRead = cacheRead,
+            cacheWrite = cacheWrite,
+            reasoning = reasoning,
+            unattributed = unattributed,
             model = model,
             modelDisplayName = displayName,
             modelCanonicalId = canonicalId,

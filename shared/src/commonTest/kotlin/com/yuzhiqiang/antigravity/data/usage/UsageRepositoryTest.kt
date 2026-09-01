@@ -46,6 +46,66 @@ class UsageRepositoryTest {
     }
 
     @Test
+    fun testIgnoresOutdatedDiskCacheVersion() = runBlocking {
+        val root = createTempRoot()
+        try {
+            File(root, ".deep_stats_cache.json").writeText(
+                """
+                {
+                  "version": 1,
+                  "updatedAt": 1,
+                  "sourceMtimes": {"ide:cached": 1},
+                  "conversations": [
+                    {
+                      "conversationId": "cached",
+                      "appSource": "ide",
+                      "entries": [{"input": 999, "model": "gpt-4o"}]
+                    }
+                  ]
+                }
+                """.trimIndent()
+            )
+
+            val repository = repository(root)
+            repository.setTimeRange(com.yuzhiqiang.antigravity.domain.model.usage.UsageTimeRange.ALL_TIME)
+
+            assertEquals(0L, repository.usageStats.value.totalInput)
+            assertEquals(0L, repository.usageStats.value.totalConversations)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testFallsBackToLocalTranscriptWhenSqliteReadIsIncomplete() = runBlocking {
+        val root = createTempRoot()
+        val id = "44444444-4444-4444-8444-444444444444"
+        try {
+            databaseFile(root, id).writeBytes(byteArrayOf(0x01, 0x02, 0x03))
+            val transcript = transcriptFile(root, id)
+            transcript.writeText(
+                """{"created_at":"2026-08-31T00:00:00Z","usage":{"input_tokens":40,"output_tokens":5,"cache_read_tokens":0,"cache_write_tokens":0,"reasoning_tokens":0,"model":"gpt-4o","response_id":"fallback"}}""" + "\n"
+            )
+
+            val repository = repository(root)
+            repository.setTimeRange(com.yuzhiqiang.antigravity.domain.model.usage.UsageTimeRange.ALL_TIME)
+            val stats = repository.refresh(false).getOrThrow()
+
+            assertEquals(40L, stats.totalInput)
+            assertEquals(5L, stats.totalOutput)
+            assertEquals(1L, stats.totalConversations)
+
+            transcript.writeText(
+                """{"created_at":"2026-08-31T00:00:00Z","usage":{"input_tokens":60,"output_tokens":5,"cache_read_tokens":0,"cache_write_tokens":0,"reasoning_tokens":0,"model":"gpt-4o","response_id":"fallback"}}""" + "\n"
+            )
+            transcript.setLastModified(transcript.lastModified() + 2_000L)
+            assertEquals(60L, repository.refresh(false).getOrThrow().totalInput)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun testMtimeRollbackStillReplacesConversation() = runBlocking {
         val root = createTempRoot()
         val db = databaseFile(root, "22222222-2222-4222-8222-222222222222")

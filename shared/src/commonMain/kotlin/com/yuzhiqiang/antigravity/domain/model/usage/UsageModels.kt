@@ -13,6 +13,8 @@ data class TokenEntry(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    /** Provider 只上报总量或总量大于已知分项时无法归属的 Token。 */
+    val unattributed: Long = 0L,
     /** 真实响应/计费模型；不要用运行时占位符覆盖它。 */
     val model: String = "",
     val modelDisplayName: String? = null,
@@ -31,7 +33,7 @@ data class TokenEntry(
     val appSource: String = "" // "ide", "standalone", "cli"
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 
     /** 用于去重的唯一特征指纹 */
     fun fingerprint(): String {
@@ -40,7 +42,7 @@ data class TokenEntry(
         val cleanProvider = provider.trim().lowercase()
         // 保留毫秒，避免同一秒内没有 responseId 的两次调用被错误合并。
         val tsKey = if (timestamp.length >= 23) timestamp.substring(0, 23) else timestamp
-        return "$input:$output:$cacheRead:$cacheWrite:$reasoning:$tsKey:$cleanModel:$cleanProvider"
+        return "$input:$output:$cacheRead:$cacheWrite:$reasoning:$unattributed:$tsKey:$cleanModel:$cleanProvider"
     }
 }
 
@@ -71,6 +73,7 @@ data class DailyUsageBucket(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
     val calls: Long = 0L,
     val costUsd: Double = 0.0,
     val savingsUsd: Double = 0.0,
@@ -78,7 +81,7 @@ data class DailyUsageBucket(
     val costLowerBound: Boolean = false
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 }
 
 /**
@@ -92,13 +95,14 @@ data class HourlyUsageBucket(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
     val calls: Long = 0L,
     val costUsd: Double = 0.0,
     val pricingMatched: Boolean = true,
     val costLowerBound: Boolean = false
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 }
 
 /**
@@ -113,10 +117,11 @@ data class WeekdayUsageBucket(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
     val calls: Long = 0L
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 }
 
 /**
@@ -131,6 +136,7 @@ data class MonthlyUsageBucket(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
     val calls: Long = 0L,
     val costUsd: Double = 0.0,
     val topModels: List<ModelUsageBucket> = emptyList(),
@@ -138,7 +144,7 @@ data class MonthlyUsageBucket(
     val costLowerBound: Boolean = false
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 }
 
 /**
@@ -154,6 +160,7 @@ data class ConversationUsageBucket(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
     val calls: Long = 0L,
     val costUsd: Double = 0.0,
     val lastActiveTimestamp: String = "",
@@ -161,12 +168,13 @@ data class ConversationUsageBucket(
     val costLowerBound: Boolean = false
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 }
 
 /** 数据源未返回的计费维度调用数；与明确返回 0 区分。 */
 @Serializable
 data class MissingUsageCounts(
+    val input: Long = 0L,
     val output: Long = 0L,
     val cache: Long = 0L,
     val cacheWrite: Long = 0L,
@@ -185,6 +193,7 @@ data class ModelUsageBucket(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
     val calls: Long = 0L,
     val costUsd: Double = 0.0,
     val savingsUsd: Double = 0.0,
@@ -203,7 +212,13 @@ data class ModelUsageBucket(
     val longContextPricingApplied: Boolean = false
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
+
+    /** Prompt 缓存相关维度存在缺失，当前命中率只能视为基于已知 Token 的近似值。 */
+    val cacheHitRateIncomplete: Boolean
+        get() = unattributed > 0L || missingUsage?.let {
+            it.input > 0L || it.cache > 0L || it.cacheWrite > 0L
+        } == true
 }
 
 /** 单次输入超过 272K Token 的模型调用子桶，用于展示长上下文计费范围。 */
@@ -214,10 +229,11 @@ data class LongContextUsageBucket(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
     val calls: Long = 0L
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 }
 
 /**
@@ -232,13 +248,14 @@ data class AppSourceUsageBucket(
     val cacheRead: Long = 0L,
     val cacheWrite: Long = 0L,
     val reasoning: Long = 0L,
+    val unattributed: Long = 0L,
     val calls: Long = 0L,
     val costUsd: Double = 0.0,
     val pricingMatched: Boolean = true,
     val costLowerBound: Boolean = false
 ) {
     val totalTokens: Long
-        get() = input + output + cacheRead + cacheWrite + reasoning
+        get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 }
 
 /**
@@ -251,11 +268,13 @@ data class DeepUsageStats(
     val totalCacheRead: Long = 0L,
     val totalCacheWrite: Long = 0L,
     val totalReasoning: Long = 0L,
+    val totalUnattributed: Long = 0L,
     val totalCalls: Long = 0L,
     val totalConversations: Long = 0L,
     val daysActive: Int = 0,
     val estimatedCostUsd: Double = 0.0,
     val estimatedSavingsUsd: Double = 0.0,
+    val costLowerBound: Boolean = false,
     /** 固定按本地时区计算的“今天”快照，不受当前时间范围筛选影响。 */
     val todayDate: String = "",
     val todayInput: Long = 0L,
@@ -263,6 +282,7 @@ data class DeepUsageStats(
     val todayCacheRead: Long = 0L,
     val todayCacheWrite: Long = 0L,
     val todayReasoning: Long = 0L,
+    val todayUnattributed: Long = 0L,
     val todayCalls: Long = 0L,
     val todayConversations: Long = 0L,
     val todayActiveModels: Long = 0L,
@@ -282,25 +302,33 @@ data class DeepUsageStats(
     val generatedAt: Long = 0L
 ) {
     val totalTokens: Long
-        get() = totalInput + totalOutput + totalCacheRead + totalCacheWrite + totalReasoning
+        get() = totalInput + totalOutput + totalCacheRead + totalCacheWrite + totalReasoning + totalUnattributed
 
     /** 插件 DeepUsageStats 的 totalCache 代表 cache read；cache write 单独暴露。 */
     val totalCache: Long
         get() = totalCacheRead
 
-    /** 与插件 cacheRate 一致：Cache Read / 全部 Token（cache write 不计入命中率）。 */
+    /** 兼容旧调用方；新代码应使用可区分“不可计算”与 0% 的 [promptCacheHitRatio]。 */
     val cacheHitRatio: Double
-        get() = if (totalTokens > 0L) totalCacheRead.toDouble() / totalTokens.toDouble() else 0.0
+        get() = promptCacheHitRatio ?: 0.0
+
+    /** Prompt 缓存命中率：Cache Read / (普通输入 + Cache Read + Cache Write)。 */
+    val promptCacheHitRatio: Double?
+        get() = calculatePromptCacheHitRatio(totalCacheRead, totalInput, totalCacheWrite)
+
+    /** Prompt 缓存相关维度存在缺失，当前命中率只能视为基于已知 Token 的近似值。 */
+    val cacheHitRateIncomplete: Boolean
+        get() = totalUnattributed > 0L || modelBuckets.any(ModelUsageBucket::cacheHitRateIncomplete)
 
     val todayTokens: Long
-        get() = todayInput + todayOutput + todayCacheRead + todayCacheWrite + todayReasoning
+        get() = todayInput + todayOutput + todayCacheRead + todayCacheWrite + todayReasoning + todayUnattributed
 
-    /** 今日缓存读取率与插件一致，分母包含全部五类 Token。 */
-    val todayCacheHitRatio: Double
-        get() = if (todayTokens > 0L) todayCacheRead.toDouble() / todayTokens.toDouble() else 0.0
+    /** 今日 Prompt 缓存命中率，口径与全局统计一致。 */
+    val todayCacheHitRatio: Double?
+        get() = calculatePromptCacheHitRatio(todayCacheRead, todayInput, todayCacheWrite)
 
     /** 便于 UI 与插件字段名 cacheRate 对照。 */
-    val todayCacheRate: Double
+    val todayCacheRate: Double?
         get() = todayCacheHitRatio
 
     val hasTodayUsage: Boolean
