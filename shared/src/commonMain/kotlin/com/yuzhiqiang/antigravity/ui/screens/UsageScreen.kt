@@ -246,17 +246,11 @@ fun UsageScreen(
                             timeRange = currentTimeRange
                         )
 
-                        // D. 插件 up dashboard 的年度活跃度网格
-                        ActivityHeatmapCard(dailyBuckets = stats.dailyBuckets)
-
                         // E. 热门模型使用排行 & 数据来源分布
                         TopModelsAndSourcesSection(
                             modelBuckets = stats.modelBuckets,
                             sourceBuckets = stats.sourceBuckets
                         )
-
-                        // H. 高消耗会话排行榜 (Top Conversations)
-                        TopConversationsCard(conversations = stats.topConversations)
                     }
                 }
             }

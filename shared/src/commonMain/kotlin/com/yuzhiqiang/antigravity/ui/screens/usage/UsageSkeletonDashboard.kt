@@ -42,14 +42,8 @@ fun UsageDashboardSkeleton(
         // B. 走势图骨架
         UsageTrendChartSkeleton(brush = shimmerBrush)
 
-        // C. 年度活跃度网格骨架
-        ActivityHeatmapSkeleton(brush = shimmerBrush)
-
         // D. 热门模型排行与数据来源分布骨架
         TopModelsAndSourcesSkeleton(brush = shimmerBrush)
-
-        // E. 高消耗会话排行骨架
-        TopConversationsSkeleton(brush = shimmerBrush)
     }
 }
 
