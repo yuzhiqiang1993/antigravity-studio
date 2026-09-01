@@ -30,24 +30,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yuzhiqiang.antigravity.domain.model.usage.DailyUsageBucket
 import com.yuzhiqiang.antigravity.domain.model.usage.HourlyUsageBucket
 import com.yuzhiqiang.antigravity.domain.model.usage.UsageTimeRange
+import kotlin.math.roundToLong
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -82,18 +87,15 @@ fun UsageTrendChart(
 
     StudioGlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+        shape = RoundedCornerShape(AppTokens.Radius.large),
+        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
+        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    horizontal = UsageVisualTokens.cardPadding,
-                    vertical = UsageVisualTokens.cardVerticalPadding
-                ),
-            verticalArrangement = Arrangement.spacedBy(UsageVisualTokens.cardGap)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -103,7 +105,7 @@ fun UsageTrendChart(
                 Text(
                     text = if (isHourlyTrend) s.usageHourlyTrendChartTitle else s.usageTrendChartTitle,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = UsageVisualTokens.Typography.cardTitle,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     color = MaterialTheme.colorScheme.onSurface
@@ -221,50 +223,101 @@ private fun SmoothUsagePlot(
     selectedIndex: Int?,
     modifier: Modifier = Modifier
 ) {
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+    val baselineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val yLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f)
     val highlightSliceColor = UsageVisualTokens.Tooltip.sliceHighlightColor
+    val textMeasurer = rememberTextMeasurer()
+    val yAxisTextStyle = MaterialTheme.typography.labelSmall.copy(
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Medium,
+        color = yLabelColor
+    )
+    val nodeBadgeStyle = MaterialTheme.typography.labelSmall.copy(
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Medium,
+        color = colors.output
+    )
+    val peakBadgeStyle = MaterialTheme.typography.labelSmall.copy(
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        color = colors.output
+    )
 
     Canvas(modifier = modifier) {
         val plotStart = UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
         val plotEnd = size.width - UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
-        val plotTop = UsageVisualTokens.Chart.plotTop.toPx()
+        val plotTop = 12.dp.toPx()
         val plotBottom = size.height - UsageVisualTokens.Chart.plotBottomPadding.toPx()
         val plotWidth = (plotEnd - plotStart).coerceAtLeast(1f)
-        val plotHeight = (plotBottom - plotTop).coerceAtLeast(1f)
+        // 顶部预留 28dp 给数据徽标，确保最高峰值点与文字徽标完全不重叠、不贴顶
+        val chartTop = plotTop + 28.dp.toPx()
+        val chartHeight = (plotBottom - chartTop).coerceAtLeast(1f)
         val xStep = if (buckets.size <= 1) 0f else plotWidth / (buckets.size - 1)
         val sliceWidth = (plotWidth / maxOf(1, buckets.size)).coerceAtLeast(4f)
+        val dashEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()), 0f)
 
-        // 1. 水平参考线
+        // 1. 水平参考虚线与 Y 轴刻度文本 (从上到下 100%, 66.7%, 33.3%, 0%)
         for (line in 0..3) {
-            val y = plotTop + plotHeight * line / 3f
+            val y = chartTop + chartHeight * line / 3f
+            val isBaseline = line == 3
             drawLine(
-                color = gridColor,
+                color = if (isBaseline) baselineColor else gridColor,
                 start = Offset(plotStart, y),
                 end = Offset(plotEnd, y),
-                strokeWidth = 1.dp.toPx()
+                strokeWidth = if (isBaseline) 1.dp.toPx() else 0.8.dp.toPx(),
+                pathEffect = if (isBaseline) null else dashEffect
             )
+
+            // 绘制 Y 轴数值标签（内嵌在参考线左上方，仅当非顶部或无峰值遮挡时轻量展示）
+            if (line > 0) {
+                val lineTokens = when (line) {
+                    1 -> (maxTokens * 2.0 / 3.0).roundToLong()
+                    2 -> (maxTokens * 1.0 / 3.0).roundToLong()
+                    else -> 0L
+                }
+                val labelText = UsageNumberFormatter.formatTokens(lineTokens)
+                val measuredText = textMeasurer.measure(
+                    text = labelText,
+                    style = yAxisTextStyle
+                )
+                val labelY = y - measuredText.size.height - 2.dp.toPx()
+                drawText(
+                    textLayoutResult = measuredText,
+                    topLeft = Offset(plotStart + 4.dp.toPx(), labelY)
+                )
+            }
         }
 
-        // 2. 坐标点
+        // 2. 计算各时间点坐标 (有用量的节点映射到 [chartTop, plotBottom])
         val points = buckets.mapIndexed { index, bucket ->
             val x = if (buckets.size <= 1) (plotStart + plotEnd) / 2f else plotStart + xStep * index
-            val y = plotBottom - (bucket.totalTokens.toFloat() / maxTokens.toFloat()) * plotHeight
-            Offset(x, y.coerceIn(plotTop, plotBottom))
+            val ratio = if (maxTokens > 0L) (bucket.totalTokens.toFloat() / maxTokens.toFloat()).coerceIn(0f, 1f) else 0f
+            val y = plotBottom - ratio * chartHeight
+            Offset(x, y)
         }
 
         if (points.isNotEmpty()) {
-            // 3. 悬浮选中的浅色时间柱（100% 对齐插件 .deep-heatmap-slice:hover）
+            // 3. 悬浮选中的浅色时间柱与竖向参考引导线
             selectedIndex?.let { index ->
                 points.getOrNull(index)?.let { point ->
                     drawRect(
                         color = highlightSliceColor,
                         topLeft = Offset(point.x - sliceWidth / 2f, plotTop),
-                        size = Size(sliceWidth, plotHeight)
+                        size = Size(sliceWidth, plotBottom - plotTop)
+                    )
+                    // 竖向高亮虚线引导线
+                    drawLine(
+                        color = colors.output.copy(alpha = 0.5f),
+                        start = Offset(point.x, plotTop),
+                        end = Offset(point.x, plotBottom),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()), 0f)
                     )
                 }
             }
 
-            // 4. 贝塞尔渐变面积与曲线
+            // 4. 贝塞尔平滑渐变面积与曲线
             val linePath = buildSmoothPath(points)
             val areaPath = Path().apply {
                 moveTo(points.first().x, plotBottom)
@@ -277,8 +330,8 @@ private fun SmoothUsagePlot(
             drawPath(
                 path = areaPath,
                 brush = Brush.verticalGradient(
-                    colors = listOf(colors.output.copy(alpha = 0.26f), colors.output.copy(alpha = 0.01f)),
-                    startY = plotTop,
+                    colors = listOf(colors.output.copy(alpha = 0.22f), colors.output.copy(alpha = 0.01f)),
+                    startY = chartTop,
                     endY = plotBottom
                 )
             )
@@ -292,20 +345,100 @@ private fun SmoothUsagePlot(
                 )
             )
 
-            // 5. 悬浮点高亮圆点
-            selectedIndex?.let { index ->
-                points.getOrNull(index)?.let { point ->
-                    drawCircle(
-                        colors.output.copy(alpha = 0.22f),
-                        radius = UsageVisualTokens.Chart.dotHaloRadius.toPx(),
-                        center = point
+            // 5. 寻找峰值索引
+            val peakIndex = if (maxTokens > 0L) {
+                buckets.indices.maxByOrNull { buckets[it].totalTokens }?.takeIf { buckets[it].totalTokens > 0L }
+            } else null
+
+            // 6. 绘制所有有用量节点的小圆点 (Node Dots)
+            buckets.forEachIndexed { idx, bucket ->
+                if (bucket.totalTokens > 0L) {
+                    val pt = points[idx]
+                    val isPeak = idx == peakIndex
+                    val isSelected = idx == selectedIndex
+
+                    if (isPeak || isSelected) {
+                        drawCircle(
+                            colors.output.copy(alpha = 0.25f),
+                            radius = 5.dp.toPx(),
+                            center = pt
+                        )
+                        drawCircle(Color.White, radius = 3.2.dp.toPx(), center = pt)
+                        drawCircle(
+                            colors.output,
+                            radius = 3.2.dp.toPx(),
+                            center = pt,
+                            style = Stroke(1.4.dp.toPx())
+                        )
+                    } else {
+                        drawCircle(Color.White, radius = 2.4.dp.toPx(), center = pt)
+                        drawCircle(
+                            colors.output,
+                            radius = 2.4.dp.toPx(),
+                            center = pt,
+                            style = Stroke(1.2.dp.toPx())
+                        )
+                    }
+                }
+            }
+
+            // 7. 智能防碰撞多节点用量文字徽标 (Collision-Free Node Labels)
+            // 收集所有有用量节点，按 Token 数降序排列（大数值优先排布），贪心占用水平空间
+            val activeIndices = buckets.indices
+                .filter { buckets[it].totalTokens > 0L }
+                .sortedByDescending { buckets[it].totalTokens }
+
+            val occupiedRanges = mutableListOf<ClosedFloatingPointRange<Float>>()
+
+            for (idx in activeIndices) {
+                val pt = points[idx]
+                val tokens = buckets[idx].totalTokens
+                val isPeak = idx == peakIndex
+                val badgeText = UsageNumberFormatter.formatTokens(tokens)
+                val measured = textMeasurer.measure(
+                    text = badgeText,
+                    style = if (isPeak) peakBadgeStyle else nodeBadgeStyle
+                )
+                val paddingH = if (isPeak) 6.dp.toPx() else 4.5.dp.toPx()
+                val paddingV = if (isPeak) 2.dp.toPx() else 1.5.dp.toPx()
+                val badgeW = measured.size.width + paddingH * 2
+                val badgeH = measured.size.height + paddingV * 2
+
+                val badgeLeft = (pt.x - badgeW / 2f).coerceIn(plotStart, plotEnd - badgeW)
+                val badgeRight = badgeLeft + badgeW
+                val clearance = 4.dp.toPx() // 节点间的防重叠安全距离
+                val candidateRange = (badgeLeft - clearance)..(badgeRight + clearance)
+
+                val collides = occupiedRanges.any { range ->
+                    candidateRange.start < range.endInclusive && candidateRange.endInclusive > range.start
+                }
+
+                if (!collides) {
+                    occupiedRanges.add(candidateRange)
+                    val badgeTop = (pt.y - badgeH - 6.dp.toPx()).coerceAtLeast(plotTop)
+
+                    // 绘制徽标背景胶囊与细边框
+                    val bgAlpha = if (isPeak) 0.16f else 0.09f
+                    val borderAlpha = if (isPeak) 0.40f else 0.22f
+                    val cornerRadius = if (isPeak) 4.dp.toPx() else 3.dp.toPx()
+
+                    drawRoundRect(
+                        color = colors.output.copy(alpha = bgAlpha),
+                        topLeft = Offset(badgeLeft, badgeTop),
+                        size = Size(badgeW, badgeH),
+                        cornerRadius = CornerRadius(cornerRadius, cornerRadius)
                     )
-                    drawCircle(Color.White, radius = UsageVisualTokens.Chart.dotRadius.toPx(), center = point)
-                    drawCircle(
-                        colors.output,
-                        radius = UsageVisualTokens.Chart.dotRadius.toPx(),
-                        center = point,
-                        style = Stroke(UsageVisualTokens.Chart.dotStrokeWidth.toPx())
+                    drawRoundRect(
+                        color = colors.output.copy(alpha = borderAlpha),
+                        topLeft = Offset(badgeLeft, badgeTop),
+                        size = Size(badgeW, badgeH),
+                        cornerRadius = CornerRadius(cornerRadius, cornerRadius),
+                        style = Stroke(0.8.dp.toPx())
+                    )
+                    // 绘制徽标文字
+                    drawText(
+                        textLayoutResult = measured,
+                        topLeft = Offset(badgeLeft + paddingH, badgeTop + paddingV)
                     )
                 }
             }
@@ -576,7 +709,8 @@ private fun UsageAxisLabels(
         buckets.forEachIndexed { index, bucket ->
             val isFirst = index == 0
             val isLast = index == buckets.lastIndex
-            val show = isFirst || isLast || (index % labelStep == 0 && (buckets.lastIndex - index) >= minIndexGap && index >= minIndexGap)
+            val show =
+                isFirst || isLast || (index % labelStep == 0 && (buckets.lastIndex - index) >= minIndexGap && index >= minIndexGap)
             if (show) {
                 val isSelected = selectedIndex == index
                 val xPos = if (buckets.size <= 1) (plotStart + plotEnd) / 2 else plotStart + xStep * index

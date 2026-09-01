@@ -9,16 +9,16 @@ import androidx.compose.ui.unit.sp
  * 集中统一管理所有尺寸、间距、字号与特定视觉样式，避免散落硬编码魔法值。
  */
 object UsageVisualTokens {
-    // 布局与卡片基础尺寸
-    val cardPadding = 14.dp
-    val cardVerticalPadding = 12.dp
-    val cardGap = 10.dp
-    val sectionGap = 14.dp
-    val innerRadius = 8.dp
-    val progressHeight = 4.5.dp
-    val progressRadius = 2.dp
+    // 布局与卡片基础尺寸（遵循 8dp 网格体系与 MD3 规范）
+    val cardPadding = 16.dp
+    val cardVerticalPadding = 16.dp
+    val cardGap = 12.dp
+    val sectionGap = 16.dp
+    val innerRadius = 12.dp
+    val progressHeight = 6.dp
+    val progressRadius = 3.dp
     val detailGap = 8.dp
-    val pillRadius = 16.dp
+    val pillRadius = 999.dp
 
     // 图表与 X 轴尺寸令牌
     object Chart {
@@ -81,8 +81,8 @@ object UsageVisualTokens {
     object ModelList {
         val rankBadgeSize = 22.dp
         val barHeight = 6.dp
-        val itemSpacing = 12.dp
-        val rowGap = 6.dp
+        val itemSpacing = 10.dp
+        val rowGap = 8.dp
         val headerGap = 8.dp
     }
 }
