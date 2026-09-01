@@ -125,11 +125,16 @@ fun UsageScreen(
 
                         // 自定义日期 Tab
                         val isCustom = currentTimeRange == UsageTimeRange.CUSTOM
-                        val customLabel = if (isCustom && customDateRange != null && customDateRange?.startDate?.isNotBlank() == true) {
-                            "${UsageNumberFormatter.formatShortDate(customDateRange!!.startDate)}~${UsageNumberFormatter.formatShortDate(customDateRange!!.endDate)}"
-                        } else {
-                            s.usageTimeRangeCustom
-                        }
+                        val customLabel =
+                            if (isCustom && customDateRange != null && customDateRange?.startDate?.isNotBlank() == true) {
+                                "${UsageNumberFormatter.formatShortDate(customDateRange!!.startDate)}~${
+                                    UsageNumberFormatter.formatShortDate(
+                                        customDateRange!!.endDate
+                                    )
+                                }"
+                            } else {
+                                s.usageTimeRangeCustom
+                            }
                         ModernTimeTab(
                             label = customLabel,
                             icon = Icons.Outlined.CalendarMonth,
@@ -219,11 +224,11 @@ fun UsageScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 1100.dp)
+                .widthIn(max = 1160.dp)
                 .align(Alignment.CenterHorizontally)
                 .weight(1f)
                 .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
         ) {
             com.yuzhiqiang.antigravity.ui.animation.StudioCrossfade(
                 targetState = isInitialLoading,
@@ -234,7 +239,7 @@ fun UsageScreen(
                 } else {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
                     ) {
                         // A. 当前时间范围的 Hero KPI（用量概览：费用、总 Token、五维构成条、调用总数）
                         UsageKpiGrid(stats = stats)
@@ -246,10 +251,9 @@ fun UsageScreen(
                             timeRange = currentTimeRange
                         )
 
-                        // E. 热门模型使用排行 & 数据来源分布
-                        TopModelsAndSourcesSection(
-                            modelBuckets = stats.modelBuckets,
-                            sourceBuckets = stats.sourceBuckets
+                        // E. 热门模型使用排行
+                        TopModelsBreakdownCard(
+                            modelBuckets = stats.modelBuckets
                         )
                     }
                 }
