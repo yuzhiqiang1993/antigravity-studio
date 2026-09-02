@@ -85,131 +85,149 @@ fun UsageTrendChart(
     }
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
 
-    StudioGlassCard(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.large),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (isHourlyTrend) s.usageHourlyTrendChartTitle else s.usageTrendChartTitle,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = s.usageTokensCount(UsageNumberFormatter.formatTokens(buckets.sumOf { it.totalTokens })),
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = UsageVisualTokens.Typography.legendText
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .pointerInput(buckets) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                        val position = event.changes.firstOrNull()?.position
+                        when (event.type) {
+                            PointerEventType.Exit -> {
+                                if (selectedIndex != null) {
+                                    selectedIndex = null
+                                }
+                            }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(UsageVisualTokens.Chart.legendSpacing)
-            ) {
-                ChartLegendIndicator(s.usageTokenPromptInput, colors.input)
-                ChartLegendIndicator(s.usageTokenCacheRead, colors.cacheRead)
-                ChartLegendIndicator(s.usageTokenCacheWrite, colors.cacheWrite)
-                ChartLegendIndicator(s.usageTokenModelOutput, colors.output)
-                ChartLegendIndicator(s.usageTokenThinking, colors.reasoning)
-                ChartLegendIndicator(s.usageTokenUnattributed, colors.unattributed)
-            }
-
-            if (buckets.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = s.usageTrendChartEmpty,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                val maxTokens = remember(buckets) {
-                    maxOf(1L, buckets.maxOfOrNull { it.totalTokens } ?: 1L)
-                }
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(UsageVisualTokens.Chart.containerHeight)
-                        .pointerInput(buckets) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                                    val position = event.changes.firstOrNull()?.position
-                                    when (event.type) {
-                                        PointerEventType.Exit -> {
-                                            if (selectedIndex != null) selectedIndex = null
+                            PointerEventType.Move, PointerEventType.Enter -> {
+                                if (position != null && buckets.isNotEmpty()) {
+                                    if (position.x in 0f..size.width.toFloat() && position.y in 0f..size.height.toFloat()) {
+                                        val cardPadding = 20.dp.toPx()
+                                        val plotStart =
+                                            cardPadding + UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
+                                        val plotEnd =
+                                            size.width - cardPadding - UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
+                                        val plotWidth = (plotEnd - plotStart).coerceAtLeast(1f)
+                                        val fraction = ((position.x - plotStart) / plotWidth).coerceIn(0f, 1f)
+                                        val newIndex =
+                                            (fraction * (buckets.size - 1).coerceAtLeast(0)).roundToInt()
+                                        if (selectedIndex != newIndex) {
+                                            selectedIndex = newIndex
                                         }
-
-                                        PointerEventType.Move, PointerEventType.Enter -> {
-                                            if (position != null) {
-                                                val plotStart = UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
-                                                val plotEnd =
-                                                    size.width - UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
-                                                val plotWidth = (plotEnd - plotStart).coerceAtLeast(1f)
-                                                val fraction = ((position.x - plotStart) / plotWidth).coerceIn(0f, 1f)
-                                                val newIndex =
-                                                    (fraction * (buckets.size - 1).coerceAtLeast(0)).roundToInt()
-                                                if (selectedIndex != newIndex) {
-                                                    selectedIndex = newIndex
-                                                }
-                                            }
-                                        }
+                                    } else {
+                                        selectedIndex = null
                                     }
                                 }
                             }
                         }
-                ) {
-                    val containerWidth = maxWidth
-                    SmoothUsagePlot(
-                        buckets = buckets,
-                        maxTokens = maxTokens,
-                        colors = colors,
-                        selectedIndex = selectedIndex,
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    selectedIndex?.let { index ->
-                        buckets.getOrNull(index)?.let { bucket ->
-                            val plotStart = UsageVisualTokens.Chart.plotHorizontalPadding
-                            val plotEnd = containerWidth - UsageVisualTokens.Chart.plotHorizontalPadding
-                            val plotWidth = plotEnd - plotStart
-                            val xStep = if (buckets.size <= 1) 0.dp else plotWidth / (buckets.size - 1)
-                            val xPos = if (buckets.size <= 1) (plotStart + plotEnd) / 2 else plotStart + xStep * index
-                            FloatingTrendTooltip(
-                                bucket = bucket,
-                                colors = colors,
-                                anchorX = xPos,
-                                containerWidth = containerWidth
-                            )
-                        }
                     }
                 }
-                UsageAxisLabels(buckets = buckets, selectedIndex = selectedIndex)
+            }
+    ) {
+        val containerWidth = maxWidth
+
+        StudioGlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(AppTokens.Radius.large),
+            backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
+            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isHourlyTrend) s.usageHourlyTrendChartTitle else s.usageTrendChartTitle,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = s.usageTokensCount(UsageNumberFormatter.formatTokens(buckets.sumOf { it.totalTokens })),
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontSize = UsageVisualTokens.Typography.legendText
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(UsageVisualTokens.Chart.legendSpacing)
+                ) {
+                    ChartLegendIndicator(s.usageTokenPromptInput, colors.input)
+                    ChartLegendIndicator(s.usageTokenCacheRead, colors.cacheRead)
+                    ChartLegendIndicator(s.usageTokenCacheWrite, colors.cacheWrite)
+                    ChartLegendIndicator(s.usageTokenModelOutput, colors.output)
+                    ChartLegendIndicator(s.usageTokenThinking, colors.reasoning)
+                    ChartLegendIndicator(s.usageTokenUnattributed, colors.unattributed)
+                }
+
+                if (buckets.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = s.usageTrendChartEmpty,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    val maxTokens = remember(buckets) {
+                        maxOf(1L, buckets.maxOfOrNull { it.totalTokens } ?: 1L)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(UsageVisualTokens.Chart.containerHeight)
+                    ) {
+                        SmoothUsagePlot(
+                            buckets = buckets,
+                            maxTokens = maxTokens,
+                            colors = colors,
+                            selectedIndex = selectedIndex,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    UsageAxisLabels(buckets = buckets, selectedIndex = selectedIndex)
+                }
+            }
+        }
+
+        // 顶层最高层级浮动 Tooltip（置于 StudioGlassCard 外部同级，拥有最高绘制层级，不被卡片裁剪，杜绝闪烁）
+        if (buckets.isNotEmpty()) {
+            selectedIndex?.let { index ->
+                buckets.getOrNull(index)?.let { bucket ->
+                    val cardPadding = 20.dp
+                    val plotStart = cardPadding + UsageVisualTokens.Chart.plotHorizontalPadding
+                    val plotEnd = containerWidth - cardPadding - UsageVisualTokens.Chart.plotHorizontalPadding
+                    val plotWidth = plotEnd - plotStart
+                    val xStep = if (buckets.size <= 1) 0.dp else plotWidth / (buckets.size - 1)
+                    val xPos = if (buckets.size <= 1) (plotStart + plotEnd) / 2 else plotStart + xStep * index
+                    FloatingTrendTooltip(
+                        bucket = bucket,
+                        colors = colors,
+                        anchorX = xPos,
+                        containerWidth = containerWidth
+                    )
+                }
             }
         }
     }
@@ -292,7 +310,8 @@ private fun SmoothUsagePlot(
         // 2. 计算各时间点坐标 (有用量的节点映射到 [chartTop, plotBottom])
         val points = buckets.mapIndexed { index, bucket ->
             val x = if (buckets.size <= 1) (plotStart + plotEnd) / 2f else plotStart + xStep * index
-            val ratio = if (maxTokens > 0L) (bucket.totalTokens.toFloat() / maxTokens.toFloat()).coerceIn(0f, 1f) else 0f
+            val ratio =
+                if (maxTokens > 0L) (bucket.totalTokens.toFloat() / maxTokens.toFloat()).coerceIn(0f, 1f) else 0f
             val y = plotBottom - ratio * chartHeight
             Offset(x, y)
         }
@@ -447,7 +466,9 @@ private fun SmoothUsagePlot(
 }
 
 /**
- * 悬浮气泡 Tooltip：位于更上方并带有向下指示小箭头，与插件模式 100% 对齐。
+ * 顶层悬浮气泡 Tooltip：
+ * 位于 StudioGlassCard 外部，拥有最高层级并可超出卡片边界覆盖上方其他模块。
+ * 绝对不拦截底层鼠标事件，彻底消除闪烁。
  */
 @Composable
 private fun FloatingTrendTooltip(
@@ -460,7 +481,7 @@ private fun FloatingTrendTooltip(
     val s = strings()
     val tooltipWidth = UsageVisualTokens.Tooltip.width
     val leftOffset =
-        (anchorX - tooltipWidth / 2).coerceIn(8.dp, (containerWidth - tooltipWidth - 8.dp).coerceAtLeast(8.dp))
+        (anchorX - tooltipWidth / 2).coerceIn(12.dp, (containerWidth - tooltipWidth - 12.dp).coerceAtLeast(12.dp))
     val costText = usageBucketCostLabel(
         bucket.costUsd,
         bucket.pricingMatched,
@@ -474,7 +495,7 @@ private fun FloatingTrendTooltip(
 
     Column(
         modifier = modifier
-            .offset(x = leftOffset, y = 2.dp)
+            .offset(x = leftOffset, y = 8.dp)
             .width(tooltipWidth)
     ) {
         Surface(
@@ -487,7 +508,7 @@ private fun FloatingTrendTooltip(
                 ),
             shape = RoundedCornerShape(UsageVisualTokens.Tooltip.cornerRadius),
             color = UsageVisualTokens.Tooltip.backgroundColor,
-            shadowElevation = UsageVisualTokens.Tooltip.elevation
+            shadowElevation = 16.dp
         ) {
             Column(
                 modifier = Modifier.padding(
@@ -556,7 +577,10 @@ private fun FloatingTrendTooltip(
                     )
 
                     // 缓存总计
-                    TooltipLine(label = s.usageTokenCacheTotal, value = UsageNumberFormatter.formatTokens(cacheTotal))
+                    TooltipLine(
+                        label = s.usageTokenCacheTotal,
+                        value = UsageNumberFormatter.formatTokens(cacheTotal)
+                    )
 
                     // 缓存读取 (缩进)
                     TooltipLine(
@@ -683,15 +707,6 @@ private fun UsageAxisLabels(
 ) {
     if (buckets.isEmpty()) return
 
-    val targetLabelCount = when {
-        buckets.size <= 8 -> buckets.size
-        buckets.size <= 14 -> 7
-        buckets.size <= 24 -> 8
-        buckets.size <= 31 -> 8
-        else -> 10
-    }
-    val labelStep = maxOf(1, buckets.size / targetLabelCount)
-
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -705,13 +720,18 @@ private fun UsageAxisLabels(
         val xStep = if (buckets.size <= 1) 0.dp else plotWidth / (buckets.size - 1)
         val itemApproxWidth = UsageVisualTokens.Chart.axisItemWidth
 
-        val minIndexGap = maxOf(2, labelStep)
+        val visibleIndices = remember(buckets.size, plotWidth) {
+            calculateVisibleAxisIndices(
+                bucketCount = buckets.size,
+                plotWidthDp = plotWidth.value,
+                minLabelSpacingDp = 52f
+            )
+        }
+
         buckets.forEachIndexed { index, bucket ->
-            val isFirst = index == 0
-            val isLast = index == buckets.lastIndex
-            val show =
-                isFirst || isLast || (index % labelStep == 0 && (buckets.lastIndex - index) >= minIndexGap && index >= minIndexGap)
-            if (show) {
+            if (index in visibleIndices) {
+                val isFirst = index == 0
+                val isLast = index == buckets.lastIndex
                 val isSelected = selectedIndex == index
                 val xPos = if (buckets.size <= 1) (plotStart + plotEnd) / 2 else plotStart + xStep * index
                 val leftOffset = when {
@@ -761,6 +781,38 @@ private fun UsageAxisLabels(
             }
         }
     }
+}
+
+/**
+ * 计算 X 轴可见刻度索引集合：
+ * 1. 当数据点物理间距 >= 最小标签间距时，全量展示所有刻度点，避免遗漏。
+ * 2. 当点数较多空间不足时，采用等间距均匀步长抽样，保证刻度分布均匀且不重叠。
+ */
+internal fun calculateVisibleAxisIndices(
+    bucketCount: Int,
+    plotWidthDp: Float,
+    minLabelSpacingDp: Float = 52f
+): Set<Int> {
+    if (bucketCount <= 0) return emptySet()
+    if (bucketCount == 1) return setOf(0)
+    if (bucketCount == 2) return setOf(0, 1)
+
+    val safeWidth = plotWidthDp.coerceAtLeast(1f)
+    val xStepDp = safeWidth / (bucketCount - 1)
+
+    if (xStepDp >= minLabelSpacingDp) {
+        return (0 until bucketCount).toSet()
+    }
+
+    val rawStep = ceil(minLabelSpacingDp / xStepDp).toInt().coerceAtLeast(1)
+    val indices = mutableSetOf<Int>()
+    var currentIndex = 0
+    while (currentIndex < bucketCount) {
+        indices.add(currentIndex)
+        currentIndex += rawStep
+    }
+
+    return indices
 }
 
 @Composable

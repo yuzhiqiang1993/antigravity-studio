@@ -34,4 +34,34 @@ class UsageTrendChartTest {
         assertEquals(61L, sampled.sumOf { it.unattributed })
         assertEquals(183L, sampled.sumOf { it.totalTokens })
     }
+
+    @Test
+    fun calculateVisibleAxisIndicesShowsAllWhenSpacingIsSufficient() {
+        // 10 个数据点（例如 00:00 到 09:00），在宽度充足时应全部展示，不遗漏 01:00 与 08:00
+        val indices = calculateVisibleAxisIndices(
+            bucketCount = 10,
+            plotWidthDp = 800f,
+            minLabelSpacingDp = 52f
+        )
+        assertEquals((0..9).toSet(), indices)
+    }
+
+    @Test
+    fun calculateVisibleAxisIndicesHandlesBoundaryCounts() {
+        assertEquals(emptySet(), calculateVisibleAxisIndices(0, 800f))
+        assertEquals(setOf(0), calculateVisibleAxisIndices(1, 800f))
+        assertEquals(setOf(0, 1), calculateVisibleAxisIndices(2, 800f))
+    }
+
+    @Test
+    fun calculateVisibleAxisIndicesDownsamplesUniformlyWhenDense() {
+        // 24 个点在 600dp 下，step = ceil(52 / (600/23)) = ceil(52 / 26.08) = 2
+        val indices = calculateVisibleAxisIndices(
+            bucketCount = 24,
+            plotWidthDp = 600f,
+            minLabelSpacingDp = 52f
+        )
+        val expected = (0 until 24 step 2).toSet()
+        assertEquals(expected, indices)
+    }
 }
