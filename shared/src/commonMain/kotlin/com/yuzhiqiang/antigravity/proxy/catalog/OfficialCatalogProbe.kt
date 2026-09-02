@@ -15,6 +15,9 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
@@ -27,10 +30,22 @@ import java.util.concurrent.TimeUnit
  */
 object OfficialCatalogProbe {
 
-    private val CLOUD_CODE_HOSTS = listOf(
-        "https://cloudcode-pa.googleapis.com",
-        "https://daily-cloudcode-pa.googleapis.com"
-    )
+    private fun cloudCodeHosts(): List<String> {
+        val envUrl = System.getenv("ANTIGRAVITY_CLOUD_CODE_URL")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.trimEnd('/')
+        val defaultHosts = listOf(
+            "https://daily-cloudcode-pa.googleapis.com",
+            "https://cloudcode-pa.googleapis.com"
+        )
+        return if (envUrl != null) {
+            listOf(envUrl) + defaultHosts.filterNot { it.equals(envUrl, ignoreCase = true) }
+        } else {
+            defaultHosts
+        }
+    }
+
     private const val DEFAULT_PROJECT_ID = "cloudaicompanion-enterprise"
     private const val USER_AGENT = "Antigravity/4.1.29 Chrome/132.0.6834.160 Electron/39.2.3"
 
@@ -54,6 +69,13 @@ object OfficialCatalogProbe {
         }
     }
 
+    private val _officialModelsFlow = MutableStateFlow<List<OfficialCatalogModel>>(emptyList())
+
+    /**
+     * 响应式官方模型流，无论主动抓取还是被动透传拦截，只要目录更新均会发射最新模型列表。
+     */
+    val officialModelsFlow: StateFlow<List<OfficialCatalogModel>> = _officialModelsFlow.asStateFlow()
+
     var rawOfficialCatalogBody: String? = null
         private set
 
@@ -68,15 +90,25 @@ object OfficialCatalogProbe {
         lastParsedModels = emptyList()
         lastParsedSnapshot = OfficialCatalogSnapshot()
         ModelIdentityRegistryHolder.updateOfficialModels(emptyList())
+        _officialModelsFlow.value = emptyList()
     }
 
-    fun setRawOfficialCatalog(body: String) {
+    fun setRawOfficialCatalog(body: String, excludedModelIds: Set<String> = emptySet()) {
         if (body.isBlank()) return
         rawOfficialCatalogBody = body
         val snapshot = parseOfficialCatalogSnapshot(body)
-        lastParsedSnapshot = snapshot
-        lastParsedModels = snapshot.models
-        ModelIdentityRegistryHolder.updateOfficialModels(snapshot.models)
+        val excludedCatalogKeys = excludedModelIds
+            .map(ModelIdentity::normalizeModelId)
+            .toSet()
+        val models = snapshot.models.filterNot { model ->
+            ModelIdentity.normalizeModelId(model.catalogModelId) in excludedCatalogKeys
+        }
+        lastParsedSnapshot = snapshot.copy(models = models)
+        lastParsedModels = models
+        ModelIdentityRegistryHolder.updateOfficialModels(models)
+        if (models.isNotEmpty()) {
+            _officialModelsFlow.value = models
+        }
     }
 
     /**
@@ -150,8 +182,10 @@ object OfficialCatalogProbe {
         var projectId = DEFAULT_PROJECT_ID
         var lastError: Exception? = null
 
+        val hosts = cloudCodeHosts()
+
         // 1. 尝试 loadCodeAssist 获取 projectId
-        for (host in CLOUD_CODE_HOSTS) {
+        for (host in hosts) {
             try {
                 val url = "$host/v1internal:loadCodeAssist"
                 val response: HttpResponse = httpClient.post(url) {
@@ -177,7 +211,7 @@ object OfficialCatalogProbe {
         }
 
         // 2. 请求 fetchAvailableModels 获取官方模型列表
-        for (host in CLOUD_CODE_HOSTS) {
+        for (host in hosts) {
             try {
                 val url = "$host/v1internal:fetchAvailableModels"
                 val response: HttpResponse = httpClient.post(url) {
@@ -205,6 +239,7 @@ object OfficialCatalogProbe {
                         lastParsedSnapshot = snapshot.copy(models = models)
                         lastParsedModels = models
                         ModelIdentityRegistryHolder.updateOfficialModels(models)
+                        _officialModelsFlow.value = models
                         return Result.success(models)
                     }
                 } else {

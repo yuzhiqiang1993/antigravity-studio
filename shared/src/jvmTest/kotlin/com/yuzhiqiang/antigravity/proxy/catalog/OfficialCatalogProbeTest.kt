@@ -65,6 +65,20 @@ class OfficialCatalogProbeTest {
         })
     }
 
+    @Test
+    fun setRawOfficialCatalogEmitsFlowAndFiltersExcludedModelIds() {
+        assertEquals(emptyList(), OfficialCatalogProbe.officialModelsFlow.value)
+
+        OfficialCatalogProbe.setRawOfficialCatalog(catalogJson(), excludedModelIds = setOf("catalog-opus"))
+
+        val emitted = OfficialCatalogProbe.officialModelsFlow.value
+        assertEquals(1, emitted.size)
+        assertEquals("catalog-sonnet", emitted.single().catalogModelId)
+
+        OfficialCatalogProbe.clearRawOfficialCatalog()
+        assertEquals(emptyList(), OfficialCatalogProbe.officialModelsFlow.value)
+    }
+
     private fun catalogJson(): String =
         """
         {

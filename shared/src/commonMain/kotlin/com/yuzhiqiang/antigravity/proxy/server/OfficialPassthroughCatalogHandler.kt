@@ -93,7 +93,10 @@ internal class OfficialPassthroughCatalogHandler(
             val parsedRoot = OfficialPassthroughJson.catalog.parseToJsonElement(body) as? JsonObject
                 ?: throw IllegalStateException("官方目录响应不是 JSON 对象")
             val root = JsonObject(parsedRoot - "error")
-            OfficialCatalogProbe.setRawOfficialCatalog(body)
+            val excludedCustomIds = configStore.currentConfig.providerModelBindings
+                .map { it.bindingId }
+                .toSet()
+            OfficialCatalogProbe.setRawOfficialCatalog(body, excludedCustomIds)
             val filtered = CatalogInjector.removeDisabledOfficialModels(
                 root,
                 configStore.currentConfig.disabledOfficialCatalogModelIds

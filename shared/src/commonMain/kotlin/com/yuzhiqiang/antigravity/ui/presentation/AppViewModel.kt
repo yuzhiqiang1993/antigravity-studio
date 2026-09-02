@@ -18,6 +18,7 @@ import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.network.ConnectionTester
 import com.yuzhiqiang.antigravity.network.PlatformNetworkConfig
 import com.yuzhiqiang.antigravity.proxy.activity.ActivityRecorder
+import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
 import com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer
 import com.yuzhiqiang.antigravity.services.auth.GoogleAuthService
 import com.yuzhiqiang.antigravity.services.auth.HotSwitchCoordinator
@@ -417,6 +418,15 @@ class AppViewModel(
                     is com.yuzhiqiang.antigravity.services.events.HostEvent.ProcessExited -> {
                         refreshHostStatus()
                     }
+                }
+            }
+        }
+
+        // 订阅官方模型动态更新流（无论是主动刷新还是 IDE 本地代理透传拦截）
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            OfficialCatalogProbe.officialModelsFlow.collect { models ->
+                if (models.isNotEmpty()) {
+                    _officialModels.value = models
                 }
             }
         }
