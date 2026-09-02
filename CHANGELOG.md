@@ -2,6 +2,46 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.3.0] - 2026-09-02
+
+### 🇨🇳 中文
+
+#### ✨ 新增功能
+- **支持官方 Gemini 3.8 Flash**：完整接入最新的 Gemini 3.8 Flash（包含 High / Medium / Low 三档推理变体）。调整了官方接口的探测优先级，并在 IDE 使用中自动同步最新可用模型，不再需要反复手动刷新
+- **用量统计页面改版**：重新设计了用量看板，支持按模型筛选、定时刷新和自定义日期范围；优化了走势图的刻度排版，文字不再互相重叠；同时接入了最新的模型价格数据，费用算得更准
+- **软件更新安全性增强**：客户端安装包下载加入了 Ed25519 签名验证和哈希校验，防止更新文件在传输过程中被篡改
+
+#### ⚡ 体验与性能优化
+- **移除容易误导的“卡顿”提示**：大模型深度思考和调用工具时的自然停顿容易被机械算法误判为网络卡顿。现已彻底去掉速度统计中的“卡顿 X 次”红标，页面更清爽，重点保留首字延迟（TTFT）、输出速度（TPS）和会话总耗时等客观指标
+- **大幅缩短启动等待时间**：后台账号探测、用量扫描和检查更新改为并行处理，在弱网环境下打开软件的速度提升明显
+- **降低系统资源占用**：优化了 macOS 系统代理检测的缓存机制，不再频繁调用系统底层命令；退出软件时自动清理后台任务，避免残留僵尸进程
+- **长会话稳定性提升**：为长思考会话增加了租约锁保护，模型正在深度推理时不会因为后台并发切号而意外中断
+
+#### 🐛 问题修复
+- **修复潜在闪退隐患**：排查并消除了界面数据解析中残留的强制空断言，极端空数据场景下运行更稳定
+- **过滤探活日志干扰**：自动忽略代理根路径的心跳探测请求，调用日志列表不再被无用探针刷屏
+
+---
+
+### 🌐 English
+
+#### ✨ New Features
+- **Gemini 3.8 Flash Support**: Added full support for the latest Gemini 3.8 Flash models (High, Medium, and Low). Optimized official API endpoint prioritization and added real-time background catalog sync with the IDE.
+- **Redesigned Usage Dashboard**: Refreshed usage page with model filtering, auto-refresh options, and custom date ranges. Fixed overlapping labels on charts and updated real-time pricing benchmarks.
+- **Secure App Updates**: Added Ed25519 signature and SHA-256 integrity verification to release downloads to prevent package tampering.
+
+#### ⚡ Improvements & Performance
+- **Removed Misleading "Stall" Badges**: Removed the confusing "stalls" counter in latency dialogs. Reasoning pauses and tool calls are normal for LLMs; metrics now focus strictly on TTFT, generation speed (TPS), and total duration.
+- **Faster Startup**: Decoupled background initialization tasks to run in parallel, significantly cutting down launch wait times on slower networks.
+- **Lower Resource Usage on macOS**: Added caching for system proxy detection to avoid redundant `scutil` calls, and added clean shutdown hooks to prevent zombie processes.
+- **Interruption Protection**: Added workflow lease locks to ensure long-thinking generation streams aren't interrupted by background account switching.
+
+#### 🐛 Bug Fixes
+- **Stability**: Fixed unsafe unwraps across UI data paths to prevent crashes on edge-case empty data.
+- **Cleaner Logs**: Silenced root health check probes so they no longer clutter activity logs.
+
+---
+
 ## [1.2.3] - 2026-08-31
 
 ### 🇨🇳 中文
