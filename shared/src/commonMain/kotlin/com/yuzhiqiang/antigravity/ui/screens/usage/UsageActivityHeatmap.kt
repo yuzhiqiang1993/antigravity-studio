@@ -213,14 +213,13 @@ private fun MonthLabels(
         Spacer(modifier = Modifier.width(22.dp))
         weeks.forEachIndexed { weekIndex, week ->
             val firstOfMonth = week.firstOrNull { it.dayOfMonth in 1..7 && it.dayOfWeek == DayOfWeek.MONDAY || it.dayOfMonth == 1 }
-            val showMonth = firstOfMonth != null && (weekIndex == 0 || weekIndex % 4 == 0)
             Box(
                 modifier = Modifier.width(cellSize + cellGap),
                 contentAlignment = Alignment.CenterStart
             ) {
-                if (showMonth) {
+                if (firstOfMonth != null && (weekIndex == 0 || weekIndex % 4 == 0)) {
                     Text(
-                        text = monthLabel(firstOfMonth!!.monthValue),
+                        text = monthLabel(firstOfMonth.monthValue),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = UsageVisualTokens.Typography.axisTime,
                             fontWeight = FontWeight.Medium

@@ -438,7 +438,8 @@ fun ReasoningConfigDialog(
                         }
 
                         // 校验错误提示
-                        if (validationError != null) {
+                        val currentValidationError = validationError
+                        if (currentValidationError != null) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
                                 color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
@@ -457,7 +458,7 @@ fun ReasoningConfigDialog(
                                         modifier = Modifier.size(15.dp)
                                     )
                                     Text(
-                                        validationError!!,
+                                        currentValidationError,
                                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                                         color = MaterialTheme.colorScheme.error
                                     )

@@ -137,12 +137,13 @@ fun UsageScreen(
 
                 // B. 复合日期时间选择触发器 [📅 日期选择 ⌄]
                 val isCustomRange = currentTimeRange == UsageTimeRange.CUSTOM
-                val datePickerLabel = if (isCustomRange && customDateRange != null && customDateRange?.startDate?.isNotBlank() == true) {
-                    val startFmt = UsageNumberFormatter.formatShortDate(customDateRange!!.startDate)
-                    val endFmt = if (customDateRange!!.followNow || customDateRange!!.endDate.isBlank()) {
+                val activeCustomRange = customDateRange?.takeIf { isCustomRange && it.startDate.isNotBlank() }
+                val datePickerLabel = if (activeCustomRange != null) {
+                    val startFmt = UsageNumberFormatter.formatShortDate(activeCustomRange.startDate)
+                    val endFmt = if (activeCustomRange.followNow || activeCustomRange.endDate.isBlank()) {
                         s.usagePresetToday
                     } else {
-                        UsageNumberFormatter.formatShortDate(customDateRange!!.endDate)
+                        UsageNumberFormatter.formatShortDate(activeCustomRange.endDate)
                     }
                     "$startFmt~$endFmt"
                 } else {
@@ -171,7 +172,7 @@ fun UsageScreen(
                 val currentModelLabel = if (!isModelCustom) {
                     s.usageModelAll
                 } else {
-                    stats.availableModels.firstOrNull { it.id == selectedModel }?.displayName ?: selectedModel!!
+                    stats.availableModels.firstOrNull { it.id == selectedModel }?.displayName ?: selectedModel.orEmpty()
                 }
 
                 Box {

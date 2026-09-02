@@ -324,8 +324,9 @@ fun UsageDateRangePickerDialog(
 
                             Button(
                                 onClick = {
-                                    if (selectedPreset != null) {
-                                        onSelectPresetRange(selectedPreset!!)
+                                    val preset = selectedPreset
+                                    if (preset != null) {
+                                        onSelectPresetRange(preset)
                                     } else {
                                         val custom = CustomDateRange(
                                             startDate = startDate.toString(),

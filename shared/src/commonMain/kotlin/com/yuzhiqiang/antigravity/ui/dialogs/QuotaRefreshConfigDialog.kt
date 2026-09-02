@@ -406,9 +406,10 @@ fun QuotaRefreshConfigDialog(
                                 )
                             }
 
-                            if (!activeValidation.second && activeValidation.third != null) {
+                            val activeError = activeValidation.third
+                            if (!activeValidation.second && activeError != null) {
                                 Text(
-                                    text = activeValidation.third!!,
+                                    text = activeError,
                                     color = MaterialTheme.colorScheme.error,
                                     fontSize = 11.5.sp
                                 )
@@ -490,9 +491,10 @@ fun QuotaRefreshConfigDialog(
                                 )
                             }
 
-                            if (!bgValidation.second && bgValidation.third != null) {
+                            val bgError = bgValidation.third
+                            if (!bgValidation.second && bgError != null) {
                                 Text(
-                                    text = bgValidation.third!!,
+                                    text = bgError,
                                     color = MaterialTheme.colorScheme.error,
                                     fontSize = 11.5.sp
                                 )

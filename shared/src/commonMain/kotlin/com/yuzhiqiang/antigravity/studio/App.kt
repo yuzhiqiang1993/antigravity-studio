@@ -186,13 +186,13 @@ fun App(
                 }
 
                 // 版本更新提示对话框
-                if (showUpdateDialog && activeRelease != null) {
-                    val rel = activeRelease!!
+                val releaseToUpdate = activeRelease
+                if (showUpdateDialog && releaseToUpdate != null) {
                     UpdateDialog(
-                        release = rel,
+                        release = releaseToUpdate,
                         currentVersion = AppVersion.CURRENT,
                         downloadState = downloadState,
-                        onStartDownload = { viewModel.startDownloadUpdate(rel) },
+                        onStartDownload = { viewModel.startDownloadUpdate(releaseToUpdate) },
                         onCancelDownload = { viewModel.cancelDownloadUpdate() },
                         onInstall = { artifact -> viewModel.installUpdate(artifact) },
                         onShowInFolder = { file -> viewModel.showDownloadedFileInFolder(file) },
