@@ -155,16 +155,18 @@ interface SettingsStrings {
     val developerModeCancel: String
     val settingsCollectNonChatLogs: String
     val settingsCollectNonChatLogsDesc: String
+    val settingsUsageAndLogsTitle: String
+    val settingsStorageCardTitle: String
 
     // Doctor Diagnostics
 }
 
 object SettingsStringsZh : SettingsStrings {
     override val settingsTitle = "应用偏好与配置"
-    override val settingsSubtitle = "管理语言、外观、代理端口与数据存储"
+    override val settingsSubtitle = "管理语言、外观、代理端口、数据存储与日志"
     override val settingsGeneral = "常规偏好"
     override val settingsNetwork = "网络代理"
-    override val settingsData = "数据存储"
+    override val settingsData = "数据与日志"
     override val settingsAboutSection = "关于应用"
     override val settingsLanguage = "界面语言"
     override val settingsLanguageDescription = "切换应用显示语言"
@@ -328,15 +330,17 @@ object SettingsStringsZh : SettingsStrings {
     override val developerModeCancel = "取消"
     override val settingsCollectNonChatLogs = "收集非会话接口日志"
     override val settingsCollectNonChatLogsDesc = "默认仅收集模型对话与代码补全生成日志；开启后将额外记录模型目录拉取、埋点打点与配额同步等系统请求"
+    override val settingsUsageAndLogsTitle = "用量与日志"
+    override val settingsStorageCardTitle = "数据存储"
 
 }
 
 object SettingsStringsEn : SettingsStrings {
     override val settingsTitle = "Preferences & Settings"
-    override val settingsSubtitle = "Manage language, appearance, proxy port and storage"
+    override val settingsSubtitle = "Manage language, appearance, proxy port, data and logs"
     override val settingsGeneral = "General"
     override val settingsNetwork = "Network Proxy"
-    override val settingsData = "Data Storage"
+    override val settingsData = "Data & Logs"
     override val settingsAboutSection = "About App"
     override val settingsLanguage = "Language"
     override val settingsLanguageDescription = "Choose the application display language"
@@ -509,5 +513,7 @@ object SettingsStringsEn : SettingsStrings {
     override val settingsCollectNonChatLogs = "Collect Non-Chat Logs"
     override val settingsCollectNonChatLogsDesc =
         "By default, only AI chat and code completions are recorded. Enable to also capture system calls like catalog queries, metrics, and quota syncs."
+    override val settingsUsageAndLogsTitle = "Usage & Activity Logs"
+    override val settingsStorageCardTitle = "Data Storage"
 
 }
