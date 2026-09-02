@@ -88,16 +88,22 @@ check_project_root() {
 
 # 提取当前项目版本号
 get_version_name() {
-    local gradle_file="desktopApp/build.gradle.kts"
-    if [[ -f "$gradle_file" ]]; then
-        local version
-        version=$(grep 'packageVersion\s*=' "$gradle_file" | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
-        if [[ -n "$version" ]]; then
-            echo "$version"
-            return 0
-        fi
+    local properties_file="gradle.properties"
+    local version
+    version=$(awk -F= '
+        $1 ~ /^[[:space:]]*app\.version[[:space:]]*$/ {
+            value=$2
+            sub(/^[[:space:]]*/, "", value)
+            sub(/[[:space:]]*$/, "", value)
+            print value
+            exit
+        }
+    ' "$properties_file")
+    if [[ -z "$version" ]]; then
+        log_error "未在 $properties_file 中找到 app.version" >&2
+        return 1
     fi
-    echo "1.2.3"
+    echo "$version"
 }
 
 # 解析命令行参数

@@ -33,8 +33,11 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x gradlew
 
-      - name: Run Unit Tests
-        run: ./gradlew :shared:jvmTest
+      - name: Run Quality Gate (Unix)
+        if: runner.os != 'Windows'
+        run: ./gradlew :shared:jvmTest :desktopApp:compileKotlin :desktopApp:createDistributable
 
-      - name: Compile Desktop App
-        run: ./gradlew :desktopApp:compileKotlin
+      - name: Run Quality Gate (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\gradlew.bat :shared:jvmTest :desktopApp:compileKotlin :desktopApp:createDistributable

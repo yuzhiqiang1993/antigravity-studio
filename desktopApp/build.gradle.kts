@@ -7,6 +7,8 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+val appVersion = providers.gradleProperty("app.version").get()
+
 dependencies {
     implementation(project(":shared"))
 
@@ -46,7 +48,7 @@ compose.desktop {
             modules("java.sql", "java.naming")
             targetFormats(TargetFormat.Dmg, TargetFormat.Pkg, TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Antigravity Studio"
-            packageVersion = "1.2.3"
+            packageVersion = appVersion
             description = "All-in-one desktop hub and productivity studio for Antigravity AI tools"
             vendor = "yuzhiqiang"
 

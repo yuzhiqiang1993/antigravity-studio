@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '发布版本号 (如 1.0.0，不填则默认读取工程配置)'
+        description: '发布版本号 (如 1.2.3，必须与 gradle.properties 一致)'
         required: false
         default: ''
       prerelease:
@@ -20,12 +20,11 @@ permissions:
 
 jobs:
   # --------------------------------------------------------------------------
-  # 1. 初始化 Release 元数据与更新日志 (Ubuntu 秒级完成)
+  # 1. 验证版本一致性、运行质量门禁并创建 Draft Release
   # --------------------------------------------------------------------------
   init-release:
-    name: Initialize Release
+    name: Validate & Initialize Release
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     outputs:
       tag_name: ${{ steps.vars.outputs.tag_name }}
       version: ${{ steps.vars.outputs.version }}
@@ -33,25 +32,47 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Determine Tag and Version
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Determine & Verify Version
         id: vars
         run: |
+          chmod +x gradlew
+          PROP_VERSION=$(awk -F= '$1 ~ /^[[:space:]]*app\.version[[:space:]]*$/ {gsub(/^[[:space:]]*|[[:space:]]*$/, "", $2); print $2; exit}' gradle.properties)
+          echo "gradle.properties version: $PROP_VERSION"
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
-            TAG_NAME="v${{ github.event.inputs.version }}"
+            INPUT_VER="${{ github.event.inputs.version }}"
+            TAG_NAME="v$INPUT_VER"
           elif [[ "${{ github.ref }}" =~ ^refs/tags/(v.+) ]]; then
             TAG_NAME="${BASH_REMATCH[1]}"
           else
-            VERSION=$(grep 'packageVersion\s*=' desktopApp/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
-            TAG_NAME="v$VERSION"
+            TAG_NAME="v$PROP_VERSION"
           fi
+
+          VERSION="${TAG_NAME#v}"
+          if [ "$VERSION" != "$PROP_VERSION" ]; then
+            echo "::error::Tag 版本 ($VERSION) 与 gradle.properties 中的 app.version ($PROP_VERSION) 不一致！"
+            exit 1
+          fi
+
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "version=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Run Quality Gate Tests
+        run: ./gradlew :shared:jvmTest :desktopApp:compileKotlin
 
       - name: Extract Release Notes from CHANGELOG
         run: |
           VERSION="${{ steps.vars.outputs.version }}"
-          echo "正在提取版本 $VERSION 的更新日志..."
-          
           if [ -f "CHANGELOG.md" ]; then
             awk -v ver="$VERSION" '
               BEGIN { found=0; }
@@ -80,19 +101,19 @@ jobs:
             echo "Antigravity Studio $VERSION 正式发布。" > RELEASE_NOTES.md
           fi
 
-      - name: Create or Update GitHub Release Header
+      - name: Create Draft GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag_name }}
           name: "Antigravity Studio ${{ steps.vars.outputs.tag_name }}"
-          draft: false
+          draft: true
           prerelease: ${{ github.event.inputs.prerelease || false }}
           body_path: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # --------------------------------------------------------------------------
-  # 2. 矩阵构建各平台安装包并直接追加上传至 Release (彻底免除 actions/upload-artifact 存储配额限制)
+  # 2. 矩阵构建各平台安装包、生成 SHA-256 / Ed25519 签名 Sidecar 并上传
   # --------------------------------------------------------------------------
   build-and-upload:
     name: Build & Upload (${{ matrix.os_label }})
@@ -102,7 +123,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS Apple Silicon (M1/M2/M3/M4 系列芯片原生 DMG)
           - os: macos-14
             os_label: macOS-AppleSilicon-arm64
             platform: macos
@@ -110,7 +130,6 @@ jobs:
             jdk_arch: aarch64
             formats: dmg
 
-          # macOS Intel (在 macos-14 上通过 x64 JDK 原生构建 Intel DMG)
           - os: macos-14
             os_label: macOS-Intel-x64
             platform: macos
@@ -118,7 +137,6 @@ jobs:
             jdk_arch: x64
             formats: dmg
 
-          # Windows x64 (原生 EXE 安装器)
           - os: windows-latest
             os_label: Windows-x64
             platform: windows
@@ -147,50 +165,168 @@ jobs:
           chmod +x gradlew
           chmod +x app_build.sh
 
-      # macOS 构建与打包 (只打 DMG)
+      # macOS 构建与打包 (DMG)
       - name: Build and Package Desktop App (Unix)
         if: runner.os != 'Windows'
         run: |
           ./app_build.sh build --build-type release --formats dmg
 
-      # Windows 构建与打包 (只打 EXE)
+      # Windows 构建与打包 (EXE)
       - name: Build and Package Desktop App (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          ./gradlew :desktopApp:packageExe -PbuildType=release
+          .\gradlew.bat :desktopApp:packageExe -PbuildType=release
 
-      # 规范化重命名与整理产物 (Unix)
-      - name: Organize & Normalize Artifacts (Unix)
+      # 整理产物并生成 Manifest 与 Ed25519 签名 (Unix)
+      - name: Generate Manifest & Sign Artifacts (Unix)
         if: runner.os != 'Windows'
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
         run: |
           mkdir -p release-artifacts
           VERSION="${{ needs.init-release.outputs.version }}"
           ARCH="${{ matrix.arch }}"
-          
-          # DMG 推荐安装包
-          if [ -f "desktopApp/build/compose/binaries/main/dmg/Antigravity Studio-$VERSION.dmg" ]; then
-            cp "desktopApp/build/compose/binaries/main/dmg/Antigravity Studio-$VERSION.dmg" "release-artifacts/Antigravity-Studio-$VERSION-macos-$ARCH.dmg"
+          ASSET_NAME="Antigravity-Studio-$VERSION-macos-$ARCH.dmg"
+          SRC_DMG="desktopApp/build/compose/binaries/main/dmg/Antigravity Studio-$VERSION.dmg"
+
+          if [ ! -f "$SRC_DMG" ]; then
+            echo "::error::构建产物 $SRC_DMG 未找到！"
+            exit 1
           fi
 
-      # 规范化重命名与整理产物 (Windows)
-      - name: Organize & Normalize Artifacts (Windows)
+          cp "$SRC_DMG" "release-artifacts/$ASSET_NAME"
+          cd release-artifacts
+
+          FILE_SIZE=$(wc -c < "$ASSET_NAME" | tr -d ' ')
+          FILE_SHA=$(shasum -a 256 "$ASSET_NAME" | awk '{print $1}')
+          MANIFEST_FILE="${ASSET_NAME}.manifest.json"
+          SIG_FILE="${ASSET_NAME}.manifest.json.sig"
+
+          cat <<EOF > "$MANIFEST_FILE"
+          {"version":"$VERSION","assetName":"$ASSET_NAME","sha256":"$FILE_SHA","size":$FILE_SIZE}
+          EOF
+
+          # 验证私钥
+          if [ -z "$UPDATE_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::缺少必须的 UPDATE_SIGNING_PRIVATE_KEY secret，无法为安装包生成安全签名！"
+            exit 1
+          fi
+
+          java -e '
+          import java.io.*;
+          import java.nio.file.*;
+          import java.security.*;
+          import java.security.spec.*;
+          import java.util.*;
+
+          public class Signer {
+              public static void main(String[] args) throws Exception {
+                  String keyPem = System.getenv("UPDATE_SIGNING_PRIVATE_KEY");
+                  if (keyPem == null || keyPem.isBlank()) {
+                      System.err.println("UPDATE_SIGNING_PRIVATE_KEY is missing");
+                      System.exit(1);
+                  }
+                  String clean = keyPem.replaceAll("-----[A-Z ]+-----", "").replaceAll("\\s+", "");
+                  byte[] keyBytes = Base64.getDecoder().decode(clean);
+                  PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+                  PrivateKey privateKey = KeyFactory.getInstance("Ed25519").generatePrivate(spec);
+
+                  File manifestFile = new File(args[0]);
+                  File sigFile = new File(args[1]);
+                  byte[] data = Files.readAllBytes(manifestFile.toPath());
+                  Signature sig = Signature.getInstance("Ed25519");
+                  sig.initSign(privateKey);
+                  sig.update(data);
+                  Files.write(sigFile.toPath(), sig.sign());
+              }
+          }
+          ' "$MANIFEST_FILE" "$SIG_FILE"
+
+      # 整理产物并生成 Manifest 与 Ed25519 签名 (Windows)
+      - name: Generate Manifest & Sign Artifacts (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
         run: |
           New-Item -ItemType Directory -Force -Path release-artifacts | Out-Null
           $version = "${{ needs.init-release.outputs.version }}"
-          
-          # EXE 推荐安装包
-          if (Test-Path "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe") {
-            Copy-Item "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe" "release-artifacts/Antigravity-Studio-$version-windows-x64.exe"
+          $assetName = "Antigravity-Studio-$version-windows-x64.exe"
+          $srcExe = "desktopApp/build/compose/binaries/main/exe/Antigravity Studio-$version.exe"
+
+          if (-not (Test-Path $srcExe)) {
+            Write-Error "构建产物 $srcExe 未找到！"
+            exit 1
           }
 
-      # 直接将当前平台的 DMG / EXE 追加上传到 GitHub Release 附件中（无需占用 Actions Artifact 存储配额）
-      - name: Upload Assets directly to GitHub Release
+          Copy-Item $srcExe "release-artifacts/$assetName"
+          Set-Location release-artifacts
+
+          $fileSize = (Get-Item $assetName).Length
+          $fileSha = (Get-FileHash -Algorithm SHA256 $assetName).Hash.ToLower()
+          $manifestFile = "$assetName.manifest.json"
+          $sigFile = "$assetName.manifest.json.sig"
+
+          $manifestJson = "{`"version`":`"$version`",`"assetName`":`"$assetName`",`"sha256`":`"$fileSha`",`"size`":$fileSize}"
+          [IO.File]::WriteAllText($manifestFile, $manifestJson, [Text.Encoding]::UTF8)
+
+          if ([string]::IsNullOrWhiteSpace($env:UPDATE_SIGNING_PRIVATE_KEY)) {
+            Write-Error "缺少必须的 UPDATE_SIGNING_PRIVATE_KEY secret，无法为安装包生成安全签名！"
+            exit 1
+          }
+
+          java -e '
+          import java.io.*;
+          import java.nio.file.*;
+          import java.security.*;
+          import java.security.spec.*;
+          import java.util.*;
+
+          public class Signer {
+              public static void main(String[] args) throws Exception {
+                  String keyPem = System.getenv("UPDATE_SIGNING_PRIVATE_KEY");
+                  if (keyPem == null || keyPem.isBlank()) {
+                      System.err.println("UPDATE_SIGNING_PRIVATE_KEY is missing");
+                      System.exit(1);
+                  }
+                  String clean = keyPem.replaceAll("-----[A-Z ]+-----", "").replaceAll("\\s+", "");
+                  byte[] keyBytes = Base64.getDecoder().decode(clean);
+                  PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+                  PrivateKey privateKey = KeyFactory.getInstance("Ed25519").generatePrivate(spec);
+
+                  File manifestFile = new File(args[0]);
+                  File sigFile = new File(args[1]);
+                  byte[] data = Files.readAllBytes(manifestFile.toPath());
+                  Signature sig = Signature.getInstance("Ed25519");
+                  sig.initSign(privateKey);
+                  sig.update(data);
+                  Files.write(sigFile.toPath(), sig.sign());
+              }
+          }
+          ' "$manifestFile" "$sigFile"
+
+      - name: Upload Assets & Signatures to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.init-release.outputs.tag_name }}
           files: release-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # 3. 最终发布：所有矩阵产物全部上传并验证后，将 Release 由 Draft 改为 Published
+  # --------------------------------------------------------------------------
+  publish-release:
+    name: Finalize & Publish Release
+    needs: [init-release, build-and-upload]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.init-release.outputs.tag_name }}
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease || false }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
