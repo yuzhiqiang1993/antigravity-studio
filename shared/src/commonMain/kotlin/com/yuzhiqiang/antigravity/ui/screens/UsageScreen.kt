@@ -1,5 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.horizontalScroll
@@ -14,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +41,7 @@ fun UsageScreen(
     val s = strings()
     val stats by viewModel.usageStats.collectAsState()
     val isRefreshing by viewModel.isRefreshingUsage.collectAsState()
+    val isInitialLoading by viewModel.isUsageInitialLoading.collectAsState()
     val currentTimeRange by viewModel.usageTimeRange.collectAsState()
     val customDateRange by viewModel.usageCustomDateRange.collectAsState()
     val selectedSources by viewModel.usageSelectedSources.collectAsState()
@@ -59,14 +63,8 @@ fun UsageScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // 1. 顶部主标题
-        val statsBadge = if (stats.totalTokens > 0) {
-            s.usageStatsBadge(stats.totalConversations, stats.daysActive)
-        } else {
-            "0"
-        }
         PageHeader(
             title = s.navUsage,
-            badge = statsBadge,
             subtitle = s.usageSubtitle,
             modifier = Modifier
                 .fillMaxWidth()
@@ -325,8 +323,8 @@ fun UsageScreen(
             }
         }
 
-        // 3. 滚动主看板区域
-        val isInitialLoading = isRefreshing && stats.totalTokens == 0L && stats.totalCalls == 0L
+        // 3. 滚动主看板区域：仅在首轮冷启动且尚无任何数据时展示骨架屏，后续静默刷新绝不闪回骨架屏
+        val showSkeleton = isInitialLoading && stats.totalTokens == 0L && stats.totalCalls == 0L && stats.totalConversations == 0L
 
         Column(
             modifier = Modifier
@@ -338,7 +336,7 @@ fun UsageScreen(
             verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
         ) {
             com.yuzhiqiang.antigravity.ui.animation.StudioCrossfade(
-                targetState = isInitialLoading,
+                targetState = showSkeleton,
                 label = "usage_dashboard_crossfade"
             ) { loading ->
                 if (loading) {
@@ -355,7 +353,7 @@ fun UsageScreen(
                         UsageTrendChart(
                             dailyBuckets = stats.dailyBuckets,
                             hourlyBuckets = stats.hourlyBuckets,
-                            timeRange = currentTimeRange
+                            timeRange = stats.timeRange
                         )
 
                         // E. 热门模型使用排行
@@ -406,27 +404,27 @@ private fun UsageTimePresetTab(
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(6.dp),
-        color = containerColor,
+    Box(
         modifier = Modifier
             .height(26.dp)
-            .hoverable(interactionSource)
-            .pointerHoverIcon(androidx.compose.ui.input.pointer.PointerIcon.Hand)
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 9.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 12.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                ),
-                color = contentColor
+            .clip(RoundedCornerShape(6.dp))
+            .background(containerColor)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
             )
-        }
+            .pointerHoverIcon(androidx.compose.ui.input.pointer.PointerIcon.Hand)
+            .padding(horizontal = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            ),
+            color = contentColor
+        )
     }
 }

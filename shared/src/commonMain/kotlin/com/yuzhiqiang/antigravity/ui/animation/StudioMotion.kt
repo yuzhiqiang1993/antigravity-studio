@@ -1,6 +1,6 @@
 package com.yuzhiqiang.antigravity.ui.animation
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -214,6 +215,131 @@ fun rememberAnimatedQuotaProgress(
     }
 
     return animatable.asState()
+}
+
+/**
+ * 智能记忆长整型数字变动动效 (适用于 Tokens、调用次数等大整数)：
+ * - 首次挂载直接呈现真实数值（不产生从 0 突增的延迟动画）
+ * - 只有当数据在生命周期内真实发生变动 (Old Value != New Value) 时，才平滑触发 Spring 物理过渡动效
+ */
+@Composable
+fun rememberAnimatedNumberLong(
+    targetValue: Long,
+    animationSpec: AnimationSpec<Float> = StudioMotionDefaults.numericSpringSpec
+): State<Long> {
+    val animatable = remember { Animatable(targetValue.toFloat()) }
+    val isFirstRender = remember { mutableStateOf(true) }
+    val resultState = remember { mutableStateOf(targetValue) }
+
+    LaunchedEffect(targetValue) {
+        if (isFirstRender.value) {
+            isFirstRender.value = false
+            animatable.snapTo(targetValue.toFloat())
+            resultState.value = targetValue
+        } else {
+            animatable.animateTo(
+                targetValue = targetValue.toFloat(),
+                animationSpec = animationSpec
+            ) {
+                resultState.value = this.value.toLong()
+            }
+            resultState.value = targetValue
+        }
+    }
+
+    return resultState
+}
+
+/**
+ * 智能记忆浮点数变动动效 (适用于金额、比率等)：
+ */
+@Composable
+fun rememberAnimatedNumberDouble(
+    targetValue: Double,
+    animationSpec: AnimationSpec<Float> = StudioMotionDefaults.numericSpringSpec
+): State<Double> {
+    val animatable = remember { Animatable(targetValue.toFloat()) }
+    val isFirstRender = remember { mutableStateOf(true) }
+    val resultState = remember { mutableStateOf(targetValue) }
+
+    LaunchedEffect(targetValue) {
+        if (isFirstRender.value) {
+            isFirstRender.value = false
+            animatable.snapTo(targetValue.toFloat())
+            resultState.value = targetValue
+        } else {
+            animatable.animateTo(
+                targetValue = targetValue.toFloat(),
+                animationSpec = animationSpec
+            ) {
+                resultState.value = this.value.toDouble()
+            }
+            resultState.value = targetValue
+        }
+    }
+
+    return resultState
+}
+
+/**
+ * 高质感连续平滑滚动计数器：
+ * 采用单一 Text 节点 + 内部物理弹簧长整数插值，避免 AnimatedContent 在高频插值帧导致的字符层叠与狂暴闪烁。
+ */
+@Composable
+fun StudioAnimatedCounterText(
+    value: Long,
+    formatter: (Long) -> String = { it.toString() },
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    textAlign: TextAlign = TextAlign.Start,
+    modifier: Modifier = Modifier
+) {
+    val animatedValue by rememberAnimatedNumberLong(value)
+    Text(
+        text = formatter(animatedValue),
+        style = style,
+        color = color,
+        textAlign = textAlign,
+        modifier = modifier
+    )
+}
+
+/**
+ * Compose 最新 AnimatedContent 驱动的高质感字符翻牌滚动 Ticker：
+ * 专用于离散文本变动（如价格、百分比等），产生轻量级垂直滑入滑出与淡入淡出动效。
+ * 注意：禁止将高频每帧变动的连续插值数值传入此组件，以免触发多重重叠翻牌。
+ */
+@Composable
+fun StudioTickerText(
+    text: String,
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    textAlign: TextAlign = TextAlign.Start,
+    modifier: Modifier = Modifier,
+    contentAlignment: Alignment = Alignment.CenterStart
+) {
+    androidx.compose.animation.AnimatedContent(
+        targetState = text,
+        transitionSpec = {
+            (androidx.compose.animation.slideInVertically { height -> height / 2 } + androidx.compose.animation.fadeIn(
+                animationSpec = tween(160)
+            )).togetherWith(
+                androidx.compose.animation.slideOutVertically { height -> -height / 2 } + androidx.compose.animation.fadeOut(
+                    animationSpec = tween(160)
+                )
+            )
+        },
+        contentAlignment = contentAlignment,
+        label = "studio_ticker_text",
+        modifier = modifier
+    ) { targetText ->
+        Text(
+            text = targetText,
+            style = style,
+            color = color,
+            textAlign = textAlign
+        )
+    }
 }
 
 /**

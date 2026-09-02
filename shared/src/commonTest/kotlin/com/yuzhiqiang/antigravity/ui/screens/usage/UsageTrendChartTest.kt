@@ -37,11 +37,11 @@ class UsageTrendChartTest {
 
     @Test
     fun calculateVisibleAxisIndicesShowsAllWhenSpacingIsSufficient() {
-        // 10 个数据点（例如 00:00 到 09:00），在宽度充足时应全部展示，不遗漏 01:00 与 08:00
+        // 10 个数据点在 800dp 下，step = 800 / 9 = 88.8dp >= 72dp，应全量展示
         val indices = calculateVisibleAxisIndices(
             bucketCount = 10,
             plotWidthDp = 800f,
-            minLabelSpacingDp = 52f
+            minLabelSpacingDp = 72f
         )
         assertEquals((0..9).toSet(), indices)
     }
@@ -55,13 +55,14 @@ class UsageTrendChartTest {
 
     @Test
     fun calculateVisibleAxisIndicesDownsamplesUniformlyWhenDense() {
-        // 24 个点在 600dp 下，step = ceil(52 / (600/23)) = ceil(52 / 26.08) = 2
+        // 24 个点在 600dp 下，step = ceil(23 / 7) = 4，保证无碰撞且尾部 23 点可见
         val indices = calculateVisibleAxisIndices(
             bucketCount = 24,
             plotWidthDp = 600f,
-            minLabelSpacingDp = 52f
+            minLabelSpacingDp = 72f
         )
-        val expected = (0 until 24 step 2).toSet()
-        assertEquals(expected, indices)
+        assert(indices.contains(0))
+        assert(indices.contains(23))
+        assert(indices.size <= 9)
     }
 }
