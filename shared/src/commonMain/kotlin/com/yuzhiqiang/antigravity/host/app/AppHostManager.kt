@@ -7,6 +7,7 @@ import com.yuzhiqiang.antigravity.host.windows.WindowsShimBinary
 import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.coroutines.delay
 import java.io.File
+import java.nio.file.Files
 
 /**
  * Antigravity App 宿主跨平台集成管理器（支持 macOS 与 Windows 双平台）。
@@ -627,20 +628,12 @@ object AppHostManager {
                 writeEndpointResult.isSuccess && writeShimOk && isShimFile(lsFile)
             } else {
                 val scriptContent = buildMacShimScript(targetEndpoint)
-                var writeResult = AtomicFileWriter.writeText(
+                val writeResult = AtomicFileWriter.writeText(
                     target = lsFile,
                     content = scriptContent + "\n",
                     permissionPolicy = AtomicFileWriter.PermissionPolicy.PRESERVE_EXISTING,
                     disallowSymlinks = true
                 )
-                if (writeResult.isFailure) {
-                    AppLog.w("Host/App", writeResult.exceptionOrNull()) {
-                        "AtomicFileWriter 写入失败，尝试直接覆盖写入：${lsFile.absolutePath}"
-                    }
-                    writeResult = runCatching {
-                        lsFile.writeText(scriptContent + "\n", Charsets.UTF_8)
-                    }
-                }
                 if (writeResult.isFailure) {
                     val ex = writeResult.exceptionOrNull()
                     if (isPermissionException(ex) || !binDir.canWrite()) {
@@ -767,70 +760,102 @@ object AppHostManager {
         scriptContent: String
     ): Boolean {
         if (!isMac) return false
-        val lsPath = files.languageServer.absolutePath
-        val origPath = files.original.absolutePath
-        val tempScriptFile = File(System.getProperty("java.io.tmpdir"), "agy_shim_${System.currentTimeMillis()}.sh")
-        val runnerScriptFile = File(System.getProperty("java.io.tmpdir"), "agy_run_${System.currentTimeMillis()}.sh")
+        val tempScript = createSecureTempScript("agy_shim_", scriptContent + "\n") ?: return false
         return try {
-            tempScriptFile.writeText(scriptContent + "\n", Charsets.UTF_8)
-            runnerScriptFile.writeText(
+            val exitCode = runMacAdminScript(
                 """
-                #!/bin/sh
-                if [ ! -f "$origPath" ] && [ -f "$lsPath" ]; then
-                    cp -p "$lsPath" "$origPath" || exit 1
+                set -eu
+                source=${shellQuote(tempScript.absolutePath)}
+                target=${shellQuote(files.languageServer.absolutePath)}
+                original=${shellQuote(files.original.absolutePath)}
+                parent=${shellQuote(files.languageServer.parentFile.absolutePath)}
+                [ -d "${'$'}parent" ] || exit 1
+                [ ! -L "${'$'}target" ] || exit 1
+                [ ! -L "${'$'}original" ] || exit 1
+                if [ ! -f "${'$'}original" ]; then
+                    [ -f "${'$'}target" ] || exit 1
+                    /bin/cp -p "${'$'}target" "${'$'}original" || exit 1
                 fi
-                cp -f "${tempScriptFile.absolutePath}" "$lsPath" || exit 1
-                chmod 755 "$lsPath" || exit 1
-                """.trimIndent() + "\n",
-                Charsets.UTF_8
+                staged="${'$'}(/usr/bin/mktemp "${'$'}parent/.language_server.XXXXXX")" || exit 1
+                trap '/bin/rm -f "${'$'}staged"' EXIT
+                /bin/cp "${'$'}source" "${'$'}staged" || exit 1
+                /bin/chmod 755 "${'$'}staged" || exit 1
+                /bin/mv -f "${'$'}staged" "${'$'}target" || exit 1
+                trap - EXIT
+                """.trimIndent()
             )
-            runnerScriptFile.setExecutable(true, false)
-
-            val appleScript = "do shell script \"/bin/sh '${runnerScriptFile.absolutePath}'\" with administrator privileges"
-            val process = ProcessBuilder("osascript", "-e", appleScript).start()
-            val exitCode = process.waitFor()
             exitCode == 0 && isShimScript(files.languageServer)
-        } catch (e: Exception) {
-            AppLog.e("Host/App", e) { "通过 macOS 管理员提权安装 Shim 失败" }
+        } catch (error: Exception) {
+            AppLog.e("Host/App", error) { "通过 macOS 管理员提权安装 Shim 失败" }
             false
         } finally {
-            tempScriptFile.delete()
-            runnerScriptFile.delete()
+            tempScript.delete()
         }
     }
 
     private fun restoreWithMacAdminPrivileges(files: LanguageServerFiles): Boolean {
         if (!isMac) return false
-        val lsPath = files.languageServer.absolutePath
-        val origPath = files.original.absolutePath
-        val runnerScriptFile = File(System.getProperty("java.io.tmpdir"), "agy_res_${System.currentTimeMillis()}.sh")
         return try {
-            runnerScriptFile.writeText(
+            val exitCode = runMacAdminScript(
                 """
-                #!/bin/sh
-                if [ -f "$origPath" ]; then
-                    mv -f "$origPath" "$lsPath" || cp -p "$origPath" "$lsPath" || exit 1
-                    rm -f "$origPath"
-                elif [ -f "$lsPath" ]; then
-                    grep -q "ANTIGRAVITY_STUDIO_MANAGED_SHIM" "$lsPath" && rm -f "$lsPath"
+                set -eu
+                target=${shellQuote(files.languageServer.absolutePath)}
+                original=${shellQuote(files.original.absolutePath)}
+                parent=${shellQuote(files.languageServer.parentFile.absolutePath)}
+                [ -d "${'$'}parent" ] || exit 1
+                [ ! -L "${'$'}target" ] || exit 1
+                [ ! -L "${'$'}original" ] || exit 1
+                if [ -f "${'$'}original" ]; then
+                    staged="${'$'}(/usr/bin/mktemp "${'$'}parent/.language_server.XXXXXX")" || exit 1
+                    trap '/bin/rm -f "${'$'}staged"' EXIT
+                    /bin/cp -p "${'$'}original" "${'$'}staged" || exit 1
+                    /bin/chmod 755 "${'$'}staged" || exit 1
+                    /bin/mv -f "${'$'}staged" "${'$'}target" || exit 1
+                    trap - EXIT
+                    /bin/rm -f "${'$'}original"
+                elif [ -f "${'$'}target" ]; then
+                    if /usr/bin/grep -q "ANTIGRAVITY_STUDIO_MANAGED_SHIM" "${'$'}target"; then
+                        /bin/rm -f "${'$'}target"
+                    fi
                 fi
-                [ -f "$lsPath" ] && chmod 755 "$lsPath"
-                """.trimIndent() + "\n",
-                Charsets.UTF_8
+                """.trimIndent()
             )
-            runnerScriptFile.setExecutable(true, false)
-
-            val appleScript = "do shell script \"/bin/sh '${runnerScriptFile.absolutePath}'\" with administrator privileges"
-            val process = ProcessBuilder("osascript", "-e", appleScript).start()
-            val exitCode = process.waitFor()
             exitCode == 0
-        } catch (e: Exception) {
-            AppLog.e("Host/App", e) { "通过 macOS 管理员提权还原原生文件失败" }
+        } catch (error: Exception) {
+            AppLog.e("Host/App", error) { "通过 macOS 管理员提权还原原生文件失败" }
             false
-        } finally {
-            runnerScriptFile.delete()
         }
     }
+
+    internal fun createSecureTempScript(prefix: String, content: String): File? {
+        return runCatching {
+            Files.createTempFile(prefix, ".sh").toFile().apply {
+                writeText(content, Charsets.UTF_8)
+                setReadable(false, false)
+                setWritable(false, false)
+                check(setReadable(true, true) || canRead())
+                check(setWritable(true, true) || canWrite())
+            }
+        }.onFailure { error ->
+            AppLog.e("Host/App", error) { "创建 macOS 管理员临时脚本失败" }
+        }.getOrNull()
+    }
+
+    private fun runMacAdminScript(script: String): Int {
+        val process = ProcessBuilder(macAdminCommand(script)).start()
+        return process.waitFor()
+    }
+
+    internal fun macAdminCommand(script: String): List<String> = listOf(
+        "/usr/bin/osascript",
+        "-e", "on run argv",
+        "-e", "do shell script (item 1 of argv) with administrator privileges",
+        "-e", "end run",
+        "--",
+        script
+    )
+
+    internal fun shellQuote(value: String): String = "'" + value.replace("'", "'\"'\"'") + "'"
 
     /**
      * 检测 Antigravity App 是否正在运行（精确匹配 App 进程并排除 IDE 进程）。

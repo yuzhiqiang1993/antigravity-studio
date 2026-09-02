@@ -2,6 +2,8 @@ package com.yuzhiqiang.antigravity.host
 
 import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -323,6 +325,50 @@ class AppHostManagerTest {
             }
         } finally {
             readOnlyDir.setWritable(true, false)
+        }
+    }
+
+    @Test
+    fun macAdminCommandPassesScriptAsArgument() {
+        val script = "target='/Applications/Antigravity App.app/it'\''s language_server'"
+        val command = AppHostManager.macAdminCommand(script)
+
+        assertEquals(script, command.last())
+        assertTrue(command.dropLast(1).none { it.contains("Antigravity App.app") })
+        assertTrue(command.contains("--"))
+    }
+
+    @Test
+    fun shellQuotePreservesSpecialPathCharacters() {
+        val value = "/Applications/Antigravity App.app/it's ${'$'}HOME; echo unsafe"
+        val process = ProcessBuilder(
+            "/bin/sh",
+            "-c",
+            """actual=${AppHostManager.shellQuote(value)}; [ "${'$'}actual" = "${'$'}EXPECTED" ]"""
+        ).apply {
+            environment()["EXPECTED"] = value
+        }.start()
+
+        assertEquals(0, process.waitFor())
+    }
+
+    @Test
+    fun secureTempScriptsAreUniqueAndOwnerOnly() {
+        val first = AppHostManager.createSecureTempScript("agy_shim_test_", "first")
+        val second = AppHostManager.createSecureTempScript("agy_shim_test_", "second")
+        assertTrue(first != null && second != null)
+        try {
+            assertTrue(first.absolutePath != second.absolutePath)
+            assertEquals("first", first.readText())
+            if ("posix" in first.toPath().fileSystem.supportedFileAttributeViews()) {
+                assertEquals(
+                    setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE),
+                    Files.getPosixFilePermissions(first.toPath())
+                )
+            }
+        } finally {
+            first.delete()
+            second.delete()
         }
     }
 
