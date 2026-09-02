@@ -327,6 +327,7 @@ data class DeepUsageStats(
     val modelBuckets: List<ModelUsageBucket> = emptyList(),
     val sourceBuckets: List<AppSourceUsageBucket> = emptyList(),
     val topConversations: List<ConversationUsageBucket> = emptyList(),
+    val availableModels: List<ModelFilterOption> = emptyList(),
     val generatedAt: Long = 0L
 ) {
     val totalTokens: Long
@@ -379,11 +380,24 @@ enum class UsageTimeRange(val id: String) {
 }
 
 /**
- * 自定义日期范围
+ * 模型筛选选项
+ */
+@Serializable
+data class ModelFilterOption(
+    val id: String, // "all" 或模型分组 key / 规范 ID
+    val displayName: String,
+    val callCount: Long = 0L,
+    val totalTokens: Long = 0L
+)
+
+/**
+ * 自定义日期与时间范围
  */
 @Serializable
 data class CustomDateRange(
     val startDate: String, // YYYY-MM-DD 或 ISO 字符串
     val endDate: String = "", // YYYY-MM-DD 或 ISO 字符串，若为空或 followNow 为 true 则截止到当前
+    val startTime: String = "00:00", // HH:mm
+    val endTime: String = "23:59", // HH:mm
     val followNow: Boolean = false
 )

@@ -830,6 +830,101 @@ class UsageAggregatorTest {
         }
     }
 
+    @Test
+    fun testSelectedModelFilterAndAvailableModels() {
+        val pricing = createTestPricingService()
+        val convo = ConversationUsageData(
+            conversationId = "c-multi-model",
+            appSource = "ide",
+            entries = listOf(
+                TokenEntry(
+                    input = 100_000,
+                    output = 10_000,
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "claude-3-7-sonnet"
+                    ),
+                    timestamp = "2026-08-31T00:00:00Z"
+                ),
+                TokenEntry(
+                    input = 50_000,
+                    output = 5_000,
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "gemini-2.0-flash"
+                    ),
+                    timestamp = "2026-08-31T01:00:00Z"
+                )
+            )
+        )
+
+        // 全部模型聚合
+        val allStats = UsageAggregator.aggregate(
+            conversations = listOf(convo),
+            pricingService = pricing,
+            timeRange = UsageTimeRange.ALL_TIME,
+            zoneId = ZoneId.of("UTC")
+        )
+        assertEquals(2, allStats.availableModels.size)
+        assertEquals(165_000L, allStats.totalTokens)
+
+        // 指定过滤 claude-3-7-sonnet
+        val claudeStats = UsageAggregator.aggregate(
+            conversations = listOf(convo),
+            pricingService = pricing,
+            timeRange = UsageTimeRange.ALL_TIME,
+            selectedModel = "claude-3-7-sonnet",
+            zoneId = ZoneId.of("UTC")
+        )
+        assertEquals(110_000L, claudeStats.totalTokens)
+        assertEquals(1, claudeStats.modelBuckets.size)
+        assertEquals("claude-3-7-sonnet", claudeStats.modelBuckets.first().canonicalModelId)
+    }
+
+    @Test
+    fun testCustomDateRangeWithExactTime() {
+        val pricing = createTestPricingService()
+        val convo = ConversationUsageData(
+            conversationId = "c-time-filter",
+            appSource = "ide",
+            entries = listOf(
+                TokenEntry(
+                    input = 10_000,
+                    modelObservation = ModelObservation(providerConfigId = TEST_PROVIDER_CONFIG_ID, responseModelId = "gpt-4o"),
+                    timestamp = "2026-09-02T08:30:00Z"
+                ),
+                TokenEntry(
+                    input = 20_000,
+                    modelObservation = ModelObservation(providerConfigId = TEST_PROVIDER_CONFIG_ID, responseModelId = "gpt-4o"),
+                    timestamp = "2026-09-02T10:00:00Z"
+                ),
+                TokenEntry(
+                    input = 30_000,
+                    modelObservation = ModelObservation(providerConfigId = TEST_PROVIDER_CONFIG_ID, responseModelId = "gpt-4o"),
+                    timestamp = "2026-09-02T12:30:00Z"
+                )
+            )
+        )
+
+        // 筛选 2026-09-02 09:00 至 2026-09-02 11:00（应该只命中 10:00 的 20_000 Tokens）
+        val stats = UsageAggregator.aggregate(
+            conversations = listOf(convo),
+            pricingService = pricing,
+            timeRange = UsageTimeRange.CUSTOM,
+            customDateRange = CustomDateRange(
+                startDate = "2026-09-02",
+                endDate = "2026-09-02",
+                startTime = "09:00",
+                endTime = "11:00",
+                followNow = false
+            ),
+            zoneId = ZoneId.of("UTC")
+        )
+
+        assertEquals(20_000L, stats.totalTokens)
+        assertEquals(1L, stats.totalCalls)
+    }
+
     private fun createOfficialGeminiEntry(
         runtimeModelId: String?,
         responseModelId: String?,

@@ -72,6 +72,9 @@ class UsageRepository(
     private val _selectedSources = MutableStateFlow<Set<String>>(setOf("all"))
     val selectedSources: StateFlow<Set<String>> = _selectedSources.asStateFlow()
 
+    private val _selectedModel = MutableStateFlow<String?>("all")
+    val selectedModel: StateFlow<String?> = _selectedModel.asStateFlow()
+
     init {
         loadDiskCache()
     }
@@ -89,6 +92,14 @@ class UsageRepository(
         _selectedSources.value = if (sources.isEmpty()) setOf("all") else sources
         _usageStats.value = aggregateCurrentAsync()
         AppLog.i("Usage/Repository") { "数据来源切换完成: ${_selectedSources.value}, 聚合会话数=${_usageStats.value.totalConversations}" }
+    }
+
+    suspend fun setSelectedModel(model: String?) = mutex.withLock {
+        val nextModel = if (model.isNullOrBlank() || model == "all") "all" else model
+        AppLog.d("Usage/Repository") { "切换模型筛选: $nextModel" }
+        _selectedModel.value = nextModel
+        _usageStats.value = aggregateCurrentAsync()
+        AppLog.i("Usage/Repository") { "模型筛选切换完成: $nextModel, 当前总Token=${_usageStats.value.totalTokens}, 调用=${_usageStats.value.totalCalls}" }
     }
 
     suspend fun refresh(force: Boolean = false): Result<DeepUsageStats> = mutex.withLock {
@@ -172,7 +183,8 @@ class UsageRepository(
         pricingService = pricingService,
         timeRange = _selectedTimeRange.value,
         customDateRange = _customDateRange.value,
-        selectedSources = _selectedSources.value
+        selectedSources = _selectedSources.value,
+        selectedModel = _selectedModel.value
     )
 
     private fun updateSourceMtimes(

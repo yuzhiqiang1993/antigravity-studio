@@ -9,18 +9,12 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -75,9 +69,9 @@ fun StudioDropdownMenu(
 
 /**
  * 桌面端高质感统一弹出菜单项组件 (StudioDropdownMenuItem)：
- * - 统一高度 32.dp 紧凑桌面尺寸
+ * - 统一高度 32~36.dp 紧凑桌面尺寸
  * - 悬停优雅淡灰底背景动画
- * - 支持自定义前置 Icon 和后置快捷键/说明 Text
+ * - 支持自定义前置 Icon、后置快捷键/说明 Text、选中状态勾选指示、副标题
  */
 @Composable
 fun StudioDropdownMenuItem(
@@ -86,6 +80,9 @@ fun StudioDropdownMenuItem(
     modifier: Modifier = Modifier,
     leadingIcon: (@Composable () -> Unit)? = null,
     trailingText: String? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    subtitle: String? = null,
+    isSelected: Boolean = false,
     isDestructive: Boolean = false,
     enabled: Boolean = true
 ) {
@@ -96,6 +93,7 @@ fun StudioDropdownMenuItem(
     val textColor = when {
         !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
         isDestructive -> MaterialTheme.colorScheme.error
+        isSelected -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurface
     }
 
@@ -118,7 +116,7 @@ fun StudioDropdownMenuItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(32.dp)
+            .height(if (subtitle.isNullOrBlank()) 32.dp else 40.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(animatedItemBg)
             .hoverable(interactionSource = interactionSource)
@@ -134,29 +132,130 @@ fun StudioDropdownMenuItem(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
+            modifier = Modifier.weight(1f, fill = false),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             leadingIcon?.invoke()
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.Medium
-                ),
-                color = textColor,
-                maxLines = 1
-            )
+            Column(verticalArrangement = Arrangement.Center) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 12.5.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                    ),
+                    color = textColor,
+                    maxLines = 1
+                )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.5.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                        maxLines = 1
+                    )
+                }
+            }
         }
 
-        if (!trailingText.isNullOrBlank()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (!trailingText.isNullOrBlank()) {
+                Text(
+                    text = trailingText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (trailingIcon != null) {
+                trailingIcon.invoke()
+            } else if (isSelected) {
+                androidx.compose.material3.Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Outlined.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 桌面端高质感统一弹出触发按钮 (StudioDropdownTrigger)：
+ * 遵循 MD3 FilterChip / Outlined Dropdown 规范
+ */
+@Composable
+fun StudioDropdownTrigger(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    isActive: Boolean = false,
+    enabled: Boolean = true
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val isDark = isSystemInDarkTheme()
+
+    val containerColor = when {
+        !enabled -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+        isActive -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.5f)
+        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.45f else 0.6f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.25f else 0.35f)
+    }
+
+    val borderColor = when {
+        !enabled -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)
+        isActive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+        isHovered -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.6f else 0.8f)
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.5f)
+    }
+
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(8.dp),
+        color = containerColor,
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        modifier = modifier
+            .height(32.dp)
+            .hoverable(interactionSource = interactionSource)
+            .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (leadingIcon != null) {
+                androidx.compose.material3.Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
-                text = trailingText,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
+                text = text,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
+            androidx.compose.material3.Icon(
+                imageVector = androidx.compose.material.icons.Icons.Outlined.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
             )
         }
     }

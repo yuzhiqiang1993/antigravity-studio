@@ -23,8 +23,13 @@ class UsageDelegate(
     val selectedTimeRange: StateFlow<UsageTimeRange> = usageRepository.selectedTimeRange
     val customDateRange: StateFlow<CustomDateRange?> = usageRepository.customDateRange
     val selectedSources: StateFlow<Set<String>> = usageRepository.selectedSources
+    val selectedModel: StateFlow<String?> = usageRepository.selectedModel
+
+    private val _autoRefreshInterval = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val autoRefreshInterval: StateFlow<Int> = _autoRefreshInterval
 
     private var initialRefreshStarted = false
+    private var autoRefreshJob: kotlinx.coroutines.Job? = null
 
     /** 在价格配置完成后启动首次扫描，避免首次聚合使用默认费率。 */
     fun startInitialRefresh() {
@@ -33,6 +38,27 @@ class UsageDelegate(
         com.yuzhiqiang.antigravity.logging.AppLog.i("Usage/Delegate") { "启动用量统计首次扫描 (force=false)" }
         scope.launch {
             usageRepository.refresh(force = false)
+        }
+    }
+
+    /**
+     * 设置定时自动刷新间隔（0 表示关闭，正数表示秒数）
+     */
+    fun setAutoRefreshInterval(seconds: Int) {
+        val safeSeconds = seconds.coerceAtLeast(0)
+        _autoRefreshInterval.value = safeSeconds
+        autoRefreshJob?.cancel()
+        if (safeSeconds > 0) {
+            com.yuzhiqiang.antigravity.logging.AppLog.i("Usage/Delegate") { "启动用量统计定时自动刷新 (间隔=${safeSeconds}s)" }
+            autoRefreshJob = scope.launch {
+                while (true) {
+                    kotlinx.coroutines.delay(safeSeconds * 1000L)
+                    com.yuzhiqiang.antigravity.logging.AppLog.d("Usage/Delegate") { "触发定时静默刷新用量 (interval=${safeSeconds}s)" }
+                    usageRepository.refresh(force = false)
+                }
+            }
+        } else {
+            com.yuzhiqiang.antigravity.logging.AppLog.i("Usage/Delegate") { "已关闭用量统计定时自动刷新" }
         }
     }
 
@@ -61,6 +87,15 @@ class UsageDelegate(
     fun setTimeRange(timeRange: UsageTimeRange, customRange: CustomDateRange? = null) {
         scope.launch {
             usageRepository.setTimeRange(timeRange, customRange)
+        }
+    }
+
+    /**
+     * 切换模型筛选
+     */
+    fun setSelectedModel(model: String?) {
+        scope.launch {
+            usageRepository.setSelectedModel(model)
         }
     }
 

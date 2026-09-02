@@ -327,6 +327,8 @@ class AppViewModel(
     val usageTimeRange get() = usageDelegate.selectedTimeRange
     val usageCustomDateRange get() = usageDelegate.customDateRange
     val usageSelectedSources get() = usageDelegate.selectedSources
+    val usageSelectedModel get() = usageDelegate.selectedModel
+    val usageAutoRefreshInterval get() = usageDelegate.autoRefreshInterval
 
     fun refreshUsageStats(force: Boolean = true) = usageDelegate.refresh(force)
     fun setUsageTimeRange(
@@ -336,6 +338,8 @@ class AppViewModel(
         usageDelegate.setTimeRange(timeRange, customRange)
 
     fun toggleUsageSource(source: String) = usageDelegate.toggleSource(source)
+    fun setUsageSelectedModel(model: String?) = usageDelegate.setSelectedModel(model)
+    fun setUsageAutoRefreshInterval(seconds: Int) = usageDelegate.setAutoRefreshInterval(seconds)
     fun updateCustomPricingPath(path: String?) {
         val trimmed = path?.trim()?.takeIf { it.isNotEmpty() }
         viewModelScope.launch {

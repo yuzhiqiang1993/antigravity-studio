@@ -28,12 +28,27 @@ object UsageStringsZh : UsageStrings {
     override val usageTimeRangeThisWeek: String = "本周"
     override val usageTimeRangeThisMonth: String = "本月"
     override val usageTimeRangeAllTime: String = "全部"
-    override val usageTimeRangeCustom: String = "自定义"
+    override val usageTimeRangeCustom: String = "日期选择"
 
     override val usageSourceAll: String = "全部来源"
     override val usageSourceIde: String = "IDE"
     override val usageSourceApp: String = "App"
     override val usageSourceCli: String = "CLI"
+    override val usageModelAll: String = "全部模型"
+    override val usageModelFilterTitle: String = "模型筛选"
+
+    override val usageAutoRefreshOff: String = "关闭"
+    override val usageAutoRefreshSeconds: (seconds: Int) -> String = { seconds -> "${seconds}s" }
+
+    override val usageSupportDateAndTime: String = "支持日期与时间"
+    override val usageStartTimeLabel: String = "开始时间"
+    override val usageEndTimeLabel: String = "结束时间"
+    override val usageFollowNowLabel: String = "结束时间跟随当前时刻"
+    override val usagePresetToday: String = "今天"
+    override val usagePreset1Day: String = "1 天"
+    override val usagePreset7Days: String = "7 天"
+    override val usagePreset14Days: String = "14 天"
+    override val usagePreset30Days: String = "30 天"
 
     override val usageOverviewTitle: String = "用量概览"
     override val usageKpiCostTitle: String = "预估总花费"

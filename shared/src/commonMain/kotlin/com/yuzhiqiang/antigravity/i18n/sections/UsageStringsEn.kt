@@ -28,12 +28,27 @@ object UsageStringsEn : UsageStrings {
     override val usageTimeRangeThisWeek: String = "Week"
     override val usageTimeRangeThisMonth: String = "Month"
     override val usageTimeRangeAllTime: String = "All Time"
-    override val usageTimeRangeCustom: String = "Custom"
+    override val usageTimeRangeCustom: String = "Date Selection"
 
     override val usageSourceAll: String = "All Sources"
     override val usageSourceIde: String = "IDE"
     override val usageSourceApp: String = "App"
     override val usageSourceCli: String = "CLI"
+    override val usageModelAll: String = "All Models"
+    override val usageModelFilterTitle: String = "Filter by Model"
+
+    override val usageAutoRefreshOff: String = "Off"
+    override val usageAutoRefreshSeconds: (seconds: Int) -> String = { seconds -> "${seconds}s" }
+
+    override val usageSupportDateAndTime: String = "Date & Time Supported"
+    override val usageStartTimeLabel: String = "Start Time"
+    override val usageEndTimeLabel: String = "End Time"
+    override val usageFollowNowLabel: String = "End time follows current moment"
+    override val usagePresetToday: String = "Today"
+    override val usagePreset1Day: String = "1 Day"
+    override val usagePreset7Days: String = "7 Days"
+    override val usagePreset14Days: String = "14 Days"
+    override val usagePreset30Days: String = "30 Days"
 
     override val usageOverviewTitle: String = "Usage Overview"
     override val usageKpiCostTitle: String = "Estimated Cost"

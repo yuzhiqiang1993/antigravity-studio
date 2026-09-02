@@ -21,11 +21,28 @@ interface UsageStrings {
     val usageTimeRangeAllTime: String
     val usageTimeRangeCustom: String
 
-    // 数据来源
+    // 数据来源与模型筛选
     val usageSourceAll: String
     val usageSourceIde: String
     val usageSourceApp: String
     val usageSourceCli: String
+    val usageModelAll: String
+    val usageModelFilterTitle: String
+
+    // 定时自动刷新
+    val usageAutoRefreshOff: String
+    val usageAutoRefreshSeconds: (seconds: Int) -> String
+
+    // 复合日期时间选择器
+    val usageSupportDateAndTime: String
+    val usageStartTimeLabel: String
+    val usageEndTimeLabel: String
+    val usageFollowNowLabel: String
+    val usagePresetToday: String
+    val usagePreset1Day: String
+    val usagePreset7Days: String
+    val usagePreset14Days: String
+    val usagePreset30Days: String
 
     // Hero KPI 卡片
     val usageOverviewTitle: String

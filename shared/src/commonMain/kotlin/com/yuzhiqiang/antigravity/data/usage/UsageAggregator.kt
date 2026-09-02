@@ -33,6 +33,7 @@ object UsageAggregator {
         timeRange: UsageTimeRange = UsageTimeRange.CALENDAR_TODAY,
         customDateRange: CustomDateRange? = null,
         selectedSources: Set<String> = setOf("all"),
+        selectedModel: String? = null,
         zoneId: ZoneId = ZoneId.systemDefault()
     ): DeepUsageStats {
         val nowMillis = System.currentTimeMillis()
@@ -42,6 +43,7 @@ object UsageAggregator {
         val identityRegistry = ModelIdentityRegistryHolder.snapshot()
         val normalizedSelectedSources = selectedSources.mapTo(mutableSetOf(), ::normalizeSource)
         val allowAllSources = normalizedSelectedSources.isEmpty() || normalizedSelectedSources.contains("all")
+        val isModelFilterActive = !selectedModel.isNullOrBlank() && selectedModel != "all"
 
         var totalInput = 0L
         var totalOutput = 0L
@@ -64,6 +66,7 @@ object UsageAggregator {
         val modelMap = mutableMapOf<String, ModelBucketAccumulator>()
         val sourceMap = mutableMapOf<String, SourceBucketAccumulator>()
         val convoMap = mutableMapOf<String, ConversationBucketAccumulator>()
+        val globalModelCounts = mutableMapOf<String, ModelAccumulatorCounter>()
 
         // 今日统计始终按本地日 [00:00, now) 聚合，不随当前时间范围变化。
         val todayDate = nowInstant.atZone(zoneId).toLocalDate()
@@ -94,11 +97,27 @@ object UsageAggregator {
                 if (!allowAllSources && !normalizedSelectedSources.contains(entrySource)) continue
                 if (entry.totalTokens <= 0L) continue
 
+                val identity = identityRegistry.resolve(entry.modelObservation)
+                val modelGroupingKey = identity.groupingKey
+                val modelDisplay = identity.canonicalModelId?.ifBlank { modelGroupingKey } ?: modelGroupingKey
+                val modelCounter = globalModelCounts.getOrPut(modelGroupingKey) {
+                    ModelAccumulatorCounter(modelGroupingKey, modelDisplay)
+                }
+                modelCounter.calls += 1
+                modelCounter.tokens += entry.totalTokens
+
+                // 若启用了指定模型筛选，排除不匹配的模型记录
+                if (isModelFilterActive) {
+                    val matches = modelGroupingKey == selectedModel ||
+                            identity.canonicalModelId.equals(selectedModel, ignoreCase = true) ||
+                            identity.displayName.equals(selectedModel, ignoreCase = true)
+                    if (!matches) continue
+                }
+
                 val instant = parseInstant(entry.timestamp)
                 val outsideFilter = !timeBounds.valid ||
                         (timeBounds.from != null && (instant == null || instant.isBefore(timeBounds.from))) ||
                         (timeBounds.toExclusive != null && (instant == null || !instant.isBefore(timeBounds.toExclusive)))
-                val identity = identityRegistry.resolve(entry.modelObservation)
                 val input = entry.input.coerceAtLeast(0L)
                 val output = entry.output.coerceAtLeast(0L)
                 val cacheRead = entry.cacheRead.coerceAtLeast(0L)
@@ -311,6 +330,17 @@ object UsageAggregator {
             .sortedByDescending { it.totalTokens }
             .take(30)
 
+        val modelOptions = globalModelCounts.values
+            .sortedByDescending { it.tokens }
+            .map {
+                ModelFilterOption(
+                    id = it.id,
+                    displayName = it.displayName,
+                    callCount = it.calls,
+                    totalTokens = it.tokens
+                )
+            }
+
         return DeepUsageStats(
             totalInput = totalInput,
             totalOutput = totalOutput,
@@ -347,6 +377,7 @@ object UsageAggregator {
             modelBuckets = sortedModels,
             sourceBuckets = sortedSources,
             topConversations = sortedTopConvos,
+            availableModels = modelOptions,
             generatedAt = nowMillis
         )
     }
@@ -378,11 +409,21 @@ object UsageAggregator {
             UsageTimeRange.ALL_TIME -> TimeBounds(null, null)
             UsageTimeRange.CUSTOM -> {
                 if (customDateRange == null) return TimeBounds(null, null, valid = false)
-                val start = parseFlexibleInstant(customDateRange.startDate, isEnd = false, zoneId = zoneId)
+                val start = parseFlexibleInstant(
+                    dateText = customDateRange.startDate,
+                    timeText = customDateRange.startTime,
+                    isEnd = false,
+                    zoneId = zoneId
+                )
                 val end = if (customDateRange.followNow || customDateRange.endDate.isBlank()) {
                     nowInstant
                 } else {
-                    parseFlexibleInstant(customDateRange.endDate, isEnd = true, zoneId = zoneId)
+                    parseFlexibleInstant(
+                        dateText = customDateRange.endDate,
+                        timeText = customDateRange.endTime,
+                        isEnd = true,
+                        zoneId = zoneId
+                    )
                 }
                 if (start == null || end == null || !start.isBefore(end)) {
                     TimeBounds(start, end, valid = false)
@@ -393,24 +434,60 @@ object UsageAggregator {
         }
     }
 
-    private fun parseFlexibleInstant(text: String, isEnd: Boolean, zoneId: ZoneId): Instant? {
-        val trimmed = text.trim()
-        if (trimmed.isBlank()) return null
+    private fun parseFlexibleInstant(
+        dateText: String,
+        timeText: String = "",
+        isEnd: Boolean,
+        zoneId: ZoneId
+    ): Instant? {
+        val trimmedDate = dateText.trim()
+        if (trimmedDate.isBlank()) return null
 
-        val direct = parseInstant(trimmed)
+        val direct = parseInstant(trimmedDate)
         if (direct != null) return direct
 
-        val localDate = parseIsoLocalDate(trimmed)
+        val localDate = parseIsoLocalDate(trimmedDate) ?: parseSlashLocalDate(trimmedDate)
         if (localDate != null) {
-            return if (isEnd) {
-                // 结束日期按 [start, nextDay) 处理，避免依赖毫秒/纳秒精度。
-                localDate.plusDays(1).atStartOfDay(zoneId).toInstant()
+            val localTime = parseLocalTime(timeText)
+            return if (localTime != null) {
+                if (isEnd) {
+                    localDate.atTime(localTime).plusMinutes(1).atZone(zoneId).toInstant()
+                } else {
+                    localDate.atTime(localTime).atZone(zoneId).toInstant()
+                }
             } else {
-                localDate.atStartOfDay(zoneId).toInstant()
+                if (isEnd) {
+                    localDate.plusDays(1).atStartOfDay(zoneId).toInstant()
+                } else {
+                    localDate.atStartOfDay(zoneId).toInstant()
+                }
             }
         }
 
         return null
+    }
+
+    private fun parseSlashLocalDate(str: String): LocalDate? {
+        return try {
+            val normalized = str.replace('/', '-')
+            LocalDate.parse(normalized, DateTimeFormatter.ISO_LOCAL_DATE)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseLocalTime(str: String): java.time.LocalTime? {
+        val trimmed = str.trim()
+        if (trimmed.isBlank()) return null
+        return try {
+            java.time.LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("HH:mm"))
+        } catch (_: Exception) {
+            try {
+                java.time.LocalTime.parse(trimmed, DateTimeFormatter.ISO_LOCAL_TIME)
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 
     private fun parseInstant(ts: String): Instant? {
@@ -1018,4 +1095,11 @@ object UsageAggregator {
             costLowerBound = costLowerBound
         )
     }
+
+    private class ModelAccumulatorCounter(
+        val id: String,
+        val displayName: String,
+        var calls: Long = 0L,
+        var tokens: Long = 0L
+    )
 }
