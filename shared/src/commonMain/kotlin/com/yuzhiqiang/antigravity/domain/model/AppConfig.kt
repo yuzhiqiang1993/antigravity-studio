@@ -68,6 +68,8 @@ data class AppConfig(
     val developerMode: Boolean = false,
     @SerialName("activity_auto_scroll")
     val activityAutoScroll: Boolean = true,
+    @SerialName("collect_non_chat_logs")
+    val collectNonChatLogs: Boolean = false,
     @SerialName("quota_auto_refresh_enabled")
     val quotaAutoRefreshEnabled: Boolean = true,
     @SerialName("quota_active_interval_seconds")

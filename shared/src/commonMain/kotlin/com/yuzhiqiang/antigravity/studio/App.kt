@@ -194,7 +194,7 @@ fun App(
                         downloadState = downloadState,
                         onStartDownload = { viewModel.startDownloadUpdate(rel) },
                         onCancelDownload = { viewModel.cancelDownloadUpdate() },
-                        onInstall = { file -> viewModel.installUpdate(file) },
+                        onInstall = { artifact -> viewModel.installUpdate(artifact) },
                         onShowInFolder = { file -> viewModel.showDownloadedFileInFolder(file) },
                         onDismiss = { viewModel.dismissUpdateDialog() },
                         onIgnoreVersion = { version -> viewModel.ignoreUpdateVersion(version) }

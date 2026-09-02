@@ -62,7 +62,7 @@ data class GoogleUserInfo(
     val picture: String? = null
 )
 
-class GoogleAuthService {
+class GoogleAuthService : AutoCloseable {
 
     companion object {
         const val CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
@@ -100,6 +100,8 @@ class GoogleAuthService {
         }
     }
 
+    private val oauthLifecycleLock = Any()
+    private val isClosed = java.util.concurrent.atomic.AtomicBoolean(false)
     private var currentOAuthDeferred: CompletableDeferred<String>? = null
     private var currentOAuthServer: EmbeddedServer<*, *>? = null
 
@@ -119,24 +121,45 @@ class GoogleAuthService {
             else -> trimmed
         }
 
-        if (!code.isNullOrBlank()) {
-            val deferred = currentOAuthDeferred
-            if (deferred != null && deferred.isActive) {
-                deferred.complete(code)
-                return true
-            }
+        if (code.isNullOrBlank()) return false
+        return synchronized(oauthLifecycleLock) {
+            currentOAuthDeferred?.takeIf { it.isActive }?.complete(code) == true
         }
-        return false
     }
 
     fun cancelOAuthFlow() {
-        currentOAuthDeferred?.completeExceptionally(java.util.concurrent.CancellationException("用户取消了授权"))
-        currentOAuthDeferred = null
+        val resources = synchronized(oauthLifecycleLock) {
+            val current = currentOAuthDeferred to currentOAuthServer
+            currentOAuthDeferred = null
+            currentOAuthServer = null
+            current
+        }
+        resources.first?.completeExceptionally(java.util.concurrent.CancellationException("用户取消了授权"))
+        stopOAuthServer(resources.second)
+    }
+
+    private fun clearOAuthFlow(
+        deferred: CompletableDeferred<String>,
+        server: EmbeddedServer<*, *>?
+    ) {
+        synchronized(oauthLifecycleLock) {
+            if (currentOAuthDeferred === deferred) currentOAuthDeferred = null
+            if (currentOAuthServer === server) currentOAuthServer = null
+        }
+        stopOAuthServer(server)
+    }
+
+    private fun stopOAuthServer(server: EmbeddedServer<*, *>?) {
         try {
-            currentOAuthServer?.stop(200, 500)
+            server?.stop(200, 500)
         } catch (_: Exception) {
         }
-        currentOAuthServer = null
+    }
+
+    override fun close() {
+        if (isClosed.compareAndSet(false, true)) {
+            cancelOAuthFlow()
+        }
     }
 
     /**

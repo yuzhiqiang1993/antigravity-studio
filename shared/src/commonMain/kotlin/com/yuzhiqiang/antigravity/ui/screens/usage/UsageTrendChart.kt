@@ -168,25 +168,11 @@ fun UsageTrendChart(
                     Text(
                         text = s.usageTokensCount(UsageNumberFormatter.formatTokens(buckets.sumOf { it.totalTokens })),
                         style = MaterialTheme.typography.labelMedium.copy(
-                            fontSize = UsageVisualTokens.Typography.legendText
+                            fontSize = UsageVisualTokens.Typography.legendText,
+                            fontWeight = FontWeight.SemiBold
                         ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.primary
                     )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(UsageVisualTokens.Chart.legendSpacing)
-                ) {
-                    ChartLegendIndicator(s.usageTokenPromptInput, colors.input)
-                    ChartLegendIndicator(s.usageTokenCacheRead, colors.cacheRead)
-                    ChartLegendIndicator(s.usageTokenCacheWrite, colors.cacheWrite)
-                    ChartLegendIndicator(s.usageTokenModelOutput, colors.output)
-                    ChartLegendIndicator(s.usageTokenThinking, colors.reasoning)
-                    ChartLegendIndicator(s.usageTokenUnattributed, colors.unattributed)
                 }
 
                 if (buckets.isEmpty()) {
@@ -214,7 +200,6 @@ fun UsageTrendChart(
                         SmoothUsagePlot(
                             buckets = buckets,
                             maxTokens = maxTokens,
-                            colors = colors,
                             selectedIndex = selectedIndex,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -250,9 +235,9 @@ fun UsageTrendChart(
 private fun SmoothUsagePlot(
     buckets: List<DailyUsageBucket>,
     maxTokens: Long,
-    colors: UsageTokenColors,
     selectedIndex: Int?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    lineColor: Color = MaterialTheme.colorScheme.primary
 ) {
     val targetRatios = remember(buckets, maxTokens) {
         buckets.map {
@@ -336,13 +321,14 @@ private fun SmoothUsagePlot(
     val nodeBadgeStyle = MaterialTheme.typography.labelSmall.copy(
         fontSize = 9.sp,
         fontWeight = FontWeight.Medium,
-        color = colors.output
+        color = lineColor
     )
     val peakBadgeStyle = MaterialTheme.typography.labelSmall.copy(
         fontSize = 10.sp,
         fontWeight = FontWeight.Bold,
-        color = colors.output
+        color = lineColor
     )
+    val indicatorLineColor = lineColor.copy(alpha = 0.5f)
 
     Canvas(modifier = modifier) {
         val activeRatios = currentRatios.value
@@ -404,7 +390,7 @@ private fun SmoothUsagePlot(
                         size = Size(sliceWidth, plotBottom - plotTop)
                     )
                     drawLine(
-                        color = colors.output.copy(alpha = 0.5f),
+                        color = indicatorLineColor,
                         start = Offset(point.x, plotTop),
                         end = Offset(point.x, plotBottom),
                         strokeWidth = 1.dp.toPx(),
@@ -426,8 +412,8 @@ private fun SmoothUsagePlot(
                 path = areaPath,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        colors.output.copy(alpha = 0.22f),
-                        colors.output.copy(alpha = 0.01f)
+                        lineColor.copy(alpha = 0.22f),
+                        lineColor.copy(alpha = 0.01f)
                     ),
                     startY = chartTop,
                     endY = plotBottom
@@ -435,7 +421,7 @@ private fun SmoothUsagePlot(
             )
             drawPath(
                 path = linePath,
-                color = colors.output,
+                color = lineColor,
                 style = Stroke(
                     width = UsageVisualTokens.Chart.strokeWidth.toPx(),
                     cap = StrokeCap.Round,
@@ -455,13 +441,13 @@ private fun SmoothUsagePlot(
 
                     if (isPeak || isSelected) {
                         drawCircle(
-                            colors.output.copy(alpha = 0.25f),
+                            lineColor.copy(alpha = 0.25f),
                             radius = 5.dp.toPx(),
                             center = pt
                         )
                         drawCircle(Color.White, radius = 3.2.dp.toPx(), center = pt)
                         drawCircle(
-                            colors.output,
+                            lineColor,
                             radius = 3.2.dp.toPx(),
                             center = pt,
                             style = Stroke(1.4.dp.toPx())
@@ -469,7 +455,7 @@ private fun SmoothUsagePlot(
                     } else {
                         drawCircle(Color.White, radius = 2.4.dp.toPx(), center = pt)
                         drawCircle(
-                            colors.output,
+                            lineColor,
                             radius = 2.4.dp.toPx(),
                             center = pt,
                             style = Stroke(1.2.dp.toPx())
@@ -491,7 +477,7 @@ private fun SmoothUsagePlot(
                 val badgeText = UsageNumberFormatter.formatTokens(tokens)
                 val measured = textMeasurer.measure(
                     text = badgeText,
-                    style = if (isPeak) peakBadgeStyle.copy(color = colors.output) else nodeBadgeStyle.copy(color = colors.output)
+                    style = if (isPeak) peakBadgeStyle else nodeBadgeStyle
                 )
                 val paddingH = if (isPeak) 6.dp.toPx() else 4.5.dp.toPx()
                 val paddingV = if (isPeak) 2.dp.toPx() else 1.5.dp.toPx()
@@ -524,7 +510,7 @@ private fun SmoothUsagePlot(
                     // 2. 中层品牌色微弱发光填充
                     val tintAlpha = if (isPeak) 0.18f else 0.10f
                     drawRoundRect(
-                        color = colors.output.copy(alpha = tintAlpha),
+                        color = lineColor.copy(alpha = tintAlpha),
                         topLeft = Offset(badgeLeft, badgeTop),
                         size = Size(badgeW, badgeH),
                         cornerRadius = CornerRadius(cornerRadius, cornerRadius)
@@ -533,7 +519,7 @@ private fun SmoothUsagePlot(
                     // 3. 顶层药丸精细边框
                     val borderAlpha = if (isPeak) 0.65f else 0.40f
                     drawRoundRect(
-                        color = colors.output.copy(alpha = borderAlpha),
+                        color = lineColor.copy(alpha = borderAlpha),
                         topLeft = Offset(badgeLeft, badgeTop),
                         size = Size(badgeW, badgeH),
                         cornerRadius = CornerRadius(cornerRadius, cornerRadius),
@@ -918,26 +904,6 @@ internal fun calculateVisibleAxisIndices(
 
     result.add(0)
     return result.toSet()
-}
-
-@Composable
-private fun ChartLegendIndicator(label: String, color: Color) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(UsageVisualTokens.Chart.legendDotSize)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium.copy(fontSize = UsageVisualTokens.Typography.legendText),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
 }
 
 private fun formatDateLabel(date: String): String {

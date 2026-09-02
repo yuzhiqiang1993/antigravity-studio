@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -84,22 +85,26 @@ class QuotaPoller(
         }
     }
 
+    private val persistMutex = Mutex()
+
     private fun persistSnapshots(snapshots: Map<String, AccountQuotaSnapshot>) {
         coroutineScope.launch {
-            try {
-                val content = json.encodeToString(
-                    QuotaStoreData.serializer(),
-                    QuotaStoreData(snapshots = snapshots)
-                )
-                AtomicFileWriter.writeText(
-                    target = quotasFile,
-                    content = content,
-                    permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
-                    disallowSymlinks = true
-                ).getOrThrow()
-            } catch (error: Exception) {
-                AppLog.w("Quota/Poller", error) {
-                    "配额快照持久化失败：${error.message ?: "未知错误"}"
+            persistMutex.withLock {
+                try {
+                    val content = json.encodeToString(
+                        QuotaStoreData.serializer(),
+                        QuotaStoreData(snapshots = snapshots)
+                    )
+                    AtomicFileWriter.writeText(
+                        target = quotasFile,
+                        content = content,
+                        permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
+                        disallowSymlinks = true
+                    ).getOrThrow()
+                } catch (error: Exception) {
+                    AppLog.w("Quota/Poller", error) {
+                        "配额快照持久化失败：${error.message ?: "未知错误"}"
+                    }
                 }
             }
         }
@@ -225,7 +230,7 @@ class QuotaPoller(
     ): Result<AccountQuotaSnapshot> {
         val semaphoreToUse = customSemaphore ?: concurrencySemaphore
         return semaphoreToUse.withPermit {
-            _refreshingAccountIds.value = _refreshingAccountIds.value + account.id
+            _refreshingAccountIds.update { it + account.id }
             try {
                 val result = if (isActiveAccount) {
                     quotaFetchService.fetchActiveAccountQuota(account)
@@ -270,7 +275,7 @@ class QuotaPoller(
 
                 result
             } finally {
-                _refreshingAccountIds.value = _refreshingAccountIds.value - account.id
+                _refreshingAccountIds.update { it - account.id }
             }
         }
     }

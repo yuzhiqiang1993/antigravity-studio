@@ -150,6 +150,7 @@ fun SettingsScreen(
                     openDirectoryError = openConfigDirectory(viewModel)
                 },
                 onUpdateCustomPricing = { viewModel.updateCustomPricingPath(it) },
+                onUpdateCollectNonChatLogs = { viewModel.updateCollectNonChatLogs(it) },
                 onConfigureHostPath = { key, title -> viewModel.openHostPathDialog(key, title) },
                 onOpenOnboarding = { viewModel.openOnboardingDialog() },
                 s = s
@@ -185,6 +186,7 @@ private fun SettingsContent(
     onClearOutboundProxyTestResult: () -> Unit,
     onOpenDirectory: () -> Unit,
     onUpdateCustomPricing: (String?) -> Unit,
+    onUpdateCollectNonChatLogs: (Boolean) -> Unit = {},
     onConfigureHostPath: ((String, String) -> Unit)? = null,
     onOpenOnboarding: () -> Unit = {},
     s: Strings,
@@ -221,7 +223,9 @@ private fun SettingsContent(
                 loadError = loadError,
                 openDirectoryError = openDirectoryError,
                 customPricingPath = config.customPricingPath,
+                collectNonChatLogs = config.collectNonChatLogs,
                 onUpdateCustomPricing = onUpdateCustomPricing,
+                onUpdateCollectNonChatLogs = onUpdateCollectNonChatLogs,
                 onOpenDirectory = onOpenDirectory,
                 s = s
             )

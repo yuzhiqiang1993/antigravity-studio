@@ -153,6 +153,8 @@ interface SettingsStrings {
     val developerModeWrongPassword: String
     val developerModeKeepEnabled: String
     val developerModeCancel: String
+    val settingsCollectNonChatLogs: String
+    val settingsCollectNonChatLogsDesc: String
 
     // Doctor Diagnostics
 }
@@ -324,6 +326,8 @@ object SettingsStringsZh : SettingsStrings {
     override val developerModeWrongPassword = "密码错误，请重新输入"
     override val developerModeKeepEnabled = "保持开启"
     override val developerModeCancel = "取消"
+    override val settingsCollectNonChatLogs = "收集非会话接口日志"
+    override val settingsCollectNonChatLogsDesc = "默认仅收集模型对话与代码补全生成日志；开启后将额外记录模型目录拉取、埋点打点与配额同步等系统请求"
 
 }
 
@@ -502,5 +506,8 @@ object SettingsStringsEn : SettingsStrings {
     override val developerModeWrongPassword = "Incorrect password, please try again"
     override val developerModeKeepEnabled = "Keep Enabled"
     override val developerModeCancel = "Cancel"
+    override val settingsCollectNonChatLogs = "Collect Non-Chat Logs"
+    override val settingsCollectNonChatLogsDesc =
+        "By default, only AI chat and code completions are recorded. Enable to also capture system calls like catalog queries, metrics, and quota syncs."
 
 }

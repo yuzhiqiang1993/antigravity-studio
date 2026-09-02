@@ -775,8 +775,8 @@ class AppViewModel(
 
     fun cancelDownloadUpdate() = updateDelegate.cancelDownloadUpdate()
 
-    fun installUpdate(file: java.io.File, exitCurrentApp: Boolean = true) =
-        updateDelegate.installUpdate(file, exitCurrentApp)
+    fun installUpdate(artifact: com.yuzhiqiang.antigravity.update.engine.VerifiedUpdateArtifact) =
+        updateDelegate.installUpdate(artifact)
 
     fun showDownloadedFileInFolder(file: java.io.File) = updateDelegate.showDownloadedFileInFolder(file)
 
@@ -796,6 +796,10 @@ class AppViewModel(
     fun toggleDeveloperMode() {
         val current = configStore.currentConfig.developerMode
         updateDeveloperMode(!current)
+    }
+
+    fun updateCollectNonChatLogs(enabled: Boolean) {
+        configStore.updateConfig { it.copy(collectNonChatLogs = enabled) }
     }
 
     // --- 账号管理与 OAuth 交互方法 ---
@@ -854,12 +858,21 @@ class AppViewModel(
 
     fun refreshSingleAccountQuota(accountId: String) = accountDelegate.refreshSingleAccountQuota(accountId)
 
+    suspend fun shutdown() {
+        tokenRenewalManager.stop()
+        quotaPoller.stop()
+        com.yuzhiqiang.antigravity.services.events.HostFileWatcher.stop()
+        com.yuzhiqiang.antigravity.services.events.HostProcessWatcher.stop()
+        googleAuthService.close()
+        proxyServer.stop()
+    }
+
     override fun onCleared() {
         tokenRenewalManager.stop()
         quotaPoller.stop()
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            proxyServer.stop()
-        }
+        com.yuzhiqiang.antigravity.services.events.HostFileWatcher.stop()
+        com.yuzhiqiang.antigravity.services.events.HostProcessWatcher.stop()
+        googleAuthService.close()
         super.onCleared()
     }
 }

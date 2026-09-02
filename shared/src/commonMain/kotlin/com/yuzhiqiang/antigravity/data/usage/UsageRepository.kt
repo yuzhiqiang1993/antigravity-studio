@@ -75,6 +75,7 @@ class UsageRepository(
 
     private val _selectedSources = MutableStateFlow<Set<String>>(setOf("all"))
     val selectedSources: StateFlow<Set<String>> = _selectedSources.asStateFlow()
+    private val aggregationRevision = java.util.concurrent.atomic.AtomicLong(0L)
 
     private val _selectedModel = MutableStateFlow<String?>("all")
     val selectedModel: StateFlow<String?> = _selectedModel.asStateFlow()
@@ -84,10 +85,11 @@ class UsageRepository(
     }
 
     /**
-     * 切换时间范围：顶部选中状态立即生效（0ms 响应），底部数据在后台异步极速聚合后顺滑刷新。
+     * 切换时间范围：顶部选中状态立即生效，底部数据在后台异步极速聚合后顺滑刷新。
      */
     suspend fun setTimeRange(timeRange: UsageTimeRange, customRange: CustomDateRange? = null) {
-        AppLog.d("Usage/Repository") { "切换时间范围: $timeRange, customRange=$customRange" }
+        val rev = aggregationRevision.incrementAndGet()
+        AppLog.d("Usage/Repository") { "切换时间范围: $timeRange, customRange=$customRange, rev=$rev" }
         _selectedTimeRange.value = timeRange
         _customDateRange.value = customRange
         withContext(Dispatchers.Default) {
@@ -99,7 +101,9 @@ class UsageRepository(
                 selectedSources = _selectedSources.value,
                 selectedModel = _selectedModel.value
             )
-            _usageStats.value = stats
+            if (rev == aggregationRevision.get()) {
+                _usageStats.value = stats
+            }
         }
         AppLog.i("Usage/Repository") { "时间范围切换完成: $timeRange, 当前总Token=${_usageStats.value.totalTokens}, 调用=${_usageStats.value.totalCalls}" }
     }
@@ -108,8 +112,9 @@ class UsageRepository(
      * 切换数据来源筛选：顶部选中状态立即生效，底部数据在后台异步极速聚合后顺滑刷新。
      */
     suspend fun setSelectedSources(sources: Set<String>) {
+        val rev = aggregationRevision.incrementAndGet()
         val nextSources = if (sources.isEmpty()) setOf("all") else sources
-        AppLog.d("Usage/Repository") { "切换数据来源: $nextSources" }
+        AppLog.d("Usage/Repository") { "切换数据来源: $nextSources, rev=$rev" }
         _selectedSources.value = nextSources
         withContext(Dispatchers.Default) {
             val stats = UsageAggregator.aggregate(
@@ -120,7 +125,9 @@ class UsageRepository(
                 selectedSources = nextSources,
                 selectedModel = _selectedModel.value
             )
-            _usageStats.value = stats
+            if (rev == aggregationRevision.get()) {
+                _usageStats.value = stats
+            }
         }
         AppLog.i("Usage/Repository") { "数据来源切换完成: ${_selectedSources.value}, 聚合会话数=${_usageStats.value.totalConversations}" }
     }
@@ -129,8 +136,9 @@ class UsageRepository(
      * 切换模型筛选：顶部选中状态立即生效，底部数据在后台异步极速聚合后顺滑刷新。
      */
     suspend fun setSelectedModel(model: String?) {
+        val rev = aggregationRevision.incrementAndGet()
         val nextModel = if (model.isNullOrBlank() || model == "all") "all" else model
-        AppLog.d("Usage/Repository") { "切换模型筛选: $nextModel" }
+        AppLog.d("Usage/Repository") { "切换模型筛选: $nextModel, rev=$rev" }
         _selectedModel.value = nextModel
         withContext(Dispatchers.Default) {
             val stats = UsageAggregator.aggregate(
@@ -141,7 +149,9 @@ class UsageRepository(
                 selectedSources = _selectedSources.value,
                 selectedModel = nextModel
             )
-            _usageStats.value = stats
+            if (rev == aggregationRevision.get()) {
+                _usageStats.value = stats
+            }
         }
         AppLog.i("Usage/Repository") { "模型筛选切换完成: $nextModel, 当前总Token=${_usageStats.value.totalTokens}, 调用=${_usageStats.value.totalCalls}" }
     }
@@ -200,8 +210,11 @@ class UsageRepository(
                 )
                 saveDiskCache(merged, sourceMtimes)
 
+                val rev = aggregationRevision.incrementAndGet()
                 val stats = aggregateCurrent()
-                _usageStats.value = stats
+                if (rev == aggregationRevision.get()) {
+                    _usageStats.value = stats
+                }
                 val totalCostMs = System.currentTimeMillis() - startMs
                 AppLog.i("Usage/Repository") { "用量刷新全流程完成! 总耗时=${totalCostMs}ms, 最终会话总数=${merged.size}, 当前时间范围(${_selectedTimeRange.value})聚合Token=${stats.totalTokens}, 调用=${stats.totalCalls}" }
                 Result.success(stats)

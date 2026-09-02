@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ListAlt
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Paid
 import androidx.compose.material.icons.outlined.Warning
@@ -11,11 +12,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.i18n.Strings
@@ -28,7 +31,9 @@ fun DataSettingsSection(
     loadError: String?,
     openDirectoryError: String?,
     customPricingPath: String?,
+    collectNonChatLogs: Boolean,
     onUpdateCustomPricing: (String?) -> Unit,
+    onUpdateCollectNonChatLogs: (Boolean) -> Unit,
     onOpenDirectory: () -> Unit,
     s: Strings
 ) {
@@ -125,6 +130,22 @@ fun DataSettingsSection(
                         )
                     }
                 }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), modifier = Modifier.padding(vertical = 4.dp))
+
+            // 收集非会话接口日志开关
+            SettingRow(
+                icon = Icons.AutoMirrored.Outlined.ListAlt,
+                title = s.settingsCollectNonChatLogs,
+                description = s.settingsCollectNonChatLogsDesc,
+                modifier = Modifier.padding(vertical = 2.dp)
+            ) {
+                Switch(
+                    checked = collectNonChatLogs,
+                    onCheckedChange = onUpdateCollectNonChatLogs,
+                    modifier = Modifier.scale(0.8f)
+                )
             }
 
             if (openDirectoryError != null) {

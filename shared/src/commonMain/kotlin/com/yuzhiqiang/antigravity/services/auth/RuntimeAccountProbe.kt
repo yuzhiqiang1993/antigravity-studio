@@ -423,7 +423,7 @@ internal object RuntimeAccountProbe {
             connection.outputStream.use { stream -> stream.write(body.toByteArray(Charsets.UTF_8)) }
             val status = connection.responseCode
             val input = if (status in 200..299) connection.inputStream else connection.errorStream
-            val bytes = input?.use { it.readNBytes(MAX_RESPONSE_BYTES + 1) } ?: ByteArray(0)
+            val bytes = input?.use { it.readNBytes(MAX_USAGE_RESPONSE_BYTES + 1) } ?: ByteArray(0)
             if (bytes.size > MAX_USAGE_RESPONSE_BYTES) throw IOException("Language Server 响应超过大小限制")
             val responseBody = bytes.toString(Charsets.UTF_8)
             if (status !in 200..299) {

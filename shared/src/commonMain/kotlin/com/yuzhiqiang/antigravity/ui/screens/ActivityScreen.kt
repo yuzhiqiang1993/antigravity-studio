@@ -110,20 +110,22 @@ fun ActivityScreen(
                             modifier = Modifier.width(280.dp)
                         )
 
-                        ActivityOnlyAiChatToggleButton(
-                            isOnlyAiChat = activityFilter.onlyAiChat,
-                            onClick = {
-                                activityFilter = activityFilter.copy(onlyAiChat = !activityFilter.onlyAiChat)
-                            },
-                            s = s
-                        )
+                        if (config.collectNonChatLogs) {
+                            ActivityOnlyAiChatToggleButton(
+                                isOnlyAiChat = activityFilter.onlyAiChat,
+                                onClick = {
+                                    activityFilter = activityFilter.copy(onlyAiChat = !activityFilter.onlyAiChat)
+                                },
+                                s = s
+                            )
 
-                        ActivityFilterButton(
-                            isFiltered = activityFilter.isActive,
-                            filterCount = activityFilter.activeCount,
-                            onClick = { showFilterDialog = true },
-                            s = s
-                        )
+                            ActivityFilterButton(
+                                isFiltered = activityFilter.isActive,
+                                filterCount = activityFilter.activeCount,
+                                onClick = { showFilterDialog = true },
+                                s = s
+                            )
+                        }
                     }
 
                     Row(
