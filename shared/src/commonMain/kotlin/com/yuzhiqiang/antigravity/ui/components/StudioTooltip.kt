@@ -16,10 +16,11 @@ import androidx.compose.ui.unit.sp
 fun StudioTooltip(
     text: String?,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     positioning: TooltipAnchorPosition = TooltipAnchorPosition.Above,
     content: @Composable () -> Unit
 ) {
-    if (text.isNullOrBlank()) {
+    if (text.isNullOrBlank() || !enabled) {
         content()
     } else {
         TooltipBox(

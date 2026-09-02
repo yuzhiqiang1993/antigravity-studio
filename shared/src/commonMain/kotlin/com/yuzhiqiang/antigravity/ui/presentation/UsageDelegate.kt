@@ -26,11 +26,19 @@ class UsageDelegate(
     val selectedSources: StateFlow<Set<String>> = usageRepository.selectedSources
     val selectedModel: StateFlow<String?> = usageRepository.selectedModel
 
-    private val _autoRefreshInterval = kotlinx.coroutines.flow.MutableStateFlow(0)
+    companion object {
+        const val DEFAULT_AUTO_REFRESH_INTERVAL_SECONDS = 30
+    }
+
+    private val _autoRefreshInterval = kotlinx.coroutines.flow.MutableStateFlow(DEFAULT_AUTO_REFRESH_INTERVAL_SECONDS)
     val autoRefreshInterval: StateFlow<Int> = _autoRefreshInterval
 
     private var initialRefreshStarted = false
     private var autoRefreshJob: kotlinx.coroutines.Job? = null
+
+    init {
+        setAutoRefreshInterval(DEFAULT_AUTO_REFRESH_INTERVAL_SECONDS)
+    }
 
     /** 在价格配置完成后启动首次扫描，避免首次聚合使用默认费率。 */
     fun startInitialRefresh() {

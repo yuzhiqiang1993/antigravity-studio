@@ -226,9 +226,9 @@ fun StudioDropdownTrigger(
         shape = RoundedCornerShape(8.dp),
         color = containerColor,
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        interactionSource = interactionSource,
         modifier = modifier
             .height(32.dp)
-            .hoverable(interactionSource = interactionSource)
             .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
     ) {
         Row(

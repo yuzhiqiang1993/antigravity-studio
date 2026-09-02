@@ -144,7 +144,7 @@ fun UsageScreen(
                     s.usageTimeRangeCustom
                 }
 
-                StudioTooltip(text = s.usageDateRangeTooltip) {
+                StudioTooltip(text = s.usageDateRangeTooltip, enabled = !showDateRangeDialog) {
                     com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
                         text = datePickerLabel,
                         leadingIcon = Icons.Outlined.CalendarMonth,
@@ -170,11 +170,11 @@ fun UsageScreen(
                 }
 
                 Box {
-                    StudioTooltip(text = s.usageFilterModelTooltip) {
+                    StudioTooltip(text = s.usageFilterModelTooltip, enabled = !showModelDropdown) {
                         com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
                             text = currentModelLabel,
                             isActive = isModelCustom,
-                            onClick = { showModelDropdown = true }
+                            onClick = { showModelDropdown = !showModelDropdown }
                         )
                     }
 
@@ -222,11 +222,11 @@ fun UsageScreen(
                 }
 
                 Box {
-                    StudioTooltip(text = s.usageFilterSourceTooltip) {
+                    StudioTooltip(text = s.usageFilterSourceTooltip, enabled = !showSourceDropdown) {
                         com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
                             text = currentSourceLabel,
                             isActive = isSourceCustom,
-                            onClick = { showSourceDropdown = true }
+                            onClick = { showSourceDropdown = !showSourceDropdown }
                         )
                     }
 
@@ -279,12 +279,12 @@ fun UsageScreen(
                 }
 
                 Box {
-                    StudioTooltip(text = s.usageAutoRefreshTooltip) {
+                    StudioTooltip(text = s.usageAutoRefreshTooltip, enabled = !showAutoRefreshDropdown) {
                         com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
                             text = autoRefreshLabel,
                             leadingIcon = Icons.Outlined.Refresh,
                             isActive = isAutoRefreshActive,
-                            onClick = { showAutoRefreshDropdown = true }
+                            onClick = { showAutoRefreshDropdown = !showAutoRefreshDropdown }
                         )
                     }
 
