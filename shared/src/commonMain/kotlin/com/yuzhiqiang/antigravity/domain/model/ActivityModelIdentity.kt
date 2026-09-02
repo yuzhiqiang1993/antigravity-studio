@@ -21,7 +21,15 @@ data class ActivityModelIdentity(
     @SerialName("identity_resolution") val identityResolution: ModelIdentityResolution = ModelIdentityResolution()
 ) {
     val primaryModelId: String?
-        get() = variantId ?: catalogModelId ?: runtimeModelId ?: providerModelId ?: responseModelId ?: requestedModelId
+        get() = (catalogModelId ?: runtimeModelId ?: variantId ?: providerModelId ?: responseModelId ?: requestedModelId)
+            ?.trim()
+            ?.removePrefix("official-variant:")
+            ?.removePrefix("official-binding:")
+            ?.removePrefix("variant:")
+            ?.removePrefix("binding:")
+            ?.removePrefix("catalog:")
+            ?.removePrefix("runtime:")
+            ?.removePrefix("models/")
 
     val groupingKey: String
         get() = when {

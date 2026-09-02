@@ -11,6 +11,8 @@ class ModelDisplayNameResolverTest {
     fun testFallbackFormattingForCommonModels() {
         assertEquals("Gemini 3.7 Flash (High)", ModelDisplayNameResolver.resolve("gemini-3.7-flash-high"))
         assertEquals("Gemini 3.1 Flash Lite", ModelDisplayNameResolver.resolve("gemini-3.1-flash-lite"))
+        assertEquals("Gemini 3.7 Flash (High)", ModelDisplayNameResolver.resolve("official-variant:gemini-3.7-flash-high"))
+        assertEquals("Gemini 3.1 Flash Lite", ModelDisplayNameResolver.resolve("official-variant:gemini-3.1-flash-lite"))
         assertEquals("GPT 5.6 Sol (X-High)", ModelDisplayNameResolver.resolve("custom-gpt-5-6-sol-x-high"))
         assertEquals("Claude 3.7 Sonnet (High)", ModelDisplayNameResolver.resolve("claude-3-7-sonnet-high"))
     }

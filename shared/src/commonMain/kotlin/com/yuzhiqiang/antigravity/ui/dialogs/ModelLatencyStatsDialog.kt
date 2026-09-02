@@ -305,9 +305,12 @@ private fun MultiMetricModelCard(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val displayName = androidx.compose.runtime.remember(stat.modelId, config, officialModels) {
+    val cleanModelId = androidx.compose.runtime.remember(stat.modelId) {
+        ModelDisplayNameResolver.cleanModelId(stat.modelId)
+    }
+    val displayName = stat.displayName?.takeIf { it.isNotBlank() } ?: androidx.compose.runtime.remember(cleanModelId, config, officialModels) {
         ModelDisplayNameResolver.resolve(
-            modelId = stat.modelId,
+            modelId = cleanModelId,
             config = config,
             officialModels = officialModels
         )
@@ -328,7 +331,7 @@ private fun MultiMetricModelCard(
                 .padding(13.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 顶行：模型名称 (displayName + modelId) + 状态徽标
+            // 顶行：模型名称 (displayName + cleanModelId) + 状态徽标
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -348,9 +351,9 @@ private fun MultiMetricModelCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (displayName != stat.modelId) {
+                    if (displayName != cleanModelId) {
                         Text(
-                            text = stat.modelId,
+                            text = cleanModelId,
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace,

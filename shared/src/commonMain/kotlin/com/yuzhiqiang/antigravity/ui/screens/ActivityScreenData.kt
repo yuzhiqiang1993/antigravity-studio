@@ -68,6 +68,7 @@ internal data class ActivityStatistics(
 
 data class ModelLatencyStat(
     val modelId: String,
+    val displayName: String? = null,
     val sampleCount: Int,
     val p50FirstByteMs: Long = 0L,
     val p95FirstByteMs: Long = 0L,
@@ -148,11 +149,12 @@ internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLate
         .mapNotNull { log ->
             val identity = log.modelIdentity ?: return@mapNotNull null
             val modelId = identity.primaryModelId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            Triple(identity.groupingKey, modelId, log)
+            val displayName = identity.displayName?.takeIf { it.isNotBlank() }
+            Triple(identity.groupingKey, modelId to displayName, log)
         }
         .groupBy({ it.first }, { it.second to it.third })
         .map { (_, groupedLogs) ->
-            val modelId = groupedLogs.first().first
+            val (modelId, resolvedDisplayName) = groupedLogs.first().first
             val modelLogs = groupedLogs.map { it.second }
             val successfulLogs = modelLogs.filter { !it.isPending && it.statusCode in 200..399 }
             val firstByteLogs = successfulLogs.mapNotNull { it.firstByteMs?.takeIf { ms -> ms > 0L } }
@@ -194,6 +196,7 @@ internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLate
 
             ModelLatencyStat(
                 modelId = modelId,
+                displayName = resolvedDisplayName,
                 sampleCount = firstTokenLogs.size,
                 p50FirstByteMs = calculatePercentile(firstByteLogs, 50.0),
                 p95FirstByteMs = calculatePercentile(firstByteLogs, 95.0),

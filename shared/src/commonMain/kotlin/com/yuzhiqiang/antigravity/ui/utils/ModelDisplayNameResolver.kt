@@ -8,6 +8,22 @@ import com.yuzhiqiang.antigravity.proxy.catalog.OfficialCatalogProbe
 
 object ModelDisplayNameResolver {
 
+    fun cleanModelId(modelId: String): String {
+        return modelId.trim()
+            .removePrefix("official-variant:")
+            .removePrefix("official-binding:")
+            .removePrefix("official:")
+            .removePrefix("variant:")
+            .removePrefix("binding:")
+            .removePrefix("canonical:")
+            .removePrefix("catalog:")
+            .removePrefix("runtime:")
+            .removePrefix("models/")
+            .removePrefix("custom-byok-")
+            .removePrefix("custom-")
+            .trim()
+    }
+
     /**
      * 将 modelId 解析为易读的 displayName：
      * 1. 优先在 officialModels 中匹配（精确或 catalogModel + 档位）
@@ -19,7 +35,7 @@ object ModelDisplayNameResolver {
         config: AppConfig? = null,
         officialModels: List<OfficialCatalogModel>? = null
     ): String {
-        val trimmed = modelId.trim()
+        val trimmed = cleanModelId(modelId)
         if (trimmed.isBlank()) return ""
 
         // 1. 查找官方模型列表
@@ -37,8 +53,8 @@ object ModelDisplayNameResolver {
         // 2. 查找配置中的路由变体或 Provider 模型 Binding
         if (config != null) {
             val variant = config.modelRouteVariants.firstOrNull { candidate ->
-                candidate.variantId.equals(trimmed, ignoreCase = true) ||
-                        candidate.catalogModelId.equals(trimmed, ignoreCase = true) ||
+                cleanModelId(candidate.variantId).equals(trimmed, ignoreCase = true) ||
+                        cleanModelId(candidate.catalogModelId).equals(trimmed, ignoreCase = true) ||
                         candidate.runtimeModelId.equals(trimmed, ignoreCase = true)
             }
             if (variant != null) {
@@ -51,8 +67,8 @@ object ModelDisplayNameResolver {
             }
 
             val binding = config.providerModelBindings.firstOrNull { candidate ->
-                candidate.bindingId.equals(trimmed, ignoreCase = true) ||
-                        candidate.providerModelId.equals(trimmed, ignoreCase = true)
+                cleanModelId(candidate.bindingId).equals(trimmed, ignoreCase = true) ||
+                        cleanModelId(candidate.providerModelId).equals(trimmed, ignoreCase = true)
             }
             if (binding != null) {
                 return binding.effectiveName
@@ -97,13 +113,11 @@ object ModelDisplayNameResolver {
     }
 
     internal fun formatHumanReadableModelName(modelId: String): String {
-        var clean = modelId.trim()
+        var clean = cleanModelId(modelId)
         val (stripped, level) = extractReasoningLevel(clean)
         clean = stripped
 
-        clean = clean.removePrefix("custom-byok-").removePrefix("custom-")
-
-        val parts = clean.split('-', '_').filter { it.isNotBlank() }
+        val parts = clean.split('-', '_', ' ').filter { it.isNotBlank() }
         val formattedParts = parts.map { part ->
             when {
                 part.equals("gpt", ignoreCase = true) -> "GPT"

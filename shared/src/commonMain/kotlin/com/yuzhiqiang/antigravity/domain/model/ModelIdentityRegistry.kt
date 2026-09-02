@@ -384,8 +384,8 @@ class ModelIdentityRegistry private constructor(
                 records += IdentityRecord(
                     canonicalModelId = canonicalModelId,
                     baseModelId = model.baseModelId,
-                    bindingId = "official-binding:$bindingKey",
-                    variantId = "official-variant:${model.catalogModelId}",
+                    bindingId = "official:$bindingKey",
+                    variantId = model.catalogModelId,
                     catalogModelId = model.catalogModelId,
                     runtimeModelId = model.runtimeModelId,
                     providerConfigId = OFFICIAL_PROVIDER_CONFIG_ID,
