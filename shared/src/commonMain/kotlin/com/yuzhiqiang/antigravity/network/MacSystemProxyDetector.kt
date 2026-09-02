@@ -70,7 +70,7 @@ internal data class MacSystemProxySnapshot(
 }
 
 internal object MacSystemProxyDetector {
-    private const val CACHE_TTL_MS = 5_000L
+    private const val CACHE_TTL_MS = 30_000L
 
     private data class CachedSnapshot(
         val timestamp: Long,
@@ -80,6 +80,11 @@ internal object MacSystemProxyDetector {
     private val cache = AtomicReference(CachedSnapshot(0L, MacSystemProxySnapshot()))
     private val refreshInFlight = AtomicBoolean(false)
     private val initialRefreshCompleted = CountDownLatch(1)
+    private val refreshExecutor by lazy {
+        java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "studio-system-proxy-refresh").apply { isDaemon = true }
+        }
+    }
 
     fun prewarm() {
         if (isMacOs()) refreshAsync()
@@ -148,7 +153,7 @@ internal object MacSystemProxyDetector {
 
     private fun refreshAsync() {
         if (!refreshInFlight.compareAndSet(false, true)) return
-        thread(name = "studio-system-proxy-refresh", isDaemon = true) {
+        refreshExecutor.execute {
             try {
                 val detected = detectSnapshot()
                 cache.set(CachedSnapshot(System.currentTimeMillis(), detected))
