@@ -20,6 +20,7 @@ class UsageDelegate(
 ) {
     val usageStats: StateFlow<DeepUsageStats> = usageRepository.usageStats
     val isRefreshing: StateFlow<Boolean> = usageRepository.isRefreshing
+    val isInitialLoading: StateFlow<Boolean> = usageRepository.isInitialLoading
     val selectedTimeRange: StateFlow<UsageTimeRange> = usageRepository.selectedTimeRange
     val customDateRange: StateFlow<CustomDateRange?> = usageRepository.customDateRange
     val selectedSources: StateFlow<Set<String>> = usageRepository.selectedSources

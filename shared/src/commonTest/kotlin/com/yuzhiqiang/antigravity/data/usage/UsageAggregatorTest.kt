@@ -925,6 +925,64 @@ class UsageAggregatorTest {
         assertEquals(1L, stats.totalCalls)
     }
 
+    @Test
+    fun testRollingRangeAggregationAccurate() {
+        val pricing = PricingCatalogService()
+        val now = Instant.now()
+        val entryToday = TokenEntry(
+            input = 100,
+            modelObservation = ModelObservation(providerConfigId = TEST_PROVIDER_CONFIG_ID, responseModelId = "gpt-4o"),
+            timestamp = now.minusSeconds(3600).toString()
+        )
+        val entry5DaysAgo = TokenEntry(
+            input = 500,
+            modelObservation = ModelObservation(providerConfigId = TEST_PROVIDER_CONFIG_ID, responseModelId = "gpt-4o"),
+            timestamp = now.minusSeconds(5 * 86400).toString()
+        )
+        val entry10DaysAgo = TokenEntry(
+            input = 1000,
+            modelObservation = ModelObservation(providerConfigId = TEST_PROVIDER_CONFIG_ID, responseModelId = "gpt-4o"),
+            timestamp = now.minusSeconds(10 * 86400).toString()
+        )
+        val entry20DaysAgo = TokenEntry(
+            input = 2000,
+            modelObservation = ModelObservation(providerConfigId = TEST_PROVIDER_CONFIG_ID, responseModelId = "gpt-4o"),
+            timestamp = now.minusSeconds(20 * 86400).toString()
+        )
+
+        val convo = ConversationUsageData(
+            conversationId = "rolling-test",
+            entries = listOf(entryToday, entry5DaysAgo, entry10DaysAgo, entry20DaysAgo)
+        )
+
+        // 7天内：包含 entryToday (100) + entry5DaysAgo (500) = 600
+        val stats7d = UsageAggregator.aggregate(
+            conversations = listOf(convo),
+            pricingService = pricing,
+            timeRange = UsageTimeRange.ROLLING_7D
+        )
+        assertEquals(600L, stats7d.totalTokens)
+        assertEquals(2L, stats7d.totalCalls)
+
+        // 14天内：包含 entryToday (100) + entry5DaysAgo (500) + entry10DaysAgo (1000) = 1600
+        val stats14d = UsageAggregator.aggregate(
+            conversations = listOf(convo),
+            pricingService = pricing,
+            timeRange = UsageTimeRange.ROLLING_14D
+        )
+        assertEquals(1600L, stats14d.totalTokens)
+        assertEquals(3L, stats14d.totalCalls)
+
+        // 30天内：全部 4 个条目 = 3600
+        val stats30d = UsageAggregator.aggregate(
+            conversations = listOf(convo),
+            pricingService = pricing,
+            timeRange = UsageTimeRange.ROLLING_30D
+        )
+        assertEquals(3600L, stats30d.totalTokens)
+        assertEquals(4L, stats30d.totalCalls)
+    }
+
     private fun createOfficialGeminiEntry(
         runtimeModelId: String?,
         responseModelId: String?,

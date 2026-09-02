@@ -29,6 +29,26 @@ data class TokenEntry(
     val totalTokens: Long
         get() = input + output + cacheRead + cacheWrite + reasoning + unattributed
 
+    @kotlinx.serialization.Transient
+    private var _cachedEpochMillis: Long? = null
+
+    val epochMillis: Long
+        get() {
+            val cached = _cachedEpochMillis
+            if (cached != null) return cached
+            val parsed = if (timestamp.isBlank()) {
+                -1L
+            } else {
+                try {
+                    java.time.Instant.parse(timestamp).toEpochMilli()
+                } catch (_: Exception) {
+                    -1L
+                }
+            }
+            _cachedEpochMillis = parsed
+            return parsed
+        }
+
     /** 用于去重的唯一特征指纹 */
     fun fingerprint(): String {
         if (!responseId.isNullOrBlank()) return "rid:$responseId"
@@ -328,6 +348,7 @@ data class DeepUsageStats(
     val sourceBuckets: List<AppSourceUsageBucket> = emptyList(),
     val topConversations: List<ConversationUsageBucket> = emptyList(),
     val availableModels: List<ModelFilterOption> = emptyList(),
+    val timeRange: UsageTimeRange = UsageTimeRange.CALENDAR_TODAY,
     val generatedAt: Long = 0L
 ) {
     val totalTokens: Long

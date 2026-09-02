@@ -40,6 +40,9 @@ object UsageAggregator {
         val nowInstant = Instant.ofEpochMilli(nowMillis)
 
         val timeBounds = resolveTimeBounds(timeRange, nowInstant, zoneId, customDateRange)
+        val fromMillis = timeBounds.from?.toEpochMilli()
+        val toExclusiveMillis = timeBounds.toExclusive?.toEpochMilli()
+
         val identityRegistry = ModelIdentityRegistryHolder.snapshot()
         val normalizedSelectedSources = selectedSources.mapTo(mutableSetOf(), ::normalizeSource)
         val allowAllSources = normalizedSelectedSources.isEmpty() || normalizedSelectedSources.contains("all")
@@ -71,6 +74,7 @@ object UsageAggregator {
         // 今日统计始终按本地日 [00:00, now) 聚合，不随当前时间范围变化。
         val todayDate = nowInstant.atZone(zoneId).toLocalDate()
         val todayStart = todayDate.atStartOfDay(zoneId).toInstant()
+        val todayStartMillis = todayStart.toEpochMilli()
         var todayInput = 0L
         var todayOutput = 0L
         var todayCacheRead = 0L
@@ -114,10 +118,12 @@ object UsageAggregator {
                     if (!matches) continue
                 }
 
-                val instant = parseInstant(entry.timestamp)
+                val entryMillis = entry.epochMillis
+                val isTimestampValid = entryMillis > 0L
                 val outsideFilter = !timeBounds.valid ||
-                        (timeBounds.from != null && (instant == null || instant.isBefore(timeBounds.from))) ||
-                        (timeBounds.toExclusive != null && (instant == null || !instant.isBefore(timeBounds.toExclusive)))
+                        (fromMillis != null && (!isTimestampValid || entryMillis < fromMillis)) ||
+                        (toExclusiveMillis != null && (!isTimestampValid || entryMillis >= toExclusiveMillis))
+
                 val input = entry.input.coerceAtLeast(0L)
                 val output = entry.output.coerceAtLeast(0L)
                 val cacheRead = entry.cacheRead.coerceAtLeast(0L)
@@ -140,7 +146,7 @@ object UsageAggregator {
                     unpricedCostResult(entry.missingUsageFields, unattributed)
                 }
 
-                if (instant != null && !instant.isBefore(todayStart) && instant.isBefore(nowInstant)) {
+                if (isTimestampValid && entryMillis >= todayStartMillis && entryMillis < nowMillis) {
                     todayInput += input
                     todayOutput += output
                     todayCacheRead += cacheRead
@@ -157,6 +163,7 @@ object UsageAggregator {
                 }
 
                 // 月度账单与插件一致：只要时间戳有效，就不受当前日/周筛选影响。
+                val instant = if (isTimestampValid) Instant.ofEpochMilli(entryMillis) else null
                 if (timeBounds.valid && instant != null) {
                     val monthDate = instant.atZone(zoneId).toLocalDate()
                     val ymStr = monthDate.toString().substring(0, 7)
@@ -378,6 +385,7 @@ object UsageAggregator {
             sourceBuckets = sortedSources,
             topConversations = sortedTopConvos,
             availableModels = modelOptions,
+            timeRange = timeRange,
             generatedAt = nowMillis
         )
     }

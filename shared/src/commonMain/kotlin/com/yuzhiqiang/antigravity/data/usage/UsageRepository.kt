@@ -8,6 +8,7 @@ import com.yuzhiqiang.antigravity.domain.model.usage.DeepUsageStats
 import com.yuzhiqiang.antigravity.domain.model.usage.UsageTimeRange
 import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,7 +53,7 @@ class UsageRepository(
 
     private val rootDir: File by lazy { customRootDir ?: AppDataPaths.rootDir() }
     private val cacheFile: File by lazy { File(rootDir, ".deep_stats_cache.json") }
-    private val mutex = Mutex()
+    private val scanMutex = Mutex()
 
     private val _conversations = MutableStateFlow<List<ConversationUsageData>>(emptyList())
     private val sourceMtimes = mutableMapOf<String, Long>()
@@ -62,6 +63,9 @@ class UsageRepository(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private val _isInitialLoading = MutableStateFlow(true)
+    val isInitialLoading: StateFlow<Boolean> = _isInitialLoading.asStateFlow()
 
     private val _selectedTimeRange = MutableStateFlow(UsageTimeRange.CALENDAR_TODAY)
     val selectedTimeRange: StateFlow<UsageTimeRange> = _selectedTimeRange.asStateFlow()
@@ -79,30 +83,70 @@ class UsageRepository(
         loadDiskCache()
     }
 
-    suspend fun setTimeRange(timeRange: UsageTimeRange, customRange: CustomDateRange? = null) = mutex.withLock {
+    /**
+     * 切换时间范围：顶部选中状态立即生效（0ms 响应），底部数据在后台异步极速聚合后顺滑刷新。
+     */
+    suspend fun setTimeRange(timeRange: UsageTimeRange, customRange: CustomDateRange? = null) {
         AppLog.d("Usage/Repository") { "切换时间范围: $timeRange, customRange=$customRange" }
         _selectedTimeRange.value = timeRange
         _customDateRange.value = customRange
-        _usageStats.value = aggregateCurrentAsync()
+        withContext(Dispatchers.Default) {
+            val stats = UsageAggregator.aggregate(
+                conversations = _conversations.value,
+                pricingService = pricingService,
+                timeRange = timeRange,
+                customDateRange = customRange,
+                selectedSources = _selectedSources.value,
+                selectedModel = _selectedModel.value
+            )
+            _usageStats.value = stats
+        }
         AppLog.i("Usage/Repository") { "时间范围切换完成: $timeRange, 当前总Token=${_usageStats.value.totalTokens}, 调用=${_usageStats.value.totalCalls}" }
     }
 
-    suspend fun setSelectedSources(sources: Set<String>) = mutex.withLock {
-        AppLog.d("Usage/Repository") { "切换数据来源: $sources" }
-        _selectedSources.value = if (sources.isEmpty()) setOf("all") else sources
-        _usageStats.value = aggregateCurrentAsync()
+    /**
+     * 切换数据来源筛选：顶部选中状态立即生效，底部数据在后台异步极速聚合后顺滑刷新。
+     */
+    suspend fun setSelectedSources(sources: Set<String>) {
+        val nextSources = if (sources.isEmpty()) setOf("all") else sources
+        AppLog.d("Usage/Repository") { "切换数据来源: $nextSources" }
+        _selectedSources.value = nextSources
+        withContext(Dispatchers.Default) {
+            val stats = UsageAggregator.aggregate(
+                conversations = _conversations.value,
+                pricingService = pricingService,
+                timeRange = _selectedTimeRange.value,
+                customDateRange = _customDateRange.value,
+                selectedSources = nextSources,
+                selectedModel = _selectedModel.value
+            )
+            _usageStats.value = stats
+        }
         AppLog.i("Usage/Repository") { "数据来源切换完成: ${_selectedSources.value}, 聚合会话数=${_usageStats.value.totalConversations}" }
     }
 
-    suspend fun setSelectedModel(model: String?) = mutex.withLock {
+    /**
+     * 切换模型筛选：顶部选中状态立即生效，底部数据在后台异步极速聚合后顺滑刷新。
+     */
+    suspend fun setSelectedModel(model: String?) {
         val nextModel = if (model.isNullOrBlank() || model == "all") "all" else model
         AppLog.d("Usage/Repository") { "切换模型筛选: $nextModel" }
         _selectedModel.value = nextModel
-        _usageStats.value = aggregateCurrentAsync()
+        withContext(Dispatchers.Default) {
+            val stats = UsageAggregator.aggregate(
+                conversations = _conversations.value,
+                pricingService = pricingService,
+                timeRange = _selectedTimeRange.value,
+                customDateRange = _customDateRange.value,
+                selectedSources = _selectedSources.value,
+                selectedModel = nextModel
+            )
+            _usageStats.value = stats
+        }
         AppLog.i("Usage/Repository") { "模型筛选切换完成: $nextModel, 当前总Token=${_usageStats.value.totalTokens}, 调用=${_usageStats.value.totalCalls}" }
     }
 
-    suspend fun refresh(force: Boolean = false): Result<DeepUsageStats> = mutex.withLock {
+    suspend fun refresh(force: Boolean = false): Result<DeepUsageStats> = scanMutex.withLock {
         withContext(Dispatchers.IO) {
             val startMs = System.currentTimeMillis()
             AppLog.i("Usage/Repository") { "开始刷新用量统计 (force=$force, 当前已缓存会话=${_conversations.value.size})" }
@@ -156,7 +200,7 @@ class UsageRepository(
                 )
                 saveDiskCache(merged, sourceMtimes)
 
-                val stats = aggregateCurrentAsync()
+                val stats = aggregateCurrent()
                 _usageStats.value = stats
                 val totalCostMs = System.currentTimeMillis() - startMs
                 AppLog.i("Usage/Repository") { "用量刷新全流程完成! 总耗时=${totalCostMs}ms, 最终会话总数=${merged.size}, 当前时间范围(${_selectedTimeRange.value})聚合Token=${stats.totalTokens}, 调用=${stats.totalCalls}" }
@@ -166,16 +210,16 @@ class UsageRepository(
                 Result.failure(error)
             } finally {
                 _isRefreshing.value = false
+                _isInitialLoading.value = false
             }
         }
     }
 
-    suspend fun recomputeStats() = mutex.withLock {
-        _usageStats.value = aggregateCurrentAsync()
-    }
-
-    private suspend fun aggregateCurrentAsync(): DeepUsageStats = withContext(Dispatchers.Default) {
-        aggregateCurrent()
+    suspend fun recomputeStats() {
+        withContext(Dispatchers.Default) {
+            val stats = aggregateCurrent()
+            _usageStats.value = stats
+        }
     }
 
     private fun aggregateCurrent(): DeepUsageStats = UsageAggregator.aggregate(
@@ -226,6 +270,9 @@ class UsageRepository(
             sourceMtimes.clear()
             sourceMtimes.putAll(cache.sourceMtimes)
             _usageStats.value = aggregateCurrent()
+            if (_conversations.value.isNotEmpty()) {
+                _isInitialLoading.value = false
+            }
             AppLog.i("Usage/Repository") { "成功恢复本地用量磁盘缓存: 会话数=${_conversations.value.size}, 缓存版本=${cache.version}, 耗时=${System.currentTimeMillis() - startMs}ms, 初始Token=${_usageStats.value.totalTokens}" }
         } catch (error: Exception) {
             AppLog.w("Usage/Repository", error) { "读取本地用量磁盘缓存失败 (将回退至冷扫描): ${error.message}" }
