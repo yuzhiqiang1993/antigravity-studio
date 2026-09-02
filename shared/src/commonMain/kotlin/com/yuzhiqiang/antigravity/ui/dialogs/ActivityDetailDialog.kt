@@ -195,13 +195,13 @@ fun ActivityDetailDialog(
 
                     // 2. 速度与流式指标 (若存在)
                     val hasSpeedInfo = log.tokensPerSecond != null || log.timePerOutputTokenMs != null ||
-                            log.generationDurationMs != null || log.maxChunkGapMs != null || log.stallCount > 0 ||
-                            log.lastTokenMs != null || log.stallDurationMs != null
+                            log.generationDurationMs != null || log.maxChunkGapMs != null ||
+                            log.lastTokenMs != null
                     if (hasSpeedInfo) {
                         DetailSectionCard(title = s.activityDetailSpeedSection) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                 modifier = Modifier.fillMaxWidth(),
+                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 TokenMetricBadge(
                                     label = s.activityDetailTps,
@@ -222,22 +222,9 @@ fun ActivityDetailDialog(
                                 TokenMetricBadge(
                                     label = s.activityDetailMaxChunkGap,
                                     value = log.maxChunkGapMs?.let(::formatDuration) ?: "—",
-                                    customValueColor = log.maxChunkGapMs?.let {
-                                        if (log.stallCount > 0) MaterialTheme.colorScheme.error
-                                        else MaterialTheme.colorScheme.tertiary
-                                    },
+                                    customValueColor = log.maxChunkGapMs?.let { MaterialTheme.colorScheme.tertiary },
                                     modifier = Modifier.weight(1f)
                                 )
-                            }
-                            if (log.stallCount > 0) {
-                                DetailItemRow(
-                                    s.activityDetailStallCount,
-                                    s.activityStallsCount(log.stallCount),
-                                    highlightColor = MaterialTheme.colorScheme.error
-                                )
-                            }
-                            log.stallDurationMs?.takeIf { it > 0L }?.let {
-                                DetailItemRow(s.activityDetailStallDuration, formatDuration(it))
                             }
                             log.lastTokenMs?.let {
                                 DetailItemRow(s.activityDetailLastToken, formatDuration(it))

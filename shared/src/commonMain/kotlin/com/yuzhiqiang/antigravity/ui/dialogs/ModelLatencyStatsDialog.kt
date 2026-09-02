@@ -365,48 +365,25 @@ private fun MultiMetricModelCard(
                     }
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // 调用次数徽标
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (isDark) 0.55f else 0.80f)
                 ) {
-                    // 仅在存在卡顿时展示警示徽标
-                    if (stat.totalStallCount > 0) {
-                        Surface(
-                            shape = RoundedCornerShape(5.dp),
-                            color = MaterialTheme.colorScheme.error.copy(alpha = if (isDark) 0.20f else 0.14f)
-                        ) {
-                            Text(
-                                text = s.activityModelLatencyStallBadge(stat.totalStallCount),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                ),
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
+                    val badgeText = if (stat.completedCount == stat.totalRequests) {
+                        s.activityModelLatencyCallsCount(stat.totalRequests)
+                    } else {
+                        s.activityModelLatencyCompletedCalls(stat.completedCount, stat.totalRequests)
                     }
-
-                    // 调用次数徽标
-                    Surface(
-                        shape = RoundedCornerShape(5.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (isDark) 0.55f else 0.80f)
-                    ) {
-                        val badgeText = if (stat.completedCount == stat.totalRequests) {
-                            s.activityModelLatencyCallsCount(stat.totalRequests)
-                        } else {
-                            s.activityModelLatencyCompletedCalls(stat.completedCount, stat.totalRequests)
-                        }
-                        Text(
-                            text = badgeText,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                    Text(
+                        text = badgeText,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
             }
 
