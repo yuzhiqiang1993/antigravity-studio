@@ -103,6 +103,21 @@ private fun setupPlatformAppIcon() {
     }
 }
 
+private fun cleanupAppResources() {
+    try {
+        com.yuzhiqiang.antigravity.services.events.HostFileWatcher.stop()
+        com.yuzhiqiang.antigravity.services.events.HostProcessWatcher.stop()
+        kotlinx.coroutines.runBlocking {
+            kotlinx.coroutines.withTimeoutOrNull(1500L) {
+                org.koin.core.context.GlobalContext.getOrNull()
+                    ?.getOrNull<com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer>()
+                    ?.stop()
+            }
+        }
+    } catch (_: Throwable) {
+    }
+}
+
 fun main() {
     val osName = System.getProperty("os.name", "").lowercase()
     if (osName.contains("mac")) {
@@ -119,6 +134,10 @@ fun main() {
     startKoin {
         modules(appModule)
     }
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        cleanupAppResources()
+    })
 
     setupPlatformAppIcon()
 
@@ -195,7 +214,10 @@ fun main() {
                 menu = {
                     Item(s.trayShowMainWindow, onClick = showAndFocusWindow)
                     Separator()
-                    Item(s.trayQuitApplication, onClick = ::exitApplication)
+                    Item(s.trayQuitApplication, onClick = {
+                        cleanupAppResources()
+                        exitApplication()
+                    })
                 }
             )
         }
