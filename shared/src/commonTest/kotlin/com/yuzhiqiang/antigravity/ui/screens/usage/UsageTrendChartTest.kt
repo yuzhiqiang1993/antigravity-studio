@@ -55,7 +55,7 @@ class UsageTrendChartTest {
 
     @Test
     fun calculateVisibleAxisIndicesDownsamplesUniformlyWhenDense() {
-        // 24 个点在 600dp 下，step = ceil(23 / 7) = 4，保证无碰撞且尾部 23 点可见
+        // 24 个点在 600dp 下，保证无碰撞且首尾点（0 和 23）可见
         val indices = calculateVisibleAxisIndices(
             bucketCount = 24,
             plotWidthDp = 600f,
@@ -64,5 +64,33 @@ class UsageTrendChartTest {
         assert(indices.contains(0))
         assert(indices.contains(23))
         assert(indices.size <= 9)
+    }
+
+    @Test
+    fun calculateVisibleAxisIndicesPreventsCollisionAtTailFor14Buckets() {
+        // 用户截图场景：00:00 ~ 13:00 共 14 个桶，在 700dp 下，单步长为 53.8dp (< 76dp)
+        // 算法绝不能同时保留 12 和 13，必须保证任意相邻刻度间距严格 >= 76dp
+        val plotWidth = 700f
+        val minSpacing = 76f
+        val indices = calculateVisibleAxisIndices(
+            bucketCount = 14,
+            plotWidthDp = plotWidth,
+            minLabelSpacingDp = minSpacing
+        )
+
+        assert(indices.contains(0))
+        assert(indices.contains(13))
+        // 确保不会同时出现 12 和 13
+        assert(!(indices.contains(12) && indices.contains(13)))
+
+        // 验证任意两个相邻被选中的索引物理间距 >= minSpacing
+        val sortedList = indices.sorted()
+        val xStep = plotWidth / 13f
+        for (i in 0 until sortedList.lastIndex) {
+            val dist = (sortedList[i + 1] - sortedList[i]) * xStep
+            assert(dist >= minSpacing * 0.8f) {
+                "Distance between index ${sortedList[i]} and ${sortedList[i+1]} is $dist, which is less than safety margin"
+            }
+        }
     }
 }

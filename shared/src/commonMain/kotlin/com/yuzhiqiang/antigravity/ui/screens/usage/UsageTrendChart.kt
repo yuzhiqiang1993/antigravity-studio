@@ -804,13 +804,13 @@ private fun UsageAxisLabels(
         val plotEnd = containerWidth - UsageVisualTokens.Chart.plotHorizontalPadding
         val plotWidth = (plotEnd - plotStart).coerceAtLeast(1.dp)
         val xStep = if (buckets.size <= 1) 0.dp else plotWidth / (buckets.size - 1)
-        val itemApproxWidth = 68.dp
+        val itemApproxWidth = 74.dp
 
         val visibleIndices = remember(buckets.size, plotWidth) {
             calculateVisibleAxisIndices(
                 bucketCount = buckets.size,
                 plotWidthDp = plotWidth.value,
-                minLabelSpacingDp = 72f
+                minLabelSpacingDp = 76f
             )
         }
 
@@ -834,7 +834,7 @@ private fun UsageAxisLabels(
                         text = formatDateLabel(bucket.date),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = UsageVisualTokens.Typography.axisTime,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         ),
                         color = if (isSelected) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -846,10 +846,11 @@ private fun UsageAxisLabels(
                         text = UsageNumberFormatter.formatTokens(bucket.totalTokens),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = UsageVisualTokens.Typography.axisTokens,
-                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold
                         ),
                         color = if (isSelected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface,
+                        else if (bucket.totalTokens > 0L) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f),
                         maxLines = 1,
                         softWrap = false,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -862,43 +863,61 @@ private fun UsageAxisLabels(
 
 /**
  * 计算 X 轴可见刻度索引集合：
- * 1. 当数据点物理间距 >= 最小标签间距时，全量展示所有刻度点，避免遗漏。
- * 2. 当点数较多空间不足时，采用等间距均匀步长抽样，保证刻度分布均匀且不重叠。
+ * 采用严格的物理边界防碰撞与首尾锚点保护算法：
+ * 1. 首端锚点（0）与尾端锚点（bucketCount - 1，即当前最新时间）必须保证展示；
+ * 2. 保证任意相邻两个可见刻度之间的物理像素间距严格 >= minLabelSpacingDp；
+ * 3. 采用自尾端向首端的贪心扫描与自适应均匀间隔计算，彻底杜绝任何边界堆叠折叠。
  */
 internal fun calculateVisibleAxisIndices(
     bucketCount: Int,
     plotWidthDp: Float,
-    minLabelSpacingDp: Float = 72f
+    minLabelSpacingDp: Float = 76f
 ): Set<Int> {
     if (bucketCount <= 0) return emptySet()
     if (bucketCount == 1) return setOf(0)
     if (bucketCount == 2) return setOf(0, 1)
 
     val safeWidth = plotWidthDp.coerceAtLeast(1f)
-    val xStepDp = safeWidth / (bucketCount - 1)
+    val totalSpan = bucketCount - 1
+    val xStepDp = safeWidth / totalSpan
 
+    // 如果全部点位展开后的间距已经足够安全，全量展示
     if (xStepDp >= minLabelSpacingDp) {
         return (0 until bucketCount).toSet()
     }
 
-    val maxAllowedLabels = (safeWidth / minLabelSpacingDp).toInt().coerceIn(2, bucketCount)
-    val step = ceil((bucketCount - 1).toFloat() / (maxAllowedLabels - 1)).toInt().coerceAtLeast(1)
+    // 计算当前宽度下最多可安全容纳的刻度数（至少 2 个：首尾）
+    val maxLabels = (safeWidth / minLabelSpacingDp).toInt().coerceIn(2, bucketCount)
+    val intervals = (maxLabels - 1).coerceAtLeast(1)
+    val step = ceil(totalSpan.toFloat() / intervals.toFloat()).toInt().coerceAtLeast(1)
 
-    val indices = mutableSetOf<Int>()
-    var currentIndex = 0
-    while (currentIndex < bucketCount - 1) {
-        indices.add(currentIndex)
-        currentIndex += step
+    // 采用从尾向首的倒序贪心安全选择，确保最新时间点（lastIndex）和起始点（0）永远清晰可见
+    val lastIndex = totalSpan
+    val result = mutableListOf<Int>()
+    result.add(lastIndex)
+    var currentRight = lastIndex
+
+    var candidate = lastIndex - step
+    while (candidate > 0) {
+        val distToRightDp = (currentRight - candidate) * xStepDp
+        val distToStartDp = candidate * xStepDp
+
+        // 仅当距离右侧已选节点足够安全，且距离左侧起点（0）也保留足够安全间隙时才保留候选点
+        if (distToRightDp >= minLabelSpacingDp && distToStartDp >= minLabelSpacingDp * 0.8f) {
+            result.add(candidate)
+            currentRight = candidate
+            candidate -= step
+        } else if (distToStartDp < minLabelSpacingDp * 0.8f) {
+            // 已经太靠近起点 0，直接终止中间遍历，交给首节点 0
+            break
+        } else {
+            // 距离不够，继续向前找
+            candidate--
+        }
     }
 
-    val lastIndex = bucketCount - 1
-    val prevIndex = indices.maxOrNull()
-    if (prevIndex != null && (lastIndex - prevIndex) * xStepDp < minLabelSpacingDp * 0.7f && prevIndex != 0) {
-        indices.remove(prevIndex)
-    }
-    indices.add(lastIndex)
-
-    return indices
+    result.add(0)
+    return result.toSet()
 }
 
 @Composable
