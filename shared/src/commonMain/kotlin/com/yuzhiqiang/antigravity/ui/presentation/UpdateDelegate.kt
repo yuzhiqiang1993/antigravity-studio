@@ -94,10 +94,14 @@ class UpdateDelegate(
     }
 
     fun startDownloadUpdate(release: ReleaseInfo) {
-        val downloadUrl = release.resolvePlatformDownloadUrl()
-        val filename = downloadUrl.substringAfterLast("/").takeIf { it.isNotBlank() && it.contains(".") }
-            ?: "Antigravity-Studio-${release.cleanVersion}.dmg"
-        val targetFile = AppUpdateDownloader.resolveTargetFile(filename)
+        val asset = release.resolvePlatformAsset()
+        if (asset == null) {
+            val message = "No update asset matches the current platform"
+            downloadStateFlow.value = AppUpdateDownloadState.Failed(message)
+            showNotice(s.updateDownloadFailed(message), NoticeKind.ERROR)
+            return
+        }
+        val targetFile = AppUpdateDownloader.resolveTargetFile(asset.name)
 
         downloadJob?.cancel()
         downloadJob = scope.launch {
@@ -108,7 +112,7 @@ class UpdateDelegate(
                 speedBytesPerSec = 0L
             )
             try {
-                AppUpdateDownloader.download(downloadUrl, targetFile)
+                AppUpdateDownloader.download(asset, release.cleanVersion, targetFile)
                     .collect { progress ->
                         when (progress) {
                             is DownloadProgress.Progress -> {
@@ -121,10 +125,8 @@ class UpdateDelegate(
                             }
 
                             is DownloadProgress.Completed -> {
-                                downloadStateFlow.value = AppUpdateDownloadState.Completed(progress.targetFile)
+                                downloadStateFlow.value = AppUpdateDownloadState.Completed(progress.artifact)
                                 showNotice(s.updateDownloadCompleted, NoticeKind.SUCCESS)
-                                // 下载完成自动预览挂载/打开，不强杀当前进程
-                                installUpdate(progress.targetFile, exitCurrentApp = false)
                             }
                         }
                     }
@@ -144,12 +146,9 @@ class UpdateDelegate(
         downloadStateFlow.value = AppUpdateDownloadState.Idle
     }
 
-    fun installUpdate(file: File, exitCurrentApp: Boolean = true) {
+    fun installUpdate(artifact: com.yuzhiqiang.antigravity.update.engine.VerifiedUpdateArtifact) {
         scope.launch {
-            val result = AppUpdateInstaller.launchInstaller(
-                file = file,
-                exitCurrentApp = exitCurrentApp
-            )
+            val result = AppUpdateInstaller.launchInstaller(artifact)
             result.onFailure { error ->
                 showNotice(s.updateDownloadFailed(error.message ?: s.commonUnknown), NoticeKind.ERROR)
             }

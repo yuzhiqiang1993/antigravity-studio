@@ -16,8 +16,10 @@ sealed class AppUpdateDownloadState {
     ) : AppUpdateDownloadState()
 
     data class Completed(
-        val targetFile: File
-    ) : AppUpdateDownloadState()
+        val artifact: com.yuzhiqiang.antigravity.update.engine.VerifiedUpdateArtifact
+    ) : AppUpdateDownloadState() {
+        val targetFile: File get() = artifact.file
+    }
 
     data class Failed(
         val error: String

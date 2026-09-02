@@ -47,22 +47,22 @@ class SemVerTest {
             htmlUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/tag/v2.0.1",
             assets = listOf(
                 ReleaseAsset(
-                    name = "Antigravity-Studio-2.0.1-arm64.dmg",
-                    downloadUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-arm64.dmg"
+                    name = "Antigravity-Studio-2.0.1-macos-arm64.dmg",
+                    downloadUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-macos-arm64.dmg"
                 ),
                 ReleaseAsset(
-                    name = "Antigravity-Studio-2.0.1-x64.dmg",
-                    downloadUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-x64.dmg"
+                    name = "Antigravity-Studio-2.0.1-macos-x64.dmg",
+                    downloadUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-macos-x64.dmg"
                 ),
                 ReleaseAsset(
-                    name = "Antigravity-Studio-2.0.1-Setup.exe",
-                    downloadUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-Setup.exe"
+                    name = "Antigravity-Studio-2.0.1-windows-x64.exe",
+                    downloadUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-windows-x64.exe"
                 )
             )
         )
 
         assertEquals("2.0.1", release.cleanVersion)
         val downloadUrl = release.resolvePlatformDownloadUrl()
-        assertTrue(downloadUrl.isNotEmpty())
+        assertTrue(!downloadUrl.isNullOrEmpty())
     }
 }

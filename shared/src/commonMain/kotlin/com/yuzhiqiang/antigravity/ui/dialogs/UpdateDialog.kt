@@ -32,6 +32,7 @@ import antigravity_studio.shared.generated.resources.logo_transparent
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.update.model.AppUpdateDownloadState
 import com.yuzhiqiang.antigravity.update.model.ReleaseInfo
+import com.yuzhiqiang.antigravity.update.engine.VerifiedUpdateArtifact
 import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioMarkdownViewer
 import com.yuzhiqiang.antigravity.ui.theme.AppStatusColors
@@ -47,7 +48,7 @@ fun UpdateDialog(
     downloadState: AppUpdateDownloadState = AppUpdateDownloadState.Idle,
     onStartDownload: () -> Unit = {},
     onCancelDownload: () -> Unit = {},
-    onInstall: (File) -> Unit = {},
+    onInstall: (VerifiedUpdateArtifact) -> Unit = {},
     onShowInFolder: (File) -> Unit = {},
     onDismiss: () -> Unit,
     onIgnoreVersion: (String) -> Unit
@@ -441,7 +442,7 @@ fun UpdateDialog(
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
                                     .clickable {
-                                        openBrowserUrl(release.resolvePlatformDownloadUrl())
+                                        release.resolvePlatformDownloadUrl()?.let(::openBrowserUrl)
                                     }
                                     .padding(vertical = 4.dp)
                             )
@@ -522,7 +523,7 @@ fun UpdateDialog(
                                 }
 
                                 Button(
-                                    onClick = { onInstall(completedFile) },
+                                    onClick = { onInstall((downloadState as AppUpdateDownloadState.Completed).artifact) },
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.height(36.dp),
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
@@ -549,7 +550,7 @@ fun UpdateDialog(
                             isFailed -> {
                                 OutlinedButton(
                                     onClick = {
-                                        openBrowserUrl(release.resolvePlatformDownloadUrl())
+                                        release.resolvePlatformDownloadUrl()?.let(::openBrowserUrl)
                                         onDismiss()
                                     },
                                     shape = RoundedCornerShape(8.dp),

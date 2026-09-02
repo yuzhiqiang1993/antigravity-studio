@@ -40,46 +40,39 @@ data class ReleaseInfo(
     val cleanVersion: String
         get() = tagName.trim().removePrefix("v").removePrefix("V")
 
-    /**
-     * 根据当前运行平台智能选择最匹配的安装包下载链接。
-     * 若未找到平台专用包，则回退至 GitHub Release 网页链接。
-     */
-    fun resolvePlatformDownloadUrl(): String {
-        val os = System.getProperty("os.name", "").lowercase()
-        val osArch = System.getProperty("os.arch", "").lowercase()
-        val isArm64 = osArch.contains("aarch64") || osArch.contains("arm64")
-
-        val matchedAsset = when {
-            os.contains("mac") || os.contains("darwin") -> {
-                // 优先寻找对应架构的 dmg/pkg，若无则寻找通用 dmg/pkg
-                assets.firstOrNull { asset ->
-                    val name = asset.name.lowercase()
-                    (name.endsWith(".dmg") || name.endsWith(".pkg")) &&
-                            (if (isArm64) name.contains("aarch64") || name.contains("arm64") else name.contains("x64") || name.contains("x86_64"))
-                } ?: assets.firstOrNull { asset ->
-                    val name = asset.name.lowercase()
-                    name.endsWith(".dmg") || name.endsWith(".pkg")
-                }
-            }
-            os.contains("win") -> {
-                assets.firstOrNull { asset ->
-                    val name = asset.name.lowercase()
-                    (name.endsWith(".msi") || name.endsWith(".exe")) &&
-                            (if (isArm64) name.contains("arm64") else name.contains("x64") || name.contains("x86_64") || !name.contains("arm"))
-                } ?: assets.firstOrNull { asset ->
-                    val name = asset.name.lowercase()
-                    name.endsWith(".msi") || name.endsWith(".exe") || name.endsWith(".zip")
-                }
-            }
-            else -> {
-                // Linux / 其他
-                assets.firstOrNull { asset ->
-                    val name = asset.name.lowercase()
-                    name.endsWith(".deb") || name.endsWith(".rpm") || name.endsWith(".appimage") || name.endsWith(".tar.gz")
-                }
-            }
+    /** 精确选择当前平台和架构的安装包；不匹配时返回 null，绝不回退到 Release 网页。 */
+    fun resolvePlatformAsset(
+        osName: String = System.getProperty("os.name", ""),
+        osArch: String = System.getProperty("os.arch", "")
+    ): ReleaseAsset? {
+        val os = osName.lowercase()
+        val arch = osArch.lowercase()
+        val platform = when {
+            os.contains("mac") || os.contains("darwin") -> "macos"
+            os.contains("win") -> "windows"
+            os.contains("linux") -> "linux"
+            else -> return null
         }
-
-        return matchedAsset?.downloadUrl?.takeIf { it.isNotBlank() } ?: htmlUrl
+        val architecture = when {
+            arch.contains("aarch64") || arch.contains("arm64") -> "arm64"
+            arch.contains("x86_64") || arch.contains("amd64") || arch == "x64" -> "x64"
+            else -> return null
+        }
+        val suffixes = when (platform) {
+            "macos" -> listOf(".dmg", ".pkg")
+            "windows" -> listOf(".exe", ".msi")
+            else -> listOf(".deb", ".rpm", ".appimage", ".tar.gz")
+        }
+        return assets.firstOrNull { asset ->
+            val assetName = asset.name.lowercase()
+            asset.downloadUrl.isNotBlank() &&
+                    assetName.contains("-$platform-$architecture") &&
+                    suffixes.any(assetName::endsWith)
+        }
     }
+
+    fun resolvePlatformDownloadUrl(
+        osName: String = System.getProperty("os.name", ""),
+        osArch: String = System.getProperty("os.arch", "")
+    ): String? = resolvePlatformAsset(osName, osArch)?.downloadUrl
 }
