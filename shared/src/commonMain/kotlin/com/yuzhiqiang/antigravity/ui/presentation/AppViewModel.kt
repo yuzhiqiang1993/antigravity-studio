@@ -432,18 +432,27 @@ class AppViewModel(
             )
             proxyServer.start(configStore.currentConfig.proxyPort)
             refreshHostStatus()
-            fetchOfficialModels().join()
-            val savedCustomPricing = configStore.currentConfig.customPricingPath
-            if (!savedCustomPricing.isNullOrBlank()) {
-                usageRepository.pricingService.setCustomPricingSource(savedCustomPricing)
+
+            // 互不依赖的后台任务并发并行拉起，弱网或离线时绝不阻塞本地用量与核心服务
+            launch {
+                fetchOfficialModels()
             }
-            // 重新计算已加载的磁盘快照，再启动首次扫描，避免价格变更只在下一次手动刷新生效。
-            usageDelegate.recompute()
-            // 价格配置完成后再启动首次用量扫描，确保首屏费用不会使用旧费率。
-            usageDelegate.startInitialRefresh()
-            if (configStore.currentConfig.autoCheckUpdate) {
-                checkForUpdates(isManual = false)
+            launch {
+                val savedCustomPricing = configStore.currentConfig.customPricingPath
+                if (!savedCustomPricing.isNullOrBlank()) {
+                    usageRepository.pricingService.setCustomPricingSource(savedCustomPricing)
+                }
+                // 重新计算已加载的磁盘快照，再启动首次扫描，避免价格变更只在下一次手动刷新生效。
+                usageDelegate.recompute()
+                // 价格配置完成后再启动首次用量扫描，确保首屏费用不会使用旧费率。
+                usageDelegate.startInitialRefresh()
             }
+            launch {
+                if (configStore.currentConfig.autoCheckUpdate) {
+                    checkForUpdates(isManual = false)
+                }
+            }
+
             if (!configStore.currentConfig.hasCompletedOnboarding) {
                 _showOnboardingDialog.value = true
             }
