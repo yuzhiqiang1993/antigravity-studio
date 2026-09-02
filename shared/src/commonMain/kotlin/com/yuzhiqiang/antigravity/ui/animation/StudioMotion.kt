@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import kotlin.math.roundToLong
 
 /**
  * Antigravity Studio 统一动效系统 (Studio Motion System)：
@@ -165,29 +166,42 @@ fun Modifier.studioPulse(
 /**
  * 智能记忆配额百分比动效：
  * - 首次挂载 / Tab 切换直接呈现真实数值（不产生从 100% 突降的烦人动画）
- * - 只有当数据在生命周期内真实发生变动 (Old Value != New Value) 时，才平滑触发 Spring 物理过渡动效
+ * - 只有当数据在生命周期内真实发生变动 (Old Value != New Value) 时，以当前展示值为基准平滑触发物理过渡动效
  */
 @Composable
 fun rememberAnimatedQuotaPercentage(
     targetPercentage: Int,
     animationSpec: AnimationSpec<Float> = StudioMotionDefaults.numericSpringSpec
 ): State<Float> {
-    val animatable = remember { Animatable(targetPercentage.toFloat()) }
-    val isFirstRender = remember { mutableStateOf(true) }
+    val progress = remember { Animatable(1f) }
+    val currentValue = remember { mutableStateOf(targetPercentage.toFloat()) }
+    val lastTarget = remember { mutableStateOf(targetPercentage) }
 
     LaunchedEffect(targetPercentage) {
-        if (isFirstRender.value) {
-            isFirstRender.value = false
-            animatable.snapTo(targetPercentage.toFloat())
-        } else {
-            animatable.animateTo(
-                targetValue = targetPercentage.toFloat(),
-                animationSpec = animationSpec
-            )
+        if (lastTarget.value == targetPercentage) {
+            return@LaunchedEffect
         }
+        val from = currentValue.value
+        lastTarget.value = targetPercentage
+        val to = targetPercentage.toFloat()
+
+        if (from == to) {
+            progress.snapTo(1f)
+            return@LaunchedEffect
+        }
+
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = animationSpec
+        ) {
+            val p = this.value
+            currentValue.value = from + (to - from) * p
+        }
+        currentValue.value = to
     }
 
-    return animatable.asState()
+    return currentValue
 }
 
 /**
@@ -199,86 +213,115 @@ fun rememberAnimatedQuotaProgress(
     animationSpec: AnimationSpec<Float> = StudioMotionDefaults.gaugeSpringSpec
 ): State<Float> {
     val targetFraction = (targetPercentage.coerceIn(0, 100) / 100f)
-    val animatable = remember { Animatable(targetFraction) }
-    val isFirstRender = remember { mutableStateOf(true) }
+    val progress = remember { Animatable(1f) }
+    val currentValue = remember { mutableStateOf(targetFraction) }
+    val lastTarget = remember { mutableStateOf(targetFraction) }
 
     LaunchedEffect(targetFraction) {
-        if (isFirstRender.value) {
-            isFirstRender.value = false
-            animatable.snapTo(targetFraction)
-        } else {
-            animatable.animateTo(
-                targetValue = targetFraction,
-                animationSpec = animationSpec
-            )
+        if (lastTarget.value == targetFraction) {
+            return@LaunchedEffect
         }
+        val from = currentValue.value
+        lastTarget.value = targetFraction
+
+        if (from == targetFraction) {
+            progress.snapTo(1f)
+            return@LaunchedEffect
+        }
+
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = animationSpec
+        ) {
+            val p = this.value
+            currentValue.value = from + (targetFraction - from) * p
+        }
+        currentValue.value = targetFraction
     }
 
-    return animatable.asState()
+    return currentValue
 }
 
 /**
  * 智能记忆长整型数字变动动效 (适用于 Tokens、调用次数等大整数)：
  * - 首次挂载直接呈现真实数值（不产生从 0 突增的延迟动画）
- * - 只有当数据在生命周期内真实发生变动 (Old Value != New Value) 时，才平滑触发 Spring 物理过渡动效
+ * - 只有当数据在生命周期内真实发生变动 (Old Value != New Value) 时，以当前实际展示数值作为起点基准，
+ *   平滑过渡到新数值，绝不重置为 0，且采用 Double 级高精度插值避免 Float 截断跳帧。
  */
 @Composable
 fun rememberAnimatedNumberLong(
     targetValue: Long,
     animationSpec: AnimationSpec<Float> = StudioMotionDefaults.numericSpringSpec
 ): State<Long> {
-    val animatable = remember { Animatable(targetValue.toFloat()) }
-    val isFirstRender = remember { mutableStateOf(true) }
-    val resultState = remember { mutableStateOf(targetValue) }
+    val progress = remember { Animatable(1f) }
+    val currentValue = remember { mutableStateOf(targetValue) }
+    val lastTarget = remember { mutableStateOf(targetValue) }
 
     LaunchedEffect(targetValue) {
-        if (isFirstRender.value) {
-            isFirstRender.value = false
-            animatable.snapTo(targetValue.toFloat())
-            resultState.value = targetValue
-        } else {
-            animatable.animateTo(
-                targetValue = targetValue.toFloat(),
-                animationSpec = animationSpec
-            ) {
-                resultState.value = this.value.toLong()
-            }
-            resultState.value = targetValue
+        if (lastTarget.value == targetValue) {
+            return@LaunchedEffect
         }
+        // 以当前正在展示的值为基准起点
+        val from = currentValue.value
+        lastTarget.value = targetValue
+
+        if (from == targetValue) {
+            progress.snapTo(1f)
+            return@LaunchedEffect
+        }
+
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = animationSpec
+        ) {
+            val p = this.value.toDouble()
+            currentValue.value = (from + (targetValue - from) * p).roundToLong()
+        }
+        currentValue.value = targetValue
     }
 
-    return resultState
+    return currentValue
 }
 
 /**
  * 智能记忆浮点数变动动效 (适用于金额、比率等)：
+ * 以当前展示值为基准平滑过渡，杜绝突变重置。
  */
 @Composable
 fun rememberAnimatedNumberDouble(
     targetValue: Double,
     animationSpec: AnimationSpec<Float> = StudioMotionDefaults.numericSpringSpec
 ): State<Double> {
-    val animatable = remember { Animatable(targetValue.toFloat()) }
-    val isFirstRender = remember { mutableStateOf(true) }
-    val resultState = remember { mutableStateOf(targetValue) }
+    val progress = remember { Animatable(1f) }
+    val currentValue = remember { mutableStateOf(targetValue) }
+    val lastTarget = remember { mutableStateOf(targetValue) }
 
     LaunchedEffect(targetValue) {
-        if (isFirstRender.value) {
-            isFirstRender.value = false
-            animatable.snapTo(targetValue.toFloat())
-            resultState.value = targetValue
-        } else {
-            animatable.animateTo(
-                targetValue = targetValue.toFloat(),
-                animationSpec = animationSpec
-            ) {
-                resultState.value = this.value.toDouble()
-            }
-            resultState.value = targetValue
+        if (lastTarget.value == targetValue) {
+            return@LaunchedEffect
         }
+        val from = currentValue.value
+        lastTarget.value = targetValue
+
+        if (from == targetValue) {
+            progress.snapTo(1f)
+            return@LaunchedEffect
+        }
+
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = animationSpec
+        ) {
+            val p = this.value.toDouble()
+            currentValue.value = from + (targetValue - from) * p
+        }
+        currentValue.value = targetValue
     }
 
-    return resultState
+    return currentValue
 }
 
 /**

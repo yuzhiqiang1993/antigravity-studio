@@ -254,22 +254,72 @@ private fun SmoothUsagePlot(
     selectedIndex: Int?,
     modifier: Modifier = Modifier
 ) {
-    // 提取数据内容指纹：只在时间范围、点数量或数据总和实质变动时触发动效
-    val dataFingerprint = remember(buckets, maxTokens) {
-        "${buckets.size}_${maxTokens}_${buckets.firstOrNull()?.date}_${buckets.lastOrNull()?.date}_${buckets.sumOf { it.totalTokens }}"
-    }
-    val animProgress = remember { Animatable(1f) }
-    val lastFingerprint = remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(dataFingerprint) {
-        if (lastFingerprint.value != null && lastFingerprint.value != dataFingerprint) {
-            animProgress.snapTo(0.2f)
-            animProgress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
-            )
+    val targetRatios = remember(buckets, maxTokens) {
+        buckets.map {
+            if (maxTokens > 0L) (it.totalTokens.toFloat() / maxTokens.toFloat()).coerceIn(0f, 1f) else 0f
         }
-        lastFingerprint.value = dataFingerprint
+    }
+
+    val currentRatios = remember { mutableStateOf(targetRatios) }
+    val currentAnimatedMaxTokens = remember { mutableStateOf(maxTokens) }
+    val isFirstRender = remember { mutableStateOf(true) }
+    val animProgress = remember { Animatable(1f) }
+
+    LaunchedEffect(targetRatios, maxTokens) {
+        if (isFirstRender.value) {
+            isFirstRender.value = false
+            currentRatios.value = targetRatios
+            currentAnimatedMaxTokens.value = maxTokens
+            animProgress.snapTo(1f)
+            return@LaunchedEffect
+        }
+
+        val fromRatios = currentRatios.value
+        val fromMaxTokens = currentAnimatedMaxTokens.value
+        val toRatios = targetRatios
+        val toMaxTokens = maxTokens
+
+        // 如果点数量不同（比如从 今天 24 桶 切换到 7 天 7 桶），对 fromRatios 按相对横坐标进行平滑重采样，使起点曲线平滑匹配目标点数
+        val alignedFromRatios = if (fromRatios.size == toRatios.size) {
+            fromRatios
+        } else if (fromRatios.isNotEmpty() && toRatios.isNotEmpty()) {
+            List(toRatios.size) { i ->
+                val u = if (toRatios.size <= 1) 0f else i.toFloat() / (toRatios.size - 1)
+                val prevFloatIndex = u * (fromRatios.size - 1).coerceAtLeast(0)
+                val i0 = kotlin.math.floor(prevFloatIndex).toInt().coerceIn(0, fromRatios.size - 1)
+                val i1 = kotlin.math.ceil(prevFloatIndex).toInt().coerceIn(0, fromRatios.size - 1)
+                val f = prevFloatIndex - i0
+                fromRatios[i0] + (fromRatios[i1] - fromRatios[i0]) * f
+            }
+        } else {
+            List(toRatios.size) { 0f }
+        }
+
+        val hasChange = alignedFromRatios.size != toRatios.size ||
+                fromMaxTokens != toMaxTokens ||
+                alignedFromRatios.indices.any { kotlin.math.abs(alignedFromRatios[it] - toRatios[it]) > 0.0001f }
+
+        if (!hasChange) {
+            currentRatios.value = toRatios
+            currentAnimatedMaxTokens.value = toMaxTokens
+            return@LaunchedEffect
+        }
+
+        animProgress.snapTo(0f)
+        animProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+        ) {
+            val p = this.value
+            currentAnimatedMaxTokens.value = (fromMaxTokens + (toMaxTokens - fromMaxTokens) * p.toDouble()).roundToLong()
+            currentRatios.value = List(toRatios.size) { i ->
+                val start = alignedFromRatios.getOrElse(i) { 0f }
+                val target = toRatios[i]
+                start + (target - start) * p
+            }
+        }
+        currentRatios.value = toRatios
+        currentAnimatedMaxTokens.value = toMaxTokens
     }
 
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -295,7 +345,8 @@ private fun SmoothUsagePlot(
     )
 
     Canvas(modifier = modifier) {
-        val currentProgress = animProgress.value
+        val activeRatios = currentRatios.value
+        val activeMaxTokens = currentAnimatedMaxTokens.value
         val plotStart = UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
         val plotEnd = size.width - UsageVisualTokens.Chart.plotHorizontalPadding.toPx()
         val plotTop = 12.dp.toPx()
@@ -320,8 +371,8 @@ private fun SmoothUsagePlot(
 
             if (line > 0) {
                 val lineTokens = when (line) {
-                    1 -> (maxTokens * 2.0 / 3.0).roundToLong()
-                    2 -> (maxTokens * 1.0 / 3.0).roundToLong()
+                    1 -> (activeMaxTokens * 2.0 / 3.0).roundToLong()
+                    2 -> (activeMaxTokens * 1.0 / 3.0).roundToLong()
                     else -> 0L
                 }
                 val labelText = UsageNumberFormatter.formatTokens(lineTokens)
@@ -337,11 +388,9 @@ private fun SmoothUsagePlot(
             }
         }
 
-        val points = buckets.mapIndexed { index, bucket ->
+        val points = buckets.mapIndexed { index, _ ->
             val x = if (buckets.size <= 1) (plotStart + plotEnd) / 2f else plotStart + xStep * index
-            val rawRatio =
-                if (maxTokens > 0L) (bucket.totalTokens.toFloat() / maxTokens.toFloat()).coerceIn(0f, 1f) else 0f
-            val ratio = rawRatio * currentProgress
+            val ratio = activeRatios.getOrElse(index) { 0f }.coerceIn(0f, 1f)
             val y = plotBottom - ratio * chartHeight
             Offset(x, y)
         }
@@ -377,8 +426,8 @@ private fun SmoothUsagePlot(
                 path = areaPath,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        colors.output.copy(alpha = 0.22f * currentProgress),
-                        colors.output.copy(alpha = 0.01f * currentProgress)
+                        colors.output.copy(alpha = 0.22f),
+                        colors.output.copy(alpha = 0.01f)
                     ),
                     startY = chartTop,
                     endY = plotBottom
@@ -386,7 +435,7 @@ private fun SmoothUsagePlot(
             )
             drawPath(
                 path = linePath,
-                color = colors.output.copy(alpha = currentProgress.coerceIn(0.2f, 1f)),
+                color = colors.output,
                 style = Stroke(
                     width = UsageVisualTokens.Chart.strokeWidth.toPx(),
                     cap = StrokeCap.Round,
@@ -394,114 +443,108 @@ private fun SmoothUsagePlot(
                 )
             )
 
-            val peakIndex = if (maxTokens > 0L) {
+            val peakIndex = if (activeMaxTokens > 0L) {
                 buckets.indices.maxByOrNull { buckets[it].totalTokens }?.takeIf { buckets[it].totalTokens > 0L }
             } else null
 
-            val dotAlpha = if (currentProgress > 0.3f) ((currentProgress - 0.3f) / 0.7f).coerceIn(0f, 1f) else 0f
-            if (dotAlpha > 0f) {
-                buckets.forEachIndexed { idx, bucket ->
-                    if (bucket.totalTokens > 0L) {
-                        val pt = points[idx]
-                        val isPeak = idx == peakIndex
-                        val isSelected = idx == selectedIndex
+            buckets.forEachIndexed { idx, bucket ->
+                if (bucket.totalTokens > 0L) {
+                    val pt = points[idx]
+                    val isPeak = idx == peakIndex
+                    val isSelected = idx == selectedIndex
 
-                        if (isPeak || isSelected) {
-                            drawCircle(
-                                colors.output.copy(alpha = 0.25f * dotAlpha),
-                                radius = 5.dp.toPx(),
-                                center = pt
-                            )
-                            drawCircle(Color.White.copy(alpha = dotAlpha), radius = 3.2.dp.toPx(), center = pt)
-                            drawCircle(
-                                colors.output.copy(alpha = dotAlpha),
-                                radius = 3.2.dp.toPx(),
-                                center = pt,
-                                style = Stroke(1.4.dp.toPx())
-                            )
-                        } else {
-                            drawCircle(Color.White.copy(alpha = dotAlpha), radius = 2.4.dp.toPx(), center = pt)
-                            drawCircle(
-                                colors.output.copy(alpha = dotAlpha),
-                                radius = 2.4.dp.toPx(),
-                                center = pt,
-                                style = Stroke(1.2.dp.toPx())
-                            )
-                        }
+                    if (isPeak || isSelected) {
+                        drawCircle(
+                            colors.output.copy(alpha = 0.25f),
+                            radius = 5.dp.toPx(),
+                            center = pt
+                        )
+                        drawCircle(Color.White, radius = 3.2.dp.toPx(), center = pt)
+                        drawCircle(
+                            colors.output,
+                            radius = 3.2.dp.toPx(),
+                            center = pt,
+                            style = Stroke(1.4.dp.toPx())
+                        )
+                    } else {
+                        drawCircle(Color.White, radius = 2.4.dp.toPx(), center = pt)
+                        drawCircle(
+                            colors.output,
+                            radius = 2.4.dp.toPx(),
+                            center = pt,
+                            style = Stroke(1.2.dp.toPx())
+                        )
                     }
                 }
             }
 
-            val labelAlpha = if (currentProgress > 0.6f) ((currentProgress - 0.6f) / 0.4f).coerceIn(0f, 1f) else 0f
-            if (labelAlpha > 0f) {
-                val activeIndices = buckets.indices
-                    .filter { buckets[it].totalTokens > 0L }
-                    .sortedByDescending { buckets[it].totalTokens }
+            val activeIndices = buckets.indices
+                .filter { buckets[it].totalTokens > 0L }
+                .sortedByDescending { buckets[it].totalTokens }
 
-                val occupiedRanges = mutableListOf<ClosedFloatingPointRange<Float>>()
+            val occupiedRanges = mutableListOf<ClosedFloatingPointRange<Float>>()
 
-                for (idx in activeIndices) {
-                    val pt = points[idx]
-                    val tokens = buckets[idx].totalTokens
-                    val isPeak = idx == peakIndex
-                    val badgeText = UsageNumberFormatter.formatTokens(tokens)
-                    val measured = textMeasurer.measure(
-                        text = badgeText,
-                        style = if (isPeak) peakBadgeStyle.copy(color = colors.output.copy(alpha = labelAlpha)) else nodeBadgeStyle.copy(color = colors.output.copy(alpha = labelAlpha))
+            for (idx in activeIndices) {
+                val pt = points[idx]
+                val tokens = buckets[idx].totalTokens
+                val isPeak = idx == peakIndex
+                val badgeText = UsageNumberFormatter.formatTokens(tokens)
+                val measured = textMeasurer.measure(
+                    text = badgeText,
+                    style = if (isPeak) peakBadgeStyle.copy(color = colors.output) else nodeBadgeStyle.copy(color = colors.output)
+                )
+                val paddingH = if (isPeak) 6.dp.toPx() else 4.5.dp.toPx()
+                val paddingV = if (isPeak) 2.dp.toPx() else 1.5.dp.toPx()
+                val badgeW = measured.size.width + paddingH * 2
+                val badgeH = measured.size.height + paddingV * 2
+
+                val badgeLeft = (pt.x - badgeW / 2f).coerceIn(plotStart, plotEnd - badgeW)
+                val badgeRight = badgeLeft + badgeW
+                val clearance = 4.dp.toPx() // 节点间的防重叠安全距离
+                val candidateRange = (badgeLeft - clearance)..(badgeRight + clearance)
+
+                val collides = occupiedRanges.any { range ->
+                    candidateRange.start < range.endInclusive && candidateRange.endInclusive > range.start
+                }
+
+                if (!collides) {
+                    occupiedRanges.add(candidateRange)
+                    val badgeTop = (pt.y - badgeH - 7.dp.toPx()).coerceAtLeast(plotTop)
+
+                    val cornerRadius = if (isPeak) 5.dp.toPx() else 4.dp.toPx()
+
+                    // 1. 底层高不透明度实体底色（彻底遮盖背后穿过的曲线、面积渐变与网格线）
+                    drawRoundRect(
+                        color = surfaceColor.copy(alpha = 0.96f),
+                        topLeft = Offset(badgeLeft, badgeTop),
+                        size = Size(badgeW, badgeH),
+                        cornerRadius = CornerRadius(cornerRadius, cornerRadius)
                     )
-                    val paddingH = if (isPeak) 6.dp.toPx() else 4.5.dp.toPx()
-                    val paddingV = if (isPeak) 2.dp.toPx() else 1.5.dp.toPx()
-                    val badgeW = measured.size.width + paddingH * 2
-                    val badgeH = measured.size.height + paddingV * 2
 
-                    val badgeLeft = (pt.x - badgeW / 2f).coerceIn(plotStart, plotEnd - badgeW)
-                    val badgeRight = badgeLeft + badgeW
-                    val clearance = 4.dp.toPx() // 节点间的防重叠安全距离
-                    val candidateRange = (badgeLeft - clearance)..(badgeRight + clearance)
+                    // 2. 中层品牌色微弱发光填充
+                    val tintAlpha = if (isPeak) 0.18f else 0.10f
+                    drawRoundRect(
+                        color = colors.output.copy(alpha = tintAlpha),
+                        topLeft = Offset(badgeLeft, badgeTop),
+                        size = Size(badgeW, badgeH),
+                        cornerRadius = CornerRadius(cornerRadius, cornerRadius)
+                    )
 
-                    val collides = occupiedRanges.any { range ->
-                        candidateRange.start < range.endInclusive && candidateRange.endInclusive > range.start
-                    }
+                    // 3. 顶层药丸精细边框
+                    val borderAlpha = if (isPeak) 0.65f else 0.40f
+                    drawRoundRect(
+                        color = colors.output.copy(alpha = borderAlpha),
+                        topLeft = Offset(badgeLeft, badgeTop),
+                        size = Size(badgeW, badgeH),
+                        cornerRadius = CornerRadius(cornerRadius, cornerRadius),
+                        style = Stroke(if (isPeak) 1.2.dp.toPx() else 0.9.dp.toPx())
+                    )
 
-                    if (!collides) {
-                        occupiedRanges.add(candidateRange)
-                        val badgeTop = (pt.y - badgeH - 7.dp.toPx()).coerceAtLeast(plotTop)
-
-                        val cornerRadius = if (isPeak) 5.dp.toPx() else 4.dp.toPx()
-
-                        // 1. 底层高不透明度实体底色（彻底遮盖背后穿过的曲线、面积渐变与网格线）
-                        drawRoundRect(
-                            color = surfaceColor.copy(alpha = 0.96f * labelAlpha),
-                            topLeft = Offset(badgeLeft, badgeTop),
-                            size = Size(badgeW, badgeH),
-                            cornerRadius = CornerRadius(cornerRadius, cornerRadius)
-                        )
-
-                        // 2. 中层品牌色微弱发光填充
-                        val tintAlpha = (if (isPeak) 0.18f else 0.10f) * labelAlpha
-                        drawRoundRect(
-                            color = colors.output.copy(alpha = tintAlpha),
-                            topLeft = Offset(badgeLeft, badgeTop),
-                            size = Size(badgeW, badgeH),
-                            cornerRadius = CornerRadius(cornerRadius, cornerRadius)
-                        )
-
-                        // 3. 顶层药丸精细边框
-                        val borderAlpha = (if (isPeak) 0.65f else 0.40f) * labelAlpha
-                        drawRoundRect(
-                            color = colors.output.copy(alpha = borderAlpha),
-                            topLeft = Offset(badgeLeft, badgeTop),
-                            size = Size(badgeW, badgeH),
-                            cornerRadius = CornerRadius(cornerRadius, cornerRadius),
-                            style = Stroke(if (isPeak) 1.2.dp.toPx() else 0.9.dp.toPx())
-                        )
-
-                        // 4. 徽标文字（最高层级，字迹清晰锐利）
-                        drawText(
-                            textLayoutResult = measured,
-                            topLeft = Offset(badgeLeft + paddingH, badgeTop + paddingV)
-                        )
-                    }
+                    // 4. 徽标文字（最高层级，字迹清晰锐利）
+                    drawText(
+                        textLayoutResult = measured,
+                        topLeft = Offset(badgeLeft + paddingH, badgeTop + paddingV)
+                    )
                 }
             }
         }
