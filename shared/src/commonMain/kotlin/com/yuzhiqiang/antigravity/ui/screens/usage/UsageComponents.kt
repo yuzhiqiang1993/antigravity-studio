@@ -222,8 +222,8 @@ fun UsageKpiGrid(
                 }
             }
 
-            // 2. 中层：输入 (Input)、输出 (Output)、缓存利用 (Cache) 三卡片并列对齐
-            val totalInputTokens = stats.totalInput + stats.totalCacheRead + stats.totalCacheWrite
+            // 2. 中层：输入 (Input)、输出 (Output)、缓存利用 (Cache) 三卡片并列对齐（正交独立、相加闭环）
+            val totalInputTokens = stats.totalInput + stats.totalCacheWrite
             val totalOutputTokens = stats.totalOutput + stats.totalReasoning
             val inputPct = if (totalTokens > 0L) (totalInputTokens.toDouble() / totalTokens.toDouble() * 100.0) else 0.0
             val outputPct =
