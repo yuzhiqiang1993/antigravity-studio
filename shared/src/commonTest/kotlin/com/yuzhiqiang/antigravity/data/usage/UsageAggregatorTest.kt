@@ -876,9 +876,66 @@ class UsageAggregatorTest {
             selectedModel = "claude-3-7-sonnet",
             zoneId = ZoneId.of("UTC")
         )
-        assertEquals(110_000L, claudeStats.totalTokens)
         assertEquals(1, claudeStats.modelBuckets.size)
         assertEquals("claude-3-7-sonnet", claudeStats.modelBuckets.first().canonicalModelId)
+        // 即使已筛选特定模型，下拉候选集仍保留当前时间范围内的全部 2 个可用模型供自由切换
+        assertEquals(2, claudeStats.availableModels.size)
+    }
+
+    @Test
+    fun testAvailableModelsDynamicTimeScope() {
+        val pricing = createTestPricingService()
+        val convo = ConversationUsageData(
+            conversationId = "c-time-models",
+            appSource = "ide",
+            entries = listOf(
+                // 昨天：只有 gemini-2.0-flash
+                TokenEntry(
+                    input = 10_000,
+                    output = 1_000,
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "gemini-2.0-flash"
+                    ),
+                    timestamp = "2026-09-01T10:00:00Z"
+                ),
+                // 今天：只有 claude-3-7-sonnet
+                TokenEntry(
+                    input = 30_000,
+                    output = 3_000,
+                    modelObservation = ModelObservation(
+                        providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                        responseModelId = "claude-3-7-sonnet"
+                    ),
+                    timestamp = "2026-09-02T10:00:00Z"
+                )
+            )
+        )
+
+        // 筛选【今天】：availableModels 应当仅有今天出现的 claude-3-7-sonnet，且与 modelBuckets 1:1 对齐
+        val todayStats = UsageAggregator.aggregate(
+            conversations = listOf(convo),
+            pricingService = pricing,
+            timeRange = UsageTimeRange.CALENDAR_TODAY,
+            zoneId = ZoneId.of("UTC"),
+            nowInstant = Instant.parse("2026-09-02T12:00:00Z")
+        )
+        assertEquals(1, todayStats.availableModels.size)
+        assertEquals(1, todayStats.modelBuckets.size)
+        assertEquals(todayStats.modelBuckets.first().displayName, todayStats.availableModels.first().displayName)
+        assertEquals(todayStats.modelBuckets.first().calls, todayStats.availableModels.first().callCount)
+        assertEquals(todayStats.modelBuckets.first().totalTokens, todayStats.availableModels.first().totalTokens)
+
+        // 筛选【全部时间】：availableModels 应当包含两个模型
+        val allTimeStats = UsageAggregator.aggregate(
+            conversations = listOf(convo),
+            pricingService = pricing,
+            timeRange = UsageTimeRange.ALL_TIME,
+            zoneId = ZoneId.of("UTC"),
+            nowInstant = Instant.parse("2026-09-02T12:00:00Z")
+        )
+        assertEquals(2, allTimeStats.availableModels.size)
+        assertEquals(2, allTimeStats.modelBuckets.size)
     }
 
     @Test

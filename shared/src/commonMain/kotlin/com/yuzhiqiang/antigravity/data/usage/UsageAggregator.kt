@@ -34,10 +34,10 @@ object UsageAggregator {
         customDateRange: CustomDateRange? = null,
         selectedSources: Set<String> = setOf("all"),
         selectedModel: String? = null,
-        zoneId: ZoneId = ZoneId.systemDefault()
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        nowInstant: Instant = Instant.ofEpochMilli(System.currentTimeMillis())
     ): DeepUsageStats {
-        val nowMillis = System.currentTimeMillis()
-        val nowInstant = Instant.ofEpochMilli(nowMillis)
+        val nowMillis = nowInstant.toEpochMilli()
 
         val timeBounds = resolveTimeBounds(timeRange, nowInstant, zoneId, customDateRange)
         val fromMillis = timeBounds.from?.toEpochMilli()
@@ -69,7 +69,7 @@ object UsageAggregator {
         val modelMap = mutableMapOf<String, ModelBucketAccumulator>()
         val sourceMap = mutableMapOf<String, SourceBucketAccumulator>()
         val convoMap = mutableMapOf<String, ConversationBucketAccumulator>()
-        val globalModelCounts = mutableMapOf<String, ModelAccumulatorCounter>()
+        val scopedModelCounts = mutableMapOf<String, ModelAccumulatorCounter>()
 
         // 今日统计始终按本地日 [00:00, now) 聚合，不随当前时间范围变化。
         val todayDate = nowInstant.atZone(zoneId).toLocalDate()
@@ -103,20 +103,6 @@ object UsageAggregator {
 
                 val identity = identityRegistry.resolve(entry.modelObservation)
                 val modelGroupingKey = identity.groupingKey
-                val modelDisplay = identity.canonicalModelId?.ifBlank { modelGroupingKey } ?: modelGroupingKey
-                val modelCounter = globalModelCounts.getOrPut(modelGroupingKey) {
-                    ModelAccumulatorCounter(modelGroupingKey, modelDisplay)
-                }
-                modelCounter.calls += 1
-                modelCounter.tokens += entry.totalTokens
-
-                // 若启用了指定模型筛选，排除不匹配的模型记录
-                if (isModelFilterActive) {
-                    val matches = modelGroupingKey == selectedModel ||
-                            identity.canonicalModelId.equals(selectedModel, ignoreCase = true) ||
-                            identity.displayName.equals(selectedModel, ignoreCase = true)
-                    if (!matches) continue
-                }
 
                 val entryMillis = entry.epochMillis
                 val isTimestampValid = entryMillis > 0L
@@ -185,6 +171,23 @@ object UsageAggregator {
                 }
 
                 if (outsideFilter) continue
+
+                // 收集当前选定时间范围与来源范围内的模型筛选候选列表
+                val modelDisplay = identity.displayName.ifBlank { identity.canonicalModelId ?: modelGroupingKey }
+                val modelCounter = scopedModelCounts.getOrPut(modelGroupingKey) {
+                    ModelAccumulatorCounter(modelGroupingKey, modelDisplay)
+                }
+                modelCounter.calls += 1
+                modelCounter.tokens += entry.totalTokens
+
+                // 若启用了指定模型筛选，排除不匹配的模型记录
+                if (isModelFilterActive) {
+                    val matches = modelGroupingKey == selectedModel ||
+                            identity.canonicalModelId.equals(selectedModel, ignoreCase = true) ||
+                            identity.displayName.equals(selectedModel, ignoreCase = true)
+                    if (!matches) continue
+                }
+
                 convoHasMatchedEntry = true
 
                 totalInput += input
@@ -337,7 +340,7 @@ object UsageAggregator {
             .sortedByDescending { it.totalTokens }
             .take(30)
 
-        val modelOptions = globalModelCounts.values
+        val modelOptions = scopedModelCounts.values
             .sortedByDescending { it.tokens }
             .map {
                 ModelFilterOption(
