@@ -238,6 +238,10 @@ interface CoreStrings {
     val tourStep11Desc: String
     val tourStep12Title: String
     val tourStep12Desc: String
+    val tourStep13Title: String
+    val tourStep13Desc: String
+    val tourStep14Title: String
+    val tourStep14Desc: String
 }
 
 object CoreStringsZh : CoreStrings {
@@ -475,32 +479,38 @@ object CoreStringsZh : CoreStrings {
     override val tourStep3Title = "模型管理"
     override val tourStep3Desc = "如果你有自己的大模型 API，可以在这里接进来并直接加入到宿主模型列表中，还能根据需要自由调整上下文压缩策略。"
 
-    override val tourStep4Title = "调用日志"
-    override val tourStep4Desc = "IDE 发出的每一笔代码补全和问答请求都会记录在这里，请求耗时、用了多少 Token、有没有报错一查便知。"
+    override val tourStep4Title = "用量统计"
+    override val tourStep4Desc = "全面统计各模型的 Token 消耗量、调用频次与费用预估，支持按天/按小时走势分析及多端来源过滤。"
 
-    override val tourStep5Title = "应用设置"
-    override val tourStep5Desc = "在这里修改代理端口、配置公司网络代理、切换主题颜色和语言。如果忘了怎么用，随时能在这重看新手指引。"
+    override val tourStep5Title = "调用日志"
+    override val tourStep5Desc = "IDE 发出的每一笔代码补全和问答请求都会记录在这里，请求耗时、用了多少 Token、有没有报错一查便知。"
 
-    override val tourStep6Title = "本地代理服务"
-    override val tourStep6Desc = "Studio 会在本地启动一个代理中转服务。你可以在这启动或停止服务、查看实时延迟，遇到网络问题点健康诊断就能一键体检。"
+    override val tourStep6Title = "应用设置"
+    override val tourStep6Desc = "在这里修改代理端口、配置公司网络代理、切换主题颜色和语言。如果忘了怎么用，随时能在这重看新手指引。"
 
-    override val tourStep7Title = "客户端一键接入"
-    override val tourStep7Desc = "系统会自动扫描你电脑上装好的 IDE 和客户端。直接点「接入代理」，就会自动配置好网络，不用你手动去改端口。"
+    override val tourStep7Title = "本地代理服务"
+    override val tourStep7Desc = "Studio 会在本地启动一个代理中转服务。你可以在这启动或停止服务、查看实时延迟，遇到网络问题点健康诊断就能一键体检。"
 
-    override val tourStep8Title = "添加与管理账号"
-    override val tourStep8Desc = "点「添加账号」可以用浏览器登录或直接粘贴 Token。上方还支持一键按剩余额度排序、隐藏邮箱防窥，以及把账号配置导出备份。"
+    override val tourStep8Title = "客户端一键接入"
+    override val tourStep8Desc = "系统会自动扫描你电脑上装好的 IDE 和客户端。直接点「接入代理」，就会自动配置好网络，不用你手动去改端口。"
 
-    override val tourStep9Title = "接入第三方服务与压缩策略"
-    override val tourStep9Desc = "点「添加提供商」就能接入你自备的模型服务，直接加入到宿主的模型列表中使用。还可以自由调整上下文压缩策略，灵活掌控上下文长度。"
+    override val tourStep9Title = "添加与管理账号"
+    override val tourStep9Desc = "点「添加账号」可以用浏览器登录或直接粘贴 Token。上方还支持一键按剩余额度排序、隐藏邮箱防窥，以及把账号配置导出备份。"
 
-    override val tourStep10Title = "实时请求审计流"
-    override val tourStep10Desc = "这里会按时间列出所有请求。你可以按关键词搜索或按状态码过滤，点开就能查看具体的耗时与数据流，排查报错非常方便。"
+    override val tourStep10Title = "接入第三方服务与压缩策略"
+    override val tourStep10Desc = "点「添加提供商」就能接入你自备的模型服务，直接加入到宿主的模型列表中使用。还可以自由调整上下文压缩策略，灵活掌控上下文长度。"
 
-    override val tourStep11Title = "端口、网络与主题设置"
-    override val tourStep11Desc = "如果默认端口被占用了可以在这修改，公司需要挂上游代理也可以在这填。下面还准备了多种深浅色主题，挑一个你喜欢的风格。"
+    override val tourStep11Title = "费用预估与用量走势"
+    override val tourStep11Desc = "顶部可快速切换时间范围与筛选模型/来源。下方看板清晰展示 Token 五维分布、每日消耗走势图以及热门模型消耗排行。"
 
-    override val tourStep12Title = "检查更新与重看指引"
-    override val tourStep12Desc = "在这里可以检查最新版本，也能直接打开配置文件夹。如果你以后想重温功能用法，随时点击「新手指引」卡片就能重新打开！"
+    override val tourStep12Title = "实时请求审计流"
+    override val tourStep12Desc = "这里会按时间列出所有请求。你可以按关键词搜索或按状态码过滤，点开就能查看具体的耗时与数据流，排查报错非常方便。"
+
+    override val tourStep13Title = "端口、网络与主题设置"
+    override val tourStep13Desc = "如果默认端口被占用了可以在这修改，公司需要挂上游代理也可以在这填。下面还准备了多种深浅色主题，挑一个你喜欢的风格。"
+
+    override val tourStep14Title = "检查更新与重看指引"
+    override val tourStep14Desc = "在这里可以检查最新版本，也能直接打开配置文件夹。如果你以后想重温功能用法，随时点击「新手指引」卡片就能重新打开！"
 }
 
 object CoreStringsEn : CoreStrings {
@@ -748,30 +758,36 @@ object CoreStringsEn : CoreStrings {
     override val tourStep3Title = "Model Management"
     override val tourStep3Desc = "Connect your own model APIs directly into the host model list, and freely adjust context compression strategies as needed."
 
-    override val tourStep4Title = "Activity Logs"
-    override val tourStep4Desc = "Every completion and chat request from your IDE is logged here. Check latency, token usage, and errors at a glance."
+    override val tourStep4Title = "Usage Analytics"
+    override val tourStep4Desc = "Track token consumption, request volume, and estimated costs with hourly/daily trends and multi-source filtering."
 
-    override val tourStep5Title = "Settings"
-    override val tourStep5Desc = "Change proxy ports, configure upstream corporate proxies, switch themes and languages, or replay this guide anytime."
+    override val tourStep5Title = "Activity Logs"
+    override val tourStep5Desc = "Every completion and chat request from your IDE is logged here. Check latency, token usage, and errors at a glance."
 
-    override val tourStep6Title = "Local Proxy Service"
-    override val tourStep6Desc = "Studio runs a local proxy service. Start/stop the service, check latency, or run instant health diagnostics for network issues."
+    override val tourStep6Title = "Settings"
+    override val tourStep6Desc = "Change proxy ports, configure upstream corporate proxies, switch themes and languages, or replay this guide anytime."
 
-    override val tourStep7Title = "One-Click Client Hook"
-    override val tourStep7Desc = "Automatically scans installed IDEs and clients on your machine. Click 'Connect Proxy' to hook networks without manual port edits."
+    override val tourStep7Title = "Local Proxy Service"
+    override val tourStep7Desc = "Studio runs a local proxy service. Start/stop the service, check latency, or run instant health diagnostics for network issues."
 
-    override val tourStep8Title = "Add & Manage Accounts"
-    override val tourStep8Desc = "Click 'Add Account' to log in via browser or paste a Token. Sort by remaining quota, mask emails for privacy, and export backups."
+    override val tourStep8Title = "One-Click Client Hook"
+    override val tourStep8Desc = "Automatically scans installed IDEs and clients on your machine. Click 'Connect Proxy' to hook networks without manual port edits."
 
-    override val tourStep9Title = "Custom Providers & Strategies"
-    override val tourStep9Desc = "Click 'Add Provider' to connect your custom model services directly into the host model list, and freely adjust compression strategies."
+    override val tourStep9Title = "Add & Manage Accounts"
+    override val tourStep9Desc = "Click 'Add Account' to log in via browser or paste a Token. Sort by remaining quota, mask emails for privacy, and export backups."
 
-    override val tourStep10Title = "Real-Time Audit Stream"
-    override val tourStep10Desc = "Lists all incoming requests chronologically. Filter by keywords or status codes, and click to inspect latencies and stream data."
+    override val tourStep10Title = "Custom Providers & Strategies"
+    override val tourStep10Desc = "Click 'Add Provider' to connect your custom model services directly into the host model list, and freely adjust compression strategies."
 
-    override val tourStep11Title = "Ports, Network & Themes"
-    override val tourStep11Desc = "Change the port if occupied, or set up upstream corporate proxies. Pick your favorite style from a variety of dark and light themes."
+    override val tourStep11Title = "Cost Estimation & Usage Trends"
+    override val tourStep11Desc = "Filter by time presets, models, and sources. The dashboard visualizes 5D token breakdowns, daily trend charts, and top model rankings."
 
-    override val tourStep12Title = "Updates & Reopening Guide"
-    override val tourStep12Desc = "Check for new updates or open the config directory. Replay this walkthrough anytime by clicking the 'Quick Start Guide' card!"
+    override val tourStep12Title = "Real-Time Audit Stream"
+    override val tourStep12Desc = "Lists all incoming requests chronologically. Filter by keywords or status codes, and click to inspect latencies and stream data."
+
+    override val tourStep13Title = "Ports, Network & Themes"
+    override val tourStep13Desc = "Change the port if occupied, or set up upstream corporate proxies. Pick your favorite style from a variety of dark and light themes."
+
+    override val tourStep14Title = "Updates & Reopening Guide"
+    override val tourStep14Desc = "Check for new updates or open the config directory. Replay this walkthrough anytime by clicking the 'Quick Start Guide' card!"
 }

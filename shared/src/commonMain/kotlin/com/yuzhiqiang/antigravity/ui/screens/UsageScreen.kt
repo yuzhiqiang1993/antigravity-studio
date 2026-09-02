@@ -28,6 +28,9 @@ import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
+import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
+import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
+import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.usage.*
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -39,6 +42,7 @@ fun UsageScreen(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val tourManager = LocalSpotlightTourManager.current
     val stats by viewModel.usageStats.collectAsState()
     val isRefreshing by viewModel.isRefreshingUsage.collectAsState()
     val isInitialLoading by viewModel.isUsageInitialLoading.collectAsState()
@@ -77,6 +81,7 @@ fun UsageScreen(
                 .fillMaxWidth()
                 .widthIn(max = 1100.dp)
                 .align(Alignment.CenterHorizontally)
+                .tourAnchor(TourStep.USAGE_PANEL, tourManager)
                 .horizontalScroll(controlsScrollState),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically

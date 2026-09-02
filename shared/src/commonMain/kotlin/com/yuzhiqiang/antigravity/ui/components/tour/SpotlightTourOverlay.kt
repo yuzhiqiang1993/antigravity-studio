@@ -377,15 +377,17 @@ fun SpotlightTourOverlay(
                                 TourStep.SIDEBAR_OVERVIEW -> s.tourStep1Title to s.tourStep1Desc
                                 TourStep.SIDEBAR_ACCOUNTS -> s.tourStep2Title to s.tourStep2Desc
                                 TourStep.SIDEBAR_MODELS -> s.tourStep3Title to s.tourStep3Desc
-                                TourStep.SIDEBAR_ACTIVITY -> s.tourStep4Title to s.tourStep4Desc
-                                TourStep.SIDEBAR_SETTINGS -> s.tourStep5Title to s.tourStep5Desc
-                                TourStep.OVERVIEW_HERO_PROXY -> s.tourStep6Title to s.tourStep6Desc
-                                TourStep.OVERVIEW_HOST_GRID -> s.tourStep7Title to s.tourStep7Desc
-                                TourStep.ACCOUNTS_MANAGE -> s.tourStep8Title to s.tourStep8Desc
-                                TourStep.MODELS_MANAGE -> s.tourStep9Title to s.tourStep9Desc
-                                TourStep.ACTIVITY_PANEL -> s.tourStep10Title to s.tourStep10Desc
-                                TourStep.SETTINGS_PANEL -> s.tourStep11Title to s.tourStep11Desc
-                                TourStep.ABOUT_REOPEN_CARD -> s.tourStep12Title to s.tourStep12Desc
+                                TourStep.SIDEBAR_USAGE -> s.tourStep4Title to s.tourStep4Desc
+                                TourStep.SIDEBAR_ACTIVITY -> s.tourStep5Title to s.tourStep5Desc
+                                TourStep.SIDEBAR_SETTINGS -> s.tourStep6Title to s.tourStep6Desc
+                                TourStep.OVERVIEW_HERO_PROXY -> s.tourStep7Title to s.tourStep7Desc
+                                TourStep.OVERVIEW_HOST_GRID -> s.tourStep8Title to s.tourStep8Desc
+                                TourStep.ACCOUNTS_MANAGE -> s.tourStep9Title to s.tourStep9Desc
+                                TourStep.MODELS_MANAGE -> s.tourStep10Title to s.tourStep10Desc
+                                TourStep.USAGE_PANEL -> s.tourStep11Title to s.tourStep11Desc
+                                TourStep.ACTIVITY_PANEL -> s.tourStep12Title to s.tourStep12Desc
+                                TourStep.SETTINGS_PANEL -> s.tourStep13Title to s.tourStep13Desc
+                                TourStep.ABOUT_REOPEN_CARD -> s.tourStep14Title to s.tourStep14Desc
                             }
 
                             Column(

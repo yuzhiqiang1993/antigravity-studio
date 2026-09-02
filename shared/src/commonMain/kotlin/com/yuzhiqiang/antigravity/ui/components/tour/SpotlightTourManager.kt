@@ -12,11 +12,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import com.yuzhiqiang.antigravity.ui.presentation.NavTab
 
 /**
- * 聚光灯新手引导步骤枚举（两阶段 12 步超详细深度漫游体系）
+ * 聚光灯新手引导步骤枚举（两阶段 14 步超详细深度漫游体系）
  *
- * @param order 步骤序号 (1..12)
+ * @param order 步骤序号 (1..14)
  * @param tab 所在页面导航 Tab
- * @param isSidePlacement 是否停靠在侧边栏右侧（前 5 步为 true，后 7 步为 false）
+ * @param isSidePlacement 是否停靠在侧边栏右侧（前 6 步为 true，后 8 步为 false）
  * @param associatedSidebarStep 阶段二介绍右侧详情时，左侧需同步高亮镂空的对应导航 Tab
  */
 enum class TourStep(
@@ -29,17 +29,19 @@ enum class TourStep(
     SIDEBAR_OVERVIEW(1, NavTab.OVERVIEW, true),
     SIDEBAR_ACCOUNTS(2, NavTab.OVERVIEW, true),
     SIDEBAR_MODELS(3, NavTab.OVERVIEW, true),
-    SIDEBAR_ACTIVITY(4, NavTab.OVERVIEW, true),
-    SIDEBAR_SETTINGS(5, NavTab.OVERVIEW, true),
+    SIDEBAR_USAGE(4, NavTab.OVERVIEW, true),
+    SIDEBAR_ACTIVITY(5, NavTab.OVERVIEW, true),
+    SIDEBAR_SETTINGS(6, NavTab.OVERVIEW, true),
 
     // 阶段二：右侧功能页核心深度聚焦（同步高亮左侧导航 Tab）
-    OVERVIEW_HERO_PROXY(6, NavTab.OVERVIEW, false, SIDEBAR_OVERVIEW),
-    OVERVIEW_HOST_GRID(7, NavTab.OVERVIEW, false, SIDEBAR_OVERVIEW),
-    ACCOUNTS_MANAGE(8, NavTab.ACCOUNTS, false, SIDEBAR_ACCOUNTS),
-    MODELS_MANAGE(9, NavTab.MODELS, false, SIDEBAR_MODELS),
-    ACTIVITY_PANEL(10, NavTab.ACTIVITY, false, SIDEBAR_ACTIVITY),
-    SETTINGS_PANEL(11, NavTab.SETTINGS, false, SIDEBAR_SETTINGS),
-    ABOUT_REOPEN_CARD(12, NavTab.SETTINGS, false, SIDEBAR_SETTINGS);
+    OVERVIEW_HERO_PROXY(7, NavTab.OVERVIEW, false, SIDEBAR_OVERVIEW),
+    OVERVIEW_HOST_GRID(8, NavTab.OVERVIEW, false, SIDEBAR_OVERVIEW),
+    ACCOUNTS_MANAGE(9, NavTab.ACCOUNTS, false, SIDEBAR_ACCOUNTS),
+    MODELS_MANAGE(10, NavTab.MODELS, false, SIDEBAR_MODELS),
+    USAGE_PANEL(11, NavTab.USAGE, false, SIDEBAR_USAGE),
+    ACTIVITY_PANEL(12, NavTab.ACTIVITY, false, SIDEBAR_ACTIVITY),
+    SETTINGS_PANEL(13, NavTab.SETTINGS, false, SIDEBAR_SETTINGS),
+    ABOUT_REOPEN_CARD(14, NavTab.SETTINGS, false, SIDEBAR_SETTINGS);
 
     fun next(): TourStep? {
         val nextOrder = order + 1

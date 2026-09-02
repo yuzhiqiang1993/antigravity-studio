@@ -199,6 +199,7 @@ fun AppSidebar(
                             NavTab.OVERVIEW -> Modifier.tourAnchor(TourStep.SIDEBAR_OVERVIEW, tourManager)
                             NavTab.ACCOUNTS -> Modifier.tourAnchor(TourStep.SIDEBAR_ACCOUNTS, tourManager)
                             NavTab.MODELS -> Modifier.tourAnchor(TourStep.SIDEBAR_MODELS, tourManager)
+                            NavTab.USAGE -> Modifier.tourAnchor(TourStep.SIDEBAR_USAGE, tourManager)
                             NavTab.ACTIVITY -> Modifier.tourAnchor(TourStep.SIDEBAR_ACTIVITY, tourManager)
                             else -> Modifier
                         }
