@@ -188,6 +188,7 @@ internal fun ActivityFilterDialog(
     routeCounts: List<Pair<String, Int>>,
     statusCounts: Map<ActivityStatusKind, Int>,
     filter: ActivityLogFilter,
+    showEndpointsFilter: Boolean = true,
     resetKey: Int,
     onFilterChange: (ActivityLogFilter) -> Unit,
     onResetAll: () -> Unit,
@@ -257,7 +258,7 @@ internal fun ActivityFilterDialog(
     ) {
         StudioDialogSurface(
             modifier = Modifier
-                .width(900.dp)
+                .width(if (showEndpointsFilter) 900.dp else 420.dp)
                 .heightIn(max = 580.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -326,7 +327,7 @@ internal fun ActivityFilterDialog(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                // 2. 双栏卡片式内容区域
+                // 2. 内容区域 (双栏或单栏)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -335,10 +336,9 @@ internal fun ActivityFilterDialog(
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalAlignment = Alignment.Top
                 ) {
-                    // 左栏：客户端、状态、服务商 (width 270.dp)
+                    // 客户端、状态、服务商
                     Column(
-                        modifier = Modifier
-                            .width(270.dp)
+                        modifier = (if (showEndpointsFilter) Modifier.width(270.dp) else Modifier.fillMaxWidth())
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
@@ -435,110 +435,112 @@ internal fun ActivityFilterDialog(
                         }
                     }
 
-                    VerticalDivider(
-                        modifier = Modifier.height(350.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-
-                    // 右栏：请求接口 (weight 1f，充分展开)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ActivityFilterSectionHeader(
-                            title = s.activityFilterEndpoints,
-                            allSelected = filter.endpoints.isEmpty() && !filter.onlyAiChat,
-                            onSelectAll = { onFilterChange(filter.copy(endpoints = emptySet(), onlyAiChat = false)) },
-                            s = s
+                    if (showEndpointsFilter) {
+                        VerticalDivider(
+                            modifier = Modifier.height(350.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                         )
 
-                        // 接口分类快捷 Tab（纯文字无 Emoji）
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        // 右栏：请求接口 (weight 1f，充分展开)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(AppTokens.Radius.pill),
-                                color = if (selectedCategoryTab == null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier
-                                    .pointerHoverIcon(PointerIcon.Hand)
-                                    .clickable { selectedCategoryTab = null }
-                            ) {
-                                Text(
-                                    text = "${s.activityFilterTabAll} (${endpointCounts.size})",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (selectedCategoryTab == null) FontWeight.Bold else FontWeight.Normal
-                                    ),
-                                    color = if (selectedCategoryTab == null) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
+                            ActivityFilterSectionHeader(
+                                title = s.activityFilterEndpoints,
+                                allSelected = filter.endpoints.isEmpty() && !filter.onlyAiChat,
+                                onSelectAll = { onFilterChange(filter.copy(endpoints = emptySet(), onlyAiChat = false)) },
+                                s = s
+                            )
 
-                            Surface(
-                                shape = RoundedCornerShape(AppTokens.Radius.pill),
-                                color = if (selectedCategoryTab == ActivityEndpointCategory.AI_CHAT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier
-                                    .pointerHoverIcon(PointerIcon.Hand)
-                                    .clickable { selectedCategoryTab = ActivityEndpointCategory.AI_CHAT }
+                            // 接口分类快捷 Tab（纯文字无 Emoji）
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(
-                                    text = "${s.activityFilterTabAiChat} ($aiChatEndpointCount)",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (selectedCategoryTab == ActivityEndpointCategory.AI_CHAT) FontWeight.Bold else FontWeight.Normal
-                                    ),
-                                    color = if (selectedCategoryTab == ActivityEndpointCategory.AI_CHAT) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(AppTokens.Radius.pill),
-                                color = if (selectedCategoryTab == ActivityEndpointCategory.SYSTEM) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier
-                                    .pointerHoverIcon(PointerIcon.Hand)
-                                    .clickable { selectedCategoryTab = ActivityEndpointCategory.SYSTEM }
-                            ) {
-                                Text(
-                                    text = "${s.activityFilterTabSystem} ($systemEndpointCount)",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (selectedCategoryTab == ActivityEndpointCategory.SYSTEM) FontWeight.Bold else FontWeight.Normal
-                                    ),
-                                    color = if (selectedCategoryTab == ActivityEndpointCategory.SYSTEM) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-
-                        StudioSearchField(
-                            value = endpointSearch,
-                            onValueChange = { endpointSearch = it },
-                            placeholder = s.activityFilterEndpointSearch,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        if (visibleEndpoints.isEmpty()) {
-                            ActivityFilterEmptyText(s.activityFilterNoEndpoints)
-                        } else {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(265.dp)
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                visibleEndpoints.forEach { (path, count) ->
-                                    EndpointFilterOptionRow(
-                                        path = path,
-                                        count = count,
-                                        checked = path in filter.endpoints,
-                                        onClick = {
-                                            onFilterChange(filter.copy(endpoints = filter.endpoints.toggle(path)))
-                                        },
-                                        s = s
+                                Surface(
+                                    shape = RoundedCornerShape(AppTokens.Radius.pill),
+                                    color = if (selectedCategoryTab == null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier
+                                        .pointerHoverIcon(PointerIcon.Hand)
+                                        .clickable { selectedCategoryTab = null }
+                                ) {
+                                    Text(
+                                        text = "${s.activityFilterTabAll} (${endpointCounts.size})",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (selectedCategoryTab == null) FontWeight.Bold else FontWeight.Normal
+                                        ),
+                                        color = if (selectedCategoryTab == null) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                     )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(AppTokens.Radius.pill),
+                                    color = if (selectedCategoryTab == ActivityEndpointCategory.AI_CHAT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier
+                                        .pointerHoverIcon(PointerIcon.Hand)
+                                        .clickable { selectedCategoryTab = ActivityEndpointCategory.AI_CHAT }
+                                ) {
+                                    Text(
+                                        text = "${s.activityFilterTabAiChat} ($aiChatEndpointCount)",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (selectedCategoryTab == ActivityEndpointCategory.AI_CHAT) FontWeight.Bold else FontWeight.Normal
+                                        ),
+                                        color = if (selectedCategoryTab == ActivityEndpointCategory.AI_CHAT) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(AppTokens.Radius.pill),
+                                    color = if (selectedCategoryTab == ActivityEndpointCategory.SYSTEM) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier
+                                        .pointerHoverIcon(PointerIcon.Hand)
+                                        .clickable { selectedCategoryTab = ActivityEndpointCategory.SYSTEM }
+                                ) {
+                                    Text(
+                                        text = "${s.activityFilterTabSystem} ($systemEndpointCount)",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (selectedCategoryTab == ActivityEndpointCategory.SYSTEM) FontWeight.Bold else FontWeight.Normal
+                                        ),
+                                        color = if (selectedCategoryTab == ActivityEndpointCategory.SYSTEM) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            StudioSearchField(
+                                value = endpointSearch,
+                                onValueChange = { endpointSearch = it },
+                                placeholder = s.activityFilterEndpointSearch,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            if (visibleEndpoints.isEmpty()) {
+                                ActivityFilterEmptyText(s.activityFilterNoEndpoints)
+                            } else {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(265.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    visibleEndpoints.forEach { (path, count) ->
+                                        EndpointFilterOptionRow(
+                                            path = path,
+                                            count = count,
+                                            checked = path in filter.endpoints,
+                                            onClick = {
+                                                onFilterChange(filter.copy(endpoints = filter.endpoints.toggle(path)))
+                                            },
+                                            s = s
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -556,9 +558,15 @@ internal fun ActivityFilterDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val activeCount = if (showEndpointsFilter) {
+                        filter.activeCount
+                    } else {
+                        filter.clients.size + filter.routes.size + filter.statuses.size
+                    }
+                    val hasActiveFilters = activeCount > 0
                     Text(
-                        text = if (isFiltered) {
-                            s.activityFilterSelectedDimension(s.activityTagFilterTitle, filter.activeCount)
+                        text = if (hasActiveFilters) {
+                            s.activityFilterSelectedDimension(s.activityTagFilterTitle, activeCount)
                         } else {
                             s.activityFilterAllOption
                         },

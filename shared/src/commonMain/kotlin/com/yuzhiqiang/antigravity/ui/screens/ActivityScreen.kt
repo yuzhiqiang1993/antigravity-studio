@@ -118,14 +118,14 @@ fun ActivityScreen(
                                 },
                                 s = s
                             )
-
-                            ActivityFilterButton(
-                                isFiltered = activityFilter.isActive,
-                                filterCount = activityFilter.activeCount,
-                                onClick = { showFilterDialog = true },
-                                s = s
-                            )
                         }
+
+                        ActivityFilterButton(
+                            isFiltered = activityFilter.isActive,
+                            filterCount = activityFilter.activeCount,
+                            onClick = { showFilterDialog = true },
+                            s = s
+                        )
                     }
 
                     Row(
@@ -298,6 +298,7 @@ fun ActivityScreen(
             routeCounts = filterCounts.routeCounts,
             statusCounts = filterCounts.statusCounts,
             filter = activityFilter,
+            showEndpointsFilter = config.collectNonChatLogs,
             resetKey = filterResetKey,
             onFilterChange = { activityFilter = it },
             onResetAll = ::resetActivityFilters,

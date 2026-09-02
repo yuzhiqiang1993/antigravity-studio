@@ -1,38 +1,32 @@
 package com.yuzhiqiang.antigravity.ui.screens
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import com.yuzhiqiang.antigravity.domain.model.ActivityLog
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.utils.calculateCacheHitRate
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+
 internal data class ActivityFilterCounts(
-    val clientCounts: Map<ActivityClientKind, Int>,
-    val endpointCounts: List<Pair<String, Int>>,
-    val routeCounts: List<Pair<String, Int>>,
-    val statusCounts: Map<ActivityStatusKind, Int>
+    val clientCounts: Map<ActivityClientKind, Int> = emptyMap(),
+    val endpointCounts: List<Pair<String, Int>> = emptyList(),
+    val routeCounts: List<Pair<String, Int>> = emptyList(),
+    val statusCounts: Map<ActivityStatusKind, Int> = emptyMap()
 )
 
-@Composable
-internal fun rememberActivityFilterCounts(logs: List<ActivityLog>): ActivityFilterCounts {
-    val clientCounts = remember(logs) {
-        ActivityClientKind.values().associateWith { kind -> logs.count { it.clientKind() == kind } }
-    }
-    val endpointCounts = remember(logs) {
-        logs.groupingBy(ActivityLog::path)
-            .eachCount()
-            .toList()
-            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
-    }
-    val routeCounts = remember(logs) {
-        logs.groupingBy(ActivityLog::routeKey)
-            .eachCount()
-            .toList()
-            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
-    }
-    val statusCounts = remember(logs) {
-        ActivityStatusKind.values().associateWith { status -> logs.count(status::matches) }
-    }
+internal fun calculateFilterCounts(logs: List<ActivityLog>): ActivityFilterCounts {
+    val clientCounts = ActivityClientKind.values().associateWith { kind -> logs.count { it.clientKind() == kind } }
+    val endpointCounts = logs.groupingBy(ActivityLog::path)
+        .eachCount()
+        .toList()
+        .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
+    val routeCounts = logs.groupingBy(ActivityLog::routeKey)
+        .eachCount()
+        .toList()
+        .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
+    val statusCounts = ActivityStatusKind.values().associateWith { status -> logs.count(status::matches) }
 
     return ActivityFilterCounts(
         clientCounts = clientCounts,
@@ -40,6 +34,19 @@ internal fun rememberActivityFilterCounts(logs: List<ActivityLog>): ActivityFilt
         routeCounts = routeCounts,
         statusCounts = statusCounts
     )
+}
+
+@Composable
+internal fun rememberActivityFilterCounts(logs: List<ActivityLog>): ActivityFilterCounts {
+    return produceState(initialValue = remember(logs.isEmpty()) { calculateFilterCounts(logs) }, key1 = logs) {
+        if (logs.isNotEmpty()) {
+            delay(80)
+        }
+        val result = withContext(Dispatchers.Default) {
+            calculateFilterCounts(logs)
+        }
+        value = result
+    }.value
 }
 
 @Composable
@@ -95,8 +102,16 @@ data class ModelLatencyStat(
 )
 
 @Composable
-internal fun rememberActivityStatistics(logs: List<ActivityLog>): ActivityStatistics = remember(logs) {
-    calculateActivityStatistics(logs)
+internal fun rememberActivityStatistics(logs: List<ActivityLog>): ActivityStatistics {
+    return produceState(initialValue = remember(logs.isEmpty()) { calculateActivityStatistics(logs) }, key1 = logs) {
+        if (logs.isNotEmpty()) {
+            delay(80)
+        }
+        val result = withContext(Dispatchers.Default) {
+            calculateActivityStatistics(logs)
+        }
+        value = result
+    }.value
 }
 
 internal fun calculateActivityStatistics(logs: List<ActivityLog>): ActivityStatistics {
@@ -140,8 +155,16 @@ internal fun calculateActivityStatistics(logs: List<ActivityLog>): ActivityStati
 }
 
 @Composable
-internal fun rememberModelLatencyStats(logs: List<ActivityLog>): List<ModelLatencyStat> = remember(logs) {
-    calculateModelLatencyStats(logs)
+internal fun rememberModelLatencyStats(logs: List<ActivityLog>): List<ModelLatencyStat> {
+    return produceState(initialValue = remember(logs.isEmpty()) { calculateModelLatencyStats(logs) }, key1 = logs) {
+        if (logs.isNotEmpty()) {
+            delay(80)
+        }
+        val result = withContext(Dispatchers.Default) {
+            calculateModelLatencyStats(logs)
+        }
+        value = result
+    }.value
 }
 
 internal fun calculateModelLatencyStats(logs: List<ActivityLog>): List<ModelLatencyStat> {
