@@ -88,6 +88,8 @@ class HotSwitchCoordinator(
         val actualAppCliEmail: String? get() = appCli.actualEmail
     }
 
+    private val crossProcessLock: CrossProcessAccountSwitchLock = CrossProcessAccountSwitchLock()
+
     /**
      * 执行一次分目标账号切换；已有任务执行时立即拒绝新请求。
      */
@@ -99,36 +101,45 @@ class HotSwitchCoordinator(
         restartApp: Boolean = true,
         progressCallback: ((phase: String) -> Unit)? = null
     ): Result<SwitchResultReport> {
+        val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
+        if (WorkflowLeaseManager.isLocked()) {
+            return Result.failure(IllegalStateException(s.smartSwitchReasonWorkflowLocked))
+        }
+
         if (!switchMutex.tryLock()) {
-            val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
             return Result.failure(IllegalStateException(s.hotSwitchTaskAlreadyRunning))
         }
 
         _isSwitching.value = true
         return try {
-            val paths = customHostPathsProvider()
-            val request = AccountSwitchSession.Request(
-                targetAccount = targetAccount,
-                applyToIde = applyToIde,
-                applyToAppCli = applyToAppCli,
-                restartIde = restartIde,
-                restartApp = restartApp,
-                ideInstallationPath = paths["ide"],
-                appInstallationPath = paths["app"],
-                proxyPort = proxyPortProvider(),
-                progressCallback = progressCallback
-            )
-            val result = withContext(Dispatchers.IO) {
-                AccountSwitchSession(
-                    accountStore = accountStore,
-                    googleAuthService = googleAuthService
-                ).execute(request)
-            }
-            result.onSuccess { report ->
-                if (report.ide.isConfirmed) {
-                    _ideActiveAccount.value = report.appliedAccount
+            crossProcessLock.withCrossProcessLock(owner = "antigravity-studio") {
+                val paths = customHostPathsProvider()
+                val request = AccountSwitchSession.Request(
+                    targetAccount = targetAccount,
+                    applyToIde = applyToIde,
+                    applyToAppCli = applyToAppCli,
+                    restartIde = restartIde,
+                    restartApp = restartApp,
+                    ideInstallationPath = paths["ide"],
+                    appInstallationPath = paths["app"],
+                    proxyPort = proxyPortProvider(),
+                    progressCallback = progressCallback
+                )
+                val result = withContext(Dispatchers.IO) {
+                    AccountSwitchSession(
+                        accountStore = accountStore,
+                        googleAuthService = googleAuthService
+                    ).execute(request)
                 }
+                result.onSuccess { report ->
+                    if (report.ide.isConfirmed) {
+                        _ideActiveAccount.value = report.appliedAccount
+                    }
+                }
+                result
             }
+        } catch (e: CrossProcessAccountSwitchLock.LockAcquisitionException) {
+            Result.failure(e)
         } finally {
             _isSwitching.value = false
             switchMutex.unlock()
