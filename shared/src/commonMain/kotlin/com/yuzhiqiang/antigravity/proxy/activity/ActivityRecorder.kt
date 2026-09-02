@@ -17,6 +17,13 @@ object ActivityRecorder {
     val logs: StateFlow<List<ActivityLog>> = _logs.asStateFlow()
 
     private const val MAX_PAYLOAD_CHARS = 1_000_000 // 约 1MB 字符限制，避免大 Payload 导致内存暴涨
+    private const val IGNORED_LOG_ID = "__ignored_probe__"
+
+    internal fun isIgnoredProbe(method: String, path: String): Boolean {
+        val trimmed = path.trim().lowercase()
+        val isProbePath = trimmed == "/" || trimmed.isEmpty() || trimmed == "/health" || trimmed == "/healthz"
+        return isProbePath && (method.equals("GET", ignoreCase = true) || method.equals("HEAD", ignoreCase = true))
+    }
 
     /**
      * 请求刚到达时立即调用，生成一条处于 isPending = true 状态的日志并推送到列表头部
@@ -33,6 +40,9 @@ object ActivityRecorder {
         requestHeaders: Map<String, String>? = null,
         requestBody: String? = null
     ): String {
+        if (isIgnoredProbe(method, path)) {
+            return IGNORED_LOG_ID
+        }
         val id = UUID.randomUUID().toString()
         val newLog = ActivityLog(
             id = id,
@@ -66,6 +76,7 @@ object ActivityRecorder {
      * 流式产生首字时，原位更新首字耗时
      */
     fun updateFirstToken(id: String, firstTokenMs: Long) {
+        if (id == IGNORED_LOG_ID) return
         _logs.update { current ->
             current.map { log ->
                 if (log.id == id) log.copy(firstTokenMs = firstTokenMs) else log
@@ -77,6 +88,7 @@ object ActivityRecorder {
      * 触发重试时，原位更新该条请求的已重试次数
      */
     fun updateRetryCount(id: String, retryCount: Int) {
+        if (id == IGNORED_LOG_ID) return
         _logs.update { current ->
             current.map { log ->
                 if (log.id == id) log.copy(retryCount = retryCount) else log
@@ -107,6 +119,7 @@ object ActivityRecorder {
         responseHeaders: Map<String, String>? = null,
         responseBody: String? = null
     ) {
+        if (id == IGNORED_LOG_ID) return
         _logs.update { current ->
             current.map { log ->
                 if (log.id == id) {
@@ -181,6 +194,7 @@ object ActivityRecorder {
         responseHeaders: Map<String, String>? = null,
         responseBody: String? = null
     ) {
+        if (isIgnoredProbe(method, path)) return
         val speedMetrics = calculateSpeedMetrics(
             outputTokens = usage?.outputTokens,
             firstTokenMs = firstTokenMs,

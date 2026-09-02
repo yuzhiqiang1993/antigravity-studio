@@ -47,6 +47,20 @@ internal object ActivityEndpointRegistry {
     fun resolve(path: String): ActivityEndpointInfo {
         val clean = cleanEndpointDisplayPath(path).lowercase()
         return when {
+            clean == "/" || clean.isEmpty() -> ActivityEndpointInfo(
+                rawPath = path,
+                displayName = "服务连通性探测",
+                category = ActivityEndpointCategory.SYSTEM,
+                description = "客户端网络连通与存活探测"
+            )
+
+            clean == "health" || clean == "healthz" -> ActivityEndpointInfo(
+                rawPath = path,
+                displayName = "服务健康检查",
+                category = ActivityEndpointCategory.SYSTEM,
+                description = "代理服务运行状态健康检查"
+            )
+
             clean.contains("streamgeneratecontent") -> ActivityEndpointInfo(
                 rawPath = path,
                 displayName = "流式内容生成",

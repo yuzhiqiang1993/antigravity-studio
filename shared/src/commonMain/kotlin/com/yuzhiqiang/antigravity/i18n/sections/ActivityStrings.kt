@@ -222,6 +222,8 @@ object ActivityStringsZh : ActivityStrings {
     override fun activityEndpointDisplayName(path: String): String {
         val clean = path.trim().lowercase()
         return when {
+            clean == "/" || clean.isEmpty() -> "服务连通性探测"
+            clean == "/health" || clean == "/healthz" -> "服务健康检查"
             clean.contains("streamgeneratecontent") -> "流式内容生成"
             clean.contains("generatecontent") -> "内容生成 (非流式)"
             clean.contains("completecode") || clean.contains("inlinecompletion") || clean.contains("getcompletions") -> "代码智能补全"
@@ -235,11 +237,12 @@ object ActivityStringsZh : ActivityStrings {
             clean.contains("fetchadmincontrols") -> "企业策略拉取"
             else -> {
                 val colonIdx = path.lastIndexOf(':')
-                if (colonIdx >= 0 && colonIdx < path.length - 1) {
+                val fallback = if (colonIdx >= 0 && colonIdx < path.length - 1) {
                     path.substring(colonIdx + 1)
                 } else {
                     path.removePrefix("/v1internal/").removePrefix("/v1/").removePrefix("/")
                 }
+                fallback.ifBlank { path.ifBlank { "/" } }
             }
         }
     }
@@ -394,6 +397,8 @@ object ActivityStringsEn : ActivityStrings {
     override fun activityEndpointDisplayName(path: String): String {
         val clean = path.trim().lowercase()
         return when {
+            clean == "/" || clean.isEmpty() -> "Service Health Probe"
+            clean == "/health" || clean == "/healthz" -> "Health Check"
             clean.contains("streamgeneratecontent") -> "Stream Generate Content"
             clean.contains("generatecontent") -> "Generate Content"
             clean.contains("completecode") || clean.contains("inlinecompletion") || clean.contains("getcompletions") -> "Code Completion"
@@ -407,11 +412,12 @@ object ActivityStringsEn : ActivityStrings {
             clean.contains("fetchadmincontrols") -> "Admin Controls"
             else -> {
                 val colonIdx = path.lastIndexOf(':')
-                if (colonIdx >= 0 && colonIdx < path.length - 1) {
+                val fallback = if (colonIdx >= 0 && colonIdx < path.length - 1) {
                     path.substring(colonIdx + 1)
                 } else {
                     path.removePrefix("/v1internal/").removePrefix("/v1/").removePrefix("/")
                 }
+                fallback.ifBlank { path.ifBlank { "/" } }
             }
         }
     }

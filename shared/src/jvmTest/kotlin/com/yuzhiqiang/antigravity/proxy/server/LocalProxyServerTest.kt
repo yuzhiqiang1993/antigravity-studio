@@ -69,12 +69,19 @@ class LocalProxyServerTest {
                     val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                     return code to (stream?.bufferedReader()?.use { it.readText() } ?: "")
                 }
+                val (rootStatus, rootBody) = get("/")
                 val (healthStatus, health) = get("/health")
                 val (catalogStatus, catalog) = get("/v1/models")
+                assertEquals(200, rootStatus)
+                assertTrue(rootBody.contains("\"status\":\"ok\""))
                 assertEquals(200, healthStatus)
                 assertTrue(health.contains("\"status\":\"ok\""))
                 assertEquals(200, catalogStatus)
                 assertTrue(catalog.contains("custom-gpt-test"))
+
+                val headConnection = URI("http://127.0.0.1:$port/").toURL().openConnection() as HttpURLConnection
+                headConnection.requestMethod = "HEAD"
+                assertEquals(200, headConnection.responseCode)
             } finally {
                 runBlocking { server.stop() }
             }

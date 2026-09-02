@@ -229,4 +229,25 @@ class ActivityRecorderTest {
         assertFalse(isAiChatOrCompletion("/v1internal:loadCodeAssist", null))
         assertFalse(isAiChatOrCompletion("/health", null))
     }
+
+    @Test
+    fun testProbeRequestsAreSilentlyIgnored() {
+        // GET /
+        val id1 = ActivityRecorder.startActivity(method = "GET", path = "/", providerName = null, isOfficialPassthrough = true)
+        ActivityRecorder.finishActivity(id = id1, statusCode = 200, durationMs = 1L)
+
+        // HEAD /
+        val id2 = ActivityRecorder.startActivity(method = "HEAD", path = "/", providerName = null, isOfficialPassthrough = true)
+        ActivityRecorder.finishActivity(id = id2, statusCode = 200, durationMs = 1L)
+
+        // GET /health
+        val id3 = ActivityRecorder.startActivity(method = "GET", path = "/health", providerName = null, isOfficialPassthrough = true)
+        ActivityRecorder.finishActivity(id = id3, statusCode = 200, durationMs = 1L)
+
+        // Direct record()
+        ActivityRecorder.record(method = "GET", path = "/healthz", providerName = null, statusCode = 200, durationMs = 1L, isOfficialPassthrough = false)
+
+        // Zero logs should be recorded
+        assertTrue(ActivityRecorder.logs.value.isEmpty(), "Probe requests must not be added to activity logs")
+    }
 }

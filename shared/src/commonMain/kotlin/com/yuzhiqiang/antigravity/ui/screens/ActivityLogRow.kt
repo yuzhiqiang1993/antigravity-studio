@@ -181,6 +181,10 @@ internal fun ActivityLogRow(
                             maxLines = 1
                         )
 
+                        val endpointDisplayName = remember(log.path, s) {
+                            s.activityEndpointDisplayName(log.path).ifBlank { log.path.ifBlank { "/" } }
+                        }
+
                         Surface(
                             shape = RoundedCornerShape(4.dp),
                             color = if (isAiChat) {
@@ -196,7 +200,7 @@ internal fun ActivityLogRow(
                             )
                         ) {
                             Text(
-                                text = s.activityEndpointDisplayName(log.path),
+                                text = endpointDisplayName,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.5.sp,
                                     fontWeight = if (isAiChat) FontWeight.Bold else FontWeight.Medium

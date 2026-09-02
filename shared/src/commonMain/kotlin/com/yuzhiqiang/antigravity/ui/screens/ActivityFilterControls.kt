@@ -917,7 +917,8 @@ internal fun cleanEndpointDisplayPath(path: String): String {
     if (colonIdx >= 0 && colonIdx < trimmed.length - 1) {
         return trimmed.substring(colonIdx + 1)
     }
-    return trimmed.removePrefix("/v1internal/").removePrefix("/v1/").removePrefix("/")
+    val cleaned = trimmed.removePrefix("/v1internal/").removePrefix("/v1/").removePrefix("/")
+    return cleaned.ifBlank { trimmed.ifBlank { "/" } }
 }
 
 @Composable

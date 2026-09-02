@@ -123,8 +123,8 @@ class LocalProxyServer(
                     }
                     get("/{...}") {
                         val requestPath = call.request.path()
-                        if (requestPath == "/health" || requestPath == "/healthz") {
-                            if (requestPath == "/health") {
+                        if (requestPath == "/" || requestPath == "/health" || requestPath == "/healthz") {
+                            if (requestPath == "/health" || requestPath == "/") {
                                 call.respondText(
                                     """{"status":"ok","product":"antigravity-studio","port":$availablePort,"capabilities":{"models":true,"generate":true,"stream":true}}""",
                                     ContentType.Application.Json
@@ -164,6 +164,11 @@ class LocalProxyServer(
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                     head("/{...}") {
+                        val requestPath = call.request.path()
+                        if (requestPath == "/" || requestPath == "/health" || requestPath == "/healthz") {
+                            call.respond(HttpStatusCode.OK)
+                            return@head
+                        }
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                 }
@@ -534,7 +539,7 @@ class LocalProxyServer(
 
     private fun isFixedGetPath(path: String): Boolean {
         return when (path) {
-            "/health", "/healthz", "/v1/models", "/v1beta/models", "/antigravity/official-catalog" -> true
+            "/", "/health", "/healthz", "/v1/models", "/v1beta/models", "/antigravity/official-catalog" -> true
             else -> false
         }
     }

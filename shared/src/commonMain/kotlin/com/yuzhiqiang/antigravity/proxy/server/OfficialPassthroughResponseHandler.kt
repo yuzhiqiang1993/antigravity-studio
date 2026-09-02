@@ -50,7 +50,8 @@ internal class OfficialPassthroughResponseHandler(
         val responseIsStreaming = isStreaming || responseContentType.match(ContentType.Text.EventStream)
         val responseHeaders = if (isDebug) extractResponseHeaders(response.headers) else null
 
-        if (status >= 400 && canRetryStatus) {
+        val isTransientError = status == 429 || status in 500..599
+        if (isTransientError && canRetryStatus) {
             return OfficialResponseHandlingResult(
                 status = status,
                 retryNeeded = true,
