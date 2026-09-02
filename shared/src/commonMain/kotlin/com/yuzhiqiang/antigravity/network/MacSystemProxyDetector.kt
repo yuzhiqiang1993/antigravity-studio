@@ -70,7 +70,7 @@ internal data class MacSystemProxySnapshot(
 }
 
 internal object MacSystemProxyDetector {
-    private const val CACHE_TTL_MS = 2_000L
+    private const val CACHE_TTL_MS = 5_000L
 
     private data class CachedSnapshot(
         val timestamp: Long,

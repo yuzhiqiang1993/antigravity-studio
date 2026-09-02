@@ -79,6 +79,11 @@ interface ProviderAdapter {
             return HttpClient(OkHttp) {
                 engine {
                     config {
+                        val dispatcher = okhttp3.Dispatcher().apply {
+                            maxRequests = 256
+                            maxRequestsPerHost = 64
+                        }
+                        dispatcher(dispatcher)
                         connectTimeout(60, TimeUnit.SECONDS)
                         readTimeout(900, TimeUnit.SECONDS)
                         writeTimeout(900, TimeUnit.SECONDS)
@@ -151,16 +156,15 @@ interface ProviderAdapter {
         }
 
         /**
-         * 流式请求只在等待响应头与建立连接阶段使用 request_timeout_ms；
-         * 超时后主动熔断并标记为 504 Gateway Timeout，防止客户端无限挂起。
+         * 流式请求整体传输不限总时长，由连接超时与 socketTimeoutMillis（帧间空闲超时）分层保障；
+         * 避免长文本与大模型深度思考被全局计时器误杀。
          */
         suspend fun <T> executeStreamingWithTimeout(
             provider: Provider,
             minimumRequestTimeoutMs: Long = DEFAULT_MINIMUM_REQUEST_TIMEOUT_MS,
             block: suspend () -> T
         ): T {
-            val timeoutMs = maxOf(provider.requestTimeoutMs, minimumRequestTimeoutMs).takeIf { it > 0L }
-            return if (timeoutMs == null) block() else withTimeout(timeoutMs) { block() }
+            return block()
         }
 
         /** 将已由路由层清理的 extra_body 合并到协议请求顶层，禁止覆盖受控字段。 */

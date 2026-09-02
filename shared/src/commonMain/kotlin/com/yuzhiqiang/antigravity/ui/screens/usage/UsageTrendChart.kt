@@ -330,6 +330,16 @@ private fun SmoothUsagePlot(
     )
     val indicatorLineColor = lineColor.copy(alpha = 0.5f)
 
+    val activeMaxTokensValue = currentAnimatedMaxTokens.value
+    val label1Tokens = (activeMaxTokensValue * 2.0 / 3.0).roundToLong()
+    val label2Tokens = (activeMaxTokensValue * 1.0 / 3.0).roundToLong()
+    val measuredText1 = remember(label1Tokens, yAxisTextStyle) {
+        textMeasurer.measure(text = UsageNumberFormatter.formatTokens(label1Tokens), style = yAxisTextStyle)
+    }
+    val measuredText2 = remember(label2Tokens, yAxisTextStyle) {
+        textMeasurer.measure(text = UsageNumberFormatter.formatTokens(label2Tokens), style = yAxisTextStyle)
+    }
+
     Canvas(modifier = modifier) {
         val activeRatios = currentRatios.value
         val activeMaxTokens = currentAnimatedMaxTokens.value
@@ -355,17 +365,8 @@ private fun SmoothUsagePlot(
                 pathEffect = if (isBaseline) null else dashEffect
             )
 
-            if (line > 0) {
-                val lineTokens = when (line) {
-                    1 -> (activeMaxTokens * 2.0 / 3.0).roundToLong()
-                    2 -> (activeMaxTokens * 1.0 / 3.0).roundToLong()
-                    else -> 0L
-                }
-                val labelText = UsageNumberFormatter.formatTokens(lineTokens)
-                val measuredText = textMeasurer.measure(
-                    text = labelText,
-                    style = yAxisTextStyle
-                )
+            if (line in 1..2) {
+                val measuredText = if (line == 1) measuredText1 else measuredText2
                 val labelY = y - measuredText.size.height - 2.dp.toPx()
                 drawText(
                     textLayoutResult = measuredText,

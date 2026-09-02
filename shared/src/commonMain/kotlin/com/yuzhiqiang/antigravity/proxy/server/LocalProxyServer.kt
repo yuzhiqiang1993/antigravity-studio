@@ -508,6 +508,8 @@ class LocalProxyServer(
                 if (token.isNotBlank()) add(token)
             }
             val customToken = call.request.headers["X-Antigravity-Proxy-Token"]?.trim()
+                ?: call.request.headers["X-Antigravity-Studio-Token"]?.trim()
+                ?: call.request.headers["X-Antigravity-Token"]?.trim()
             if (!customToken.isNullOrBlank()) {
                 add(customToken)
             }
@@ -539,11 +541,11 @@ class LocalProxyServer(
         return runCatching {
             val contentLength = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
             if (contentLength != null && contentLength > MAX_REQUEST_BODY_BYTES) {
-                throw PayloadTooLargeException("Request body exceeds 32 MiB limit: $contentLength bytes")
+                throw PayloadTooLargeException("Request body exceeds 32 MiB limit (Content-Length: $contentLength)")
             }
-            val channel: ByteReadChannel = call.receiveChannel()
-            val output = ByteArrayOutputStream()
-            val buffer = ByteArray(16 * 1024)
+            val channel = call.receiveChannel()
+            val output = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
             var totalBytes = 0L
             while (!channel.isClosedForRead) {
                 val read = channel.readAvailable(buffer, 0, buffer.size)
@@ -566,7 +568,13 @@ class LocalProxyServer(
     }
 
     private fun isGenerationPath(path: String): Boolean {
-        return path.contains("generateContent") || path.contains("streamGenerateContent")
+        val lower = path.lowercase()
+        return lower.contains("generatecontent") ||
+                lower.contains("streamgeneratecontent") ||
+                lower.contains("/chat/completions") ||
+                lower.contains("/messages") ||
+                lower.contains("/responses") ||
+                lower.contains("/completions")
     }
 
     private fun isFixedGetPath(path: String): Boolean {

@@ -186,7 +186,11 @@ class ByokForwardHandler(
 
         val maxRetries = maxOf(0, route.provider.maxRetries)
         val baseDelayMs = maxOf(100L, route.provider.retryDelayMs)
-        val idleTimeoutMs = maxOf(route.provider.streamIdleTimeoutMs, 600_000L)
+        val idleTimeoutMs = if (route.provider.streamIdleTimeoutMs > 0) {
+            route.provider.streamIdleTimeoutMs.coerceAtLeast(5_000L)
+        } else {
+            60_000L
+        }
 
         try {
             call.response.headers.append("Cache-Control", "no-cache")

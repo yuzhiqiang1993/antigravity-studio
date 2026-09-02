@@ -29,11 +29,22 @@ object WorkflowLeaseManager {
     @Serializable
     data class InhibitorPayload(
         val id: String? = null,
+        val leaseId: String? = null,
         val holder: String? = null,
+        val owner: String? = null,
         val reason: String? = null,
         val acquiredAt: Long? = null,
-        val expiresAt: Long? = null
-    )
+        val heartbeatAt: Long? = null,
+        val expiresAt: Long? = null,
+        val ttlMs: Long? = null
+    ) {
+        val effectiveId: String?
+            get() = id ?: leaseId
+        val effectiveHolder: String?
+            get() = holder ?: owner
+        val effectiveExpiresAt: Long?
+            get() = expiresAt ?: (if (heartbeatAt != null && ttlMs != null) heartbeatAt + ttlMs else null)
+    }
 
     suspend fun acquireLease(timeoutMs: Long = 60_000L): Long = mutex.withLock {
         val id = idGenerator.getAndIncrement()
@@ -61,19 +72,29 @@ object WorkflowLeaseManager {
         val files = dir.listFiles { file -> file.isFile && file.name.endsWith(".json") } ?: return false
 
         for (file in files) {
+            val fileAge = now - file.lastModified()
             try {
                 val content = file.readText(Charsets.UTF_8).trim()
-                if (content.isBlank()) continue
+                if (content.isBlank()) {
+                    if (fileAge > 60_000L) {
+                        runCatching { file.delete() }
+                    }
+                    continue
+                }
                 val payload = json.decodeFromString<InhibitorPayload>(content)
-                val expiresAt = payload.expiresAt
+                val expiresAt = payload.effectiveExpiresAt
                 if (expiresAt != null && expiresAt > now) {
                     AppLog.i("Auth/Lease") { "检测到活动的工作流外部抑制器: ${file.name}, reason: ${payload.reason}" }
                     return true
                 }
             } catch (e: Exception) {
-                // fail-closed: 遇到不可读或异常文件判定为锁定状态，防止意外打断
-                AppLog.w("Auth/Lease") { "解析外部抑制器失败，采取 fail-closed 策略锁定: ${file.name}" }
-                return true
+                if (fileAge <= 60_000L) {
+                    AppLog.w("Auth/Lease") { "解析外部抑制器失败，采取 fail-closed 策略锁定: ${file.name}" }
+                    return true
+                } else {
+                    AppLog.w("Auth/Lease") { "忽略并清理陈旧的损坏抑制器文件: ${file.name}" }
+                    runCatching { file.delete() }
+                }
             }
         }
         return false

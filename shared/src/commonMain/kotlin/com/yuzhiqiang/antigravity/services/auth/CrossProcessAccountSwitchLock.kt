@@ -29,12 +29,19 @@ class CrossProcessAccountSwitchLock(
 
     @Serializable
     data class LockPayload(
-        val pid: Long,
-        val owner: String,
-        val sessionId: String,
-        val acquiredAt: Long,
-        val lastHeartbeat: Long
-    )
+        val pid: Long = 0L,
+        val owner: String = "unknown",
+        val sessionId: String = "",
+        val instanceId: String? = null,
+        val acquiredAt: Long = 0L,
+        val lastHeartbeat: Long = 0L,
+        val restartPending: Boolean = false
+    ) {
+        val effectiveSessionId: String
+            get() = sessionId.ifEmpty { instanceId ?: "" }
+        val effectiveHeartbeat: Long
+            get() = if (lastHeartbeat > 0) lastHeartbeat else acquiredAt
+    }
 
     class LockAcquisitionException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
@@ -67,6 +74,7 @@ class CrossProcessAccountSwitchLock(
             pid = pid,
             owner = owner,
             sessionId = sessionId,
+            instanceId = sessionId,
             acquiredAt = now,
             lastHeartbeat = now
         )
@@ -107,11 +115,23 @@ class CrossProcessAccountSwitchLock(
         val now = System.currentTimeMillis()
         val content = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return true
         val payload = runCatching { json.decodeFromString(LockPayload.serializer(), content) }.getOrNull()
-        return if (payload != null) {
-            (now - payload.lastHeartbeat) > lockTimeoutMs
-        } else {
-            (now - file.lastModified()) > lockTimeoutMs
+        if (payload == null) {
+            return (now - file.lastModified()) > lockTimeoutMs
         }
+        val isTimeout = (now - payload.effectiveHeartbeat) > lockTimeoutMs
+        if (isTimeout) return true
+
+        // 检查进程存活（若非待重启状态且 PID > 0 且进程已死亡，则立即可自愈接管）
+        if (!payload.restartPending && payload.pid > 0) {
+            val isAlive = runCatching {
+                ProcessHandle.of(payload.pid).map { it.isAlive }.orElse(false)
+            }.getOrDefault(true)
+            if (!isAlive) {
+                AppLog.i("Auth/Lock") { "持锁进程 PID=${payload.pid} 已退出，判定锁为 stale" }
+                return true
+            }
+        }
+        return false
     }
 
     private fun updateHeartbeat(owner: String, sessionId: String, pid: Long) {
@@ -123,11 +143,30 @@ class CrossProcessAccountSwitchLock(
                 pid = pid,
                 owner = owner,
                 sessionId = sessionId,
+                instanceId = sessionId,
                 acquiredAt = now,
                 lastHeartbeat = now
             )
             val bytes = json.encodeToString(LockPayload.serializer(), payload).toByteArray(Charsets.UTF_8)
-            Files.write(file.toPath(), bytes, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
+            val tempFile = File(file.parentFile, "${file.name}.tmp-${UUID.randomUUID()}")
+            Files.write(tempFile.toPath(), bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+            runCatching {
+                Files.setPosixFilePermissions(tempFile.toPath(), PosixFilePermissions.fromString("rw-------"))
+            }
+            try {
+                Files.move(
+                    tempFile.toPath(),
+                    file.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                )
+            } catch (e: Exception) {
+                Files.move(
+                    tempFile.toPath(),
+                    file.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            }
         }
     }
 
@@ -137,11 +176,9 @@ class CrossProcessAccountSwitchLock(
         runCatching {
             val content = file.readText(Charsets.UTF_8)
             val payload = json.decodeFromString(LockPayload.serializer(), content)
-            if (payload.sessionId == sessionId) {
+            if (payload.effectiveSessionId == sessionId) {
                 file.delete()
             }
-        }.onFailure {
-            runCatching { file.delete() }
         }
     }
 

@@ -460,6 +460,9 @@ object HostAccountDetector {
         return try {
             val url = "jdbc:sqlite:${dbFile.absolutePath}"
             DriverManager.getConnection(url).use { conn ->
+                runCatching {
+                    conn.createStatement().use { it.execute("PRAGMA busy_timeout = 3000;") }
+                }
                 conn.prepareStatement(
                     "SELECT value FROM ItemTable WHERE key = ? LIMIT 1"
                 ).use { statement ->

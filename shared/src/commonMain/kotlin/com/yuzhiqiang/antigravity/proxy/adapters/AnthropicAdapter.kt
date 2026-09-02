@@ -286,14 +286,12 @@ class AnthropicAdapter : ProviderAdapter {
         if (mapping?.kind.equals("budget_tokens", ignoreCase = true) && budget == null) {
             return Result.failure(IllegalArgumentException("Anthropic 思考预算不是有效整数"))
         }
-        if (budget != null && request.maxTokens != null && request.maxTokens <= budget) {
-            return Result.failure(
-                IllegalArgumentException(
-                    "Anthropic max_tokens (${request.maxTokens}) must be greater than thinking budget ($budget)"
-                )
-            )
+        val requestedMaxTokens = request.maxTokens ?: 4096
+        val maxTokens = if (budget != null && requestedMaxTokens <= budget) {
+            budget + 4096
+        } else {
+            maxOf(requestedMaxTokens, (budget ?: 0) + 1)
         }
-        val maxTokens = maxOf(request.maxTokens ?: 4096, (budget ?: 0) + 1)
 
         val baseBody = buildJsonObject {
             put("model", request.targetUpstreamModelId)

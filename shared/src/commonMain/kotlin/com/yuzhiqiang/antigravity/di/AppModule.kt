@@ -16,9 +16,22 @@ val appModule = module {
     single { GoogleAuthService() }
     single {
         val googleAuthService = get<GoogleAuthService>()
+        val accountStore = get<AccountStore>()
         QuotaFetchService(
             tokenRefreshCallback = { refreshToken ->
-                googleAuthService.refreshAccessToken(refreshToken).map { it.accessToken }
+                val result = googleAuthService.refreshAccessToken(refreshToken)
+                if (result.isSuccess) {
+                    val newTokens = result.getOrThrow()
+                    val targetAccount = accountStore.accountsState.value.firstOrNull {
+                        it.tokens.refreshToken == refreshToken
+                    }
+                    if (targetAccount != null) {
+                        accountStore.updateTokens(targetAccount.email, newTokens)
+                    }
+                    Result.success(newTokens.accessToken)
+                } else {
+                    Result.failure(result.exceptionOrNull() ?: IllegalStateException("Token 刷新失败"))
+                }
             }
         )
     }

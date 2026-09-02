@@ -439,43 +439,46 @@ internal object RuntimeAccountProbe {
         targetDisplayName: String,
         candidate: LanguageServerCandidate
     ): HostAccountDetector.IdeAccountProfile? {
-        val url = URI("https://$LOOPBACK_HOST:${candidate.port}$USER_STATUS_PATH").toURL()
-        require(url.host == LOOPBACK_HOST) { "仅允许访问本机回环地址" }
-
-        val connection = (url.openConnection(Proxy.NO_PROXY) as HttpsURLConnection).apply {
-            sslSocketFactory = loopbackTrustAllSslSocketFactory
-            hostnameVerifier = HostnameVerifier { hostname, _ -> hostname == LOOPBACK_HOST }
-            requestMethod = "POST"
-            connectTimeout = HTTP_CONNECT_TIMEOUT_MS
-            readTimeout = HTTP_READ_TIMEOUT_MS
-            doInput = true
-            doOutput = true
-            useCaches = false
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("Connect-Protocol-Version", "1")
-            setRequestProperty("X-Codeium-Csrf-Token", candidate.csrfToken)
-        }
-
-        return try {
-            connection.outputStream.use { stream ->
-                stream.write(REQUEST_BODY.toByteArray(Charsets.UTF_8))
-            }
-            val responseCode = connection.responseCode
-            if (responseCode !in 200..299) {
-                throw IOException("本地 $targetDisplayName 语言服务返回 HTTP $responseCode")
-            }
-            val body = connection.inputStream.use { inputStream ->
-                val bytes = inputStream.readNBytes(MAX_RESPONSE_BYTES + 1)
-                if (bytes.size > MAX_RESPONSE_BYTES) {
-                    throw IOException("本地 $targetDisplayName 账号响应超过大小限制")
+        for (protocol in listOf("https", "http")) {
+            try {
+                val url = URI("$protocol://$LOOPBACK_HOST:${candidate.port}$USER_STATUS_PATH").toURL()
+                val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
+                    if (this is HttpsURLConnection) {
+                        sslSocketFactory = loopbackTrustAllSslSocketFactory
+                        hostnameVerifier = HostnameVerifier { hostname, _ -> hostname == LOOPBACK_HOST }
+                    }
+                    requestMethod = "POST"
+                    connectTimeout = HTTP_CONNECT_TIMEOUT_MS
+                    readTimeout = HTTP_READ_TIMEOUT_MS
+                    doInput = true
+                    doOutput = true
+                    useCaches = false
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("Connect-Protocol-Version", "1")
+                    setRequestProperty("X-Codeium-Csrf-Token", candidate.csrfToken)
                 }
-                bytes.toString(Charsets.UTF_8)
+
+                connection.outputStream.use { stream ->
+                    stream.write(REQUEST_BODY.toByteArray(Charsets.UTF_8))
+                }
+                val responseCode = connection.responseCode
+                if (responseCode in 200..299) {
+                    val body = connection.inputStream.use { inputStream ->
+                        val bytes = inputStream.readNBytes(MAX_RESPONSE_BYTES + 1)
+                        if (bytes.size > MAX_RESPONSE_BYTES) {
+                            throw IOException("本地 $targetDisplayName 账号响应超过大小限制")
+                        }
+                        bytes.toString(Charsets.UTF_8)
+                    }
+                    val profile = parseUserStatus(body)
+                    if (profile != null) return profile
+                }
+            } catch (_: Throwable) {
+                // 尝试下一个协议
             }
-            parseUserStatus(body)
-        } finally {
-            connection.disconnect()
         }
+        return null
     }
 
     private fun parseUserStatus(body: String): HostAccountDetector.IdeAccountProfile? {

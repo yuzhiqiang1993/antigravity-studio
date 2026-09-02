@@ -87,13 +87,14 @@ class QuotaPoller(
 
     private val persistMutex = Mutex()
 
-    private fun persistSnapshots(snapshots: Map<String, AccountQuotaSnapshot>) {
+    private fun persistSnapshots(snapshots: Map<String, AccountQuotaSnapshot>? = null) {
         coroutineScope.launch {
             persistMutex.withLock {
                 try {
+                    val latestSnapshots = _quotaSnapshots.value
                     val content = json.encodeToString(
                         QuotaStoreData.serializer(),
-                        QuotaStoreData(snapshots = snapshots)
+                        QuotaStoreData(snapshots = latestSnapshots)
                     )
                     AtomicFileWriter.writeText(
                         target = quotasFile,
