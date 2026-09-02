@@ -99,6 +99,7 @@ internal fun ActivityOnlyAiChatToggleButton(
             }
         )
     ) {
+        @Suppress("DEPRECATION")
         Icon(
             imageVector = Icons.Outlined.Chat,
             contentDescription = null,

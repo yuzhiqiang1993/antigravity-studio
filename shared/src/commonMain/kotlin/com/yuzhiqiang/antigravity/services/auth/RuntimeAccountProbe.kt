@@ -11,6 +11,7 @@ import java.io.IOException
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.Proxy
+import java.net.URI
 import java.net.URL
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -400,7 +401,8 @@ internal object RuntimeAccountProbe {
         body: String,
         timeoutMs: Int
     ): String {
-        val connection = URL("$protocol://$LOOPBACK_HOST:${endpoint.port}$path")
+        val connection = URI("$protocol://$LOOPBACK_HOST:${endpoint.port}$path")
+            .toURL()
             .openConnection(Proxy.NO_PROXY) as HttpURLConnection
         if (connection is HttpsURLConnection) {
             connection.sslSocketFactory = loopbackTrustAllSslSocketFactory
@@ -437,7 +439,7 @@ internal object RuntimeAccountProbe {
         targetDisplayName: String,
         candidate: LanguageServerCandidate
     ): HostAccountDetector.IdeAccountProfile? {
-        val url = URL("https://$LOOPBACK_HOST:${candidate.port}$USER_STATUS_PATH")
+        val url = URI("https://$LOOPBACK_HOST:${candidate.port}$USER_STATUS_PATH").toURL()
         require(url.host == LOOPBACK_HOST) { "仅允许访问本机回环地址" }
 
         val connection = (url.openConnection(Proxy.NO_PROXY) as HttpsURLConnection).apply {

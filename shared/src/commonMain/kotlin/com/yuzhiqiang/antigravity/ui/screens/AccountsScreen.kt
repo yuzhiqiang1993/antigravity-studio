@@ -231,6 +231,7 @@ fun AccountsScreen(
                                 )
                             },
                             leadingIcon = {
+                                @Suppress("DEPRECATION")
                                 Icon(
                                     imageVector = Icons.Outlined.Sort,
                                     contentDescription = null,

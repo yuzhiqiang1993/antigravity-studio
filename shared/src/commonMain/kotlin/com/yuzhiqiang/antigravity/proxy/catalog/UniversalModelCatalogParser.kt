@@ -456,8 +456,6 @@ object UniversalModelCatalogParser {
                 }
                 supported
             }
-
-            else -> null
         }
     }
 

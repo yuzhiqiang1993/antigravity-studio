@@ -1,23 +1,24 @@
 package com.yuzhiqiang.antigravity.ui.screens.usage
 
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,7 @@ import com.yuzhiqiang.antigravity.domain.model.usage.*
 import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.animation.*
 import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassCard
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
@@ -67,7 +69,14 @@ fun UsageKpiGrid(
     } ?: "—"
 
     StudioGlassCard(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessMediumLow,
+                    dampingRatio = Spring.DampingRatioNoBouncy
+                )
+            ),
         shape = RoundedCornerShape(AppTokens.Radius.large),
         backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
         borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
@@ -117,8 +126,9 @@ fun UsageKpiGrid(
                             verticalAlignment = Alignment.Bottom,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = tokenFormatter.formatCount(totalTokens),
+                            StudioAnimatedCounterText(
+                                value = stats.totalTokens,
+                                formatter = { tokenFormatter.formatCount(it) },
                                 style = MaterialTheme.typography.headlineMedium.copy(
                                     fontSize = 30.sp,
                                     fontWeight = FontWeight.ExtraBold
@@ -126,8 +136,9 @@ fun UsageKpiGrid(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             if (totalTokens >= 10_000L) {
-                                Text(
-                                    text = "≈ ${tokenFormatter.formatTokens(totalTokens)}",
+                                StudioAnimatedCounterText(
+                                    value = stats.totalTokens,
+                                    formatter = { "≈ ${tokenFormatter.formatTokens(it)}" },
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontSize = 13.5.sp,
                                         fontWeight = FontWeight.Medium
@@ -165,14 +176,16 @@ fun UsageKpiGrid(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
+                                @Suppress("DEPRECATION")
                                 Icon(
                                     imageVector = Icons.Outlined.ShowChart,
                                     contentDescription = null,
                                     modifier = Modifier.size(13.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
-                                Text(
-                                    text = tokenFormatter.formatCount(stats.totalCalls),
+                                StudioAnimatedCounterText(
+                                    value = stats.totalCalls,
+                                    formatter = { tokenFormatter.formatCount(it) },
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontWeight = FontWeight.Bold
                                     ),
@@ -193,7 +206,7 @@ fun UsageKpiGrid(
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text(
+                            StudioTickerText(
                                 text = costValue,
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.Bold
@@ -218,7 +231,14 @@ fun UsageKpiGrid(
             ) {
                 // 卡片 1：输入用量 (Prompt Input)
                 Surface(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .animateContentSize(
+                            animationSpec = spring(
+                                stiffness = Spring.StiffnessMediumLow,
+                                dampingRatio = Spring.DampingRatioNoBouncy
+                            )
+                        ),
                     shape = RoundedCornerShape(14.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
                     border = androidx.compose.foundation.BorderStroke(
@@ -254,7 +274,7 @@ fun UsageKpiGrid(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
-                            Text(
+                            StudioTickerText(
                                 text = "${tokenFormatter.formatPercent(inputPct)}%",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.5.sp,
@@ -264,8 +284,9 @@ fun UsageKpiGrid(
                             )
                         }
 
-                        Text(
-                            text = tokenFormatter.formatTokens(totalInputTokens),
+                        StudioAnimatedCounterText(
+                            value = totalInputTokens,
+                            formatter = { tokenFormatter.formatTokens(it) },
                             style = MaterialTheme.typography.headlineSmall.copy(
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -297,7 +318,14 @@ fun UsageKpiGrid(
 
                 // 卡片 2：输出用量 (Model Output)
                 Surface(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .animateContentSize(
+                            animationSpec = spring(
+                                stiffness = Spring.StiffnessMediumLow,
+                                dampingRatio = Spring.DampingRatioNoBouncy
+                            )
+                        ),
                     shape = RoundedCornerShape(14.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
                     border = androidx.compose.foundation.BorderStroke(
@@ -333,7 +361,7 @@ fun UsageKpiGrid(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
-                            Text(
+                            StudioTickerText(
                                 text = "${tokenFormatter.formatPercent(outputPct)}%",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.5.sp,
@@ -343,8 +371,9 @@ fun UsageKpiGrid(
                             )
                         }
 
-                        Text(
-                            text = tokenFormatter.formatTokens(totalOutputTokens),
+                        StudioAnimatedCounterText(
+                            value = totalOutputTokens,
+                            formatter = { tokenFormatter.formatTokens(it) },
                             style = MaterialTheme.typography.headlineSmall.copy(
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -383,7 +412,14 @@ fun UsageKpiGrid(
 
                 // 卡片 3：缓存命中与效率 (Cache Performance)
                 Surface(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .animateContentSize(
+                            animationSpec = spring(
+                                stiffness = Spring.StiffnessMediumLow,
+                                dampingRatio = Spring.DampingRatioNoBouncy
+                            )
+                        ),
                     shape = RoundedCornerShape(14.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
                     border = androidx.compose.foundation.BorderStroke(
@@ -419,7 +455,7 @@ fun UsageKpiGrid(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
-                            Text(
+                            StudioTickerText(
                                 text = cacheHitRatioText,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.5.sp,
@@ -429,8 +465,9 @@ fun UsageKpiGrid(
                             )
                         }
 
-                        Text(
-                            text = tokenFormatter.formatTokens(stats.totalCacheRead),
+                        StudioAnimatedCounterText(
+                            value = stats.totalCacheRead,
+                            formatter = { tokenFormatter.formatTokens(it) },
                             style = MaterialTheme.typography.headlineSmall.copy(
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -474,12 +511,12 @@ private fun SubmetricTag(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.5.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(6.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
+                .clip(CircleShape)
                 .background(dotColor)
         )
         Text(
@@ -513,9 +550,17 @@ private fun TokenCompositionBar(stats: DeepUsageStats, colors: UsageTokenColors)
 @Composable
 private fun RowScope.TokenCompositionSegment(value: Long, color: Color) {
     if (value > 0L) {
+        val animatedWeight by animateFloatAsState(
+            targetValue = value.toFloat().coerceAtLeast(0.001f),
+            animationSpec = spring(
+                dampingRatio = 0.82f,
+                stiffness = Spring.StiffnessLow
+            ),
+            label = "token_segment_weight"
+        )
         Box(
             modifier = Modifier
-                .weight(value.toFloat().coerceAtLeast(0.001f))
+                .weight(animatedWeight)
                 .fillMaxHeight()
                 .background(color)
         )
@@ -753,7 +798,14 @@ private fun ModelBreakdownRow(
     )?.times(100.0)
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessMediumLow,
+                    dampingRatio = Spring.DampingRatioNoBouncy
+                )
+            ),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.30f),
         border = androidx.compose.foundation.BorderStroke(
@@ -826,7 +878,7 @@ private fun ModelBreakdownRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
+                    StudioTickerText(
                         text = s.usageTokensCount(tokensFormatted),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = UsageVisualTokens.Typography.heroSupporting,
@@ -834,7 +886,7 @@ private fun ModelBreakdownRow(
                         ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
+                    StudioTickerText(
                         text = costFormatted,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = 14.sp,

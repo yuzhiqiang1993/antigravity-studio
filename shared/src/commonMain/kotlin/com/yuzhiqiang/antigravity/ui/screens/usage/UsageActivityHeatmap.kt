@@ -215,9 +215,9 @@ private fun MonthLabels(
                 modifier = Modifier.width(cellSize + cellGap),
                 contentAlignment = Alignment.CenterStart
             ) {
-                if (showMonth && firstOfMonth != null) {
+                if (showMonth) {
                     Text(
-                        text = monthLabel(firstOfMonth.monthValue),
+                        text = monthLabel(firstOfMonth!!.monthValue),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = UsageVisualTokens.Typography.axisTime,
                             fontWeight = FontWeight.Medium

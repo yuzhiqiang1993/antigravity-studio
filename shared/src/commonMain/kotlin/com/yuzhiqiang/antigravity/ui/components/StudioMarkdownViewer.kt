@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,8 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -220,16 +221,10 @@ private fun RenderInlineText(
     style: TextStyle,
     modifier: Modifier = Modifier
 ) {
-    ClickableText(
+    Text(
         text = annotatedText,
         style = style,
-        modifier = modifier,
-        onClick = { offset ->
-            annotatedText.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                .firstOrNull()?.let { annotation ->
-                    DesktopPlatformService.openBrowser(annotation.item)
-                }
-        }
+        modifier = modifier
     )
 }
 
@@ -250,7 +245,14 @@ fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
             continue
         }
 
-        // 1. 代码块 ```
+        // 1. 分割线 --- 或 ***
+        if (trimmed.matches(Regex("^(---|-{3,}|\\*{3,})$"))) {
+            blocks.add(MarkdownBlock.Divider)
+            i++
+            continue
+        }
+
+        // 2. 代码块 ```language ... ```
         if (trimmed.startsWith("```")) {
             val lang = trimmed.removePrefix("```").trim().takeIf { it.isNotEmpty() }
             val codeLines = mutableListOf<String>()
@@ -261,13 +263,6 @@ fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
             }
             if (i < lines.size) i++ // 跳过闭合 ```
             blocks.add(MarkdownBlock.CodeBlock(lang, codeLines.joinToString("\n")))
-            continue
-        }
-
-        // 2. 分隔线 --- 或 ***
-        if (trimmed.matches(Regex("^(---|-{3,}|\\*{3,})$"))) {
-            blocks.add(MarkdownBlock.Divider)
-            i++
             continue
         }
 
@@ -293,9 +288,8 @@ fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
         }
 
         // 5. 无序列表项 - 或 *
-        val unorderedMatch = Regex("^[-*]\\s+(.+)$").find(trimmed)
-        if (unorderedMatch != null) {
-            val text = unorderedMatch.groupValues[1]
+        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+            val text = trimmed.substring(2)
             blocks.add(MarkdownBlock.ListItem(null, text))
             i++
             continue
@@ -385,16 +379,22 @@ private fun renderInlineMarkdown(
                 match.value.startsWith("[") -> {
                     val label = match.groupValues[6]
                     val url = match.groupValues[7]
-                    pushStringAnnotation(tag = "URL", annotation = url)
-                    pushStyle(
-                        SpanStyle(
-                            color = primaryColor,
-                            textDecoration = TextDecoration.Underline,
-                            fontWeight = FontWeight.Medium
+                    pushLink(
+                        LinkAnnotation.Url(
+                            url = url,
+                            styles = TextLinkStyles(
+                                style = SpanStyle(
+                                    color = primaryColor,
+                                    textDecoration = TextDecoration.Underline,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            ),
+                            linkInteractionListener = {
+                                DesktopPlatformService.openBrowser(url)
+                            }
                         )
                     )
                     append(label)
-                    pop()
                     pop()
                 }
             }

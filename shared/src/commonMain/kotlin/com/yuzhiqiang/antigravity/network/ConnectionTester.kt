@@ -42,7 +42,7 @@ object ConnectionTester {
     suspend fun testProxy(port: Int): TestResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         try {
-            val url = URL("http://127.0.0.1:$port/v1/models")
+            val url = URI("http://127.0.0.1:$port/v1/models").toURL()
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
@@ -126,7 +126,7 @@ object ConnectionTester {
     suspend fun testUpstream(baseUrl: String, apiKey: String? = null): TestResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         try {
-            val url = URL(appendPath(baseUrl, "/models"))
+            val url = URI(appendPath(baseUrl, "/models")).toURL()
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 10000
@@ -239,7 +239,7 @@ object ConnectionTester {
                             ?.takeIf { it.isNotBlank() }
                             ?.replace("{model}", modelId)
                             ?: appendProtocolPath(baseUrl, "/messages")
-                        connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                        connection = (URI(endpoint).toURL().openConnection() as HttpURLConnection).apply {
                             requestMethod = "POST"
                             connectTimeout = effectiveConnectTimeout
                             readTimeout = effectiveTimeout
@@ -267,7 +267,7 @@ object ConnectionTester {
                             ?.replace("{model}", modelId)
                             ?.replace(":streamGenerateContent", ":generateContent")
                             ?: appendGeminiModelPath(baseUrl, modelId)
-                        connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                        connection = (URI(endpoint).toURL().openConnection() as HttpURLConnection).apply {
                             requestMethod = "POST"
                             connectTimeout = effectiveConnectTimeout
                             readTimeout = effectiveTimeout
@@ -312,7 +312,7 @@ object ConnectionTester {
                                     ?.replace("{model}", modelId)
                                     ?: appendProtocolPath(baseUrl, defaultPath.removePrefix("/v1"))
                             }
-                        connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                        connection = (URI(endpoint).toURL().openConnection() as HttpURLConnection).apply {
                             requestMethod = "POST"
                             connectTimeout = effectiveConnectTimeout
                             readTimeout = effectiveTimeout
@@ -349,7 +349,7 @@ object ConnectionTester {
                     provider.modelsEndpoint?.takeIf { it.isNotBlank() }
                         ?: appendPath(baseUrl, "/models")
                 )
-                connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                connection = (URI(endpoint).toURL().openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = effectiveConnectTimeout
                     readTimeout = effectiveTimeout

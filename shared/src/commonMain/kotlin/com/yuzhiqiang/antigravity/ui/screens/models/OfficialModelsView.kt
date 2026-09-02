@@ -192,6 +192,7 @@ fun OfficialModelsView(
                                     vertical = AppTokens.Spacing.xs
                                 )
                             ) {
+                                @Suppress("DEPRECATION")
                                 Icon(
                                     Icons.Outlined.Login,
                                     contentDescription = null,

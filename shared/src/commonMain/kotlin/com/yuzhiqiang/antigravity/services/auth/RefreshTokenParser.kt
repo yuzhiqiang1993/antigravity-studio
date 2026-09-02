@@ -13,6 +13,7 @@ data class RefreshTokenEntry(
  * 账号与 Refresh Token 输入解析引擎。
  * 1:1 对齐 Cockpit 插件，支持单 Token、多行 Token、标准备份 JSON、Studio accounts.v1.json 以及多格式混合输入。
  */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 object RefreshTokenParser {
 
     private val json = Json {

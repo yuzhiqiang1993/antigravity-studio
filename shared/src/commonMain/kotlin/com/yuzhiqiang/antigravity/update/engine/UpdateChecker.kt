@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 /**
@@ -33,7 +34,7 @@ object UpdateChecker {
         targetEndpoint: String = AppVersion.RELEASES_API_URL
     ): Result<ReleaseInfo?> = withContext(Dispatchers.IO) {
         runCatching {
-            val url = URL(targetEndpoint)
+            val url = URI(targetEndpoint).toURL()
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 8000

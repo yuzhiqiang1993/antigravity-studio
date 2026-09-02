@@ -324,6 +324,7 @@ class AppViewModel(
 
     val usageStats get() = usageDelegate.usageStats
     val isRefreshingUsage get() = usageDelegate.isRefreshing
+    val isUsageInitialLoading get() = usageDelegate.isInitialLoading
     val usageTimeRange get() = usageDelegate.selectedTimeRange
     val usageCustomDateRange get() = usageDelegate.customDateRange
     val usageSelectedSources get() = usageDelegate.selectedSources
@@ -416,8 +417,6 @@ class AppViewModel(
                     is com.yuzhiqiang.antigravity.services.events.HostEvent.ProcessExited -> {
                         refreshHostStatus()
                     }
-
-                    else -> Unit
                 }
             }
         }
