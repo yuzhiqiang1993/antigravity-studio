@@ -28,6 +28,10 @@ interface UsageStrings {
     val usageSourceCli: String
     val usageModelAll: String
     val usageModelFilterTitle: String
+    val usageFilterModelTooltip: String
+    val usageFilterSourceTooltip: String
+    val usageAutoRefreshTooltip: String
+    val usageDateRangeTooltip: String
 
     // 定时自动刷新
     val usageAutoRefreshOff: String

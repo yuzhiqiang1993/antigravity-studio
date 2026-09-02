@@ -36,6 +36,10 @@ object UsageStringsEn : UsageStrings {
     override val usageSourceCli: String = "CLI"
     override val usageModelAll: String = "All Models"
     override val usageModelFilterTitle: String = "Filter by Model"
+    override val usageFilterModelTooltip: String = "Filter usage by AI model"
+    override val usageFilterSourceTooltip: String = "Filter usage by client source (IDE / App / CLI)"
+    override val usageAutoRefreshTooltip: String = "Set usage dashboard auto-refresh interval"
+    override val usageDateRangeTooltip: String = "Select custom date range for usage stats"
 
     override val usageAutoRefreshOff: String = "Off"
     override val usageAutoRefreshSeconds: (seconds: Int) -> String = { seconds -> "${seconds}s" }

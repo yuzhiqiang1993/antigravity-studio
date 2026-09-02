@@ -65,7 +65,6 @@ fun UsageScreen(
         // 1. 顶部主标题
         PageHeader(
             title = s.navUsage,
-            subtitle = s.usageSubtitle,
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 1100.dp)
@@ -145,12 +144,14 @@ fun UsageScreen(
                     s.usageTimeRangeCustom
                 }
 
-                com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
-                    text = datePickerLabel,
-                    leadingIcon = Icons.Outlined.CalendarMonth,
-                    isActive = isCustomRange,
-                    onClick = { showDateRangeDialog = true }
-                )
+                StudioTooltip(text = s.usageDateRangeTooltip) {
+                    com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
+                        text = datePickerLabel,
+                        leadingIcon = Icons.Outlined.CalendarMonth,
+                        isActive = isCustomRange,
+                        onClick = { showDateRangeDialog = true }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -169,11 +170,13 @@ fun UsageScreen(
                 }
 
                 Box {
-                    com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
-                        text = currentModelLabel,
-                        isActive = isModelCustom,
-                        onClick = { showModelDropdown = true }
-                    )
+                    StudioTooltip(text = s.usageFilterModelTooltip) {
+                        com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
+                            text = currentModelLabel,
+                            isActive = isModelCustom,
+                            onClick = { showModelDropdown = true }
+                        )
+                    }
 
                     com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu(
                         expanded = showModelDropdown,
@@ -219,15 +222,18 @@ fun UsageScreen(
                 }
 
                 Box {
-                    com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
-                        text = currentSourceLabel,
-                        isActive = isSourceCustom,
-                        onClick = { showSourceDropdown = true }
-                    )
+                    StudioTooltip(text = s.usageFilterSourceTooltip) {
+                        com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
+                            text = currentSourceLabel,
+                            isActive = isSourceCustom,
+                            onClick = { showSourceDropdown = true }
+                        )
+                    }
 
                     com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu(
                         expanded = showSourceDropdown,
-                        onDismissRequest = { showSourceDropdown = false }
+                        onDismissRequest = { showSourceDropdown = false },
+                        modifier = Modifier.widthIn(min = 140.dp)
                     ) {
                         com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenuItem(
                             text = s.usageSourceAll,
@@ -273,16 +279,19 @@ fun UsageScreen(
                 }
 
                 Box {
-                    com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
-                        text = autoRefreshLabel,
-                        leadingIcon = Icons.Outlined.Refresh,
-                        isActive = isAutoRefreshActive,
-                        onClick = { showAutoRefreshDropdown = true }
-                    )
+                    StudioTooltip(text = s.usageAutoRefreshTooltip) {
+                        com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
+                            text = autoRefreshLabel,
+                            leadingIcon = Icons.Outlined.Refresh,
+                            isActive = isAutoRefreshActive,
+                            onClick = { showAutoRefreshDropdown = true }
+                        )
+                    }
 
                     com.yuzhiqiang.antigravity.ui.components.StudioDropdownMenu(
                         expanded = showAutoRefreshDropdown,
-                        onDismissRequest = { showAutoRefreshDropdown = false }
+                        onDismissRequest = { showAutoRefreshDropdown = false },
+                        modifier = Modifier.widthIn(min = 120.dp)
                     ) {
                         listOf(0, 5, 10, 30, 60).forEach { intervalSec ->
                             val itemLabel = if (intervalSec == 0) s.usageAutoRefreshOff else s.usageAutoRefreshSeconds(intervalSec)

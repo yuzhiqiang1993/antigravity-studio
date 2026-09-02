@@ -36,6 +36,10 @@ object UsageStringsZh : UsageStrings {
     override val usageSourceCli: String = "CLI"
     override val usageModelAll: String = "全部模型"
     override val usageModelFilterTitle: String = "模型筛选"
+    override val usageFilterModelTooltip: String = "按调用的 AI 模型筛选用量"
+    override val usageFilterSourceTooltip: String = "按客户端来源筛选用量（IDE / App / CLI）"
+    override val usageAutoRefreshTooltip: String = "设置用量大盘自动刷新频率"
+    override val usageDateRangeTooltip: String = "自定义用量统计起止日期区间"
 
     override val usageAutoRefreshOff: String = "关闭"
     override val usageAutoRefreshSeconds: (seconds: Int) -> String = { seconds -> "${seconds}s" }

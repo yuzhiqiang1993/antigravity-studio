@@ -55,6 +55,7 @@ fun StudioDropdownMenu(
         onDismissRequest = onDismissRequest,
         offset = offset,
         modifier = modifier
+            .widthIn(min = 120.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
             .border(1.dp, borderClr, RoundedCornerShape(8.dp)),
