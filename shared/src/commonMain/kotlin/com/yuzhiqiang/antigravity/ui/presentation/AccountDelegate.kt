@@ -69,8 +69,14 @@ class AccountDelegate(
                 }?.profile
 
                 // 活跃账号标签只接受运行态证据；静态配置仍可用于账号资料导入。
+                val prevAppCliEmail = appCliActiveEmailFlow.value
+                val prevIdeEmail = ideActiveEmailFlow.value
+
                 appCliActiveEmailFlow.value = appCliRuntimeProfile?.email
                 ideActiveEmailFlow.value = ideRuntimeProfile?.email
+
+                val activeChanged = (prevAppCliEmail != appCliActiveEmailFlow.value) ||
+                        (prevIdeEmail != ideActiveEmailFlow.value)
 
                 // 1. 自动同步 IDE 宿主账号至 Studio 账号列表
                 if (ideProfile != null && ideProfile.email.isNotBlank()) {
@@ -181,6 +187,10 @@ class AccountDelegate(
                         }
                     }
                 }
+
+                if (activeChanged) {
+                    quotaPoller.refreshActiveAccountsNow()
+                }
             } catch (_: Throwable) {
             }
         }
@@ -204,13 +214,14 @@ class AccountDelegate(
      * 窗口获得焦点时由 UI 层调用，立即刷新宿主账号与运行状态。
      *
      * 用户从其他应用切换回 Studio 时（例如在 App/IDE 中完成了切号操作），
-     * 此方法确保 Studio 能立即感知到最新的运行态账号，而不必等待 10 秒心跳轮询。
+     * 此方法确保 Studio 能立即感知到最新的运行态账号，并立即发起活跃账号配额刷新。
      */
     fun onWindowFocusGained() {
         scope.launch(Dispatchers.IO) {
             try {
                 syncHostAccounts().join()
                 onRefreshHostStatus()
+                quotaPoller.refreshActiveAccountsNow()
             } catch (_: Exception) {
             }
         }
@@ -379,6 +390,7 @@ class AccountDelegate(
                 quotaBackgroundIntervalSeconds = backgroundIntervalSec
             )
         }
+        quotaPoller.restart()
         showNotice(if (enabled) s.noticeQuotaAutoRefreshEnabled else s.noticeQuotaAutoRefreshDisabled, NoticeKind.INFO)
     }
 
@@ -444,10 +456,10 @@ class AccountDelegate(
             }
             if (successCount > 0 && failedCount == 0) {
                 showNotice(s.noticeBatchImportSuccess(successCount), NoticeKind.SUCCESS)
-                quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
+                quotaPoller.refreshAllNow(accountStore.currentAccounts(), currentActiveAccounts())
             } else if (successCount > 0 && failedCount > 0) {
                 showNotice(s.noticeBatchImportPartial(successCount, failedCount), NoticeKind.SUCCESS)
-                quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
+                quotaPoller.refreshAllNow(accountStore.currentAccounts(), currentActiveAccounts())
             } else if (failedCount > 0) {
                 showNotice(s.noticeBatchImportFailedAll(failedCount), NoticeKind.ERROR)
             }
@@ -455,9 +467,28 @@ class AccountDelegate(
         }
     }
 
+    fun currentActiveAccounts(): List<AccountInfo> {
+        val allAccounts = accountStore.currentAccounts()
+        val ideEmail = ideActiveEmailFlow.value
+        val appCliEmail = appCliActiveEmailFlow.value
+        val defaultActive = accountStore.currentActiveAccount()
+
+        val list = mutableListOf<AccountInfo>()
+        if (!ideEmail.isNullOrBlank()) {
+            allAccounts.firstOrNull { it.email.equals(ideEmail, ignoreCase = true) }?.let { list.add(it) }
+        }
+        if (!appCliEmail.isNullOrBlank()) {
+            allAccounts.firstOrNull { it.email.equals(appCliEmail, ignoreCase = true) }?.let { list.add(it) }
+        }
+        if (list.isEmpty() && defaultActive != null) {
+            list.add(defaultActive)
+        }
+        return list.distinctBy { it.id }
+    }
+
     fun refreshAllQuotas() {
         scope.launch(Dispatchers.IO) {
-            val result = quotaPoller.refreshAllNow(accountStore.currentAccounts(), accountStore.currentActiveAccount())
+            val result = quotaPoller.refreshAllNow(accountStore.currentAccounts(), currentActiveAccounts())
             result.fold(
                 onSuccess = { showNotice(s.noticeQuotasUpdatedAll, NoticeKind.SUCCESS) },
                 onFailure = {
@@ -472,7 +503,8 @@ class AccountDelegate(
 
     fun refreshSingleAccountQuota(accountId: String) {
         val account = accountStore.currentAccounts().firstOrNull { it.id == accountId } ?: return
-        val isActive = account.id == accountStore.currentActiveAccount()?.id
+        val activeIds = currentActiveAccounts().map { it.id }.toSet()
+        val isActive = account.id in activeIds
         scope.launch(Dispatchers.IO) {
             val result = quotaPoller.refreshSingle(account, isActive)
             result.fold(

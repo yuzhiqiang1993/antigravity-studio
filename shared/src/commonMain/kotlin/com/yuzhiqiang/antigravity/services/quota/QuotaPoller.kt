@@ -126,12 +126,19 @@ class QuotaPoller(
     }
 
     private var lastBackgroundFetchTime = 0L
+    private var currentAccountsProvider: (() -> List<AccountInfo>)? = null
+    private var currentActiveAccountsProvider: (() -> List<AccountInfo>)? = null
+    private var currentConfigProvider: (() -> com.yuzhiqiang.antigravity.domain.model.AppConfig)? = null
 
     fun start(
         accountsProvider: () -> List<AccountInfo>,
-        activeAccountProvider: () -> AccountInfo?,
+        activeAccountsProvider: () -> List<AccountInfo>,
         configProvider: (() -> com.yuzhiqiang.antigravity.domain.model.AppConfig)? = null
     ) {
+        currentAccountsProvider = accountsProvider
+        currentActiveAccountsProvider = activeAccountsProvider
+        currentConfigProvider = configProvider
+
         if (isRunning) return
         isRunning = true
         pollerJob = coroutineScope.launch {
@@ -144,28 +151,31 @@ class QuotaPoller(
                 if (isEnabled) {
                     try {
                         val accounts = accountsProvider()
-                        val active = activeAccountProvider()
+                        val activeAccounts = activeAccountsProvider().distinctBy { it.id }
                         if (accounts.isNotEmpty()) {
                             val now = System.currentTimeMillis()
                             val shouldFetchBg = (now - lastBackgroundFetchTime) >= backgroundIntervalMs
 
-                            // 1. 优先刷新激活账号
-                            if (active != null) {
+                            // 1. 优先并发刷新所有激活宿主账号 (IDE / App / CLI)
+                            activeAccounts.forEach { active ->
                                 launch { refreshSingleInternal(active, isActiveAccount = true) }
                             }
 
                             // 2. 非阻塞异步并发刷新后台账号
                             if (shouldFetchBg) {
                                 lastBackgroundFetchTime = now
-                                val backgroundAccounts = accounts.filter { it.id != active?.id }
-                                val bgSemaphore = Semaphore(calculateConcurrency(backgroundAccounts.size))
-                                backgroundAccounts.forEach { bgAccount ->
-                                    launch {
-                                        refreshSingleInternal(
-                                            bgAccount,
-                                            isActiveAccount = false,
-                                            customSemaphore = bgSemaphore
-                                        )
+                                val activeIds = activeAccounts.map { it.id }.toSet()
+                                val backgroundAccounts = accounts.filter { it.id !in activeIds }
+                                if (backgroundAccounts.isNotEmpty()) {
+                                    val bgSemaphore = Semaphore(calculateConcurrency(backgroundAccounts.size))
+                                    backgroundAccounts.forEach { bgAccount ->
+                                        launch {
+                                            refreshSingleInternal(
+                                                bgAccount,
+                                                isActiveAccount = false,
+                                                customSemaphore = bgSemaphore
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -175,6 +185,31 @@ class QuotaPoller(
                 }
                 val sleepMs = if (isEnabled) activeIntervalMs.coerceAtLeast(10_000L) else 30_000L
                 delay(sleepMs)
+            }
+        }
+    }
+
+    /**
+     * 立即重置轮询器并按照最新配置或活跃账号集合重新启动
+     */
+    fun restart() {
+        val accs = currentAccountsProvider ?: return
+        val actives = currentActiveAccountsProvider ?: return
+        val cfg = currentConfigProvider
+        stop()
+        start(accs, actives, cfg)
+    }
+
+    /**
+     * 立即对所有当前活跃账号触发一次刷新
+     */
+    fun refreshActiveAccountsNow() {
+        val activeAccounts = currentActiveAccountsProvider?.invoke()?.distinctBy { it.id }.orEmpty()
+        if (activeAccounts.isNotEmpty()) {
+            coroutineScope.launch {
+                activeAccounts.forEach { active ->
+                    launch { refreshSingleInternal(active, isActiveAccount = true) }
+                }
             }
         }
     }
@@ -190,7 +225,7 @@ class QuotaPoller(
      */
     suspend fun refreshAllNow(
         accounts: List<AccountInfo>,
-        activeAccount: AccountInfo?
+        activeAccounts: List<AccountInfo> = emptyList()
     ): Result<Unit> {
         if (accounts.isEmpty()) {
             return Result.success(Unit)
@@ -199,11 +234,12 @@ class QuotaPoller(
         _isRefreshing.value = true
         val dynamicPermits = calculateConcurrency(accounts.size)
         val dynamicSemaphore = Semaphore(permits = dynamicPermits)
+        val activeIds = activeAccounts.map { it.id }.toSet()
 
         return try {
             coroutineScope.launch {
                 val tasks = accounts.map { account ->
-                    val isActive = account.id == activeAccount?.id
+                    val isActive = account.id in activeIds
                     async {
                         refreshSingleInternal(account, isActive, customSemaphore = dynamicSemaphore)
                     }

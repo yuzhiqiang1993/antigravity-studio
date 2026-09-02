@@ -422,11 +422,12 @@ class AppViewModel(
         }
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            syncHostAccounts().join()
             startHostAccountDetectionLoop()
             tokenRenewalManager.start()
             quotaPoller.start(
                 accountsProvider = { accountStore.currentAccounts() },
-                activeAccountProvider = { accountStore.currentActiveAccount() },
+                activeAccountsProvider = { accountDelegate.currentActiveAccounts() },
                 configProvider = { configStore.currentConfig }
             )
             proxyServer.start(configStore.currentConfig.proxyPort)
