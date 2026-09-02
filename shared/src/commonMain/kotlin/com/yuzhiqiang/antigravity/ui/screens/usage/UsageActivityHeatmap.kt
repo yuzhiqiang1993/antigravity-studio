@@ -33,6 +33,8 @@ import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import androidx.compose.ui.graphics.luminance
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -47,6 +49,7 @@ fun ActivityHeatmapCard(
 ) {
     val s = strings()
     val colors = usageTokenColors()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val today = LocalDate.now()
     val availableYears = remember(dailyBuckets) {
         dailyBuckets.mapNotNull { runCatching { LocalDate.parse(it.date).year }.getOrNull() }.toSet()
@@ -75,9 +78,9 @@ fun ActivityHeatmapCard(
 
     StudioGlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier

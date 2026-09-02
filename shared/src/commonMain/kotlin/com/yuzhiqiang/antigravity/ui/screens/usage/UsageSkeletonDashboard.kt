@@ -20,6 +20,9 @@ import com.yuzhiqiang.antigravity.ui.animation.studioShimmer
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 
+import androidx.compose.ui.graphics.luminance
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
+
 /**
   * 用量统计页面高性能骨架加载大盘 (Usage Dashboard Skeleton)：
   * 1. 采用单一共享 Shimmer Brush，杜绝数百个独立的 Transition 造成的 CPU/GPU 满载与掉帧卡顿。
@@ -55,17 +58,19 @@ fun UsageKpiGridSkeleton(
     brush: Brush,
     modifier: Modifier = Modifier
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     StudioGlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 顶部 Hero 栏
             Row(
@@ -75,9 +80,9 @@ fun UsageKpiGridSkeleton(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    SkeletonBox(width = 42.dp, height = 42.dp, radius = 12.dp, brush = brush)
+                    SkeletonBox(width = 46.dp, height = 46.dp, radius = 14.dp, brush = brush)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         SkeletonBox(width = 96.dp, height = 12.dp, brush = brush)
                         Row(
@@ -93,12 +98,16 @@ fun UsageKpiGridSkeleton(
                 // 右侧微卡片
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    color = StudioGlassTokens.innerPanelBackgroundColor(isDark),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        StudioGlassTokens.innerPanelBorderColor(isDark)
+                    )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             SkeletonBox(width = 40.dp, height = 10.dp, brush = brush)
@@ -115,7 +124,7 @@ fun UsageKpiGridSkeleton(
             // 中层：输入 (Input)、输出 (Output)、缓存利用 (Cache) 三卡片骨架
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SkeletonDualCard(brush = brush, modifier = Modifier.weight(1f))
                 SkeletonDualCard(brush = brush, modifier = Modifier.weight(1f))
@@ -130,13 +139,15 @@ private fun SkeletonDualCard(
     brush: Brush,
     modifier: Modifier = Modifier
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
+        color = StudioGlassTokens.innerPanelBackgroundColor(isDark),
         border = androidx.compose.foundation.BorderStroke(
-            0.5.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+            1.dp,
+            StudioGlassTokens.innerPanelBorderColor(isDark)
         )
     ) {
         Column(
@@ -177,17 +188,19 @@ fun UsageTrendChartSkeleton(
     brush: Brush,
     modifier: Modifier = Modifier
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     StudioGlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(UsageVisualTokens.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // 头部
             Row(
@@ -274,19 +287,20 @@ fun ActivityHeatmapSkeleton(
     brush: Brush,
     modifier: Modifier = Modifier
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val cellGap = 3.dp
     val cellSize = 11.5.dp
 
     StudioGlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(UsageVisualTokens.cardPadding),
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(UsageVisualTokens.cardGap)
         ) {
             Row(
@@ -366,16 +380,18 @@ fun TopModelsAndSourcesSkeleton(
 
 @Composable
 private fun TopModelsBreakdownSkeleton(brush: Brush) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     StudioGlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -433,11 +449,13 @@ private fun TopModelsBreakdownSkeleton(brush: Brush) {
 
 @Composable
 private fun SourceBreakdownSkeleton(brush: Brush) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     StudioGlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier

@@ -59,6 +59,8 @@ import kotlin.math.roundToLong
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import androidx.compose.ui.graphics.luminance
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -75,6 +77,7 @@ fun UsageTrendChart(
 ) {
     val s = strings()
     val colors = usageTokenColors()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val isHourlyTrend = timeRange == UsageTimeRange.ROLLING_24H || timeRange == UsageTimeRange.CALENDAR_TODAY
     val sourceBuckets = remember(dailyBuckets, hourlyBuckets, timeRange) {
         if (isHourlyTrend) {
@@ -139,9 +142,9 @@ fun UsageTrendChart(
                         dampingRatio = Spring.DampingRatioNoBouncy
                     )
                 ),
-            shape = RoundedCornerShape(AppTokens.Radius.large),
-            backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
-            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+            shape = RoundedCornerShape(14.dp),
+            backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+            borderColor = StudioGlassTokens.cleanBorderColor(isDark)
         ) {
             Column(
                 modifier = Modifier

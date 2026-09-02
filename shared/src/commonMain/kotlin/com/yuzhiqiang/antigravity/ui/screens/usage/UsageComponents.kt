@@ -36,6 +36,9 @@ import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import kotlin.math.roundToInt
 
+import androidx.compose.ui.graphics.luminance
+import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
+
 /**
  * 现代高阶 Hero 看板：
  * 1. 突出真实消耗 Token（超大数字 + 紧凑万/亿换算，主视觉焦点）；
@@ -51,6 +54,7 @@ fun UsageKpiGrid(
     val s = strings()
     val colors = usageTokenColors()
     val tokenFormatter = UsageNumberFormatter
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val hasUnmatchedPricing = stats.modelBuckets.any { !it.pricingMatched }
     val allUnmatched = stats.modelBuckets.isNotEmpty() && stats.modelBuckets.all { !it.pricingMatched }
     val costAmount = tokenFormatter.formatUsdAmount(stats.estimatedCostUsd)
@@ -77,9 +81,9 @@ fun UsageKpiGrid(
                     dampingRatio = Spring.DampingRatioNoBouncy
                 )
             ),
-        shape = RoundedCornerShape(AppTokens.Radius.large),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier
@@ -153,11 +157,11 @@ fun UsageKpiGrid(
 
                 // 右侧弱化辅助指标卡：总请求数 + 预估成本
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.40f),
+                    shape = RoundedCornerShape(10.dp),
+                    color = StudioGlassTokens.innerPanelBackgroundColor(isDark),
                     border = androidx.compose.foundation.BorderStroke(
-                        0.5.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+                        1.dp,
+                        StudioGlassTokens.innerPanelBorderColor(isDark)
                     )
                 ) {
                     Row(
@@ -239,11 +243,11 @@ fun UsageKpiGrid(
                                 dampingRatio = Spring.DampingRatioNoBouncy
                             )
                         ),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = StudioGlassTokens.innerPanelBackgroundColor(isDark),
                     border = androidx.compose.foundation.BorderStroke(
-                        0.5.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+                        1.dp,
+                        StudioGlassTokens.innerPanelBorderColor(isDark)
                     )
                 ) {
                     Column(
@@ -326,11 +330,11 @@ fun UsageKpiGrid(
                                 dampingRatio = Spring.DampingRatioNoBouncy
                             )
                         ),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = StudioGlassTokens.innerPanelBackgroundColor(isDark),
                     border = androidx.compose.foundation.BorderStroke(
-                        0.5.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+                        1.dp,
+                        StudioGlassTokens.innerPanelBorderColor(isDark)
                     )
                 ) {
                     Column(
@@ -420,11 +424,11 @@ fun UsageKpiGrid(
                                 dampingRatio = Spring.DampingRatioNoBouncy
                             )
                         ),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = StudioGlassTokens.innerPanelBackgroundColor(isDark),
                     border = androidx.compose.foundation.BorderStroke(
-                        0.5.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+                        1.dp,
+                        StudioGlassTokens.innerPanelBorderColor(isDark)
                     )
                 ) {
                     Column(
@@ -575,18 +579,19 @@ fun TokenCompositionCard(
 ) {
     val s = strings()
     val colors = usageTokenColors()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val total = stats.totalTokens
 
     StudioGlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.medium),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
@@ -670,12 +675,13 @@ fun TopModelsBreakdownCard(
 ) {
     val s = strings()
     val tokenColors = usageTokenColors()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     StudioGlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppTokens.Radius.large),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
-        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+        shape = RoundedCornerShape(14.dp),
+        backgroundColor = StudioGlassTokens.cardBackgroundColor(isDark),
+        borderColor = StudioGlassTokens.cleanBorderColor(isDark)
     ) {
         Column(
             modifier = Modifier
