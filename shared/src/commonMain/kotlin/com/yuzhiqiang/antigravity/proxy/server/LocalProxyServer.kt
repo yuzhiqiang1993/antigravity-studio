@@ -34,8 +34,7 @@ import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
 class LocalProxyServer(
-    private val configStore: ConfigStore,
-    private val accessTokenStore: ProxyAccessTokenStore = ProxyAccessTokenStore()
+    private val configStore: ConfigStore
 ) {
 
     private var serverEngine: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -47,9 +46,11 @@ class LocalProxyServer(
     private val _actualPort = MutableStateFlow(8321)
     val actualPort: StateFlow<Int> = _actualPort.asStateFlow()
 
-    @Volatile
-    var accessToken: String? = null
-        private set
+    val endpoint: String
+        get() = "http://127.0.0.1:${_actualPort.value}"
+
+    val secureEndpoint: String
+        get() = endpoint
 
     private val generationSemaphore = Semaphore(4)
     private val controlPlaneSemaphore = Semaphore(8)
@@ -60,17 +61,12 @@ class LocalProxyServer(
     )
     private val byokHandler = ByokForwardHandler(configStore)
 
-    val secureEndpoint: String
-        get() = ProxyEndpoint.secure(_actualPort.value, accessToken ?: accessTokenStore.loadOrCreate().getOrThrow())
-
     suspend fun start(desiredPort: Int = configStore.currentConfig.proxyPort): Result<Int> = lifecycleMutex.withLock {
         if (_isRunning.value) return Result.success(_actualPort.value)
 
         if (desiredPort !in 1024..65535) {
             return Result.failure(IllegalArgumentException("代理端口必须位于 1024 - 65535 之间"))
         }
-
-        val token = accessTokenStore.loadOrCreate().getOrElse { error -> return Result.failure(error) }
 
         // 在开始监听前完成有界预热，避免首个生成请求等待或错过 macOS 系统代理。
         withContext(Dispatchers.IO) {
@@ -83,8 +79,14 @@ class LocalProxyServer(
         return try {
             val server = embeddedServer(CIO, host = "127.0.0.1", port = availablePort) {
                 routing {
+                    options("/{...}") {
+                        call.response.headers.append("Access-Control-Allow-Origin", "*")
+                        call.response.headers.append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS")
+                        call.response.headers.append("Access-Control-Allow-Headers", "*")
+                        call.respond(HttpStatusCode.OK)
+                    }
                     post("/{...}") {
-                        val normalizedPath = this@LocalProxyServer.authorizedPath(call, token) ?: return@post
+                        val normalizedPath = normalizeProxyPath(call.request.path())
                         val requestStartTime = System.currentTimeMillis()
                         when {
                             isFixedGetPath(normalizedPath) -> respondMethodNotAllowed(call)
@@ -135,7 +137,7 @@ class LocalProxyServer(
                             }
                             return@get
                         }
-                        val normalizedPath = this@LocalProxyServer.authorizedPath(call, token) ?: return@get
+                        val normalizedPath = normalizeProxyPath(call.request.path())
                         when (normalizedPath) {
                             "/v1/models", "/v1beta/models" -> {
                                 controlPlaneSemaphore.withPermit { respondModelCatalog(call) }
@@ -153,19 +155,15 @@ class LocalProxyServer(
                         }
                     }
                     delete("/{...}") {
-                        val path = this@LocalProxyServer.authorizedPath(call, token) ?: return@delete
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                     put("/{...}") {
-                        val path = this@LocalProxyServer.authorizedPath(call, token) ?: return@put
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                     patch("/{...}") {
-                        val path = this@LocalProxyServer.authorizedPath(call, token) ?: return@patch
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                     head("/{...}") {
-                        val path = this@LocalProxyServer.authorizedPath(call, token) ?: return@head
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                 }
@@ -173,7 +171,6 @@ class LocalProxyServer(
             server.start(wait = false)
             persistActualPort(server, availablePort)
             serverEngine = server
-            accessToken = token
             _isRunning.value = true
             _actualPort.value = availablePort
             Result.success(availablePort)
@@ -489,48 +486,6 @@ class LocalProxyServer(
             "未获取到官方原始模型目录（请先启动 Antigravity IDE 或 App）",
             "native_forwarding_failed"
         )
-    }
-
-    private suspend fun authorizedPath(call: ApplicationCall, expectedToken: String): String? {
-        val rawPath = call.request.path()
-        if (rawPath == "/health" || rawPath == "/healthz") {
-            return rawPath
-        }
-
-        val candidates = buildList {
-            if (rawPath.startsWith("/v1internal/")) {
-                val segment = rawPath.removePrefix("/v1internal/").substringBefore('/')
-                if (segment.isNotBlank()) add(segment)
-            }
-            val authHeader = call.request.headers[HttpHeaders.Authorization]
-            if (authHeader != null && authHeader.startsWith("Bearer ", ignoreCase = true)) {
-                val token = authHeader.substring(7).trim()
-                if (token.isNotBlank()) add(token)
-            }
-            val customToken = call.request.headers["X-Antigravity-Proxy-Token"]?.trim()
-                ?: call.request.headers["X-Antigravity-Studio-Token"]?.trim()
-                ?: call.request.headers["X-Antigravity-Token"]?.trim()
-            if (!customToken.isNullOrBlank()) {
-                add(customToken)
-            }
-        }
-
-        val expectedBytes = expectedToken.toByteArray(Charsets.UTF_8)
-        val isAuthorized = candidates.any { candidate ->
-            java.security.MessageDigest.isEqual(candidate.toByteArray(Charsets.UTF_8), expectedBytes)
-        }
-
-        if (isAuthorized) {
-            return normalizeProxyPath(rawPath)
-        }
-
-        respondError(
-            call = call,
-            status = HttpStatusCode.Unauthorized,
-            message = "Unauthorized: missing or invalid proxy access token",
-            category = "authentication"
-        )
-        return null
     }
 
     private suspend fun readRequestBody(call: ApplicationCall): Result<String> {

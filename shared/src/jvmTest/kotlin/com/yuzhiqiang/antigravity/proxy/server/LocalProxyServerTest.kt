@@ -70,11 +70,9 @@ class LocalProxyServerTest {
                     return code to (stream?.bufferedReader()?.use { it.readText() } ?: "")
                 }
                 val (healthStatus, health) = get("/health")
-                val (unauthorizedStatus, _) = get("/v1/models")
-                val (catalogStatus, catalog) = get("/v1internal/${server.accessToken}/dummy_path_padding/v1/models")
+                val (catalogStatus, catalog) = get("/v1/models")
                 assertEquals(200, healthStatus)
                 assertTrue(health.contains("\"status\":\"ok\""))
-                assertEquals(401, unauthorizedStatus)
                 assertEquals(200, catalogStatus)
                 assertTrue(catalog.contains("custom-gpt-test"))
             } finally {
