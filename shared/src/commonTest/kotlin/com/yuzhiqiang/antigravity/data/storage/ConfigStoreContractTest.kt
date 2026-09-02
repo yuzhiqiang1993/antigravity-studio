@@ -40,7 +40,7 @@ class ConfigStoreContractTest {
     }
 
     @Test
-    fun configWithoutCurrentSchemaIsClearedInsteadOfMigrated() {
+    fun configWithoutCurrentSchemaIsBackedUpAndReset() {
         val configFile = tempDir.resolve("config.v2.json").toFile()
         configFile.writeText("""{"proxy_port": 9000}""")
 
@@ -48,12 +48,13 @@ class ConfigStoreContractTest {
 
         assertEquals(8321, store.currentConfig.proxyPort)
         assertNotNull(store.loadError.value)
-        assertTrue(store.loadError.value.orEmpty().contains("已清除并重置"))
+        assertTrue(store.loadError.value.orEmpty().contains("已备份至"))
+        assertEquals("""{"proxy_port": 9000}""", tempDir.resolve("config.v2.json.invalid").toFile().readText())
         assertEquals(AppConfig.CURRENT_SCHEMA_VERSION, readSchemaVersion(configFile.toPath()))
     }
 
     @Test
-    fun configWithUnknownFieldsIsClearedInsteadOfIgnored() {
+    fun configWithUnknownFieldsIsBackedUpAndReset() {
         val configFile = tempDir.resolve("config.v2.json").toFile()
         configFile.writeText(
             """{"schema_version": 2, "proxy_port": 9000, "obsolete_option": true}"""
@@ -62,12 +63,12 @@ class ConfigStoreContractTest {
         val store = ConfigStore(customRootDir = tempDir.toFile())
 
         assertEquals(8321, store.currentConfig.proxyPort)
-        assertTrue(store.loadError.value.orEmpty().contains("已清除并重置"))
+        assertTrue(store.loadError.value.orEmpty().contains("已备份至"))
         assertEquals(AppConfig.CURRENT_SCHEMA_VERSION, readSchemaVersion(configFile.toPath()))
     }
 
     @Test
-    fun invalidReasoningMappingClearsWholeConfig() {
+    fun invalidReasoningMappingBacksUpAndResetsWholeConfig() {
         val provider = Provider(
             id = "provider",
             name = "Provider",
@@ -111,7 +112,23 @@ class ConfigStoreContractTest {
         val store = ConfigStore(customRootDir = tempDir.toFile())
 
         assertTrue(store.currentConfig.providers.isEmpty())
-        assertTrue(store.loadError.value.orEmpty().contains("已清除并重置"))
+        assertTrue(store.loadError.value.orEmpty().contains("已备份至"))
+    }
+
+    @Test
+    fun backupFailurePreservesInvalidConfig() {
+        val configFile = tempDir.resolve("config.v2.json").toFile()
+        val invalidContent = """{"proxy_port": 9000}"""
+        configFile.writeText(invalidContent)
+
+        val store = ConfigStore(customRootDir = tempDir.toFile()) { _, _ ->
+            throw IllegalStateException("模拟备份失败")
+        }
+
+        assertEquals(8321, store.currentConfig.proxyPort)
+        assertEquals(invalidContent, configFile.readText())
+        assertTrue(store.loadError.value.orEmpty().contains("已保留原文件"))
+        assertTrue(tempDir.toFile().listFiles().orEmpty().none { it.name.startsWith("config.v2.json.invalid") })
     }
 
     @Test

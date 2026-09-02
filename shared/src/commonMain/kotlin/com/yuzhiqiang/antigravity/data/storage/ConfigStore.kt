@@ -12,7 +12,10 @@ import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 
 class ConfigStore(
-    private val customRootDir: File? = null
+    private val customRootDir: File? = null,
+    private val backupInvalidConfig: (File, File) -> Unit = { source, backup ->
+        Files.copy(source.toPath(), backup.toPath(), NOFOLLOW_LINKS)
+    }
 ) {
     private val persistence = ConfigStorePersistence()
 
@@ -81,17 +84,28 @@ class ConfigStore(
 
     private fun resetInvalidConfig(error: Throwable): AppConfig {
         val defaultConfig = normalizeConfig(AppConfig())
+        val backupFile = nextInvalidConfigBackupFile()
         val resetResult = runCatching {
-            Files.deleteIfExists(configFile.toPath())
+            backupInvalidConfig(configFile, backupFile)
+            if (Files.isSymbolicLink(configFile.toPath())) {
+                Files.delete(configFile.toPath())
+            }
             writeConfigFile(defaultConfig).getOrThrow()
         }
         val message = if (resetResult.isSuccess) {
-            "配置无效，已清除并重置：${error.message ?: "未知错误"}"
+            "配置无效，已备份至 ${backupFile.name} 并重置：${error.message ?: "未知错误"}"
         } else {
-            "配置无效且重置失败：${resetResult.exceptionOrNull()?.message ?: "未知错误"}"
+            "配置无效且备份或重置失败，已保留原文件：${resetResult.exceptionOrNull()?.message ?: "未知错误"}"
         }
         recordLoadFailure(IllegalStateException(message, resetResult.exceptionOrNull() ?: error))
         return defaultConfig
+    }
+
+    private fun nextInvalidConfigBackupFile(): File {
+        val baseName = "${configFile.name}.invalid"
+        return generateSequence(0) { it + 1 }
+            .map { index -> File(configFile.parentFile, if (index == 0) baseName else "$baseName.$index") }
+            .first { !it.exists() }
     }
 
     private fun validateConfig(config: AppConfig) {

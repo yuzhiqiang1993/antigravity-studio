@@ -221,31 +221,15 @@ object CliHostManager {
      * 禁用 CLI 代理接入：移除配置文件中的代理端点。
      */
     fun disable(): Boolean {
-        val envSuccess = HostOwnershipStore.disableEnvironment(
+        return HostOwnershipStore.disableEnvironment(
             owner = HostOwnershipStore.EnvironmentOwner.CLI
         ).isSuccess
-        runCatching {
-            val configFile = getConfigFile()
-            if (configFile.exists()) {
-                val content = configFile.readText(Charsets.UTF_8)
-                if (content.contains("CLOUD_CODE_URL") || content.contains("127.0.0.1")) {
-                    configFile.delete()
-                }
-            }
-        }
-        return envSuccess
     }
 
     /**
      * 强制重置 CLI 代理接入至官方模式。
      */
     fun forceReset(): Boolean {
-        runCatching {
-            val configFile = getConfigFile()
-            if (configFile.exists()) {
-                configFile.delete()
-            }
-        }
         return HostOwnershipStore.forceResetEnvironment().isSuccess
     }
 }
