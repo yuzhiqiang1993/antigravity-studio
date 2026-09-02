@@ -58,16 +58,23 @@ class LocalProxyServerTest {
             val server = LocalProxyServer(store)
             val port = runBlocking { server.start(24_321).getOrThrow() }
             try {
-                fun get(path: String): Pair<Int, String> {
+                fun get(path: String, tokenHeader: String? = null): Pair<Int, String> {
                     val connection =
                         URI("http://127.0.0.1:$port$path").toURL().openConnection() as HttpURLConnection
                     connection.requestMethod = "GET"
-                    return connection.responseCode to connection.inputStream.bufferedReader().use { it.readText() }
+                    if (tokenHeader != null) {
+                        connection.setRequestProperty("X-Antigravity-Studio-Token", tokenHeader)
+                    }
+                    val code = connection.responseCode
+                    val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                    return code to (stream?.bufferedReader()?.use { it.readText() } ?: "")
                 }
                 val (healthStatus, health) = get("/health")
-                val (catalogStatus, catalog) = get("/v1/models")
+                val (unauthorizedStatus, _) = get("/v1/models")
+                val (catalogStatus, catalog) = get("/v1internal/${server.accessToken}/dummy_path_padding/v1/models")
                 assertEquals(200, healthStatus)
                 assertTrue(health.contains("\"status\":\"ok\""))
+                assertEquals(401, unauthorizedStatus)
                 assertEquals(200, catalogStatus)
                 assertTrue(catalog.contains("custom-gpt-test"))
             } finally {

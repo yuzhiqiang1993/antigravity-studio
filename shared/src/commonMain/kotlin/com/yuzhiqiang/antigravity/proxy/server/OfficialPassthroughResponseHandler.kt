@@ -36,7 +36,7 @@ internal class OfficialPassthroughResponseHandler(
         path: String,
         modelId: String?,
         startTime: Long,
-        logId: String,
+        logId: String?,
         isDebug: Boolean,
         isStreaming: Boolean,
         attempt: Int,
@@ -98,17 +98,19 @@ internal class OfficialPassthroughResponseHandler(
         val nonStreamingUsage = nonStreamingJson?.let(OfficialPassthroughUsage::parseGeminiUsage)
         val nonStreamingResponseModelId = nonStreamingJson?.let(OfficialPassthroughUsage::parseResponseModelId)
 
-        ActivityRecorder.finishActivity(
-            id = logId,
-            statusCode = status,
-            durationMs = System.currentTimeMillis() - startTime,
-            firstByteMs = responseReadyMs,
-            usage = nonStreamingUsage,
-            responseModelId = nonStreamingResponseModelId,
-            retryCount = attempt - 1,
-            responseHeaders = responseHeaders,
-            responseBody = if (isDebug) (responseBodyString ?: bodyBytes.decodeToString()) else null
-        )
+        if (logId != null) {
+            ActivityRecorder.finishActivity(
+                id = logId,
+                statusCode = status,
+                durationMs = System.currentTimeMillis() - startTime,
+                firstByteMs = responseReadyMs,
+                usage = nonStreamingUsage,
+                responseModelId = nonStreamingResponseModelId,
+                retryCount = attempt - 1,
+                responseHeaders = responseHeaders,
+                responseBody = if (isDebug) (responseBodyString ?: bodyBytes.decodeToString()) else null
+            )
+        }
         OfficialPassthroughHttpSupport.copyForwardResponseHeaders(call, response)
         val responseBody = responseBodyString?.toByteArray(Charsets.UTF_8) ?: bodyBytes
         call.respondBytes(responseBody, responseContentType, response.status)
@@ -120,7 +122,7 @@ internal class OfficialPassthroughResponseHandler(
         path: String,
         modelId: String?,
         startTime: Long,
-        logId: String,
+        logId: String?,
         isDebug: Boolean,
         attempt: Int,
         onResponseStarted: () -> Unit,
@@ -165,7 +167,7 @@ internal class OfficialPassthroughResponseHandler(
             observation.responseModelId?.let { latestResponseModelId = it }
             if (observation.hasMeaningfulContent) {
                 val (elapsedMs, isFirst) = timingTracker.recordMeaningfulContent(atMs)
-                if (isFirst) ActivityRecorder.updateFirstToken(logId, elapsedMs)
+                if (isFirst && logId != null) ActivityRecorder.updateFirstToken(logId, elapsedMs)
             }
         }
 
@@ -221,48 +223,52 @@ internal class OfficialPassthroughResponseHandler(
                 System.currentTimeMillis()
             )
             val timing = timingTracker.snapshot()
-            ActivityRecorder.finishActivity(
-                id = logId,
-                statusCode = if (streamErrorCaught != null) 502 else status,
-                durationMs = System.currentTimeMillis() - startTime,
-                firstByteMs = timing.firstByteMs,
-                firstTokenMs = timing.firstTokenMs,
-                lastTokenMs = timing.lastTokenMs,
-                maxChunkGapMs = timing.maxChunkGapMs,
-                stallCount = timing.stallCount,
-                stallDurationMs = timing.stallDurationMs,
-                usage = latestUsage,
-                responseModelId = latestResponseModelId,
-                errorMessage = streamErrorCaught?.message,
-                errorSource = streamErrorCaught?.let { StreamErrorSource.UPSTREAM_TRANSPORT.name },
-                retryCount = attempt - 1,
-                responseHeaders = responseHeaders,
-                responseBody = debugStreamBody?.toString()
-            )
+            if (logId != null) {
+                ActivityRecorder.finishActivity(
+                    id = logId,
+                    statusCode = if (streamErrorCaught != null) 502 else status,
+                    durationMs = System.currentTimeMillis() - startTime,
+                    firstByteMs = timing.firstByteMs,
+                    firstTokenMs = timing.firstTokenMs,
+                    lastTokenMs = timing.lastTokenMs,
+                    maxChunkGapMs = timing.maxChunkGapMs,
+                    stallCount = timing.stallCount,
+                    stallDurationMs = timing.stallDurationMs,
+                    usage = latestUsage,
+                    responseModelId = latestResponseModelId,
+                    errorMessage = streamErrorCaught?.message,
+                    errorSource = streamErrorCaught?.let { StreamErrorSource.UPSTREAM_TRANSPORT.name },
+                    retryCount = attempt - 1,
+                    responseHeaders = responseHeaders,
+                    responseBody = debugStreamBody?.toString()
+                )
+            }
         } catch (error: Exception) {
             val timing = timingTracker.snapshot()
-            ActivityRecorder.finishActivity(
-                id = logId,
-                statusCode = 502,
-                durationMs = System.currentTimeMillis() - startTime,
-                errorMessage = streamErrorCaught?.message ?: error.message,
-                errorSource = if (streamErrorCaught != null) {
-                    StreamErrorSource.UPSTREAM_TRANSPORT.name
-                } else {
-                    StreamErrorSource.STUDIO_PROXY.name
-                },
-                usage = latestUsage,
-                responseModelId = latestResponseModelId,
-                firstByteMs = timing.firstByteMs,
-                firstTokenMs = timing.firstTokenMs,
-                lastTokenMs = timing.lastTokenMs,
-                maxChunkGapMs = timing.maxChunkGapMs,
-                stallCount = timing.stallCount,
-                stallDurationMs = timing.stallDurationMs,
-                retryCount = attempt - 1,
-                responseHeaders = responseHeaders,
-                responseBody = debugStreamBody?.toString()
-            )
+            if (logId != null) {
+                ActivityRecorder.finishActivity(
+                    id = logId,
+                    statusCode = 502,
+                    durationMs = System.currentTimeMillis() - startTime,
+                    errorMessage = streamErrorCaught?.message ?: error.message,
+                    errorSource = if (streamErrorCaught != null) {
+                        StreamErrorSource.UPSTREAM_TRANSPORT.name
+                    } else {
+                        StreamErrorSource.STUDIO_PROXY.name
+                    },
+                    usage = latestUsage,
+                    responseModelId = latestResponseModelId,
+                    firstByteMs = timing.firstByteMs,
+                    firstTokenMs = timing.firstTokenMs,
+                    lastTokenMs = timing.lastTokenMs,
+                    maxChunkGapMs = timing.maxChunkGapMs,
+                    stallCount = timing.stallCount,
+                    stallDurationMs = timing.stallDurationMs,
+                    retryCount = attempt - 1,
+                    responseHeaders = responseHeaders,
+                    responseBody = debugStreamBody?.toString()
+                )
+            }
         }
 
         return OfficialResponseHandlingResult(

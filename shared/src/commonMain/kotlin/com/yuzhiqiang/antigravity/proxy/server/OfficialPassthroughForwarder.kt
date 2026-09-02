@@ -35,21 +35,26 @@ internal class OfficialPassthroughForwarder(
         val isDebug = configStore.currentConfig.isDebugMode
         val requestHeaders = if (isDebug) extractRequestHeaders(call) else null
         val requestBody = OfficialPassthroughRequestSupport.debugBody(rawBody, isDebug)
+        val shouldRecord = isAiChatOrCompletion(path, modelId) || configStore.currentConfig.collectNonChatLogs
 
-        val logId = ActivityRecorder.startActivity(
-            method = call.request.httpMethod.value,
-            path = path,
-            modelIdentity = modelId?.let {
-                ModelObservation(requestedModelId = it, catalogModelId = it).resolveActivityIdentity()
-            },
-            clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
-            providerName = "Official Cloud Code",
-            isOfficialPassthrough = true,
-            timestamp = startTime,
-            queueWaitMs = queueWaitMs,
-            requestHeaders = requestHeaders,
-            requestBody = requestBody
-        )
+        val logId = if (shouldRecord) {
+            ActivityRecorder.startActivity(
+                method = call.request.httpMethod.value,
+                path = path,
+                modelIdentity = modelId?.let {
+                    ModelObservation(requestedModelId = it, catalogModelId = it).resolveActivityIdentity()
+                },
+                clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
+                providerName = "Official Cloud Code",
+                isOfficialPassthrough = true,
+                timestamp = startTime,
+                queueWaitMs = queueWaitMs,
+                requestHeaders = requestHeaders,
+                requestBody = requestBody
+            )
+        } else {
+            null
+        }
         val officialUrlResult = OfficialPassthroughRouting.officialUrl(
             path,
             call.request.queryString(),
@@ -57,14 +62,16 @@ internal class OfficialPassthroughForwarder(
         )
         if (officialUrlResult.isFailure) {
             val message = officialUrlResult.exceptionOrNull()?.message ?: "Invalid official Cloud Code endpoint"
-            ActivityRecorder.finishActivity(
-                id = logId,
-                statusCode = 502,
-                durationMs = System.currentTimeMillis() - startTime,
-                errorMessage = message,
-                errorSource = StreamErrorSource.STUDIO_PROXY.name,
-                responseBody = if (isDebug) message else null
-            )
+            if (logId != null) {
+                ActivityRecorder.finishActivity(
+                    id = logId,
+                    statusCode = 502,
+                    durationMs = System.currentTimeMillis() - startTime,
+                    errorMessage = message,
+                    errorSource = StreamErrorSource.STUDIO_PROXY.name,
+                    responseBody = if (isDebug) message else null
+                )
+            }
             OfficialPassthroughErrorResponder.respondError(
                 call,
                 HttpStatusCode.BadGateway,
@@ -86,7 +93,7 @@ internal class OfficialPassthroughForwarder(
 
         while (attempt <= maxRetries) {
             attempt++
-            if (attempt > 1) {
+            if (attempt > 1 && logId != null) {
                 ActivityRecorder.updateRetryCount(logId, attempt - 1)
             }
             var retryNeeded = false
@@ -147,14 +154,16 @@ internal class OfficialPassthroughForwarder(
                 includeSystemProxyGuidance = true
             )
             val finalMessage = finalError.message
-            ActivityRecorder.finishActivity(
-                id = logId,
-                statusCode = finalStatus,
-                durationMs = System.currentTimeMillis() - startTime,
-                errorMessage = finalMessage,
-                errorSource = finalError.source.name,
-                retryCount = attempt - 1
-            )
+            if (logId != null) {
+                ActivityRecorder.finishActivity(
+                    id = logId,
+                    statusCode = finalStatus,
+                    durationMs = System.currentTimeMillis() - startTime,
+                    errorMessage = finalMessage,
+                    errorSource = finalError.source.name,
+                    retryCount = attempt - 1
+                )
+            }
             if (isStreaming) {
                 val cloudCode = path.contains("/v1internal")
                 val encoder = ResponseEncoder.newStreamEncoder(cloudCode, modelId)
@@ -176,5 +185,16 @@ internal class OfficialPassthroughForwarder(
                 )
             }
         }
+    }
+
+    private fun isAiChatOrCompletion(path: String, modelId: String?): Boolean {
+        if (!modelId.isNullOrBlank()) return true
+        val lower = path.lowercase()
+        return lower.contains("generatecontent") ||
+                lower.contains("streamgeneratecontent") ||
+                lower.contains("completecode") ||
+                lower.contains("inlinecompletion") ||
+                lower.contains("getcompletions") ||
+                lower.contains("chat")
     }
 }

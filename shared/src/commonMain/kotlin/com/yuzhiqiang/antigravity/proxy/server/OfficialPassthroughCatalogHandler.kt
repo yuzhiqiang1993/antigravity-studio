@@ -245,6 +245,7 @@ internal class OfficialPassthroughCatalogHandler(
         responseHeaders: Map<String, String>? = null,
         responseBody: String? = null
     ) {
+        if (!configStore.currentConfig.collectNonChatLogs) return
         ActivityRecorder.record(
             method = method,
             path = path,

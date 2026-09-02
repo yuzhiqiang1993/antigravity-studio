@@ -13,7 +13,6 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.cio.*
 import io.ktor.server.engine.*
-import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -35,7 +34,8 @@ import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
 class LocalProxyServer(
-    private val configStore: ConfigStore
+    private val configStore: ConfigStore,
+    private val accessTokenStore: ProxyAccessTokenStore = ProxyAccessTokenStore()
 ) {
 
     private var serverEngine: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -47,11 +47,21 @@ class LocalProxyServer(
     private val _actualPort = MutableStateFlow(8321)
     val actualPort: StateFlow<Int> = _actualPort.asStateFlow()
 
-    private val generationSemaphore = Semaphore(256)
-    private val controlPlaneSemaphore = Semaphore(64)
+    @Volatile
+    var accessToken: String? = null
+        private set
 
-    private val passthroughHandler = OfficialPassthroughHandler(configStore) { _actualPort.value }
+    private val generationSemaphore = Semaphore(4)
+    private val controlPlaneSemaphore = Semaphore(8)
+
+    private val passthroughHandler = OfficialPassthroughHandler(
+        configStore = configStore,
+        actualPortProvider = { _actualPort.value }
+    )
     private val byokHandler = ByokForwardHandler(configStore)
+
+    val secureEndpoint: String
+        get() = ProxyEndpoint.secure(_actualPort.value, accessToken ?: accessTokenStore.loadOrCreate().getOrThrow())
 
     suspend fun start(desiredPort: Int = configStore.currentConfig.proxyPort): Result<Int> = lifecycleMutex.withLock {
         if (_isRunning.value) return Result.success(_actualPort.value)
@@ -59,6 +69,8 @@ class LocalProxyServer(
         if (desiredPort !in 1024..65535) {
             return Result.failure(IllegalArgumentException("代理端口必须位于 1024 - 65535 之间"))
         }
+
+        val token = accessTokenStore.loadOrCreate().getOrElse { error -> return Result.failure(error) }
 
         // 在开始监听前完成有界预热，避免首个生成请求等待或错过 macOS 系统代理。
         withContext(Dispatchers.IO) {
@@ -70,70 +82,61 @@ class LocalProxyServer(
 
         return try {
             val server = embeddedServer(CIO, host = "127.0.0.1", port = availablePort) {
-                install(CORS) {
-                    anyHost()
-                    allowMethod(HttpMethod.Get)
-                    allowMethod(HttpMethod.Post)
-                    allowMethod(HttpMethod.Options)
-                    allowHeader(HttpHeaders.Accept)
-                    allowHeader(HttpHeaders.ContentType)
-                    allowHeader(HttpHeaders.Authorization)
-                    allowHeader("X-Codeium-Csrf-Token")
-                    allowHeader("X-Antigravity-Raw-Official")
-                    anyMethod()
-                    allowHeaders { true }
-                }
                 routing {
-                    options("/{...}") {
-                        call.respond(HttpStatusCode.OK)
-                    }
                     post("/{...}") {
+                        val normalizedPath = this@LocalProxyServer.authorizedPath(call, token) ?: return@post
                         val requestStartTime = System.currentTimeMillis()
-                        val normalizedPath = normalizeProxyPath(call.request.path())
                         when {
                             isFixedGetPath(normalizedPath) -> respondMethodNotAllowed(call)
                             isOfficialCatalogFetchPath(normalizedPath) -> {
                                 controlPlaneSemaphore.withPermit {
                                     handleChatRequest(
-                                        call,
-                                        requestStartTime,
-                                        System.currentTimeMillis() - requestStartTime
+                                        call = call,
+                                        startTime = requestStartTime,
+                                        queueWaitMs = System.currentTimeMillis() - requestStartTime
                                     )
                                 }
                             }
 
                             isGenerationPath(normalizedPath) -> {
+                                val generationStartTime = System.currentTimeMillis()
+                                val queueWaitMs = generationStartTime - requestStartTime
                                 generationSemaphore.withPermit {
                                     handleChatRequest(
-                                        call,
-                                        requestStartTime,
-                                        System.currentTimeMillis() - requestStartTime
+                                        call = call,
+                                        startTime = generationStartTime,
+                                        queueWaitMs = queueWaitMs
                                     )
                                 }
                             }
 
                             else -> controlPlaneSemaphore.withPermit {
                                 handlePassthroughRequest(
-                                    call,
-                                    requestStartTime,
-                                    System.currentTimeMillis() - requestStartTime
+                                    call = call,
+                                    startTime = requestStartTime,
+                                    queueWaitMs = System.currentTimeMillis() - requestStartTime
                                 )
                             }
                         }
                     }
                     get("/{...}") {
-                        val normalizedPath = normalizeProxyPath(call.request.path())
+                        val requestPath = call.request.path()
+                        if (requestPath == "/health" || requestPath == "/healthz") {
+                            if (requestPath == "/health") {
+                                call.respondText(
+                                    """{"status":"ok","product":"antigravity-studio","port":$availablePort,"capabilities":{"models":true,"generate":true,"stream":true}}""",
+                                    ContentType.Application.Json
+                                )
+                            } else {
+                                call.respondText(
+                                    """{"status":"ok","product":"antigravity-studio","port":$availablePort}""",
+                                    ContentType.Application.Json
+                                )
+                            }
+                            return@get
+                        }
+                        val normalizedPath = this@LocalProxyServer.authorizedPath(call, token) ?: return@get
                         when (normalizedPath) {
-                            "/health" -> call.respondText(
-                                """{"status":"ok","product":"antigravity-studio","port":$availablePort,"capabilities":{"models":true,"generate":true,"stream":true}}""",
-                                ContentType.Application.Json
-                            )
-
-                            "/healthz" -> call.respondText(
-                                """{"status":"ok","product":"antigravity-studio","port":$availablePort}""",
-                                ContentType.Application.Json
-                            )
-
                             "/v1/models", "/v1beta/models" -> {
                                 controlPlaneSemaphore.withPermit { respondModelCatalog(call) }
                             }
@@ -150,15 +153,19 @@ class LocalProxyServer(
                         }
                     }
                     delete("/{...}") {
+                        val path = this@LocalProxyServer.authorizedPath(call, token) ?: return@delete
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                     put("/{...}") {
+                        val path = this@LocalProxyServer.authorizedPath(call, token) ?: return@put
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                     patch("/{...}") {
+                        val path = this@LocalProxyServer.authorizedPath(call, token) ?: return@patch
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                     head("/{...}") {
+                        val path = this@LocalProxyServer.authorizedPath(call, token) ?: return@head
                         controlPlaneSemaphore.withPermit { handlePassthroughRequest(call) }
                     }
                 }
@@ -166,6 +173,7 @@ class LocalProxyServer(
             server.start(wait = false)
             persistActualPort(server, availablePort)
             serverEngine = server
+            accessToken = token
             _isRunning.value = true
             _actualPort.value = availablePort
             Result.success(availablePort)
@@ -223,19 +231,21 @@ class LocalProxyServer(
         val reqHeaders = if (isDebug) extractRequestHeaders(call) else null
 
         val rawBody = readRequestBody(call).getOrElse { error ->
+            val isPayloadTooLarge = error is PayloadTooLargeException || error.cause is PayloadTooLargeException
+            val status = if (isPayloadTooLarge) HttpStatusCode.PayloadTooLarge else HttpStatusCode.BadRequest
             val message = error.message ?: "Failed to read request body"
             recordFailure(
-                path,
-                null,
-                startTime,
-                400,
-                message,
+                path = path,
+                modelId = null,
+                startTime = startTime,
+                status = status.value,
+                message = message,
                 queueWaitMs = queueWaitMs,
                 clientSource = clientSource,
                 requestHeaders = reqHeaders,
                 responseBody = if (isDebug) message else null
             )
-            respondError(call, HttpStatusCode.BadRequest, message)
+            respondError(call, status, message)
             return
         }
 
@@ -362,20 +372,22 @@ class LocalProxyServer(
             ByteArray(0)
         } else {
             val body = readRequestBodyBytes(call).getOrElse { error ->
+                val isPayloadTooLarge = error is PayloadTooLargeException || error.cause is PayloadTooLargeException
+                val status = if (isPayloadTooLarge) HttpStatusCode.PayloadTooLarge else HttpStatusCode.BadRequest
                 val message = error.message ?: "Failed to read request body"
                 recordFailure(
-                    path,
-                    null,
-                    startTime,
-                    400,
-                    message,
+                    path = path,
+                    modelId = null,
+                    startTime = startTime,
+                    status = status.value,
+                    message = message,
                     method = call.request.httpMethod.value,
                     queueWaitMs = queueWaitMs,
                     clientSource = clientSource,
                     requestHeaders = reqHeaders,
                     responseBody = if (isDebug) message else null
                 )
-                respondError(call, HttpStatusCode.BadRequest, message)
+                respondError(call, status, message)
                 return
             }
             body
@@ -445,20 +457,22 @@ class LocalProxyServer(
             config,
             includeTiered = false
         )
-        val isDebug = config.isDebugMode
-        ActivityRecorder.record(
-            method = "GET",
-            path = path,
-            modelIdentity = null,
-            clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
-            providerName = "Studio Local Catalog",
-            statusCode = 200,
-            durationMs = System.currentTimeMillis() - startTime,
-            isOfficialPassthrough = false,
-            timestamp = startTime,
-            requestHeaders = if (isDebug) extractRequestHeaders(call) else null,
-            responseBody = if (isDebug) responseJson.toString() else null
-        )
+        if (config.collectNonChatLogs) {
+            val isDebug = config.isDebugMode
+            ActivityRecorder.record(
+                method = "GET",
+                path = path,
+                modelIdentity = null,
+                clientSource = com.yuzhiqiang.antigravity.proxy.activity.ClientSourceDetector.detect(call),
+                providerName = "Studio Local Catalog",
+                statusCode = 200,
+                durationMs = System.currentTimeMillis() - startTime,
+                isOfficialPassthrough = false,
+                timestamp = startTime,
+                requestHeaders = if (isDebug) extractRequestHeaders(call) else null,
+                responseBody = if (isDebug) responseJson.toString() else null
+            )
+        }
         call.respondText(responseJson.toString(), ContentType.Application.Json, HttpStatusCode.OK)
 
     }
@@ -477,18 +491,67 @@ class LocalProxyServer(
         )
     }
 
+    private suspend fun authorizedPath(call: ApplicationCall, expectedToken: String): String? {
+        val rawPath = call.request.path()
+        if (rawPath == "/health" || rawPath == "/healthz") {
+            return rawPath
+        }
+
+        val candidates = buildList {
+            if (rawPath.startsWith("/v1internal/")) {
+                val segment = rawPath.removePrefix("/v1internal/").substringBefore('/')
+                if (segment.isNotBlank()) add(segment)
+            }
+            val authHeader = call.request.headers[HttpHeaders.Authorization]
+            if (authHeader != null && authHeader.startsWith("Bearer ", ignoreCase = true)) {
+                val token = authHeader.substring(7).trim()
+                if (token.isNotBlank()) add(token)
+            }
+            val customToken = call.request.headers["X-Antigravity-Proxy-Token"]?.trim()
+            if (!customToken.isNullOrBlank()) {
+                add(customToken)
+            }
+        }
+
+        val expectedBytes = expectedToken.toByteArray(Charsets.UTF_8)
+        val isAuthorized = candidates.any { candidate ->
+            java.security.MessageDigest.isEqual(candidate.toByteArray(Charsets.UTF_8), expectedBytes)
+        }
+
+        if (isAuthorized) {
+            return normalizeProxyPath(rawPath)
+        }
+
+        respondError(
+            call = call,
+            status = HttpStatusCode.Unauthorized,
+            message = "Unauthorized: missing or invalid proxy access token",
+            category = "authentication"
+        )
+        return null
+    }
+
     private suspend fun readRequestBody(call: ApplicationCall): Result<String> {
         return readRequestBodyBytes(call).map { it.toString(Charsets.UTF_8) }
     }
 
     private suspend fun readRequestBodyBytes(call: ApplicationCall): Result<ByteArray> {
         return runCatching {
+            val contentLength = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+            if (contentLength != null && contentLength > MAX_REQUEST_BODY_BYTES) {
+                throw PayloadTooLargeException("Request body exceeds 32 MiB limit: $contentLength bytes")
+            }
             val channel: ByteReadChannel = call.receiveChannel()
             val output = ByteArrayOutputStream()
             val buffer = ByteArray(16 * 1024)
+            var totalBytes = 0L
             while (!channel.isClosedForRead) {
                 val read = channel.readAvailable(buffer, 0, buffer.size)
                 if (read <= 0) break
+                totalBytes += read
+                if (totalBytes > MAX_REQUEST_BODY_BYTES) {
+                    throw PayloadTooLargeException("Request body exceeds 32 MiB limit")
+                }
                 output.write(buffer, 0, read)
             }
             output.toByteArray()
@@ -524,7 +587,8 @@ class LocalProxyServer(
         var normalized = path
         val paddingIndex = normalized.indexOf("/dummy_path_padding")
         if (paddingIndex >= 0) {
-            normalized = normalized.substring(paddingIndex + "/dummy_path_padding".length)
+            val afterPadding = normalized.substring(paddingIndex + "/dummy_path_padding".length)
+            normalized = afterPadding.ifBlank { "/" }
         }
         if (normalized.startsWith("/v1internal/")) {
             val rest = normalized.removePrefix("/v1internal/")
@@ -534,6 +598,8 @@ class LocalProxyServer(
                 if (segment.all { it == 'x' || it.isLetterOrDigit() || it == '_' || it == '-' }) {
                     normalized = rest.substring(slashIndex)
                 }
+            } else {
+                normalized = "/"
             }
         }
         return normalized.ifBlank { "/" }
@@ -584,4 +650,11 @@ class LocalProxyServer(
             responseBody = responseBody
         )
     }
+
+    companion object {
+        const val MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024L // 32 MiB
+    }
 }
+
+class PayloadTooLargeException(message: String) : IllegalArgumentException(message)
+

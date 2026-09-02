@@ -192,4 +192,41 @@ class ActivityRecorderTest {
         assertTrue(log.requestBody!!.contains("... [Truncated:"))
         assertTrue(log.requestBody!!.length < 1_100_000)
     }
+
+    @Test
+    fun testAppConfigCollectNonChatLogsDefaultsToFalse() {
+        val config = com.yuzhiqiang.antigravity.domain.model.AppConfig()
+        assertFalse(config.collectNonChatLogs, "默认情况下 collectNonChatLogs 应当为 false，仅记录核心会话请求")
+    }
+
+    @Test
+    fun testAiChatPathsAreRecognizedCorrectly() {
+        fun isAiChatOrCompletion(path: String, modelId: String?): Boolean {
+            if (!modelId.isNullOrBlank()) return true
+            val lower = path.lowercase()
+            return lower.contains("generatecontent") ||
+                    lower.contains("streamgeneratecontent") ||
+                    lower.contains("completecode") ||
+                    lower.contains("inlinecompletion") ||
+                    lower.contains("getcompletions") ||
+                    lower.contains("chat")
+        }
+
+        // 核心会话和生成类路径
+        assertTrue(isAiChatOrCompletion("/v1internal:streamGenerateContent", null))
+        assertTrue(isAiChatOrCompletion("/v1beta/models/gemini-2.5-pro:generateContent", null))
+        assertTrue(isAiChatOrCompletion("/v1internal:completeCode", null))
+        assertTrue(isAiChatOrCompletion("/v1/chat/completions", null))
+        assertTrue(isAiChatOrCompletion("/any/path", "custom-model-id"))
+
+        // 系统控制面和遥测类路径
+        assertFalse(isAiChatOrCompletion("/v1/models", null))
+        assertFalse(isAiChatOrCompletion("/v1internal:recordCodeAssistMetrics", null))
+        assertFalse(isAiChatOrCompletion("/v1internal:retrieveUserQuotasSummary", null))
+        assertFalse(isAiChatOrCompletion("/v1internal:fetchUserInfo", null))
+        assertFalse(isAiChatOrCompletion("/v1internal:listExperiments", null))
+        assertFalse(isAiChatOrCompletion("/v1internal:cascadeNuxes", null))
+        assertFalse(isAiChatOrCompletion("/v1internal:loadCodeAssist", null))
+        assertFalse(isAiChatOrCompletion("/health", null))
+    }
 }

@@ -244,25 +244,49 @@ interface ProviderAdapter {
             return Result.success(data.takeIf { it.isNotBlank() })
         }
 
+        const val MAX_RESPONSE_BODY_BYTES = 64 * 1024 * 1024L // 64 MiB
+
         /** 读取上游响应文本内容。 */
-        suspend fun readResponseBodyText(response: HttpResponse): Result<String> {
-            return readResponseBodyBytes(response).map { bytes ->
+        suspend fun readResponseBodyText(
+            response: HttpResponse,
+            maxBytes: Long = MAX_RESPONSE_BODY_BYTES
+        ): Result<String> {
+            return readResponseBodyBytes(response, maxBytes).map { bytes ->
                 bytes.toString(Charsets.UTF_8)
             }
         }
 
-        suspend fun readLimitedResponseText(response: HttpResponse): Result<String> = readResponseBodyText(response)
+        suspend fun readLimitedResponseText(
+            response: HttpResponse,
+            maxBytes: Long = MAX_RESPONSE_BODY_BYTES
+        ): Result<String> = readResponseBodyText(response, maxBytes)
 
         /** 读取上游二进制响应，供透传或解析使用。 */
-        suspend fun readResponseBodyBytes(response: HttpResponse): Result<ByteArray> {
+        suspend fun readResponseBodyBytes(
+            response: HttpResponse,
+            maxBytes: Long = MAX_RESPONSE_BODY_BYTES
+        ): Result<ByteArray> {
             return try {
+                val contentLength = response.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+                if (contentLength != null && contentLength > maxBytes) {
+                    return Result.failure(
+                        IllegalStateException("Response body exceeds 64 MiB limit: $contentLength bytes")
+                    )
+                }
                 val channel: ByteReadChannel = response.body()
                 val output = ByteArrayOutputStream()
                 val buffer = ByteArray(16 * 1024)
+                var totalBytes = 0L
                 while (true) {
                     val read = channel.readAvailable(buffer)
                     if (read < 0) break
                     if (read == 0) continue
+                    totalBytes += read
+                    if (totalBytes > maxBytes) {
+                        return Result.failure(
+                            IllegalStateException("Response body exceeded 64 MiB limit")
+                        )
+                    }
                     output.write(buffer, 0, read)
                 }
                 channel.closedCause?.let { cause -> return Result.failure(cause) }
@@ -272,8 +296,11 @@ interface ProviderAdapter {
             }
         }
 
-        suspend fun readLimitedResponseBytes(response: HttpResponse): Result<ByteArray> =
-            readResponseBodyBytes(response)
+        suspend fun readLimitedResponseBytes(
+            response: HttpResponse,
+            maxBytes: Long = MAX_RESPONSE_BODY_BYTES
+        ): Result<ByteArray> =
+            readResponseBodyBytes(response, maxBytes)
 
         private fun mergeJsonElement(parent: JsonElement?, child: JsonElement): JsonElement {
             if (parent !is JsonObject || child !is JsonObject) return child
