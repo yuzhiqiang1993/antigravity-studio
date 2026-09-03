@@ -102,7 +102,7 @@ fun PolicyCapacityBarCard(
                         Box(
                             modifier = Modifier
                                 .fillMaxHeight()
-                                .weight(compressPct)
+                                .weight(compressPct.coerceAtLeast(0.0001f))
                                 .background(Color(0xFFF59E0B))
                         )
                     }
@@ -111,7 +111,7 @@ fun PolicyCapacityBarCard(
                         Box(
                             modifier = Modifier
                                 .fillMaxHeight()
-                                .weight(reservePct)
+                                .weight(reservePct.coerceAtLeast(0.0001f))
                                 .background(Color(0xFF94A3B8))
                         )
                     }

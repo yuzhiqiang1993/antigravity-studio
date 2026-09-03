@@ -93,13 +93,15 @@ class UsageRepository(
         _selectedTimeRange.value = timeRange
         _customDateRange.value = customRange
         withContext(Dispatchers.Default) {
+            if (rev != aggregationRevision.get()) return@withContext
             val stats = UsageAggregator.aggregate(
                 conversations = _conversations.value,
                 pricingService = pricingService,
                 timeRange = timeRange,
                 customDateRange = customRange,
                 selectedSources = _selectedSources.value,
-                selectedModel = _selectedModel.value
+                selectedModel = _selectedModel.value,
+                isCancelled = { rev != aggregationRevision.get() }
             )
             if (rev == aggregationRevision.get()) {
                 _usageStats.value = stats
@@ -117,13 +119,15 @@ class UsageRepository(
         AppLog.d("Usage/Repository") { "切换数据来源: $nextSources, rev=$rev" }
         _selectedSources.value = nextSources
         withContext(Dispatchers.Default) {
+            if (rev != aggregationRevision.get()) return@withContext
             val stats = UsageAggregator.aggregate(
                 conversations = _conversations.value,
                 pricingService = pricingService,
                 timeRange = _selectedTimeRange.value,
                 customDateRange = _customDateRange.value,
                 selectedSources = nextSources,
-                selectedModel = _selectedModel.value
+                selectedModel = _selectedModel.value,
+                isCancelled = { rev != aggregationRevision.get() }
             )
             if (rev == aggregationRevision.get()) {
                 _usageStats.value = stats
@@ -141,13 +145,15 @@ class UsageRepository(
         AppLog.d("Usage/Repository") { "切换模型筛选: $nextModel, rev=$rev" }
         _selectedModel.value = nextModel
         withContext(Dispatchers.Default) {
+            if (rev != aggregationRevision.get()) return@withContext
             val stats = UsageAggregator.aggregate(
                 conversations = _conversations.value,
                 pricingService = pricingService,
                 timeRange = _selectedTimeRange.value,
                 customDateRange = _customDateRange.value,
                 selectedSources = _selectedSources.value,
-                selectedModel = nextModel
+                selectedModel = nextModel,
+                isCancelled = { rev != aggregationRevision.get() }
             )
             if (rev == aggregationRevision.get()) {
                 _usageStats.value = stats
@@ -234,19 +240,24 @@ class UsageRepository(
     }
 
     suspend fun recomputeStats() {
+        val rev = aggregationRevision.incrementAndGet()
         withContext(Dispatchers.Default) {
-            val stats = aggregateCurrent()
-            _usageStats.value = stats
+            if (rev != aggregationRevision.get()) return@withContext
+            val stats = aggregateCurrent(isCancelled = { rev != aggregationRevision.get() })
+            if (rev == aggregationRevision.get()) {
+                _usageStats.value = stats
+            }
         }
     }
 
-    private fun aggregateCurrent(): DeepUsageStats = UsageAggregator.aggregate(
+    private fun aggregateCurrent(isCancelled: (() -> Boolean)? = null): DeepUsageStats = UsageAggregator.aggregate(
         conversations = _conversations.value,
         pricingService = pricingService,
         timeRange = _selectedTimeRange.value,
         customDateRange = _customDateRange.value,
         selectedSources = _selectedSources.value,
-        selectedModel = _selectedModel.value
+        selectedModel = _selectedModel.value,
+        isCancelled = isCancelled
     )
 
     private fun updateSourceMtimes(

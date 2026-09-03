@@ -90,11 +90,14 @@ class UsageDelegate(
         }
     }
 
+    private var filterJob: kotlinx.coroutines.Job? = null
+
     /**
      * 切换时间筛选范围
      */
     fun setTimeRange(timeRange: UsageTimeRange, customRange: CustomDateRange? = null) {
-        scope.launch {
+        filterJob?.cancel()
+        filterJob = scope.launch {
             usageRepository.setTimeRange(timeRange, customRange)
         }
     }
@@ -103,7 +106,8 @@ class UsageDelegate(
      * 切换模型筛选
      */
     fun setSelectedModel(model: String?) {
-        scope.launch {
+        filterJob?.cancel()
+        filterJob = scope.launch {
             usageRepository.setSelectedModel(model)
         }
     }
@@ -112,7 +116,8 @@ class UsageDelegate(
      * 切换来源筛选
      */
     fun toggleSource(source: String) {
-        scope.launch {
+        filterJob?.cancel()
+        filterJob = scope.launch {
             val current = selectedSources.value
             val next = if (source == "all") {
                 setOf("all")
@@ -133,7 +138,8 @@ class UsageDelegate(
      * 重新计算统计数据
      */
     fun recompute() {
-        scope.launch {
+        filterJob?.cancel()
+        filterJob = scope.launch {
             usageRepository.recomputeStats()
         }
     }

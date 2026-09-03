@@ -290,21 +290,24 @@ private fun SmoothUsagePlot(
             return@LaunchedEffect
         }
 
-        animProgress.snapTo(0f)
-        animProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
-        ) {
-            val p = this.value
-            currentAnimatedMaxTokens.value = (fromMaxTokens + (toMaxTokens - fromMaxTokens) * p.toDouble()).roundToLong()
-            currentRatios.value = List(toRatios.size) { i ->
-                val start = alignedFromRatios.getOrElse(i) { 0f }
-                val target = toRatios[i]
-                start + (target - start) * p
+        try {
+            animProgress.snapTo(0f)
+            animProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+            ) {
+                val p = this.value
+                currentAnimatedMaxTokens.value = (fromMaxTokens + (toMaxTokens - fromMaxTokens) * p.toDouble()).roundToLong()
+                currentRatios.value = List(toRatios.size) { i ->
+                    val start = alignedFromRatios.getOrElse(i) { 0f }
+                    val target = toRatios[i]
+                    start + (target - start) * p
+                }
             }
+        } finally {
+            currentRatios.value = toRatios
+            currentAnimatedMaxTokens.value = toMaxTokens
         }
-        currentRatios.value = toRatios
-        currentAnimatedMaxTokens.value = toMaxTokens
     }
 
     val surfaceColor = MaterialTheme.colorScheme.surface

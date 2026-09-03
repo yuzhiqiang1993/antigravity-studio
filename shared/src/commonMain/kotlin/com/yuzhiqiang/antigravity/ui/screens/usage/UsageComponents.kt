@@ -557,14 +557,19 @@ private fun RowScope.TokenCompositionSegment(value: Long, color: Color) {
         val animatedWeight by animateFloatAsState(
             targetValue = value.toFloat().coerceAtLeast(0.001f),
             animationSpec = spring(
-                dampingRatio = 0.82f,
-                stiffness = Spring.StiffnessLow
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow
             ),
             label = "token_segment_weight"
         )
+        val safeWeight = if (animatedWeight.isNaN() || animatedWeight.isInfinite() || animatedWeight < 0.0001f) {
+            0.0001f
+        } else {
+            animatedWeight
+        }
         Box(
             modifier = Modifier
-                .weight(animatedWeight)
+                .weight(safeWeight)
                 .fillMaxHeight()
                 .background(color)
         )

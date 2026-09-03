@@ -35,7 +35,8 @@ object UsageAggregator {
         selectedSources: Set<String> = setOf("all"),
         selectedModel: String? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        nowInstant: Instant = Instant.ofEpochMilli(System.currentTimeMillis())
+        nowInstant: Instant = Instant.ofEpochMilli(System.currentTimeMillis()),
+        isCancelled: (() -> Boolean)? = null
     ): DeepUsageStats {
         val nowMillis = nowInstant.toEpochMilli()
 
@@ -89,7 +90,10 @@ object UsageAggregator {
         val todayConversationKeys = mutableSetOf<String>()
         val todayModelKeys = mutableSetOf<String>()
 
-        for (convo in conversations) {
+        for ((convoIdx, convo) in conversations.withIndex()) {
+            if (convoIdx % 30 == 0 && isCancelled?.invoke() == true) {
+                return DeepUsageStats()
+            }
             val appSource = normalizeSource(convo.appSource)
             if (!allowAllSources && !normalizedSelectedSources.contains(appSource)) continue
 
