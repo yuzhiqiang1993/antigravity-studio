@@ -207,39 +207,8 @@ jobs:
           {"version":"$VERSION","assetName":"$ASSET_NAME","sha256":"$FILE_SHA","size":$FILE_SIZE}
           EOF
 
-          # 生成签名（若配置了 UPDATE_SIGNING_PRIVATE_KEY）
           if [ -n "$UPDATE_SIGNING_PRIVATE_KEY" ]; then
-            cat << 'EOF' > Signer.java
-import java.io.*;
-import java.nio.file.*;
-import java.security.*;
-import java.security.spec.*;
-import java.util.*;
-
-public class Signer {
-    public static void main(String[] args) throws Exception {
-        String keyPem = System.getenv("UPDATE_SIGNING_PRIVATE_KEY");
-        if (keyPem == null || keyPem.isBlank()) {
-            System.err.println("UPDATE_SIGNING_PRIVATE_KEY is missing");
-            System.exit(1);
-        }
-        String clean = keyPem.replaceAll("-----[A-Z ]+-----", "").replaceAll("\\s+", "");
-        byte[] keyBytes = Base64.getDecoder().decode(clean);
-        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-        PrivateKey privateKey = KeyFactory.getInstance("Ed25519").generatePrivate(spec);
-
-        File manifestFile = new File(args[0]);
-        File sigFile = new File(args[1]);
-        byte[] data = Files.readAllBytes(manifestFile.toPath());
-        Signature sig = Signature.getInstance("Ed25519");
-        sig.initSign(privateKey);
-        sig.update(data);
-        Files.write(sigFile.toPath(), sig.sign());
-    }
-}
-EOF
-            java Signer.java "$MANIFEST_FILE" "$SIG_FILE"
-            rm -f Signer.java
+            java ../scripts/SignUpdateArtifact.java "$MANIFEST_FILE" "$SIG_FILE"
           else
             echo "::warning::缺少 UPDATE_SIGNING_PRIVATE_KEY secret，跳过安装包安全签名生成！"
           fi
@@ -273,37 +242,7 @@ EOF
           [IO.File]::WriteAllText($manifestFile, $manifestJson, [Text.Encoding]::UTF8)
 
           if (-not [string]::IsNullOrWhiteSpace($env:UPDATE_SIGNING_PRIVATE_KEY)) {
-            @'
-import java.io.*;
-import java.nio.file.*;
-import java.security.*;
-import java.security.spec.*;
-import java.util.*;
-
-public class Signer {
-    public static void main(String[] args) throws Exception {
-        String keyPem = System.getenv("UPDATE_SIGNING_PRIVATE_KEY");
-        if (keyPem == null || keyPem.isBlank()) {
-            System.err.println("UPDATE_SIGNING_PRIVATE_KEY is missing");
-            System.exit(1);
-        }
-        String clean = keyPem.replaceAll("-----[A-Z ]+-----", "").replaceAll("\\s+", "");
-        byte[] keyBytes = Base64.getDecoder().decode(clean);
-        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-        PrivateKey privateKey = KeyFactory.getInstance("Ed25519").generatePrivate(spec);
-
-        File manifestFile = new File(args[0]);
-        File sigFile = new File(args[1]);
-        byte[] data = Files.readAllBytes(manifestFile.toPath());
-        Signature sig = Signature.getInstance("Ed25519");
-        sig.initSign(privateKey);
-        sig.update(data);
-        Files.write(sigFile.toPath(), sig.sign());
-    }
-}
-'@ | Out-File -FilePath Signer.java -Encoding utf8
-            java Signer.java $manifestFile $sigFile
-            Remove-Item Signer.java -Force
+            java ../scripts/SignUpdateArtifact.java $manifestFile $sigFile
           } else {
             Write-Warning "缺少 UPDATE_SIGNING_PRIVATE_KEY secret，跳过安装包安全签名生成！"
           }
