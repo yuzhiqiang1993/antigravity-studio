@@ -11,7 +11,8 @@ data class ConversationDbResult(
     val entries: List<TokenEntry>,
     val title: String,
     val lastActiveTimestamp: String,
-    val complete: Boolean = false
+    val complete: Boolean = false,
+    val maxIdx: Int = -1
 )
 
 data class StepTimestampIndex(
@@ -42,47 +43,155 @@ object SqliteConversationReader {
     fun readConversationDb(
         dbFile: File,
         conversationId: String,
-        appSource: String
+        appSource: String,
+        lastKnownIdx: Int = -1,
+        existingEntries: List<TokenEntry> = emptyList(),
+        existingTitle: String = ""
     ): ConversationDbResult {
         if (!dbFile.exists() || !dbFile.isFile || dbFile.length() <= 0L) {
-            return ConversationDbResult(emptyList(), "", "", complete = false)
+            return ConversationDbResult(emptyList(), "", "", complete = false, maxIdx = -1)
         }
 
-        val results = mutableListOf<TokenEntry>()
+        val newResults = mutableListOf<TokenEntry>()
         val fileFallbackTs = fileTimestamp(dbFile)
-        val stepIndex = readStepInfo(dbFile)
         var lastActiveTs = fileFallbackTs
         var complete = true
         var querySucceeded = false
+        var observedMaxIdx = lastKnownIdx
+        var isIncrementalRead = false
 
         try {
             DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
-                connection.createStatement().use { statement ->
-                    statement.queryTimeout = 10
-                    statement.executeQuery("SELECT idx, data FROM gen_metadata ORDER BY idx").use { rs ->
-                        querySucceeded = true
-                        while (rs.next()) {
-                            val idx = rs.getInt("idx")
-                            val blobBytes = rs.getBytes("data")
-                            if (blobBytes == null) {
-                                complete = false
-                                continue
+                var canIncremental = lastKnownIdx >= 0 && existingEntries.isNotEmpty()
+                if (canIncremental) {
+                    var dbMaxIdx = -1
+                    connection.createStatement().use { stmt ->
+                        stmt.queryTimeout = 5
+                        stmt.executeQuery("SELECT MAX(idx) FROM gen_metadata").use { rs ->
+                            if (rs.next()) {
+                                val m = rs.getInt(1)
+                                if (!rs.wasNull()) {
+                                    dbMaxIdx = m
+                                }
                             }
-
-                            val parsed = parseMetadataBlob(
-                                data = blobBytes,
-                                idx = idx,
-                                conversationId = conversationId,
-                                appSource = appSource,
-                                stepIndex = stepIndex,
-                                fileFallbackTs = fileFallbackTs
+                        }
+                    }
+                    if (dbMaxIdx < lastKnownIdx) {
+                        // 数据库可能被截断、重置或回滚，回退到全量重新解析
+                        canIncremental = false
+                        observedMaxIdx = -1
+                    } else {
+                        // 校验边界行：验证 lastKnownIdx 处记录的 responseId 是否与已知缓存一致，防止数据库被重写/替换
+                        val lastExpectedResponseId = existingEntries.lastOrNull { it.responseId != null }?.responseId
+                        var anchorMatches = false
+                        if (lastExpectedResponseId != null) {
+                            connection.prepareStatement("SELECT data FROM gen_metadata WHERE idx = ?").use { stmt ->
+                                stmt.queryTimeout = 5
+                                stmt.setInt(1, lastKnownIdx)
+                                stmt.executeQuery().use { rs ->
+                                    if (rs.next()) {
+                                        val blob = rs.getBytes("data")
+                                        if (blob != null) {
+                                            val currentResponseId = extractResponseId(blob, lastKnownIdx)
+                                            if (currentResponseId == lastExpectedResponseId) {
+                                                anchorMatches = true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (!anchorMatches) {
+                            // 锚点不匹配（可能数据库被替换或会话重置），回退全量扫描
+                            canIncremental = false
+                            observedMaxIdx = -1
+                        } else if (dbMaxIdx == lastKnownIdx) {
+                            // 极速快径：锚点匹配且最大 idx 未变，说明当前数据库无需任何增量解析
+                            val title = existingTitle.takeIf { it.isNotBlank() && !it.startsWith("会话 ") }
+                                ?: resolveBrainTitle(dbFile.parentFile?.parentFile, conversationId)
+                                ?: existingTitle.ifBlank { "会话 ${conversationId.take(8)}" }
+                            return ConversationDbResult(
+                                entries = existingEntries,
+                                title = title,
+                                lastActiveTimestamp = existingEntries.maxOfOrNull { it.timestamp } ?: fileFallbackTs,
+                                complete = true,
+                                maxIdx = lastKnownIdx
                             )
-                            if (!parsed.valid) complete = false
-                            val entry = parsed.entry
-                            if (entry != null && entry.totalTokens > 0L) {
-                                results += entry
-                                if (isLater(entry.timestamp, lastActiveTs)) {
-                                    lastActiveTs = entry.timestamp
+                        }
+                    }
+                }
+
+                isIncrementalRead = canIncremental
+                if (isIncrementalRead) {
+                    lastActiveTs = existingEntries.maxOfOrNull { it.timestamp } ?: fileFallbackTs
+                }
+
+                val stepIndex = readStepInfo(dbFile)
+                if (canIncremental) {
+                    val sql = "SELECT idx, data FROM gen_metadata WHERE idx > ? ORDER BY idx"
+                    connection.prepareStatement(sql).use { stmt ->
+                        stmt.queryTimeout = 10
+                        stmt.setInt(1, lastKnownIdx)
+                        stmt.executeQuery().use { rs ->
+                            querySucceeded = true
+                            while (rs.next()) {
+                                val idx = rs.getInt("idx")
+                                if (idx > observedMaxIdx) observedMaxIdx = idx
+                                val blobBytes = rs.getBytes("data")
+                                if (blobBytes == null) {
+                                    complete = false
+                                    continue
+                                }
+
+                                val parsed = parseMetadataBlob(
+                                    data = blobBytes,
+                                    idx = idx,
+                                    conversationId = conversationId,
+                                    appSource = appSource,
+                                    stepIndex = stepIndex,
+                                    fileFallbackTs = fileFallbackTs
+                                )
+                                if (!parsed.valid) complete = false
+                                val entry = parsed.entry
+                                if (entry != null && entry.totalTokens > 0L) {
+                                    newResults += entry
+                                    if (isLater(entry.timestamp, lastActiveTs)) {
+                                        lastActiveTs = entry.timestamp
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    observedMaxIdx = -1
+                    connection.createStatement().use { statement ->
+                        statement.queryTimeout = 10
+                        statement.executeQuery("SELECT idx, data FROM gen_metadata ORDER BY idx").use { rs ->
+                            querySucceeded = true
+                            while (rs.next()) {
+                                val idx = rs.getInt("idx")
+                                if (idx > observedMaxIdx) observedMaxIdx = idx
+                                val blobBytes = rs.getBytes("data")
+                                if (blobBytes == null) {
+                                    complete = false
+                                    continue
+                                }
+
+                                val parsed = parseMetadataBlob(
+                                    data = blobBytes,
+                                    idx = idx,
+                                    conversationId = conversationId,
+                                    appSource = appSource,
+                                    stepIndex = stepIndex,
+                                    fileFallbackTs = fileFallbackTs
+                                )
+                                if (!parsed.valid) complete = false
+                                val entry = parsed.entry
+                                if (entry != null && entry.totalTokens > 0L) {
+                                    newResults += entry
+                                    if (isLater(entry.timestamp, lastActiveTs)) {
+                                        lastActiveTs = entry.timestamp
+                                    }
                                 }
                             }
                         }
@@ -94,15 +203,27 @@ object SqliteConversationReader {
             complete = false
         }
 
-        val brainTitle = resolveBrainTitle(dbFile.parentFile?.parentFile, conversationId)
-        val resolvedTitle = brainTitle
+        val resolvedTitle = existingTitle.takeIf { it.isNotBlank() && !it.startsWith("会话 ") }
+            ?: resolveBrainTitle(dbFile.parentFile?.parentFile, conversationId)
+            ?: existingTitle.takeIf { it.isNotBlank() }
             ?: "会话 ${conversationId.take(8)}"
 
+        val combinedEntries = if (isIncrementalRead && existingEntries.isNotEmpty()) {
+            if (newResults.isEmpty()) {
+                existingEntries
+            } else {
+                UsageExtractor.dedupEntries(existingEntries + newResults)
+            }
+        } else {
+            UsageExtractor.dedupEntries(newResults)
+        }
+
         return ConversationDbResult(
-            entries = UsageExtractor.dedupEntries(results),
+            entries = combinedEntries,
             title = resolvedTitle,
             lastActiveTimestamp = lastActiveTs,
-            complete = querySucceeded && complete
+            complete = querySucceeded && complete,
+            maxIdx = observedMaxIdx
         )
     }
 
@@ -317,6 +438,20 @@ object SqliteConversationReader {
         } catch (_: Exception) {
             candidate > current
         }
+    }
+
+    private fun extractResponseId(data: ByteArray, idx: Int): String? {
+        if (data.isEmpty()) return null
+        val topFields = ProtobufLite.readFieldsStrict(data) ?: return null
+        val chatModelBytes = ProtobufLite.findField(topFields, 1, wireType = 2)?.bytes ?: return null
+        val chatFields = ProtobufLite.readFieldsStrict(chatModelBytes) ?: return null
+        val usageBytes = ProtobufLite.findField(chatFields, 4, wireType = 2)?.bytes ?: return null
+        val usageFields = ProtobufLite.readFieldsStrict(usageBytes) ?: return null
+        return ProtobufLite.findField(usageFields, 11, wireType = 2)
+            ?.asString()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: "cli-gen-$idx"
     }
 
     private fun String.observedValue(): String? = trim().takeIf(String::isNotEmpty)

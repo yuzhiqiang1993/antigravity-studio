@@ -152,6 +152,90 @@ class SqliteConversationReaderTest {
         }
     }
 
+    @Test
+    fun testIncrementalReadAppendsNewRowsAndFastPaths() {
+        val dbFile = File.createTempFile("usage-reader-inc-", ".db")
+        try {
+            createDatabase(
+                dbFile,
+                listOf(
+                    0 to metadataBlob(input = 10, responseId = "resp-0"),
+                    1 to metadataBlob(input = 20, responseId = "resp-1")
+                ),
+                emptyList()
+            )
+
+            // 1. 初次全量读取
+            val initialResult = SqliteConversationReader.readConversationDb(dbFile, "cid-inc", "ide")
+            assertTrue(initialResult.complete)
+            assertEquals(2, initialResult.entries.size)
+            assertEquals(1, initialResult.maxIdx)
+            assertEquals("resp-0", initialResult.entries[0].responseId)
+            assertEquals("resp-1", initialResult.entries[1].responseId)
+
+            // 2. 数据库追加第 3 条记录 (idx = 2)
+            DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { conn ->
+                conn.prepareStatement("INSERT INTO gen_metadata(idx, data) VALUES (?, ?)").use { stmt ->
+                    stmt.setInt(1, 2)
+                    stmt.setBytes(2, metadataBlob(input = 30, responseId = "resp-2"))
+                    stmt.executeUpdate()
+                }
+            }
+
+            // 3. 增量读取：传入上次已知的 maxIdx = 1 以及现有条目
+            val incrementalResult = SqliteConversationReader.readConversationDb(
+                dbFile = dbFile,
+                conversationId = "cid-inc",
+                appSource = "ide",
+                lastKnownIdx = initialResult.maxIdx,
+                existingEntries = initialResult.entries,
+                existingTitle = initialResult.title
+            )
+            assertTrue(incrementalResult.complete)
+            assertEquals(3, incrementalResult.entries.size)
+            assertEquals(2, incrementalResult.maxIdx)
+            assertEquals(listOf("resp-0", "resp-1", "resp-2"), incrementalResult.entries.map { it.responseId })
+
+            // 4. 快径测试：无新增数据时极速返回
+            val fastPathResult = SqliteConversationReader.readConversationDb(
+                dbFile = dbFile,
+                conversationId = "cid-inc",
+                appSource = "ide",
+                lastKnownIdx = incrementalResult.maxIdx,
+                existingEntries = incrementalResult.entries,
+                existingTitle = incrementalResult.title
+            )
+            assertTrue(fastPathResult.complete)
+            assertEquals(3, fastPathResult.entries.size)
+            assertEquals(2, fastPathResult.maxIdx)
+
+            // 5. 校验边界替换回滚：若数据库被删除重建且 idx=0 处的 responseId 发生变化
+            dbFile.delete()
+            createDatabase(
+                dbFile,
+                listOf(0 to metadataBlob(input = 99, responseId = "resp-rebuilt")),
+                emptyList()
+            )
+            val fallbackResult = SqliteConversationReader.readConversationDb(
+                dbFile = dbFile,
+                conversationId = "cid-inc",
+                appSource = "ide",
+                lastKnownIdx = 2,
+                existingEntries = incrementalResult.entries,
+                existingTitle = incrementalResult.title
+            )
+            assertTrue(fallbackResult.complete)
+            assertEquals(1, fallbackResult.entries.size)
+            assertEquals(0, fallbackResult.maxIdx)
+            assertEquals("resp-rebuilt", fallbackResult.entries.single().responseId)
+            assertEquals(99L, fallbackResult.entries.single().input)
+        } finally {
+            dbFile.delete()
+            File("${dbFile.path}-wal").delete()
+            File("${dbFile.path}-shm").delete()
+        }
+    }
+
     private fun createDatabase(
         dbFile: File,
         metadataRows: List<Pair<Int, ByteArray>>,

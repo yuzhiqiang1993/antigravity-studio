@@ -78,7 +78,8 @@ data class ConversationUsageData(
     val conversationId: String,
     val title: String = "",
     val appSource: String = "ide",
-    val entries: List<TokenEntry> = emptyList()
+    val entries: List<TokenEntry> = emptyList(),
+    val lastKnownIdx: Int = -1
 ) {
     val totalTokens: Long
         get() = entries.sumOf { it.totalTokens }

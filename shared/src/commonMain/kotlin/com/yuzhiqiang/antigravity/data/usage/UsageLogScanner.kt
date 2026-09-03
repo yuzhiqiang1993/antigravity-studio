@@ -107,7 +107,8 @@ class UsageLogScanner(
      * 这样仓库可以保留旧快照并在下一轮继续重试。
      */
     suspend fun parseConversationResults(
-        targets: List<ScannedConversationTarget>
+        targets: List<ScannedConversationTarget>,
+        existingConversationsByKey: Map<String, ConversationUsageData> = emptyMap()
     ): UsageParseBatchResult = withContext(Dispatchers.IO) {
         if (targets.isEmpty()) {
             return@withContext UsageParseBatchResult(emptyList(), emptySet(), emptySet())
@@ -119,7 +120,9 @@ class UsageLogScanner(
         for (chunk in targets.chunked(30)) {
             results += coroutineScope {
                 chunk.map { target ->
-                    async { parseTarget(target) }
+                    val key = sourceKey(target.appSource, target.conversationId)
+                    val existing = existingConversationsByKey[key]
+                    async { parseTarget(target, existing) }
                 }.awaitAll()
             }
         }
@@ -138,7 +141,10 @@ class UsageLogScanner(
         targets: List<ScannedConversationTarget>
     ): List<ConversationUsageData> = parseConversationResults(targets).conversations
 
-    private suspend fun parseTarget(target: ScannedConversationTarget): ParsedTargetResult {
+    private suspend fun parseTarget(
+        target: ScannedConversationTarget,
+        existing: ConversationUsageData? = null
+    ): ParsedTargetResult {
         val key = sourceKey(target.appSource, target.conversationId)
         return try {
             if (!target.targetFile.exists() || !target.targetFile.isFile) {
@@ -149,7 +155,10 @@ class UsageLogScanner(
                 val dbResult = SqliteConversationReader.readConversationDb(
                     dbFile = target.targetFile,
                     conversationId = target.conversationId,
-                    appSource = target.appSource
+                    appSource = target.appSource,
+                    lastKnownIdx = existing?.lastKnownIdx ?: -1,
+                    existingEntries = existing?.entries ?: emptyList(),
+                    existingTitle = existing?.title.orEmpty()
                 )
                 if (dbResult.complete) {
                     var entries = dbResult.entries
@@ -167,7 +176,8 @@ class UsageLogScanner(
                             conversationId = target.conversationId,
                             title = dbResult.title,
                             appSource = target.appSource,
-                            entries = entries
+                            entries = entries,
+                            lastKnownIdx = dbResult.maxIdx
                         ),
                         complete = true
                     )
@@ -181,7 +191,8 @@ class UsageLogScanner(
                             conversationId = target.conversationId,
                             title = dbResult.title.ifBlank { "会话 ${target.conversationId.take(8)}" },
                             appSource = target.appSource,
-                            entries = localEntries
+                            entries = localEntries,
+                            lastKnownIdx = dbResult.maxIdx
                         ),
                         complete = true
                     )
@@ -195,7 +206,8 @@ class UsageLogScanner(
                             conversationId = target.conversationId,
                             title = "会话 ${target.conversationId.take(8)}",
                             appSource = target.appSource,
-                            entries = remote.entries
+                            entries = remote.entries,
+                            lastKnownIdx = dbResult.maxIdx
                         ),
                         complete = true
                     )
@@ -218,7 +230,8 @@ class UsageLogScanner(
                         conversationId = target.conversationId,
                         title = "会话 ${target.conversationId.take(8)}",
                         appSource = target.appSource,
-                        entries = entries
+                        entries = entries,
+                        lastKnownIdx = -1
                     ),
                     complete = true
                 )

@@ -186,8 +186,13 @@ class UsageRepository(
                 }
                 AppLog.d("Usage/Repository") { "扫描发现目标完成: 发现总数=${targets.size}, 待增量/全量解析数=${changedTargets.size}, 发现耗时=${System.currentTimeMillis() - snapshotStartMs}ms" }
 
+                val cachedByKey = if (force) {
+                    emptyMap()
+                } else {
+                    _conversations.value.associateBy { sourceKey(it.appSource, it.conversationId) }
+                }
                 val parseStartMs = System.currentTimeMillis()
-                val parsed = scanner.parseConversationResults(changedTargets)
+                val parsed = scanner.parseConversationResults(changedTargets, cachedByKey)
                 val freshByKey = parsed.conversations.associateBy { sourceKey(it.appSource, it.conversationId) }
                 val incompleteSources = snapshot.incompleteSources
                 AppLog.d("Usage/Repository") { "目标解析完成: 成功解析=${parsed.successfulKeys.size}, 失败=${parsed.failedKeys.size}, 解析耗时=${System.currentTimeMillis() - parseStartMs}ms" }
