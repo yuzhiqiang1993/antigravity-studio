@@ -8,7 +8,7 @@ class UsageCostLabelTest {
     @Test
     fun matchedPricingShowsCostOrLowerBound() {
         assertEquals(
-            "≥$1.2",
+            "$1.2",
             usageBucketCostLabel(
                 costUsd = 1.25,
                 pricingMatched = true,

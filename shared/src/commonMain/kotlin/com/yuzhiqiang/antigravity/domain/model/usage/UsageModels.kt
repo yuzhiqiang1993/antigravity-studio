@@ -324,6 +324,7 @@ data class DeepUsageStats(
     val estimatedCostUsd: Double = 0.0,
     val estimatedSavingsUsd: Double = 0.0,
     val costLowerBound: Boolean = false,
+    val cnyRate: Double = 7.25,
     /** 固定按本地时区计算的“今天”快照，不受当前时间范围筛选影响。 */
     val todayDate: String = "",
     val todayInput: Long = 0L,

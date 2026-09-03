@@ -52,6 +52,7 @@ fun UsageKpiGrid(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
+    val isZh = I18nManager.currentLanguage == AppLanguage.ZH_CN
     val colors = usageTokenColors()
     val tokenFormatter = UsageNumberFormatter
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
@@ -157,7 +158,7 @@ fun UsageKpiGrid(
 
                 // 右侧弱化辅助指标卡：总请求数 + 预估成本
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = StudioGlassTokens.innerPanelBackgroundColor(isDark),
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
@@ -165,33 +166,40 @@ fun UsageKpiGrid(
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // 请求数
-                        Column(horizontalAlignment = Alignment.Start) {
+                        Column(
+                            horizontalAlignment = Alignment.Start,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             Text(
                                 text = s.usageKpiCallsTitle,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal
+                                ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 @Suppress("DEPRECATION")
                                 Icon(
                                     imageVector = Icons.Outlined.ShowChart,
                                     contentDescription = null,
-                                    modifier = Modifier.size(13.dp),
+                                    modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                                 StudioAnimatedCounterText(
                                     value = stats.totalCalls,
                                     formatter = { tokenFormatter.formatCount(it) },
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.Bold
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.SemiBold
                                     ),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -199,24 +207,47 @@ fun UsageKpiGrid(
                         }
 
                         VerticalDivider(
-                            modifier = Modifier.height(22.dp),
+                            modifier = Modifier.height(28.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                         )
 
                         // 预估总成本
-                        Column(horizontalAlignment = Alignment.Start) {
+                        Column(
+                            horizontalAlignment = Alignment.Start,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             Text(
                                 text = s.usageKpiCostTitle,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal
+                                ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            StudioTickerText(
-                                text = costValue,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = if (stats.estimatedCostUsd > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                StudioTickerText(
+                                    text = costValue,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    color = if (stats.estimatedCostUsd > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (isZh && stats.estimatedCostUsd > 0.0) {
+                                    Text(
+                                        text = "≈ ¥${tokenFormatter.formatCnyAmount(stats.estimatedCostUsd * stats.cnyRate)}",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Normal
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                        modifier = Modifier.padding(bottom = 1.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -696,6 +727,7 @@ private fun localizedSourceName(source: String, s: com.yuzhiqiang.antigravity.i1
 @Composable
 fun TopModelsBreakdownCard(
     modelBuckets: List<ModelUsageBucket>,
+    cnyRate: Double = 7.25,
     modifier: Modifier = Modifier
 ) {
     val s = strings()
@@ -766,16 +798,13 @@ fun TopModelsBreakdownCard(
                             rank = index + 1,
                             bucket = item,
                             costFormatted = modelCostLabel(item, s),
-                            tokensFormatted = UsageNumberFormatter.formatTokens(item.totalTokens) +
-                                    if (item.missingUsage != null && item.unattributed == 0L) "+" else "",
-                            inputFormatted = formatUsageValue(item.input, item.missingUsage?.input ?: 0L),
-                            outputFormatted = formatUsageValue(item.output, item.missingUsage?.output ?: 0L),
-                            cacheFormatted = formatUsageValue(item.cacheRead, item.missingUsage?.cache ?: 0L),
-                            cacheWriteFormatted = formatUsageValue(
-                                item.cacheWrite,
-                                item.missingUsage?.cacheWrite ?: 0L
-                            ),
-                            reasoningFormatted = formatUsageValue(item.reasoning, item.missingUsage?.reasoning ?: 0L),
+                            tokensFormatted = UsageNumberFormatter.formatTokens(item.totalTokens),
+                            inputFormatted = formatUsageValue(item.input),
+                            outputFormatted = formatUsageValue(item.output),
+                            cacheFormatted = formatUsageValue(item.cacheRead),
+                            cacheWriteFormatted = formatUsageValue(item.cacheWrite),
+                            reasoningFormatted = formatUsageValue(item.reasoning),
+                            cnyRate = cnyRate,
                             tokenColors = tokenColors
                         )
                     }
@@ -785,8 +814,10 @@ fun TopModelsBreakdownCard(
     }
 }
 
-private fun modelCostLabel(bucket: ModelUsageBucket, s: com.yuzhiqiang.antigravity.i18n.Strings): String =
-    usageBucketCostLabel(bucket.costUsd, bucket.pricingMatched, bucket.costLowerBound, s)
+private fun modelCostLabel(
+    bucket: ModelUsageBucket,
+    s: com.yuzhiqiang.antigravity.i18n.Strings
+): String = usageBucketCostLabel(bucket.costUsd, bucket.pricingMatched, bucket.costLowerBound, s)
 
 internal fun usageBucketCostLabel(
     costUsd: Double,
@@ -803,10 +834,7 @@ internal fun usageBucketCostLabel(
     }
 }
 
-private fun formatUsageValue(value: Long, missingCalls: Long): String {
-    if (missingCalls <= 0L) return UsageNumberFormatter.formatTokens(value)
-    return if (value > 0L) "${UsageNumberFormatter.formatTokens(value)}+" else "—"
-}
+private fun formatUsageValue(value: Long): String = UsageNumberFormatter.formatTokens(value)
 
 @Composable
 private fun ModelBreakdownRow(
@@ -819,9 +847,11 @@ private fun ModelBreakdownRow(
     cacheFormatted: String,
     cacheWriteFormatted: String,
     reasoningFormatted: String,
+    cnyRate: Double,
     tokenColors: UsageTokenColors
 ) {
     val s = strings()
+    val isZh = I18nManager.currentLanguage == AppLanguage.ZH_CN
 
     Surface(
         modifier = Modifier
@@ -896,14 +926,31 @@ private fun ModelBreakdownRow(
                         ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    StudioTickerText(
-                        text = costFormatted,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = if (bucket.pricingMatched && bucket.costUsd > 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        StudioTickerText(
+                            text = costFormatted,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = if (bucket.pricingMatched && bucket.costUsd > 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (isZh && bucket.pricingMatched && bucket.costUsd > 0.0) {
+                            val cny = UsageNumberFormatter.formatCnyAmount(bucket.costUsd * cnyRate)
+                            Text(
+                                text = "≈ ¥$cny",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                modifier = Modifier.padding(bottom = 1.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -923,33 +970,41 @@ private fun ModelBreakdownRow(
                 TokenCompositionSegment(bucket.unattributed, tokenColors.unattributed)
             }
 
-            // 底部：结构化 Token 分项指标组（带色彩圆点、标签与数值）
+            // 底部：结构化 Token 分项指标组（仅展示有数值的维度，避免界面排版拥挤）
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                ModelTokenDimensionItem(
-                    label = s.usageTokenPromptInput,
-                    value = inputFormatted,
-                    dotColor = tokenColors.input
-                )
-                ModelTokenDimensionItem(
-                    label = s.usageTokenCacheRead,
-                    value = cacheFormatted,
-                    dotColor = tokenColors.cacheRead
-                )
-                ModelTokenDimensionItem(
-                    label = s.usageTokenCacheWrite,
-                    value = cacheWriteFormatted,
-                    dotColor = tokenColors.cacheWrite
-                )
-                ModelTokenDimensionItem(
-                    label = s.usageTokenModelOutput,
-                    value = outputFormatted,
-                    dotColor = tokenColors.output
-                )
-                if (bucket.reasoning > 0L || (reasoningFormatted != "0" && reasoningFormatted != "—")) {
+                if (bucket.input > 0L || bucket.totalTokens == 0L) {
+                    ModelTokenDimensionItem(
+                        label = s.usageTokenPromptInput,
+                        value = inputFormatted,
+                        dotColor = tokenColors.input
+                    )
+                }
+                if (bucket.cacheRead > 0L) {
+                    ModelTokenDimensionItem(
+                        label = s.usageTokenCacheRead,
+                        value = cacheFormatted,
+                        dotColor = tokenColors.cacheRead
+                    )
+                }
+                if (bucket.cacheWrite > 0L) {
+                    ModelTokenDimensionItem(
+                        label = s.usageTokenCacheWrite,
+                        value = cacheWriteFormatted,
+                        dotColor = tokenColors.cacheWrite
+                    )
+                }
+                if (bucket.output > 0L) {
+                    ModelTokenDimensionItem(
+                        label = s.usageTokenModelOutput,
+                        value = outputFormatted,
+                        dotColor = tokenColors.output
+                    )
+                }
+                if (bucket.reasoning > 0L) {
                     ModelTokenDimensionItem(
                         label = s.usageTokenThinking,
                         value = reasoningFormatted,

@@ -38,10 +38,12 @@ data class UsageDiskCache(
  */
 class UsageRepository(
     val pricingService: PricingCatalogService = PricingCatalogService(),
+    exchangeRateService: ExchangeRateService? = null,
     scanner: UsageLogScanner? = null,
     private val customRootDir: File? = null,
     private val refreshPricingCatalog: Boolean = true
 ) {
+    val exchangeRateService = exchangeRateService ?: ExchangeRateService(customRootDir = customRootDir)
     private val scanner = scanner ?: UsageLogScanner(customRootDir)
 
     private val json = Json {
@@ -101,6 +103,7 @@ class UsageRepository(
                 customDateRange = customRange,
                 selectedSources = _selectedSources.value,
                 selectedModel = _selectedModel.value,
+                cnyRate = exchangeRateService.currentUsdToCny(),
                 isCancelled = { rev != aggregationRevision.get() }
             )
             if (rev == aggregationRevision.get()) {
@@ -127,6 +130,7 @@ class UsageRepository(
                 customDateRange = _customDateRange.value,
                 selectedSources = nextSources,
                 selectedModel = _selectedModel.value,
+                cnyRate = exchangeRateService.currentUsdToCny(),
                 isCancelled = { rev != aggregationRevision.get() }
             )
             if (rev == aggregationRevision.get()) {
@@ -153,6 +157,7 @@ class UsageRepository(
                 customDateRange = _customDateRange.value,
                 selectedSources = _selectedSources.value,
                 selectedModel = nextModel,
+                cnyRate = exchangeRateService.currentUsdToCny(),
                 isCancelled = { rev != aggregationRevision.get() }
             )
             if (rev == aggregationRevision.get()) {
@@ -176,7 +181,12 @@ class UsageRepository(
                             pricingService.refreshCatalog(force = force)
                         }
                     }
-                    AppLog.d("Usage/Repository") { "价格目录刷新尝试完毕 (耗时=${System.currentTimeMillis() - priceStartMs}ms, 结果=${priceResult.getOrNull()})" }
+                    runCatching {
+                        kotlinx.coroutines.withTimeoutOrNull(2500L) {
+                            exchangeRateService.refreshRate(force = force)
+                        }
+                    }
+                    AppLog.d("Usage/Repository") { "价格目录与权威汇率刷新尝试完毕 (耗时=${System.currentTimeMillis() - priceStartMs}ms, 结果=${priceResult.getOrNull()}, 汇率=${exchangeRateService.currentUsdToCny()})" }
                 }
 
                 val snapshotStartMs = System.currentTimeMillis()
@@ -257,6 +267,7 @@ class UsageRepository(
         customDateRange = _customDateRange.value,
         selectedSources = _selectedSources.value,
         selectedModel = _selectedModel.value,
+        cnyRate = exchangeRateService.currentUsdToCny(),
         isCancelled = isCancelled
     )
 

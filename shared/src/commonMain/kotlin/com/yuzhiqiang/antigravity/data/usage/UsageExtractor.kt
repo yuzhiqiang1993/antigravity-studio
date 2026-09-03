@@ -213,12 +213,20 @@ object UsageExtractor {
             "total_token_count",
             "totalTokenCount"
         )
+        val rawOutputValue = output.value
+        val reasoningValue = reasoning.value
+        // 若 reportedTotal 等于 input + output 且存在 reasoning，说明 output 包含了 reasoning（OpenAI 标准），需拆分避免重复计数
+        val effectiveOutputValue = if (reportedTotal.known && reportedTotal.value == input.value + rawOutputValue && reasoningValue > 0L) {
+            maxOf(0L, rawOutputValue - reasoningValue)
+        } else {
+            rawOutputValue
+        }
         val attributedTotal = saturatedSum(
             input.value,
-            output.value,
+            effectiveOutputValue,
             cacheRead.value,
             cacheWrite.value,
-            reasoning.value
+            reasoningValue
         )
         val unattributed = reportedTotal.value
             .takeIf { reportedTotal.known && it > attributedTotal }
@@ -278,7 +286,7 @@ object UsageExtractor {
         return TokenEntry(
             responseId = responseId.takeIf { it.isNotBlank() },
             input = input.value,
-            output = output.value,
+            output = effectiveOutputValue,
             cacheRead = cacheRead.value,
             cacheWrite = cacheWrite.value,
             reasoning = reasoning.value,

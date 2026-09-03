@@ -34,6 +34,7 @@ object UsageAggregator {
         selectedModel: String? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
         nowInstant: Instant = Instant.ofEpochMilli(System.currentTimeMillis()),
+        cnyRate: Double = 7.25,
         isCancelled: (() -> Boolean)? = null
     ): DeepUsageStats {
         val nowMillis = nowInstant.toEpochMilli()
@@ -359,6 +360,7 @@ object UsageAggregator {
             estimatedCostUsd = totalCost,
             estimatedSavingsUsd = totalSavings,
             costLowerBound = totalCostLowerBound,
+            cnyRate = cnyRate,
             todayDate = todayDate.toString(),
             todayInput = todayInput,
             todayOutput = todayOutput,

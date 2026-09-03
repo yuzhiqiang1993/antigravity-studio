@@ -34,6 +34,17 @@ object UsageNumberFormatter {
         }
     }
 
+    /** 格式化人民币金额（不带货币符号） */
+    fun formatCnyAmount(value: Double): String {
+        val safeValue = if (value.isFinite()) value.coerceAtLeast(0.0) else 0.0
+        return when {
+            safeValue < 0.01 -> "0"
+            safeValue < 1.0 -> fixed(safeValue, 2)
+            safeValue < 10.0 -> fixed(safeValue, 1)
+            else -> formatCount(round(safeValue).toLong())
+        }
+    }
+
     /** 调用次数等整数使用本地化千位分组，但不使用 Token 缩写。 */
     fun formatCount(value: Long): String =
         DecimalFormat("#,##0", decimalSymbols).format(value.coerceAtLeast(0L))

@@ -8,7 +8,7 @@ object UsageStringsZh : UsageStrings {
     }
     override val usageTokensCount: (tokens: String) -> String = { tokens -> "$tokens Tokens" }
     override val usageCostValue: (cost: String) -> String = { cost -> "$$cost" }
-    override val usageCostLowerBound: (cost: String) -> String = { cost -> "≥$$cost" }
+    override val usageCostLowerBound: (cost: String) -> String = { cost -> "$$cost" }
     override val usageCostUnavailable: String = "未定价"
     override val usageLowerBoundNotice: String = "包含最低预估 (部分模型单价或用量维度缺失)"
     override val usageUnpricedBadge: String = "未定价"
