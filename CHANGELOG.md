@@ -2,6 +2,42 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.3.1] - 2026-09-03
+
+### 🇨🇳 中文
+
+#### ✨ 体验与界面优化
+- **整合时间范围选择器**：用量页面的快捷预设（今天、1 天、7 天等）和日历选择原本是分开的两个按钮，容易看岔，这次整合成了一个连贯的胶囊选择器。选好日期后会直接在上面显示具体区间，点它也能随时重调
+- **增加人民币汇率换算**：接入实时汇率，看用量时中文界面会附带换算后的人民币金额（如约合 ¥476），切到英文界面时则保持简洁的纯美元展示
+- **字号与排版微调**：去掉了金额前面没必要的大于等于（≥）符号，顺手放大了用量指标卡的主字号，扫一眼更清晰
+- **统一全站滑动切换标签**：全站的标签页和切换按钮统一样式，都换成了白底悬浮药丸和微灰底槽，点击时带平滑的弹簧滑动效果。模型管理顶部的服务商列表也同步去掉了老旧的下划线
+- **顶栏按钮对比度提升**：之前浅色模式下顶栏的筛选和刷新按钮容易和底色混在一起，这次统一改成 34dp 高度、纯白实色背景搭配细边框，辨识度高多了
+
+#### 🐛 稳定性与性能修复
+- **会话日志增量解析**：优化了用量数据的解析路径，改成增量计算，本地历史日志很多时打开用量页不再卡顿
+- **解决横向滚动嵌套崩溃**：修复了标签页横向滚动嵌套导致的崩溃问题（IllegalStateException），快速切换时间或拉伸窗口时不会再闪退
+- **修复字段解析与定价兜底**：修正了缓存解析中的字段倒置 bug，遇到未收录价格的新模型时自动降级处理，避免费用算错
+- **切号与更新提示优化**：微调了多端切号的租约协同机制；如果当前网络连不上更新服务器，会弹出明确提示引导排查
+
+---
+
+### 🌐 English
+
+#### ✨ Improvements & Experience
+- **Unified Time Range Picker**: Merged preset chips (Today, 1d, 7d, etc.) and custom date range into a single continuous capsule. The selected dates are clearly displayed on the tab itself.
+- **CNY Currency Conversion**: Integrated live exchange rates. The usage dashboard now shows estimated CNY amounts (`≈ ¥476`) in Chinese, while keeping pure USD values in English.
+- **Legibility & Layout Tweaks**: Removed unnecessary "≥" prefixes from amounts and enlarged metric numbers for quicker glances.
+- **Standardized Sliding Tabs**: Aligned all tab bars and segmented toggles with a clean floating-pill style and smooth spring motion. Replaced legacy underlines in Model Management.
+- **Better Top Bar Contrast**: Fixed low contrast on light themes by switching filter buttons to solid white cards with defined borders.
+
+#### 🐛 Stability & Performance
+- **Faster Usage Log Parsing**: Added incremental calculation for session logs, removing stutter when opening the dashboard with heavy history.
+- **Fixed Nested Scroll Crash**: Resolved a Compose layout crash (`IllegalStateException`) caused by nested horizontal scrolls when toggling time filters or resizing windows.
+- **Parsing & Pricing Fallback**: Fixed a field order bug in cache decoding and improved fallback pricing for unlisted models.
+- **Switching & Update Prompts**: Tuned account switching lease locks and added clear troubleshooting tips when update checks are blocked by network issues.
+
+---
+
 ## [1.3.0] - 2026-09-02
 
 ### 🇨🇳 中文
