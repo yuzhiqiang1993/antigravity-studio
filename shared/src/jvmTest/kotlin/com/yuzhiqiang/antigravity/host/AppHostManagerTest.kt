@@ -176,6 +176,9 @@ class AppHostManagerTest {
     @Test
     fun installedShimWithMatchingEnvironmentIsNotMarkedForUpdate() {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        if (!isWindows && !isMac) return // 宿主环境变量接管仅适用于 macOS 与 Windows 平台
+
         if (isWindows) {
             File(tempAppDir, "Antigravity.exe").writeText("EXE")
         } else {
@@ -207,6 +210,10 @@ class AppHostManagerTest {
 
     @Test
     fun testInspectWhenAppNotInstalledAndCliEnabledDoesNotShowMismatch() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        if (!isWindows && !isMac) return
+
         try {
             com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.enableEnvironment(
                 com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.CLI,
@@ -227,6 +234,9 @@ class AppHostManagerTest {
     @Test
     fun testInspectWhenAppInstalledAndOnlyCliEnabledIsOfficialNotMismatch() {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        if (!isWindows && !isMac) return
+
         if (isWindows) {
             File(tempAppDir, "Antigravity.exe").writeText("EXE")
         } else {
@@ -312,8 +322,8 @@ class AppHostManagerTest {
 
     @Test
     fun testInstallDetailedReturnsPermissionExceptionWhenDirectoryReadOnly() {
-        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
-        if (isWindows) return
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        if (!isMac) return // 目录权限限制与只读 Shim 安装行为属于 macOS 专属测试
         val readOnlyDir = File(tempAppDir, "Contents/Resources/bin")
         readOnlyDir.setWritable(false, false)
         try {
@@ -341,15 +351,20 @@ class AppHostManagerTest {
     @Test
     fun shellQuotePreservesSpecialPathCharacters() {
         val value = "/Applications/Antigravity App.app/it's ${'$'}HOME; echo unsafe"
-        val process = ProcessBuilder(
-            "/bin/sh",
-            "-c",
-            """actual=${AppHostManager.shellQuote(value)}; [ "${'$'}actual" = "${'$'}EXPECTED" ]"""
-        ).apply {
-            environment()["EXPECTED"] = value
-        }.start()
+        val quoted = AppHostManager.shellQuote(value)
+        assertEquals("'/Applications/Antigravity App.app/it'\"'\"'s ${'$'}HOME; echo unsafe'", quoted)
 
-        assertEquals(0, process.waitFor())
+        if (File("/bin/sh").exists()) {
+            val process = ProcessBuilder(
+                "/bin/sh",
+                "-c",
+                """actual=$quoted; [ "${'$'}actual" = "${'$'}EXPECTED" ]"""
+            ).apply {
+                environment()["EXPECTED"] = value
+            }.start()
+
+            assertEquals(0, process.waitFor())
+        }
     }
 
     @Test

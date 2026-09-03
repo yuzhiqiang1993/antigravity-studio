@@ -399,7 +399,7 @@ object UsageAggregator {
         zoneId: ZoneId,
         customDateRange: CustomDateRange?
     ): TimeBounds {
-        val today = LocalDate.now(zoneId)
+        val today = nowInstant.atZone(zoneId).toLocalDate()
         return when (timeRange) {
             UsageTimeRange.CALENDAR_TODAY -> TimeBounds(today.atStartOfDay(zoneId).toInstant(), nowInstant)
             UsageTimeRange.ROLLING_24H -> TimeBounds(nowInstant.minusSeconds(24 * 3600), nowInstant)

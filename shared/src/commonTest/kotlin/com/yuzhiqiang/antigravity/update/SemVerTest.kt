@@ -57,6 +57,10 @@ class SemVerTest {
                 ReleaseAsset(
                     name = "Antigravity-Studio-2.0.1-windows-x64.exe",
                     downloadUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-windows-x64.exe"
+                ),
+                ReleaseAsset(
+                    name = "Antigravity-Studio-2.0.1-linux-x64.deb",
+                    downloadUrl = "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-linux-x64.deb"
                 )
             )
         )
@@ -64,5 +68,17 @@ class SemVerTest {
         assertEquals("2.0.1", release.cleanVersion)
         val downloadUrl = release.resolvePlatformDownloadUrl()
         assertTrue(!downloadUrl.isNullOrEmpty())
+        assertEquals(
+            "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-macos-arm64.dmg",
+            release.resolvePlatformDownloadUrl(osName = "Mac OS X", osArch = "aarch64")
+        )
+        assertEquals(
+            "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-windows-x64.exe",
+            release.resolvePlatformDownloadUrl(osName = "Windows 11", osArch = "x86_64")
+        )
+        assertEquals(
+            "https://github.com/yuzhiqiang1993/antigravity-studio/releases/download/v2.0.1/Antigravity-Studio-2.0.1-linux-x64.deb",
+            release.resolvePlatformDownloadUrl(osName = "Linux", osArch = "amd64")
+        )
     }
 }
