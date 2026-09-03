@@ -22,7 +22,7 @@ It allows you to bring your own API keys for third-party LLMs, manage multiple G
 
 Common friction points when using Antigravity daily:
 
-1. **Using Third-Party Models**: The built-in model selection is limited. Your own Claude 3.7, DeepSeek R1, GPT-4o, Gemini 2.5, or local Ollama models cannot be directly invoked in Antigravity.
+1. **Using Third-Party Models**: The built-in model selection is limited. Your own Claude, DeepSeek, GPT, Gemini series, or local Ollama models cannot be directly invoked in Antigravity.
 2. **Tedious Multi-Account Switching**: Checking quotas across multiple Google accounts requires constant switching, and changing active accounts requires re-authenticating.
 3. **Premature Code Summarization in Long Chats**: The default context compression threshold is relatively low, which can summarize away important code details during extended conversations.
 4. **Cluttered Model Dropdown**: Unused official models clutter the dropdown menu, making it harder to pick your preferred model.
