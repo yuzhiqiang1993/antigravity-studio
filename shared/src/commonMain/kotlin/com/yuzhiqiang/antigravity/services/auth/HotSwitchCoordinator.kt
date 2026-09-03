@@ -102,10 +102,6 @@ class HotSwitchCoordinator(
         progressCallback: ((phase: String) -> Unit)? = null
     ): Result<SwitchResultReport> {
         val s = com.yuzhiqiang.antigravity.i18n.currentStrings()
-        if (WorkflowLeaseManager.isLocked()) {
-            return Result.failure(IllegalStateException(s.smartSwitchReasonWorkflowLocked))
-        }
-
         if (!switchMutex.tryLock()) {
             return Result.failure(IllegalStateException(s.hotSwitchTaskAlreadyRunning))
         }

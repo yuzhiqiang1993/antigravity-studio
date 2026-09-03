@@ -83,21 +83,13 @@ internal class OfficialPassthroughForwarder(
         val officialUrl = officialUrlResult.getOrThrow()
         val isStreaming = path.contains("streamGenerateContent") ||
                 (call.request.headers[HttpHeaders.Accept]?.contains("text/event-stream") == true)
-        val shouldAcquireLease = isAiChatOrCompletion(path, modelId) || isStreaming
-        val leaseId = if (shouldAcquireLease) {
-            com.yuzhiqiang.antigravity.services.auth.WorkflowLeaseManager.acquireLease(300_000L)
-        } else {
-            null
-        }
-
-        try {
-            val maxRetries = 3
-            val baseDelayMs = 500L
-            var attempt = 0
-            var responseStarted = false
-            var lastStatus = 200
-            var lastErrorMessage: String? = null
-            var lastErrorSource: StreamErrorSource? = null
+        val maxRetries = 3
+        val baseDelayMs = 500L
+        var attempt = 0
+        var responseStarted = false
+        var lastStatus = 200
+        var lastErrorMessage: String? = null
+        var lastErrorSource: StreamErrorSource? = null
 
         while (attempt <= maxRetries) {
             attempt++
@@ -193,12 +185,7 @@ internal class OfficialPassthroughForwarder(
                 )
             }
         }
-    } finally {
-        if (leaseId != null) {
-            com.yuzhiqiang.antigravity.services.auth.WorkflowLeaseManager.releaseLease(leaseId)
-        }
     }
-}
 
     private fun isAiChatOrCompletion(path: String, modelId: String?): Boolean {
         if (!modelId.isNullOrBlank()) return true
@@ -211,3 +198,4 @@ internal class OfficialPassthroughForwarder(
                 lower.contains("chat")
     }
 }
+

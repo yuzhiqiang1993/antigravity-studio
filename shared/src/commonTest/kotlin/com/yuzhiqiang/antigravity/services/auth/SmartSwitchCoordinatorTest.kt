@@ -33,27 +33,6 @@ class SmartSwitchCoordinatorTest {
     }
 
     @Test
-    fun testWorkflowLeaseManager() = runBlocking {
-        val inhibitorDir = File(tempDir, "inhibitors").apply { mkdirs() }
-        WorkflowLeaseManager.customInhibitorDir = inhibitorDir
-        try {
-            assertFalse(WorkflowLeaseManager.isLocked())
-
-            val lease1 = WorkflowLeaseManager.acquireLease(10_000L)
-            assertTrue(WorkflowLeaseManager.isLocked())
-            val files = inhibitorDir.listFiles()?.filter { it.name.endsWith(".json") }
-            assertEquals(1, files?.size)
-
-            WorkflowLeaseManager.releaseLease(lease1)
-            assertFalse(WorkflowLeaseManager.isLocked())
-            val remainingFiles = inhibitorDir.listFiles()?.filter { it.name.endsWith(".json") }
-            assertEquals(0, remainingFiles?.size)
-        } finally {
-            WorkflowLeaseManager.customInhibitorDir = null
-        }
-    }
-
-    @Test
     fun testModelQuotaRounding() {
         val quota1 = ModelQuotaInfo("claude", "Claude", remainingFraction = 0.496)
         assertEquals(50, quota1.percentage)

@@ -45,10 +45,6 @@ class SmartSwitchCoordinator(
             return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonCooldown(remainingSec))
         }
 
-        if (config.protectActiveGeneration && WorkflowLeaseManager.isLocked()) {
-            return SmartSwitchOutcome(triggered = false, reason = s.smartSwitchReasonWorkflowLocked)
-        }
-
         val currentActive = accountStore.currentActiveAccount()
         val accounts = accountStore.currentAccounts().filter {
             it.id != currentActive?.id && !it.tokens.isExpired()

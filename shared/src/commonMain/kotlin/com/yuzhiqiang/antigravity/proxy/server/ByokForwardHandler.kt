@@ -68,17 +68,12 @@ class ByokForwardHandler(
             requestBody = if (isDebug) rawBody else null
         )
 
-        val leaseId = com.yuzhiqiang.antigravity.services.auth.WorkflowLeaseManager.acquireLease(300_000L)
-        try {
-            if (!stream) {
-                forwardNonStreaming(call, route, cloudCode, startTime, logId, isDebug)
-                return
-            }
-
-            forwardTransactionalStream(call, route, cloudCode, startTime, logId, isDebug)
-        } finally {
-            com.yuzhiqiang.antigravity.services.auth.WorkflowLeaseManager.releaseLease(leaseId)
+        if (!stream) {
+            forwardNonStreaming(call, route, cloudCode, startTime, logId, isDebug)
+            return
         }
+
+        forwardTransactionalStream(call, route, cloudCode, startTime, logId, isDebug)
     }
 
     private suspend fun forwardNonStreaming(
