@@ -27,6 +27,8 @@ import com.yuzhiqiang.antigravity.domain.model.usage.UsageTimeRange
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.PageHeader
 import com.yuzhiqiang.antigravity.ui.components.StudioGlassSurface
+import com.yuzhiqiang.antigravity.ui.components.StudioSlidingTabLayout
+import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
 import com.yuzhiqiang.antigravity.ui.components.StudioTooltip
 import com.yuzhiqiang.antigravity.ui.components.tour.LocalSpotlightTourManager
 import com.yuzhiqiang.antigravity.ui.components.tour.TourStep
@@ -34,6 +36,7 @@ import com.yuzhiqiang.antigravity.ui.components.tour.tourAnchor
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.screens.usage.*
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +55,16 @@ fun UsageScreen(
     val selectedModel by viewModel.usageSelectedModel.collectAsState()
     val autoRefreshInterval by viewModel.usageAutoRefreshInterval.collectAsState()
 
+    val timePresets = remember(s) {
+        listOf(
+            StudioTabItem(UsageTimeRange.CALENDAR_TODAY, s.usagePresetToday),
+            StudioTabItem(UsageTimeRange.ROLLING_24H, s.usagePreset1Day),
+            StudioTabItem(UsageTimeRange.ROLLING_7D, s.usagePreset7Days),
+            StudioTabItem(UsageTimeRange.ROLLING_14D, s.usagePreset14Days),
+            StudioTabItem(UsageTimeRange.ROLLING_30D, s.usagePreset30Days)
+        )
+    }
+
     var showDateRangeDialog by remember { mutableStateOf(false) }
     var showSourceDropdown by remember { mutableStateOf(false) }
     var showModelDropdown by remember { mutableStateOf(false) }
@@ -67,75 +80,42 @@ fun UsageScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // 1. 顶部主标题
-        PageHeader(
-            title = s.navUsage,
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 1100.dp)
-                .align(Alignment.CenterHorizontally)
-        )
+        PageHeader(title = s.navUsage)
 
-        // 2. 现代毛玻璃操作栏：[左侧时间分段 + 日期选择]  <----->  [右侧模型筛选 + 来源 + 刷新频率 + 手动刷新]
-        Row(
+        // 2. 现代毛玻璃浮岛顶栏操作栏 (与 ModelsScreen、AccountsScreen 保持一致的 StudioGlassSurface)
+        StudioGlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 1100.dp)
-                .align(Alignment.CenterHorizontally)
-                .tourAnchor(TourStep.USAGE_PANEL, tourManager)
-                .horizontalScroll(controlsScrollState),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .tourAnchor(TourStep.USAGE_PANEL, tourManager),
+            shape = RoundedCornerShape(StudioDesignTokens.CornerRadius.card),
+            elevation = 0.dp
         ) {
-            // 左侧时间维度组：[今天 | 1 天 | 7 天 | 14 天 | 30 天] + [📅 日期选择 ⌄]
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = StudioDesignTokens.Padding.topBarHorizontal,
+                        vertical = StudioDesignTokens.Padding.topBarVertical
+                    )
+                    .horizontalScroll(controlsScrollState),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // A. 预设时间分段选择胶囊 (今天 · 1 天 · 7 天 · 14 天 · 30 天)
-                val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.25f else 0.35f),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.5f)
-                    ),
-                    modifier = Modifier.height(32.dp)
+                // 左侧时间维度组：[今天 | 1 天 | 7 天 | 14 天 | 30 天] + [📅 日期选择 ⌄]
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        UsageTimePresetTab(
-                            label = s.usagePresetToday,
-                            selected = currentTimeRange == UsageTimeRange.CALENDAR_TODAY,
-                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.CALENDAR_TODAY) }
-                        )
-                        UsageTimePresetTab(
-                            label = s.usagePreset1Day,
-                            selected = currentTimeRange == UsageTimeRange.ROLLING_24H,
-                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_24H) }
-                        )
-                        UsageTimePresetTab(
-                            label = s.usagePreset7Days,
-                            selected = currentTimeRange == UsageTimeRange.ROLLING_7D,
-                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_7D) }
-                        )
-                        UsageTimePresetTab(
-                            label = s.usagePreset14Days,
-                            selected = currentTimeRange == UsageTimeRange.ROLLING_14D,
-                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_14D) }
-                        )
-                        UsageTimePresetTab(
-                            label = s.usagePreset30Days,
-                            selected = currentTimeRange == UsageTimeRange.ROLLING_30D,
-                            onClick = { viewModel.setUsageTimeRange(UsageTimeRange.ROLLING_30D) }
-                        )
-                    }
-                }
+                    // A. 预设时间分段选择胶囊 (今天 · 1 天 · 7 天 · 14 天 · 30 天)
+                    StudioSlidingTabLayout(
+                        items = timePresets,
+                        selectedKey = currentTimeRange,
+                        onSelect = { viewModel.setUsageTimeRange(it) },
+                        tabHeight = 34.dp,
+                        scrollable = false
+                    )
 
-                // B. 复合日期时间选择触发器 [📅 日期选择 ⌄]
+                    // B. 复合日期时间选择触发器 [📅 日期选择 ⌄]
                 val isCustomRange = currentTimeRange == UsageTimeRange.CUSTOM
                 val activeCustomRange = customDateRange?.takeIf { isCustomRange && it.startDate.isNotBlank() }
                 val datePickerLabel = if (activeCustomRange != null) {
@@ -315,28 +295,50 @@ fun UsageScreen(
 
                 // 4. 手动即时刷新按钮
                 StudioTooltip(text = s.accountsRefreshAllTooltip) {
-                    IconButton(
+                    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    val isHovered by interactionSource.collectIsHoveredAsState()
+
+                    Surface(
                         onClick = { viewModel.refreshUsageStats(force = true) },
-                        modifier = Modifier.size(32.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        color = when {
+                            isHovered -> if (isDark) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer
+                            else -> if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface
+                        },
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            when {
+                                isHovered -> if (isDark) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                else -> if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                            }
+                        ),
+                        interactionSource = interactionSource,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .pointerHoverIcon(androidx.compose.ui.input.pointer.PointerIcon.Hand)
                     ) {
-                        if (isRefreshing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(15.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Outlined.Refresh,
-                                contentDescription = s.accountsRefreshAllTooltip,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Box(contentAlignment = Alignment.Center) {
+                            if (isRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(15.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.Refresh,
+                                    contentDescription = s.accountsRefreshAllTooltip,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (isHovered) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
 
         // 3. 滚动主看板区域：仅在首轮冷启动且尚无任何数据时展示骨架屏，后续静默刷新绝不闪回骨架屏
         val showSkeleton = isInitialLoading && stats.totalTokens == 0L && stats.totalCalls == 0L && stats.totalConversations == 0L
@@ -344,8 +346,6 @@ fun UsageScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 1160.dp)
-                .align(Alignment.CenterHorizontally)
                 .weight(1f)
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.section)
@@ -373,7 +373,8 @@ fun UsageScreen(
 
                         // E. 热门模型使用排行
                         TopModelsBreakdownCard(
-                            modelBuckets = stats.modelBuckets
+                            modelBuckets = stats.modelBuckets,
+                            cnyRate = stats.cnyRate
                         )
                     }
                 }
@@ -392,54 +393,6 @@ fun UsageScreen(
                 viewModel.setUsageTimeRange(UsageTimeRange.CUSTOM, customRange)
             },
             onDismiss = { showDateRangeDialog = false }
-        )
-    }
-}
-
-/**
- * 现代毛玻璃时间分段选择胶囊 Tab (遵循 MD3 Segmented Control 规范)
- */
-@Composable
-private fun UsageTimePresetTab(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-
-    val containerColor = when {
-        selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.65f else 0.85f)
-        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.45f else 0.65f)
-        else -> androidx.compose.ui.graphics.Color.Transparent
-    }
-    val contentColor = when {
-        selected -> MaterialTheme.colorScheme.onPrimaryContainer
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Box(
-        modifier = Modifier
-            .height(26.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(containerColor)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-            .pointerHoverIcon(androidx.compose.ui.input.pointer.PointerIcon.Hand)
-            .padding(horizontal = 9.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 12.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-            ),
-            color = contentColor
         )
     }
 }

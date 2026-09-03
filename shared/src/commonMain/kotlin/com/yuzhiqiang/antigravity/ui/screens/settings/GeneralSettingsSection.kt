@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +32,8 @@ import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
+import com.yuzhiqiang.antigravity.ui.components.StudioSegmentedControl
+import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.ThemePalette
 
@@ -67,42 +70,17 @@ fun GeneralSettingsSection(
                     description = s.settingsLanguageDescription,
                     modifier = Modifier.padding(vertical = 4.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .height(28.dp)
-                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                shape = RoundedCornerShape(AppTokens.Radius.pill)
-                            )
-                            .padding(2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AppLanguage.values().forEach { lang ->
-                            val selected = I18nManager.currentLanguage == lang
-                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-                            val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                    .background(bg)
-                                    .clickable { onUpdateLanguage(lang) }
-                                    .padding(horizontal = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = lang.displayName,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = text
-                                )
-                            }
+                    val languageItems = remember {
+                        AppLanguage.values().map { lang ->
+                            StudioTabItem(lang, lang.displayName)
                         }
                     }
+                    StudioSegmentedControl(
+                        items = languageItems,
+                        selectedKey = I18nManager.currentLanguage,
+                        onSelect = onUpdateLanguage,
+                        height = 28.dp
+                    )
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
@@ -114,46 +92,19 @@ fun GeneralSettingsSection(
                     description = s.settingsThemeDescription,
                     modifier = Modifier.padding(vertical = 4.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .height(28.dp)
-                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                shape = RoundedCornerShape(AppTokens.Radius.pill)
-                            )
-                            .padding(2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    val themeItems = remember(s) {
                         listOf(
-                            "system" to s.settingsThemeSystem,
-                            "light" to s.settingsThemeLight,
-                            "dark" to s.settingsThemeDark
-                        ).forEach { (mode, label) ->
-                            val selected = config.themeMode == mode
-                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-                            val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                    .background(bg)
-                                    .clickable { onUpdateThemeMode(mode) }
-                                    .padding(horizontal = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = text
-                                )
-                            }
-                        }
+                            StudioTabItem("system", s.settingsThemeSystem),
+                            StudioTabItem("light", s.settingsThemeLight),
+                            StudioTabItem("dark", s.settingsThemeDark)
+                        )
                     }
+                    StudioSegmentedControl(
+                        items = themeItems,
+                        selectedKey = config.themeMode,
+                        onSelect = onUpdateThemeMode,
+                        height = 28.dp
+                    )
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
@@ -252,48 +203,20 @@ fun GeneralSettingsSection(
                     description = s.settingsDefaultSwitchTargetDesc,
                     modifier = Modifier.padding(vertical = 4.dp)
                 ) {
-                    val currentTarget = config.defaultSwitchTarget.ifBlank { "all" }
-                    Row(
-                        modifier = Modifier
-                            .height(28.dp)
-                            .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                shape = RoundedCornerShape(AppTokens.Radius.pill)
-                            )
-                            .padding(2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    val targetItems = remember(s) {
                         listOf(
-                            DefaultSwitchTarget.ALL.value to s.settingsDefaultSwitchTargetAll,
-                            DefaultSwitchTarget.IDE_ONLY.value to s.settingsDefaultSwitchTargetIdeOnly,
-                            DefaultSwitchTarget.APP_CLI_ONLY.value to s.settingsDefaultSwitchTargetAppCliOnly,
-                            DefaultSwitchTarget.REMEMBER_LAST.value to s.settingsDefaultSwitchTargetRemember
-                        ).forEach { (targetValue, label) ->
-                            val selected = currentTarget == targetValue
-                            val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
-                            val text = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                    .background(bg)
-                                    .clickable { onUpdateDefaultSwitchTarget(targetValue) }
-                                    .padding(horizontal = 9.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = text
-                                )
-                            }
-                        }
+                            StudioTabItem(DefaultSwitchTarget.ALL.value, s.settingsDefaultSwitchTargetAll),
+                            StudioTabItem(DefaultSwitchTarget.IDE_ONLY.value, s.settingsDefaultSwitchTargetIdeOnly),
+                            StudioTabItem(DefaultSwitchTarget.APP_CLI_ONLY.value, s.settingsDefaultSwitchTargetAppCliOnly),
+                            StudioTabItem(DefaultSwitchTarget.REMEMBER_LAST.value, s.settingsDefaultSwitchTargetRemember)
+                        )
                     }
+                    StudioSegmentedControl(
+                        items = targetItems,
+                        selectedKey = config.defaultSwitchTarget.ifBlank { "all" },
+                        onSelect = onUpdateDefaultSwitchTarget,
+                        height = 28.dp
+                    )
                 }
 
                 if (onConfigureHostPath != null) {
@@ -309,14 +232,14 @@ fun GeneralSettingsSection(
                         Row(
                             modifier = Modifier
                                 .height(28.dp)
-                                .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                                 .border(
                                     width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                    shape = RoundedCornerShape(AppTokens.Radius.pill)
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f),
+                                    shape = RoundedCornerShape(8.dp)
                                 )
-                                .padding(2.dp),
+                                .padding(2.5.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -326,24 +249,29 @@ fun GeneralSettingsSection(
                                 Triple("cli", "CLI", config.customHostPaths["cli"])
                             ).forEach { (key, title, customPath) ->
                                 val hasCustom = !customPath.isNullOrBlank()
-                                val bg = if (hasCustom) MaterialTheme.colorScheme.primary else Color.Transparent
-                                val text = if (hasCustom) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                val bg = if (hasCustom) MaterialTheme.colorScheme.surface else Color.Transparent
+                                val text = if (hasCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                val border = if (hasCustom) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)) else null
 
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(AppTokens.Radius.pill))
-                                        .background(bg)
-                                        .clickable { onConfigureHostPath(key, "Antigravity $title") }
-                                        .padding(horizontal = 9.dp),
-                                    contentAlignment = Alignment.Center
+                                androidx.compose.material3.Surface(
+                                    onClick = { onConfigureHostPath(key, "Antigravity $title") },
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = bg,
+                                    border = border,
+                                    shadowElevation = if (hasCustom) 2.dp else 0.dp,
+                                    modifier = Modifier.fillMaxHeight()
                                 ) {
-                                    Text(
-                                        text = if (hasCustom) s.settingsHostPathCustom(title) else s.settingsHostPathAuto(title),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                                        fontWeight = if (hasCustom) FontWeight.SemiBold else FontWeight.Normal,
-                                        color = text
-                                    )
+                                    Box(
+                                        modifier = Modifier.padding(horizontal = 9.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = if (hasCustom) s.settingsHostPathCustom(title) else s.settingsHostPathAuto(title),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                                            fontWeight = if (hasCustom) FontWeight.Bold else FontWeight.Medium,
+                                            color = text
+                                        )
+                                    }
                                 }
                             }
                         }

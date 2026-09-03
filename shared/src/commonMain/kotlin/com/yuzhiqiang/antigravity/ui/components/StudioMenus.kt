@@ -208,16 +208,16 @@ fun StudioDropdownTrigger(
 
     val containerColor = when {
         !enabled -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
-        isActive -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.5f)
-        isHovered -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.45f else 0.6f)
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.25f else 0.35f)
+        isActive -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.45f else 0.75f)
+        isHovered -> if (isDark) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer
+        else -> if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface
     }
 
     val borderColor = when {
         !enabled -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)
-        isActive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-        isHovered -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.6f else 0.8f)
-        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.5f)
+        isActive -> MaterialTheme.colorScheme.primary
+        isHovered -> if (isDark) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        else -> if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
     }
 
     Surface(
@@ -228,7 +228,7 @@ fun StudioDropdownTrigger(
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
         interactionSource = interactionSource,
         modifier = modifier
-            .height(32.dp)
+            .height(34.dp)
             .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
     ) {
         Row(
@@ -256,7 +256,7 @@ fun StudioDropdownTrigger(
                 imageVector = androidx.compose.material.icons.Icons.Outlined.KeyboardArrowDown,
                 contentDescription = null,
                 modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                tint = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
             )
         }
     }

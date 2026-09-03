@@ -55,6 +55,7 @@ fun <T> StudioSlidingTabLayout(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     tabHeight: Dp = 40.dp,
+    scrollable: Boolean = true,
     containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
     activePillColor: Color = MaterialTheme.colorScheme.surface,
     activeContentColor: Color = MaterialTheme.colorScheme.primary,
@@ -84,22 +85,52 @@ fun <T> StudioSlidingTabLayout(
         )
     )
 
-    // 当选中的 Tab 改变时，自动将选中的 Tab 平滑滚动居中
-    LaunchedEffect(selectedIndex, tabPositions) {
-        currentPosition?.let { (xOffset, width) ->
-            val targetScroll = with(density) {
-                val containerWidth = scrollState.viewportSize.dp
-                val centerOffset = (xOffset + width / 2) - (containerWidth / 2)
-                centerOffset.toPx().toInt().coerceAtLeast(0)
-            }
-            coroutineScope.launch {
-                scrollState.animateScrollTo(targetScroll, animationSpec = tween(300))
+    // 当选中的 Tab 改变时，自动将选中的 Tab 平滑滚动居中 (仅在启用滚动时生效)
+    if (scrollable) {
+        LaunchedEffect(selectedIndex, tabPositions) {
+            currentPosition?.let { (xOffset, width) ->
+                val targetScroll = with(density) {
+                    val containerWidth = scrollState.viewportSize.dp
+                    val centerOffset = (xOffset + width / 2) - (containerWidth / 2)
+                    centerOffset.toPx().toInt().coerceAtLeast(0)
+                }
+                coroutineScope.launch {
+                    scrollState.animateScrollTo(targetScroll, animationSpec = tween(300))
+                }
             }
         }
     }
 
-    val cornerRadius = 10.dp
-    val pillCornerRadius = 7.dp
+    val cornerRadius = when {
+        tabHeight <= 30.dp -> 8.dp
+        tabHeight <= 36.dp -> 9.dp
+        else -> 10.dp
+    }
+    val pillCornerRadius = when {
+        tabHeight <= 30.dp -> 6.dp
+        tabHeight <= 36.dp -> 6.5.dp
+        else -> 7.dp
+    }
+    val containerPadding = when {
+        tabHeight <= 30.dp -> 2.5.dp
+        tabHeight <= 36.dp -> 3.dp
+        else -> 3.5.dp
+    }
+    val tabHorizontalPadding = when {
+        tabHeight <= 30.dp -> 10.dp
+        tabHeight <= 36.dp -> 11.dp
+        else -> 14.dp
+    }
+    val iconSize = when {
+        tabHeight <= 30.dp -> 13.dp
+        tabHeight <= 36.dp -> 14.dp
+        else -> 15.dp
+    }
+    val fontSize = when {
+        tabHeight <= 30.dp -> 11.5.sp
+        tabHeight <= 36.dp -> 12.5.sp
+        else -> 13.sp
+    }
 
     Surface(
         modifier = modifier.height(tabHeight),
@@ -107,11 +138,19 @@ fun <T> StudioSlidingTabLayout(
         color = containerColor,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
     ) {
-        Box(
-            modifier = Modifier
+        val boxModifier = if (scrollable) {
+            Modifier
                 .fillMaxHeight()
                 .horizontalScroll(scrollState)
-                .padding(3.5.dp),
+                .padding(containerPadding)
+        } else {
+            Modifier
+                .fillMaxHeight()
+                .padding(containerPadding)
+        }
+
+        Box(
+            modifier = boxModifier,
             contentAlignment = Alignment.CenterStart
         ) {
             // 滑动的 Active 药丸胶囊（高对比悬浮白卡片 + 阴影 + 细边框）
@@ -171,7 +210,7 @@ fun <T> StudioSlidingTabLayout(
                             ) {
                                 onSelect(item.key)
                             }
-                            .padding(horizontal = 14.dp),
+                            .padding(horizontal = tabHorizontalPadding),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(
@@ -182,7 +221,7 @@ fun <T> StudioSlidingTabLayout(
                                 androidx.compose.material3.Icon(
                                     imageVector = item.icon,
                                     contentDescription = null,
-                                    modifier = Modifier.size(15.dp),
+                                    modifier = Modifier.size(iconSize),
                                     tint = textColor
                                 )
                             }
@@ -190,7 +229,7 @@ fun <T> StudioSlidingTabLayout(
                             Text(
                                 text = item.title,
                                 style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 13.sp,
+                                    fontSize = fontSize,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 ),
                                 color = textColor,
@@ -402,4 +441,34 @@ fun <T> StudioUnderlineTabLayout(
             )
         }
     }
+}
+
+/**
+ * 紧凑型胶囊滑动分段切换器 (StudioSegmentedControl)：
+ * 与 StudioSlidingTabLayout 保持统一的滑动悬浮白卡片药丸与高对比度设计
+ */
+@Composable
+fun <T> StudioSegmentedControl(
+    items: List<StudioTabItem<T>>,
+    selectedKey: T,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    height: Dp = 28.dp,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+    activePillColor: Color = MaterialTheme.colorScheme.surface,
+    activeContentColor: Color = MaterialTheme.colorScheme.primary,
+    inactiveContentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
+) {
+    StudioSlidingTabLayout(
+        items = items,
+        selectedKey = selectedKey,
+        onSelect = onSelect,
+        modifier = modifier,
+        tabHeight = height,
+        scrollable = false,
+        containerColor = containerColor,
+        activePillColor = activePillColor,
+        activeContentColor = activeContentColor,
+        inactiveContentColor = inactiveContentColor
+    )
 }

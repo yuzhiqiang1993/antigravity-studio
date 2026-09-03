@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import com.yuzhiqiang.antigravity.ui.components.StudioSegmentedControl
+import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
@@ -157,57 +159,19 @@ fun PolicyCustomFieldCard(
             }
 
             // 2. 输入模式切换分段器 (.policy-input-mode-segmented)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(6.dp),
-                color = if (isDark) MaterialTheme.colorScheme.surfaceContainerLow else Color.White,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(23.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (isPercentMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                            .clickable { onModeChange(true) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = modeTabLabels.first,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
-                                fontWeight = if (isPercentMode) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isPercentMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(23.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (!isPercentMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                            .clickable { onModeChange(false) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = modeTabLabels.second,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
-                                fontWeight = if (!isPercentMode) FontWeight.Bold else FontWeight.Medium,
-                                color = if (!isPercentMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
-                }
+            val modeItems = remember(modeTabLabels) {
+                listOf(
+                    StudioTabItem(true, modeTabLabels.first),
+                    StudioTabItem(false, modeTabLabels.second)
+                )
             }
+            StudioSegmentedControl(
+                items = modeItems,
+                selectedKey = isPercentMode,
+                onSelect = onModeChange,
+                modifier = Modifier.fillMaxWidth(),
+                height = 26.dp
+            )
 
             // 3. 内容区：等高容器 (height = 60.dp) 保证三张卡片底部绝对平齐！
             Box(

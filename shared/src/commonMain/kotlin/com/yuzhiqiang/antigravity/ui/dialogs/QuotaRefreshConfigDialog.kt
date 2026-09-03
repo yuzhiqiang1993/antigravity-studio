@@ -28,6 +28,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.i18n.strings
+import com.yuzhiqiang.antigravity.ui.components.StudioSegmentedControl
+import com.yuzhiqiang.antigravity.ui.components.StudioTabItem
 import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
@@ -76,51 +78,18 @@ private fun SegmentedUnitPicker(
     modifier: Modifier = Modifier
 ) {
     val s = strings()
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val containerBg = if (isDark) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-    }
-
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(containerBg)
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        units.forEach { unit ->
-            val isSelected = unit == selectedUnit
-            val bg = if (isSelected) {
-                MaterialTheme.colorScheme.surface
-            } else {
-                Color.Transparent
-            }
-            val textColor = if (isSelected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(bg)
-                    .clickable { onSelectUnit(unit) }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = unit.label(s),
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = textColor
-                )
-            }
+    val items = remember(units, s) {
+        units.map { unit ->
+            StudioTabItem(unit, unit.label(s))
         }
     }
+    StudioSegmentedControl(
+        items = items,
+        selectedKey = selectedUnit,
+        onSelect = onSelectUnit,
+        modifier = modifier,
+        height = 28.dp
+    )
 }
 
 /**
