@@ -55,6 +55,8 @@ fun App(
     val confirmState by viewModel.confirmDialog.collectAsState()
     val hostPathDialogState by viewModel.hostPathDialogState.collectAsState()
     val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
+    val showUpdateRestrictedDialog by viewModel.showUpdateRestrictedDialog.collectAsState()
+    val updateRestrictedError by viewModel.updateRestrictedError.collectAsState()
     val showOnboarding by viewModel.showOnboardingDialog.collectAsState()
     val activeRelease by viewModel.activeRelease.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
@@ -198,6 +200,16 @@ fun App(
                         onShowInFolder = { file -> viewModel.showDownloadedFileInFolder(file) },
                         onDismiss = { viewModel.dismissUpdateDialog() },
                         onIgnoreVersion = { version -> viewModel.ignoreUpdateVersion(version) }
+                    )
+                }
+
+                // 检查更新访问受限/失败引导对话框
+                if (showUpdateRestrictedDialog) {
+                    com.yuzhiqiang.antigravity.ui.dialogs.UpdateRestrictedDialog(
+                        errorMessage = updateRestrictedError,
+                        onOpenGithub = { viewModel.openGithubRepo() },
+                        onOpenReleases = { viewModel.openGithubReleases() },
+                        onDismiss = { viewModel.dismissUpdateRestrictedDialog() }
                     )
                 }
 

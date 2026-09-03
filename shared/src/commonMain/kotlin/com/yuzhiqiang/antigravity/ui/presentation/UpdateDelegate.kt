@@ -29,7 +29,9 @@ class UpdateDelegate(
     private val showUpdateDialogFlow: MutableStateFlow<Boolean>,
     private val activeReleaseFlow: MutableStateFlow<ReleaseInfo?>,
     private val downloadStateFlow: MutableStateFlow<AppUpdateDownloadState>,
-    private val showNotice: (String, NoticeKind) -> Unit
+    private val showNotice: (String, NoticeKind) -> Unit,
+    private val showUpdateRestrictedDialogFlow: MutableStateFlow<Boolean>? = null,
+    private val updateRestrictedErrorFlow: MutableStateFlow<String?>? = null
 ) {
 
     private val s get() = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
@@ -74,6 +76,8 @@ class UpdateDelegate(
                     val msg = error.message ?: s.commonUnknown
                     updateStateFlow.value = UpdateState.Error(msg, isManual)
                     if (isManual) {
+                        showUpdateRestrictedDialogFlow?.value = true
+                        updateRestrictedErrorFlow?.value = msg
                         showNotice(s.updateCheckFailed(msg), NoticeKind.ERROR)
                     }
                 }
@@ -83,6 +87,11 @@ class UpdateDelegate(
 
     fun dismissUpdateDialog() {
         showUpdateDialogFlow.value = false
+    }
+
+    fun dismissUpdateRestrictedDialog() {
+        showUpdateRestrictedDialogFlow?.value = false
+        updateRestrictedErrorFlow?.value = null
     }
 
     fun openUpdateDialog() {

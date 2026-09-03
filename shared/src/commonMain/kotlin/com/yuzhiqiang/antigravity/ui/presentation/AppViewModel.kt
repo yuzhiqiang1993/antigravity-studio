@@ -291,6 +291,12 @@ class AppViewModel(
     private val _showUpdateDialog = MutableStateFlow(false)
     val showUpdateDialog: StateFlow<Boolean> = _showUpdateDialog.asStateFlow()
 
+    private val _showUpdateRestrictedDialog = MutableStateFlow(false)
+    val showUpdateRestrictedDialog: StateFlow<Boolean> = _showUpdateRestrictedDialog.asStateFlow()
+
+    private val _updateRestrictedError = MutableStateFlow<String?>(null)
+    val updateRestrictedError: StateFlow<String?> = _updateRestrictedError.asStateFlow()
+
     private val _showOnboardingDialog = MutableStateFlow(false)
     val showOnboardingDialog: StateFlow<Boolean> = _showOnboardingDialog.asStateFlow()
 
@@ -358,7 +364,9 @@ class AppViewModel(
         showUpdateDialogFlow = _showUpdateDialog,
         activeReleaseFlow = _activeRelease,
         downloadStateFlow = _downloadState,
-        showNotice = ::showNotice
+        showNotice = ::showNotice,
+        showUpdateRestrictedDialogFlow = _showUpdateRestrictedDialog,
+        updateRestrictedErrorFlow = _updateRestrictedError
     )
 
     private val s get() = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
@@ -788,6 +796,18 @@ class AppViewModel(
     fun checkForUpdates(isManual: Boolean = true) = updateDelegate.checkForUpdates(isManual)
 
     fun dismissUpdateDialog() = updateDelegate.dismissUpdateDialog()
+
+    fun dismissUpdateRestrictedDialog() = updateDelegate.dismissUpdateRestrictedDialog()
+
+    fun openGithubRepo() =
+        com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService.openBrowser(
+            com.yuzhiqiang.antigravity.update.model.AppVersion.GITHUB_REPO_URL
+        )
+
+    fun openGithubReleases() =
+        com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService.openBrowser(
+            com.yuzhiqiang.antigravity.update.model.AppVersion.RELEASES_PAGE_URL
+        )
 
     fun openUpdateDialog() = updateDelegate.openUpdateDialog()
 

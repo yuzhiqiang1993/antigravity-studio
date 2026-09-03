@@ -135,6 +135,11 @@ interface SettingsStrings {
     val updateRetryDownload: String
     val updateOpenInBrowser: String
     val updateCancelDownload: String
+    val updateRestrictedTitle: String
+    val updateRestrictedDesc: String
+    val updateRestrictedOpenGithub: String
+    val updateRestrictedOpenReleases: String
+    val updateRestrictedErrorLabel: String
     val settingsAutoCheckUpdate: String
     val settingsAutoCheckUpdateDesc: String
     val settingsCheckUpdateBtn: String
@@ -310,6 +315,11 @@ object SettingsStringsZh : SettingsStrings {
     override val updateRetryDownload = "重试下载"
     override val updateOpenInBrowser = "在浏览器中下载"
     override val updateCancelDownload = "取消"
+    override val updateRestrictedTitle = "更新检测访问受限"
+    override val updateRestrictedDesc = "由于 GitHub API 访问频次受限（常见于代理或共享节点）或网络连接问题，无法直接在应用内获取最新版本。建议您前往 GitHub 项目主页或 Releases 页面下载最新安装包。"
+    override val updateRestrictedOpenGithub = "前往 GitHub 主页"
+    override val updateRestrictedOpenReleases = "查看 Releases 发布页"
+    override val updateRestrictedErrorLabel = "错误详情"
     override val settingsAutoCheckUpdate = "启动时自动检查更新"
     override val settingsAutoCheckUpdateDesc = "应用启动时在后台静默检查是否有新版本，并在有更新时提醒"
     override val settingsCheckUpdateBtn = "检查更新"
@@ -491,6 +501,11 @@ object SettingsStringsEn : SettingsStrings {
     override val updateRetryDownload = "Retry Download"
     override val updateOpenInBrowser = "Download in Browser"
     override val updateCancelDownload = "Cancel"
+    override val updateRestrictedTitle = "Update Check Restricted"
+    override val updateRestrictedDesc = "Unable to check for updates directly in-app due to GitHub API rate limits (common on shared proxy nodes) or network issues. Please visit the GitHub project page or Releases to download the latest installer."
+    override val updateRestrictedOpenGithub = "Visit GitHub Project"
+    override val updateRestrictedOpenReleases = "View Releases"
+    override val updateRestrictedErrorLabel = "Error Details"
     override val settingsAutoCheckUpdate = "Check for updates on startup"
     override val settingsAutoCheckUpdateDesc =
         "Silently check for new versions on startup and notify when updates are available"
