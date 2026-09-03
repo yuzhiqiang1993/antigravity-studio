@@ -19,9 +19,22 @@ class TokenRenewalManager(
     private val googleAuthService: GoogleAuthService,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) {
+    private val officialCredentialsStore = com.yuzhiqiang.antigravity.data.storage.OfficialCredentialsStore()
     private val mutex = Mutex()
     private var renewalJob: Job? = null
     private var isRunning = false
+
+    private suspend fun tryRecoverFromExternalCredentials(email: String, currentRefreshToken: String): Boolean {
+        val externalAccount = runCatching { officialCredentialsStore.importAccount() }.getOrNull() ?: return false
+        if (externalAccount.email.equals(email, ignoreCase = true) &&
+            externalAccount.tokens.refreshToken.isNotBlank() &&
+            externalAccount.tokens.refreshToken != currentRefreshToken
+        ) {
+            accountStore.updateTokens(email, externalAccount.tokens)
+            return true
+        }
+        return false
+    }
 
     companion object {
         const val CHECK_INTERVAL_MS = 60_000L // 1 分钟巡检一次
@@ -63,11 +76,19 @@ class TokenRenewalManager(
                     accountStore.updateTokens(account.email, newTokens)
                     refreshedCount++
                 } else {
-                    val errorMsg = newTokensResult.exceptionOrNull()?.message ?: "刷新 Token 失败"
-                    accountStore.markAccountError(account.email, errorMsg)
+                    if (tryRecoverFromExternalCredentials(account.email, account.tokens.refreshToken)) {
+                        refreshedCount++
+                    } else {
+                        val errorMsg = newTokensResult.exceptionOrNull()?.message ?: "刷新 Token 失败"
+                        accountStore.markAccountError(account.email, errorMsg)
+                    }
                 }
             } catch (e: Exception) {
-                accountStore.markAccountError(account.email, e.message ?: "刷新 Token 发生异常")
+                if (tryRecoverFromExternalCredentials(account.email, account.tokens.refreshToken)) {
+                    refreshedCount++
+                } else {
+                    accountStore.markAccountError(account.email, e.message ?: "刷新 Token 发生异常")
+                }
             }
         }
         Result.success(refreshedCount)
@@ -91,13 +112,21 @@ class TokenRenewalManager(
                 accountStore.updateTokens(account.email, newTokens)
                 Result.success(Unit)
             } else {
-                val error = newTokensResult.exceptionOrNull() ?: IllegalStateException("刷新失败")
-                accountStore.markAccountError(account.email, error.message ?: "刷新失败")
-                Result.failure(error)
+                if (tryRecoverFromExternalCredentials(account.email, account.tokens.refreshToken)) {
+                    Result.success(Unit)
+                } else {
+                    val error = newTokensResult.exceptionOrNull() ?: IllegalStateException("刷新失败")
+                    accountStore.markAccountError(account.email, error.message ?: "刷新失败")
+                    Result.failure(error)
+                }
             }
         } catch (e: Exception) {
-            accountStore.markAccountError(account.email, e.message ?: "刷新异常")
-            Result.failure(e)
+            if (tryRecoverFromExternalCredentials(account.email, account.tokens.refreshToken)) {
+                Result.success(Unit)
+            } else {
+                accountStore.markAccountError(account.email, e.message ?: "刷新异常")
+                Result.failure(e)
+            }
         }
     }
 
@@ -109,11 +138,13 @@ class TokenRenewalManager(
                     val newTokensResult = googleAuthService.refreshAccessToken(account.tokens.refreshToken)
                     if (newTokensResult.isSuccess) {
                         accountStore.updateTokens(account.email, newTokensResult.getOrThrow())
-                    } else {
+                    } else if (!tryRecoverFromExternalCredentials(account.email, account.tokens.refreshToken)) {
                         accountStore.markAccountError(account.email, newTokensResult.exceptionOrNull()?.message ?: "自动续期失败")
                     }
                 } catch (e: Exception) {
-                    accountStore.markAccountError(account.email, e.message ?: "自动续期异常")
+                    if (!tryRecoverFromExternalCredentials(account.email, account.tokens.refreshToken)) {
+                        accountStore.markAccountError(account.email, e.message ?: "自动续期异常")
+                    }
                 }
             }
         }

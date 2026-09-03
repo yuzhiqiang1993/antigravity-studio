@@ -19,6 +19,7 @@ class SmartSwitchCoordinator(
 ) {
     private val mutex = Mutex()
     private var lastAutoSwitchTime = 0L
+    private val roundRobinIndex = java.util.concurrent.atomic.AtomicInteger(0)
 
     data class SmartSwitchOutcome(
         val triggered: Boolean,
@@ -128,6 +129,7 @@ class SmartSwitchCoordinator(
         strategy: SmartSwitchStrategy,
         targetModelId: String?
     ): AccountInfo? {
+        if (candidates.isEmpty()) return null
         val quotas = quotasProvider()
         return when (strategy) {
             SmartSwitchStrategy.HIGHEST_QUOTA_FIRST -> {
@@ -137,13 +139,15 @@ class SmartSwitchCoordinator(
                         val specific = snapshot.models.firstOrNull { it.id.contains(targetModelId, ignoreCase = true) }
                         specific?.remainingFraction ?: 0.0
                     } else {
-                        snapshot.primaryQuotas().map { it.remainingFraction }.average().takeIf { !it.isNaN() } ?: 0.0
+                        val fractions = snapshot.primaryQuotas().map { it.remainingFraction }
+                        if (fractions.isEmpty()) 0.0 else (fractions.minOrNull() ?: 0.0)
                     }
                 } ?: candidates.firstOrNull()
             }
 
             SmartSwitchStrategy.ROUND_ROBIN -> {
-                candidates.firstOrNull()
+                val idx = (roundRobinIndex.getAndIncrement() and Int.MAX_VALUE) % candidates.size
+                candidates[idx]
             }
         }
     }

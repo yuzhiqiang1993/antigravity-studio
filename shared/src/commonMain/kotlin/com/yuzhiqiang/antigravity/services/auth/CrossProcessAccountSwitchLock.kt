@@ -18,7 +18,7 @@ import java.util.UUID
  */
 class CrossProcessAccountSwitchLock(
     private val lockDirectory: File = File(System.getProperty("user.home"), ".gemini/antigravity"),
-    private val lockTimeoutMs: Long = 30_000L,
+    private val lockTimeoutMs: Long = 120_000L,
     private val heartbeatIntervalMs: Long = 5_000L
 ) {
     private val inProcessMutex = Mutex()

@@ -46,7 +46,7 @@ data class ModelQuotaInfo(
     /**
      * 剩余额度百分比 (0 ~ 100)
      */
-    val percentage: Int = (remainingFraction * 100).toInt().coerceIn(0, 100),
+    val percentage: Int = kotlin.math.round(remainingFraction * 100).toInt().coerceIn(0, 100),
     /**
      * 额度重置时间 ISO 字符串
      */

@@ -270,11 +270,30 @@ class AccountStore(
             }
 
             saveAccountsInternal(updatedAccounts, committed.id)
+            writeActiveAccountSnapshot(committed)
             _accountsState.value = updatedAccounts
             _activeAccountState.value = committed
             Result.success(committed)
         } catch (error: Exception) {
             Result.failure(error)
+        }
+    }
+
+    private fun writeActiveAccountSnapshot(account: AccountInfo) {
+        runCatching {
+            val dir = customRootDir ?: File(System.getProperty("user.home"), ".gemini/antigravity")
+            dir.mkdirs()
+            val targetFile = File(dir, "active-account.json")
+            val payload = buildString {
+                append("{\n")
+                append("  \"version\": 1,\n")
+                append("  \"accountId\": \"${account.id}\",\n")
+                append("  \"email\": \"${account.email}\",\n")
+                append("  \"source\": \"antigravity-studio\",\n")
+                append("  \"switchedAt\": ${System.currentTimeMillis()}\n")
+                append("}\n")
+            }
+            targetFile.writeText(payload, Charsets.UTF_8)
         }
     }
 

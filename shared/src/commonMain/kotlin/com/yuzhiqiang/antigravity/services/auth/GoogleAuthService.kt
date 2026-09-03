@@ -395,6 +395,8 @@ class GoogleAuthService : AutoCloseable {
      */
     suspend fun refreshAccessToken(refreshToken: String): Result<OAuthTokens> = withContext(Dispatchers.IO) {
         try {
+            val jitter = kotlin.random.Random.nextLong(200L, 800L)
+            kotlinx.coroutines.delay(jitter)
             val responseText: String = httpClient.submitForm(
                 url = TOKEN_URL,
                 formParameters = Parameters.build {

@@ -34,13 +34,32 @@ class SmartSwitchCoordinatorTest {
 
     @Test
     fun testWorkflowLeaseManager() = runBlocking {
-        assertFalse(WorkflowLeaseManager.isLocked())
+        val inhibitorDir = File(tempDir, "inhibitors").apply { mkdirs() }
+        WorkflowLeaseManager.customInhibitorDir = inhibitorDir
+        try {
+            assertFalse(WorkflowLeaseManager.isLocked())
 
-        val lease1 = WorkflowLeaseManager.acquireLease(10_000L)
-        assertTrue(WorkflowLeaseManager.isLocked())
+            val lease1 = WorkflowLeaseManager.acquireLease(10_000L)
+            assertTrue(WorkflowLeaseManager.isLocked())
+            val files = inhibitorDir.listFiles()?.filter { it.name.endsWith(".json") }
+            assertEquals(1, files?.size)
 
-        WorkflowLeaseManager.releaseLease(lease1)
-        assertFalse(WorkflowLeaseManager.isLocked())
+            WorkflowLeaseManager.releaseLease(lease1)
+            assertFalse(WorkflowLeaseManager.isLocked())
+            val remainingFiles = inhibitorDir.listFiles()?.filter { it.name.endsWith(".json") }
+            assertEquals(0, remainingFiles?.size)
+        } finally {
+            WorkflowLeaseManager.customInhibitorDir = null
+        }
+    }
+
+    @Test
+    fun testModelQuotaRounding() {
+        val quota1 = ModelQuotaInfo("claude", "Claude", remainingFraction = 0.496)
+        assertEquals(50, quota1.percentage)
+
+        val quota2 = ModelQuotaInfo("claude", "Claude", remainingFraction = 0.494)
+        assertEquals(49, quota2.percentage)
     }
 
     @Test
@@ -124,5 +143,57 @@ class SmartSwitchCoordinatorTest {
         assertTrue(outcome.requiresUserAction)
         assertEquals("acc_3_high", outcome.targetAccount?.id)
         assertEquals("depleted@antigravity.ai", accountStore.currentActiveAccount()?.email)
+    }
+
+    @Test
+    fun testRoundRobinSmartSwitch() = runBlocking {
+        configStore.updateConfig {
+            it.copy(
+                smartSwitchConfig = SmartSwitchConfig(
+                    enabled = true,
+                    triggerThresholdPercent = 5,
+                    strategy = SmartSwitchStrategy.ROUND_ROBIN,
+                    cooldownSeconds = 0
+                )
+            )
+        }
+
+        val account1 = AccountInfo(
+            id = "acc_1",
+            profile = AccountProfile("depleted@antigravity.ai"),
+            tokens = OAuthTokens("a1", "r1", System.currentTimeMillis() / 1000L + 3600L),
+            isActive = true
+        )
+        val account2 = AccountInfo(
+            id = "acc_2",
+            profile = AccountProfile("two@antigravity.ai"),
+            tokens = OAuthTokens("a2", "r2", System.currentTimeMillis() / 1000L + 3600L),
+            isActive = false
+        )
+        val account3 = AccountInfo(
+            id = "acc_3",
+            profile = AccountProfile("three@antigravity.ai"),
+            tokens = OAuthTokens("a3", "r3", System.currentTimeMillis() / 1000L + 3600L),
+            isActive = false
+        )
+
+        accountStore.upsertAccount(account1)
+        accountStore.upsertAccount(account2)
+        accountStore.upsertAccount(account3)
+
+        val coordinator = SmartSwitchCoordinator(
+            accountStore = accountStore,
+            configStore = configStore,
+            hotSwitchCoordinator = hotSwitchCoordinator,
+            quotasProvider = { emptyMap() }
+        )
+
+        val outcome1 = coordinator.trySmartSwitchOn429(null)
+        val outcome2 = coordinator.trySmartSwitchOn429(null)
+
+        val selectedIds = listOf(outcome1.targetAccount?.id, outcome2.targetAccount?.id)
+        assertTrue(selectedIds.contains("acc_2"))
+        assertTrue(selectedIds.contains("acc_3"))
+        assertNotEquals(outcome1.targetAccount?.id, outcome2.targetAccount?.id)
     }
 }

@@ -54,7 +54,9 @@ data class AccountQuotaSnapshot(
      */
     fun geminiFlashQuota(): ModelQuotaInfo? {
         return models.firstOrNull { it.id.contains("gemini-2.5-flash") || it.id.contains("gemini-2-flash") }
-            ?: models.firstOrNull { it.id.contains("flash") }
+            ?: models.firstOrNull { it.id.contains("flash") && (it.family == "gemini" || it.family == null) }
+            ?: groups.firstOrNull { it.family == "gemini" && it.displayName.contains("flash", ignoreCase = true) }?.buckets?.firstOrNull()
+            ?: groups.firstOrNull { it.family == "gemini" }?.buckets?.getOrNull(1)
     }
 
     /**

@@ -4,8 +4,10 @@ import com.yuzhiqiang.antigravity.logging.AppLog
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -17,6 +19,7 @@ object WorkflowLeaseManager {
 
     private val idGenerator = AtomicLong(1L)
     private val activeLeases = mutableMapOf<Long, Long>() // leaseId -> acquireTimestamp
+    private val leaseFiles = mutableMapOf<Long, File>() // leaseId -> written inhibitor file
     private val mutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -28,15 +31,18 @@ object WorkflowLeaseManager {
 
     @Serializable
     data class InhibitorPayload(
+        val version: Int? = 1,
         val id: String? = null,
         val leaseId: String? = null,
         val holder: String? = null,
         val owner: String? = null,
+        val ownerType: String? = "external-process",
         val reason: String? = null,
         val acquiredAt: Long? = null,
         val heartbeatAt: Long? = null,
         val expiresAt: Long? = null,
-        val ttlMs: Long? = null
+        val ttlMs: Long? = null,
+        val holderTokenHash: String? = null
     ) {
         val effectiveId: String?
             get() = id ?: leaseId
@@ -46,15 +52,48 @@ object WorkflowLeaseManager {
             get() = expiresAt ?: (if (heartbeatAt != null && ttlMs != null) heartbeatAt + ttlMs else null)
     }
 
-    suspend fun acquireLease(timeoutMs: Long = 60_000L): Long = mutex.withLock {
+    private fun sha256Hex(input: String): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        val bytes = md.digest(input.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    suspend fun acquireLease(timeoutMs: Long = 60_000L, reason: String = "external-workflow"): Long = mutex.withLock {
         val id = idGenerator.getAndIncrement()
         cleanExpiredLeases(timeoutMs)
-        activeLeases[id] = System.currentTimeMillis()
+        val now = System.currentTimeMillis()
+        activeLeases[id] = now
+        val uuid = UUID.randomUUID().toString()
+        val token = UUID.randomUUID().toString()
+        val payload = InhibitorPayload(
+            version = 1,
+            id = uuid,
+            leaseId = uuid,
+            holder = "antigravity-studio",
+            owner = "antigravity-studio",
+            ownerType = "external-process",
+            reason = reason,
+            acquiredAt = now,
+            heartbeatAt = now,
+            expiresAt = now + timeoutMs,
+            ttlMs = timeoutMs,
+            holderTokenHash = sha256Hex(token)
+        )
+        val targetFile = File(inhibitorDirectory, "$uuid.json")
+        runCatching {
+            inhibitorDirectory.mkdirs()
+            targetFile.writeText(json.encodeToString(payload), Charsets.UTF_8)
+            leaseFiles[id] = targetFile
+        }
         id
     }
 
     suspend fun releaseLease(leaseId: Long) = mutex.withLock {
         activeLeases.remove(leaseId)
+        val file = leaseFiles.remove(leaseId)
+        if (file != null) {
+            runCatching { file.delete() }
+        }
     }
 
     suspend fun isLocked(timeoutMs: Long = 60_000L): Boolean = mutex.withLock {
@@ -102,6 +141,13 @@ object WorkflowLeaseManager {
 
     private fun cleanExpiredLeases(timeoutMs: Long) {
         val now = System.currentTimeMillis()
-        activeLeases.entries.removeIf { (now - it.value) > timeoutMs }
+        val expired = activeLeases.filter { (now - it.value) > timeoutMs }.keys
+        for (id in expired) {
+            activeLeases.remove(id)
+            val file = leaseFiles.remove(id)
+            if (file != null) {
+                runCatching { file.delete() }
+            }
+        }
     }
 }
