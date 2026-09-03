@@ -195,20 +195,20 @@ jobs:
             exit 1
           fi
 
-          cp "$SRC_DMG" "release-artifacts/$ASSET_NAME"
-          cd release-artifacts
+          DEST_DMG="release-artifacts/$ASSET_NAME"
+          cp "$SRC_DMG" "$DEST_DMG"
 
-          FILE_SIZE=$(wc -c < "$ASSET_NAME" | tr -d ' ')
-          FILE_SHA=$(shasum -a 256 "$ASSET_NAME" | awk '{print $1}')
-          MANIFEST_FILE="${ASSET_NAME}.manifest.json"
-          SIG_FILE="${ASSET_NAME}.manifest.json.sig"
+          FILE_SIZE=$(wc -c < "$DEST_DMG" | tr -d ' ')
+          FILE_SHA=$(shasum -a 256 "$DEST_DMG" | awk '{print $1}')
+          MANIFEST_FILE="release-artifacts/${ASSET_NAME}.manifest.json"
+          SIG_FILE="release-artifacts/${ASSET_NAME}.manifest.json.sig"
 
           cat <<EOF > "$MANIFEST_FILE"
           {"version":"$VERSION","assetName":"$ASSET_NAME","sha256":"$FILE_SHA","size":$FILE_SIZE}
           EOF
 
           if [ -n "$UPDATE_SIGNING_PRIVATE_KEY" ]; then
-            java ../scripts/SignUpdateArtifact.java "$MANIFEST_FILE" "$SIG_FILE"
+            java scripts/SignUpdateArtifact.java "$MANIFEST_FILE" "$SIG_FILE"
           else
             echo "::warning::缺少 UPDATE_SIGNING_PRIVATE_KEY secret，跳过安装包安全签名生成！"
           fi
@@ -230,19 +230,19 @@ jobs:
             exit 1
           }
 
-          Copy-Item $srcExe "release-artifacts/$assetName"
-          Set-Location release-artifacts
+          $destExe = "release-artifacts/$assetName"
+          Copy-Item $srcExe $destExe
 
-          $fileSize = (Get-Item $assetName).Length
-          $fileSha = (Get-FileHash -Algorithm SHA256 $assetName).Hash.ToLower()
-          $manifestFile = "$assetName.manifest.json"
-          $sigFile = "$assetName.manifest.json.sig"
+          $fileSize = (Get-Item $destExe).Length
+          $fileSha = (Get-FileHash -Algorithm SHA256 $destExe).Hash.ToLower()
+          $manifestFile = "release-artifacts/$assetName.manifest.json"
+          $sigFile = "release-artifacts/$assetName.manifest.json.sig"
 
           $manifestJson = "{`"version`":`"$version`",`"assetName`":`"$assetName`",`"sha256`":`"$fileSha`",`"size`":$fileSize}"
-          [IO.File]::WriteAllText($manifestFile, $manifestJson, [Text.Encoding]::UTF8)
+          Set-Content -Path $manifestFile -Value $manifestJson -NoNewline
 
           if (-not [string]::IsNullOrWhiteSpace($env:UPDATE_SIGNING_PRIVATE_KEY)) {
-            java ../scripts/SignUpdateArtifact.java $manifestFile $sigFile
+            java scripts/SignUpdateArtifact.java $manifestFile $sigFile
           } else {
             Write-Warning "缺少 UPDATE_SIGNING_PRIVATE_KEY secret，跳过安装包安全签名生成！"
           }
