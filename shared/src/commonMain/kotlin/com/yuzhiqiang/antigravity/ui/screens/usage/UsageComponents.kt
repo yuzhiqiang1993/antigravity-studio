@@ -501,6 +501,26 @@ fun UsageKpiGrid(
                     }
                 }
             }
+
+            if (stats.costLowerBound || hasUnmatchedPricing) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    )
+                    Text(
+                        text = s.usageLowerBoundNotice,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    )
+                }
+            }
         }
     }
 }
@@ -774,9 +794,9 @@ internal fun usageBucketCostLabel(
     costLowerBound: Boolean,
     s: com.yuzhiqiang.antigravity.i18n.Strings
 ): String {
-    if (!pricingMatched && costUsd <= 0.0) return s.usageCostUnavailable
+    if (!pricingMatched) return s.usageCostValue("0")
     val amount = UsageNumberFormatter.formatUsdAmount(costUsd)
-    return if (costLowerBound || !pricingMatched) {
+    return if (costLowerBound) {
         s.usageCostLowerBound(amount)
     } else {
         s.usageCostValue(amount)
@@ -802,11 +822,6 @@ private fun ModelBreakdownRow(
     tokenColors: UsageTokenColors
 ) {
     val s = strings()
-    val cacheRate = calculatePromptCacheHitRatio(
-        cacheReadTokens = bucket.cacheRead,
-        uncachedInputTokens = bucket.input,
-        cacheWriteTokens = bucket.cacheWrite
-    )?.times(100.0)
 
     Surface(
         modifier = Modifier
@@ -867,22 +882,6 @@ private fun ModelBreakdownRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Surface(
-                        shape = RoundedCornerShape(AppTokens.Radius.xs),
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
-                    ) {
-                        Text(
-                            text = if (cacheRate == null) {
-                                "—"
-                            } else {
-                                val prefix = if (bucket.cacheHitRateIncomplete) "≈" else ""
-                                s.usageCacheRate("$prefix${UsageNumberFormatter.formatPercent(cacheRate)}")
-                            },
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = UsageVisualTokens.Typography.badgeText),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
                 }
 
                 Row(
@@ -903,7 +902,7 @@ private fun ModelBreakdownRow(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
                         ),
-                        color = if (bucket.pricingMatched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        color = if (bucket.pricingMatched && bucket.costUsd > 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -924,73 +923,45 @@ private fun ModelBreakdownRow(
                 TokenCompositionSegment(bucket.unattributed, tokenColors.unattributed)
             }
 
-            // 底部：结构化 Token 分项指标组（带色彩圆点、标签与数值） + 右侧计费来源徽章
-            Row(
+            // 底部：结构化 Token 分项指标组（带色彩圆点、标签与数值）
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                FlowRow(
-                    modifier = Modifier.weight(1f, fill = false),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
+                ModelTokenDimensionItem(
+                    label = s.usageTokenPromptInput,
+                    value = inputFormatted,
+                    dotColor = tokenColors.input
+                )
+                ModelTokenDimensionItem(
+                    label = s.usageTokenCacheRead,
+                    value = cacheFormatted,
+                    dotColor = tokenColors.cacheRead
+                )
+                ModelTokenDimensionItem(
+                    label = s.usageTokenCacheWrite,
+                    value = cacheWriteFormatted,
+                    dotColor = tokenColors.cacheWrite
+                )
+                ModelTokenDimensionItem(
+                    label = s.usageTokenModelOutput,
+                    value = outputFormatted,
+                    dotColor = tokenColors.output
+                )
+                if (bucket.reasoning > 0L || (reasoningFormatted != "0" && reasoningFormatted != "—")) {
                     ModelTokenDimensionItem(
-                        label = s.usageTokenPromptInput,
-                        value = inputFormatted,
-                        dotColor = tokenColors.input
+                        label = s.usageTokenThinking,
+                        value = reasoningFormatted,
+                        dotColor = tokenColors.reasoning
                     )
-                    ModelTokenDimensionItem(
-                        label = s.usageTokenCacheRead,
-                        value = cacheFormatted,
-                        dotColor = tokenColors.cacheRead
-                    )
-                    ModelTokenDimensionItem(
-                        label = s.usageTokenCacheWrite,
-                        value = cacheWriteFormatted,
-                        dotColor = tokenColors.cacheWrite
-                    )
-                    ModelTokenDimensionItem(
-                        label = s.usageTokenModelOutput,
-                        value = outputFormatted,
-                        dotColor = tokenColors.output
-                    )
-                    if (bucket.reasoning > 0L || (reasoningFormatted != "0" && reasoningFormatted != "—")) {
-                        ModelTokenDimensionItem(
-                            label = s.usageTokenThinking,
-                            value = reasoningFormatted,
-                            dotColor = tokenColors.reasoning
-                        )
-                    }
-                    if (bucket.unattributed > 0L) {
-                        ModelTokenDimensionItem(
-                            label = s.usageTokenUnattributed,
-                            value = UsageNumberFormatter.formatTokens(bucket.unattributed),
-                            dotColor = tokenColors.unattributed
-                        )
-                    }
                 }
-
-                if (bucket.pricingSource != "unknown") {
-                    Surface(
-                        shape = RoundedCornerShape(AppTokens.Radius.xs),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            0.5.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                        ),
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Text(
-                            text = s.usagePricingSource(bucket.pricingSource),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium
-                            ),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                if (bucket.unattributed > 0L) {
+                    ModelTokenDimensionItem(
+                        label = s.usageTokenUnattributed,
+                        value = UsageNumberFormatter.formatTokens(bucket.unattributed),
+                        dotColor = tokenColors.unattributed
+                    )
                 }
             }
         }

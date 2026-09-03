@@ -9,7 +9,10 @@ object UsageStringsEn : UsageStrings {
     override val usageTokensCount: (tokens: String) -> String = { tokens -> "$tokens Tokens" }
     override val usageCostValue: (cost: String) -> String = { cost -> "$$cost" }
     override val usageCostLowerBound: (cost: String) -> String = { cost -> "≥$$cost" }
-    override val usageCostUnavailable: String = "—"
+    override val usageCostUnavailable: String = "Unpriced"
+    override val usageLowerBoundNotice: String = "Includes lower-bound estimates (missing model pricing or usage fields)"
+    override val usageUnpricedBadge: String = "Unpriced"
+    override val usageLowerBoundBadge: String = "Lower Bound"
     override val usagePricingSource: (source: String) -> String = { source ->
         when (source.lowercase()) {
             "custom" -> "Custom"

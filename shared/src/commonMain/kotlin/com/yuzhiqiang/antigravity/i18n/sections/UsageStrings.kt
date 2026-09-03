@@ -8,6 +8,9 @@ interface UsageStrings {
     val usageCostValue: (cost: String) -> String
     val usageCostLowerBound: (cost: String) -> String
     val usageCostUnavailable: String
+    val usageLowerBoundNotice: String
+    val usageUnpricedBadge: String
+    val usageLowerBoundBadge: String
     val usagePricingSource: (source: String) -> String
 
     // 时间范围（与插件的滚动/日历范围语义一致）
