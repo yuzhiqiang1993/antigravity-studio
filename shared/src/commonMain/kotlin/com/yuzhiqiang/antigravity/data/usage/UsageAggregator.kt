@@ -16,8 +16,6 @@ import java.time.temporal.TemporalAdjusters
  */
 object UsageAggregator {
 
-    private val WEEKDAY_LABELS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-
     private data class TimeBounds(
         val from: Instant?,
         val toExclusive: Instant?,
@@ -65,7 +63,6 @@ object UsageAggregator {
 
         val dailyMap = mutableMapOf<String, DailyBucketAccumulator>()
         val hourlyMap = (0..23).associateWith { HourlyBucketAccumulator(it) }.toMutableMap()
-        val weekdayMap = (0..6).associateWith { WeekdayBucketAccumulator(it, WEEKDAY_LABELS[it]) }.toMutableMap()
         val monthlyMap = mutableMapOf<String, MonthlyBucketAccumulator>()
         val modelMap = mutableMapOf<String, ModelBucketAccumulator>()
         val sourceMap = mutableMapOf<String, SourceBucketAccumulator>()
@@ -230,8 +227,6 @@ object UsageAggregator {
                         unattributed,
                         costResult
                     )
-                    val dayOfWeekIdx = zonedDateTime.dayOfWeek.value - 1
-                    weekdayMap[dayOfWeekIdx]?.add(input, output, cacheRead, cacheWrite, reasoning, unattributed)
                 }
 
                 // 一级按 registry 的稳定 groupingKey 聚合，二级在桶内按 variantId 聚合。
@@ -323,10 +318,6 @@ object UsageAggregator {
             .map { it.toHourlyBucket() }
             .sortedBy { it.hour }
 
-        val sortedWeekday = weekdayMap.values
-            .map { it.toWeekdayBucket() }
-            .sortedBy { it.day }
-
         val sortedMonthly = monthlyMap.values
             .map { it.toMonthlyBucket() }
             .sortedByDescending { it.yearMonth }
@@ -386,7 +377,7 @@ object UsageAggregator {
             dateRangeTo = resolvedToDate?.toString().orEmpty(),
             dailyBuckets = sortedDaily,
             hourlyBuckets = sortedHourly,
-            weekdayBuckets = sortedWeekday,
+            weekdayBuckets = emptyList(),
             monthlyBuckets = sortedMonthly,
             modelBuckets = sortedModels,
             sourceBuckets = sortedSources,
@@ -671,38 +662,6 @@ object UsageAggregator {
             costUsd = costUsd,
             pricingMatched = pricingMatched,
             costLowerBound = costLowerBound
-        )
-    }
-
-    private class WeekdayBucketAccumulator(val day: Int, val label: String) {
-        var input: Long = 0L
-        var output: Long = 0L
-        var cacheRead: Long = 0L
-        var cacheWrite: Long = 0L
-        var reasoning: Long = 0L
-        var unattributed: Long = 0L
-        var calls: Long = 0L
-
-        fun add(i: Long, o: Long, cr: Long, cw: Long, r: Long, u: Long) {
-            input += i
-            output += o
-            cacheRead += cr
-            cacheWrite += cw
-            reasoning += r
-            unattributed += u
-            calls += 1
-        }
-
-        fun toWeekdayBucket(): WeekdayUsageBucket = WeekdayUsageBucket(
-            day = day,
-            label = label,
-            input = input,
-            output = output,
-            cacheRead = cacheRead,
-            cacheWrite = cacheWrite,
-            reasoning = reasoning,
-            unattributed = unattributed,
-            calls = calls
         )
     }
 

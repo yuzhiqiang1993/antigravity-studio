@@ -309,16 +309,63 @@ class PricingCatalogServiceTest {
 
             val geminiRes = service.resolvePricing(canonicalModelId = "google/gemini-3.7-flash")
             assertTrue(geminiRes.matched)
+            assertEquals(PricingConfidence.HIGH, geminiRes.confidence)
             assertEquals(0.15, geminiRes.rate.input)
+
+            // 降级模糊策略：缺少厂商前缀时通过 fallback 自动探测，返回 LOW 置信度
+            val unqualifiedResult = service.resolvePricing(canonicalModelId = "gemini-3.7-flash")
+            assertTrue(unqualifiedResult.matched)
+            assertEquals(PricingConfidence.LOW, unqualifiedResult.confidence)
+            assertEquals(0.15, unqualifiedResult.rate.input)
 
             val displayNameResult = service.resolvePricing(canonicalModelId = "Gemini 3.7 Flash (High)")
             assertFalse(displayNameResult.matched)
 
-            val unqualifiedResult = service.resolvePricing(canonicalModelId = "gemini-3.7-flash")
-            assertFalse(unqualifiedResult.matched)
-
             val tierResult = service.resolvePricing(canonicalModelId = "google/gemini-3.7-flash-high")
             assertFalse(tierResult.matched)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testFallbackFuzzyCandidateMatchingWhenExactMatchFails() {
+        val root = tempRoot()
+        try {
+            val cacheFile = File(root, "pricing_catalog.json")
+            cacheFile.writeText(
+                """
+                {
+                  "google/gemini-2.5-pro": {"cost": {"input": 1.25, "output": 5.0}},
+                  "deepseek/deepseek-chat": {"cost": {"input": 0.14, "output": 0.28}},
+                  "anthropic/claude-3-7-sonnet": {"cost": {"input": 3.0, "output": 15.0}}
+                }
+                """.trimIndent()
+            )
+            val service = PricingCatalogService(customRootDir = root)
+
+            // 1. 精确匹配：返回 HIGH 置信度
+            val exact = service.resolvePricing("google/gemini-2.5-pro")
+            assertTrue(exact.matched)
+            assertEquals(PricingConfidence.HIGH, exact.confidence)
+
+            // 2. 缺少厂商前缀：降级匹配成功，返回 LOW 置信度
+            val noPrefix = service.resolvePricing("gemini-2.5-pro")
+            assertTrue(noPrefix.matched)
+            assertEquals(PricingConfidence.LOW, noPrefix.confidence)
+            assertEquals(1.25, noPrefix.rate.input)
+
+            // 3. 下划线：降级转换为短横线连字符后匹配
+            val underscore = service.resolvePricing("deepseek_chat")
+            assertTrue(underscore.matched)
+            assertEquals(PricingConfidence.LOW, underscore.confidence)
+            assertEquals(0.14, underscore.rate.input)
+
+            // 4. 带日期快照后缀：降级剥离日期后缀后命中基础模型单价
+            val dated = service.resolvePricing("claude-3-7-sonnet-20250219")
+            assertTrue(dated.matched)
+            assertEquals(PricingConfidence.LOW, dated.confidence)
+            assertEquals(3.0, dated.rate.input)
         } finally {
             root.deleteRecursively()
         }

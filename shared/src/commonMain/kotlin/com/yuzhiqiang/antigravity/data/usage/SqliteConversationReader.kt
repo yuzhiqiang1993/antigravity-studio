@@ -299,13 +299,8 @@ object SqliteConversationReader {
         val input = tokenCount(usageFields, 1)
         val output = tokenCount(usageFields, 9).takeIf { it > 0L }
             ?: tokenCount(usageFields, 2)
-        val field3 = tokenCount(usageFields, 3)
-        val field5 = tokenCount(usageFields, 5)
-        val (cacheRead, cacheWrite) = if (field5 > 0L) {
-            field5 to field3
-        } else {
-            field3 to 0L
-        }
+        val cacheRead = tokenCount(usageFields, 3)
+        val cacheWrite = tokenCount(usageFields, 5)
         val reasoning = tokenCount(usageFields, 10)
         val missingUsageFields = missingUsageFields(usageFields)
 

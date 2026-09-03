@@ -186,21 +186,41 @@ class PricingCatalogService(
             *registeredPricingIds.map { it.substringAfterLast('/') }.toTypedArray()
         )
 
-        // 1. 用户自定义配置
+        // 1. 用户自定义配置（Studio 现有高置信精确匹配优先）
         for (candidate in candidates) {
             customOverrides[candidate]?.let {
                 return PricingResolution(it, PricingSource.CUSTOM, PricingConfidence.HIGH, matched = true)
             }
         }
 
-        // 2. 远端动态价格大盘（models.dev 官方权威数据及其本地磁盘缓存快照）
+        // 2. 远端动态价格大盘（Studio 现有权威数据精确匹配）
         for (candidate in candidates) {
             pricingCatalog[candidate]?.let {
                 return PricingResolution(it, PricingSource.EXTERNAL, PricingConfidence.HIGH, matched = true)
             }
         }
 
-        // 3. 未匹配到任何价格，返回未匹配零费率
+        // 3. 降级模糊归一化策略：只有前述 Studio 现有逻辑未命中时才触发
+        val fallbackCandidates = generateFallbackLookupCandidates(
+            canonicalModelId,
+            canonicalModelId?.substringAfterLast('/'),
+            *registeredPricingIds.toTypedArray(),
+            *registeredPricingIds.map { it.substringAfterLast('/') }.toTypedArray()
+        ).filter { it !in candidates }
+
+        for (candidate in fallbackCandidates) {
+            customOverrides[candidate]?.let {
+                return PricingResolution(it, PricingSource.CUSTOM, PricingConfidence.LOW, matched = true)
+            }
+        }
+
+        for (candidate in fallbackCandidates) {
+            pricingCatalog[candidate]?.let {
+                return PricingResolution(it, PricingSource.EXTERNAL, PricingConfidence.LOW, matched = true)
+            }
+        }
+
+        // 4. 未匹配到任何价格，返回未匹配零费率
         return PricingResolution(
             rate = ModelPricingRate(),
             source = PricingSource.UNMATCHED,
@@ -278,6 +298,47 @@ class PricingCatalogService(
             }
             if (VERSION_HYPHEN_PATTERN.containsMatchIn(normalized)) {
                 add(normalized.replace(VERSION_HYPHEN_PATTERN, "$1.$2"))
+            }
+        }
+    }.distinct()
+
+    internal fun generateFallbackLookupCandidates(vararg inputs: String?): List<String> = buildList {
+        val commonProviders = listOf("google", "anthropic", "openai", "deepseek", "meta-llama", "mistralai", "xai")
+        for (input in inputs) {
+            val raw = input?.trim()?.lowercase()?.removePrefix("models/") ?: continue
+            if (raw.isBlank()) continue
+
+            // 1. 处理中文括号、下划线及多余空白统一转换为标准短横线连字符
+            val slug = raw
+                .replace('（', '(')
+                .replace('）', ')')
+                .replace(Regex("[\\s_]+"), "-")
+                .replace(Regex("-+"), "-")
+
+            add(slug)
+
+            // 2. 若带有供应商前缀，剥离前缀尝试无命名空间的模型名（如 "google/gemini-2.5-pro" -> "gemini-2.5-pro"）
+            if (slug.contains('/')) {
+                val bareModel = slug.substringAfterLast('/')
+                add(bareModel)
+            } else {
+                // 3. 若不带前缀，尝试补充主流官方厂商前缀探测（如 "gemini-2.5-pro" -> "google/gemini-2.5-pro"）
+                for (provider in commonProviders) {
+                    add("$provider/$slug")
+                }
+            }
+
+            // 4. 尝试剥离尾部日期快照版本后缀 (如 "claude-3-7-sonnet-20250219" -> "claude-3-7-sonnet")
+            val strippedDate = slug.replace(Regex("-\\d{8}$"), "")
+            if (strippedDate != slug) {
+                add(strippedDate)
+                if (strippedDate.contains('/')) {
+                    add(strippedDate.substringAfterLast('/'))
+                } else {
+                    for (provider in commonProviders) {
+                        add("$provider/$strippedDate")
+                    }
+                }
             }
         }
     }.distinct()

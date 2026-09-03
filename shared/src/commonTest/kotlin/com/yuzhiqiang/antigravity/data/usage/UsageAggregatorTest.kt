@@ -670,7 +670,7 @@ class UsageAggregatorTest {
         assertEquals(5L, stats.dailyBuckets.single().unattributed)
         assertTrue(stats.dailyBuckets.single().costLowerBound)
         assertEquals(5L, stats.hourlyBuckets.single { it.unattributed > 0L }.unattributed)
-        assertEquals(5L, stats.weekdayBuckets.single { it.unattributed > 0L }.unattributed)
+        assertTrue(stats.weekdayBuckets.isEmpty())
         assertEquals(5L, stats.monthlyBuckets.single().unattributed)
         assertEquals(5L, stats.monthlyBuckets.single().topModels.single().unattributed)
         assertEquals(5L, stats.modelBuckets.single().unattributed)
