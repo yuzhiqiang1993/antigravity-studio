@@ -36,6 +36,7 @@ data class StudioTabItem<T>(
     val key: T,
     val title: String,
     val icon: ImageVector? = null,
+    val trailingIcon: ImageVector? = null,
     val badge: String? = null,
     val isWarningBadge: Boolean = false
 )
@@ -235,6 +236,15 @@ fun <T> StudioSlidingTabLayout(
                                 color = textColor,
                                 maxLines = 1
                             )
+
+                            if (item.trailingIcon != null) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = item.trailingIcon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(iconSize),
+                                    tint = textColor
+                                )
+                            }
 
                             if (!item.badge.isNullOrBlank()) {
                                 val badgeBg by animateColorAsState(

@@ -55,13 +55,35 @@ fun UsageScreen(
     val selectedModel by viewModel.usageSelectedModel.collectAsState()
     val autoRefreshInterval by viewModel.usageAutoRefreshInterval.collectAsState()
 
-    val timePresets = remember(s) {
+    val isCustomRange = currentTimeRange == UsageTimeRange.CUSTOM
+    val activeCustomRange = customDateRange?.takeIf { isCustomRange && it.startDate.isNotBlank() }
+    val customDateLabel = remember(activeCustomRange, s) {
+        if (activeCustomRange != null) {
+            val startFmt = UsageNumberFormatter.formatShortDate(activeCustomRange.startDate)
+            val endFmt = if (activeCustomRange.followNow || activeCustomRange.endDate.isBlank()) {
+                s.usagePresetToday
+            } else {
+                UsageNumberFormatter.formatShortDate(activeCustomRange.endDate)
+            }
+            "$startFmt~$endFmt"
+        } else {
+            s.usageTimeRangeCustom
+        }
+    }
+
+    val timePresets = remember(s, customDateLabel) {
         listOf(
             StudioTabItem(UsageTimeRange.CALENDAR_TODAY, s.usagePresetToday),
             StudioTabItem(UsageTimeRange.ROLLING_24H, s.usagePreset1Day),
             StudioTabItem(UsageTimeRange.ROLLING_7D, s.usagePreset7Days),
             StudioTabItem(UsageTimeRange.ROLLING_14D, s.usagePreset14Days),
-            StudioTabItem(UsageTimeRange.ROLLING_30D, s.usagePreset30Days)
+            StudioTabItem(UsageTimeRange.ROLLING_30D, s.usagePreset30Days),
+            StudioTabItem(
+                key = UsageTimeRange.CUSTOM,
+                title = customDateLabel,
+                icon = Icons.Outlined.CalendarMonth,
+                trailingIcon = Icons.Outlined.KeyboardArrowDown
+            )
         )
     }
 
@@ -101,44 +123,22 @@ fun UsageScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左侧时间维度组：[今天 | 1 天 | 7 天 | 14 天 | 30 天] + [📅 日期选择 ⌄]
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // A. 预设时间分段选择胶囊 (今天 · 1 天 · 7 天 · 14 天 · 30 天)
+                // 左侧一体化时间选择器：[今天 | 1 天 | 7 天 | 14 天 | 30 天 | 📅 自定义 ⌄]
+                StudioTooltip(text = s.usageDateRangeTooltip, enabled = !showDateRangeDialog) {
                     StudioSlidingTabLayout(
                         items = timePresets,
                         selectedKey = currentTimeRange,
-                        onSelect = { viewModel.setUsageTimeRange(it) },
+                        onSelect = { range ->
+                            if (range == UsageTimeRange.CUSTOM) {
+                                showDateRangeDialog = true
+                            } else {
+                                viewModel.setUsageTimeRange(range)
+                            }
+                        },
                         tabHeight = 34.dp,
                         scrollable = false
                     )
-
-                    // B. 复合日期时间选择触发器 [📅 日期选择 ⌄]
-                val isCustomRange = currentTimeRange == UsageTimeRange.CUSTOM
-                val activeCustomRange = customDateRange?.takeIf { isCustomRange && it.startDate.isNotBlank() }
-                val datePickerLabel = if (activeCustomRange != null) {
-                    val startFmt = UsageNumberFormatter.formatShortDate(activeCustomRange.startDate)
-                    val endFmt = if (activeCustomRange.followNow || activeCustomRange.endDate.isBlank()) {
-                        s.usagePresetToday
-                    } else {
-                        UsageNumberFormatter.formatShortDate(activeCustomRange.endDate)
-                    }
-                    "$startFmt~$endFmt"
-                } else {
-                    s.usageTimeRangeCustom
                 }
-
-                StudioTooltip(text = s.usageDateRangeTooltip, enabled = !showDateRangeDialog) {
-                    com.yuzhiqiang.antigravity.ui.components.StudioDropdownTrigger(
-                        text = datePickerLabel,
-                        leadingIcon = Icons.Outlined.CalendarMonth,
-                        isActive = isCustomRange,
-                        onClick = { showDateRangeDialog = true }
-                    )
-                }
-            }
 
             Spacer(modifier = Modifier.width(16.dp))
 
