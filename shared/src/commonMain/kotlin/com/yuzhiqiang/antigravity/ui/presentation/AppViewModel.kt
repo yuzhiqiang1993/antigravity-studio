@@ -297,6 +297,8 @@ class AppViewModel(
     private val _updateRestrictedError = MutableStateFlow<String?>(null)
     val updateRestrictedError: StateFlow<String?> = _updateRestrictedError.asStateFlow()
 
+    val hasNewVersionBadge: StateFlow<Boolean> get() = updateDelegate.hasNewVersionBadge
+
     private val _showOnboardingDialog = MutableStateFlow(false)
     val showOnboardingDialog: StateFlow<Boolean> = _showOnboardingDialog.asStateFlow()
 
@@ -817,6 +819,8 @@ class AppViewModel(
 
     fun installUpdate(artifact: com.yuzhiqiang.antigravity.update.engine.VerifiedUpdateArtifact) =
         updateDelegate.installUpdate(artifact)
+
+    fun quitAppForInstallation() = updateDelegate.quitAppForInstallation()
 
     fun showDownloadedFileInFolder(file: java.io.File) = updateDelegate.showDownloadedFileInFolder(file)
 

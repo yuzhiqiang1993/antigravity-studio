@@ -37,6 +37,9 @@ class UpdateDelegate(
     private val s get() = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
     private var downloadJob: Job? = null
 
+    private val _hasNewVersionBadge = MutableStateFlow(false)
+    val hasNewVersionBadge: kotlinx.coroutines.flow.StateFlow<Boolean> = _hasNewVersionBadge
+
     fun checkForUpdates(isManual: Boolean = true) {
         scope.launch(Dispatchers.IO) {
             updateStateFlow.value = UpdateState.Checking(isManual)
@@ -55,11 +58,19 @@ class UpdateDelegate(
                         activeReleaseFlow.value = release
                         val isIgnored =
                             configStore.currentConfig.ignoredVersion.equals(release.cleanVersion, ignoreCase = true)
-                        if (isManual || !isIgnored) {
-                            showUpdateDialogFlow.value = true
+                        
+                        if (!isIgnored) {
+                            _hasNewVersionBadge.value = true
                         }
+
                         if (isManual) {
+                            checkAndPreloadLocalArtifact(release)
+                            showUpdateDialogFlow.value = true
                             showNotice(s.updateAvailableTitle + ": v${release.cleanVersion}", NoticeKind.SUCCESS)
+                        } else if (!isIgnored) {
+                            // 启动静默检查：不强弹全屏大窗打扰用户，仅激活侧边栏红点与轻量通知
+                            checkAndPreloadLocalArtifact(release)
+                            showNotice("${s.updateNewVersionNotice}: v${release.cleanVersion}", NoticeKind.INFO)
                         }
                     } else {
                         updateStateFlow.value = UpdateState.UpToDate(
@@ -95,10 +106,35 @@ class UpdateDelegate(
     }
 
     fun openUpdateDialog() {
-        if (activeReleaseFlow.value != null) {
+        _hasNewVersionBadge.value = false
+        val release = activeReleaseFlow.value
+        if (release != null) {
+            checkAndPreloadLocalArtifact(release)
             showUpdateDialogFlow.value = true
         } else {
             checkForUpdates(isManual = true)
+        }
+    }
+
+    private fun checkAndPreloadLocalArtifact(release: ReleaseInfo) {
+        if (downloadStateFlow.value is AppUpdateDownloadState.Downloading) return
+        val asset = release.resolvePlatformAsset() ?: return
+        val targetFile = AppUpdateDownloader.resolveTargetFile(asset.name)
+        if (targetFile.isFile) {
+            scope.launch {
+                val artifact = AppUpdateDownloader.tryValidateExistingArtifact(asset, release.cleanVersion, targetFile)
+                if (artifact != null) {
+                    downloadStateFlow.value = AppUpdateDownloadState.Completed(artifact)
+                }
+            }
+        }
+    }
+
+    fun quitAppForInstallation() {
+        try {
+            kotlin.system.exitProcess(0)
+        } catch (_: Throwable) {
+            kotlin.system.exitProcess(0)
         }
     }
 
@@ -114,6 +150,19 @@ class UpdateDelegate(
 
         downloadJob?.cancel()
         downloadJob = scope.launch {
+            // 预检：如果本地已存在完整合法的安装包，直接复用
+            if (targetFile.isFile) {
+                val existingArtifact = AppUpdateDownloader.tryValidateExistingArtifact(asset, release.cleanVersion, targetFile)
+                if (existingArtifact != null) {
+                    downloadStateFlow.value = AppUpdateDownloadState.Completed(existingArtifact)
+                    showNotice(s.updatePackageReady, NoticeKind.SUCCESS)
+                    return@launch
+                } else {
+                    // 存在损坏或过期残留，清理后重新下载，防止底层抛错
+                    targetFile.delete()
+                }
+            }
+
             downloadStateFlow.value = AppUpdateDownloadState.Downloading(
                 bytesDownloaded = 0L,
                 totalBytes = -1L,

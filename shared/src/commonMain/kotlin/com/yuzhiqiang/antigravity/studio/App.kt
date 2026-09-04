@@ -199,7 +199,8 @@ fun App(
                         onInstall = { artifact -> viewModel.installUpdate(artifact) },
                         onShowInFolder = { file -> viewModel.showDownloadedFileInFolder(file) },
                         onDismiss = { viewModel.dismissUpdateDialog() },
-                        onIgnoreVersion = { version -> viewModel.ignoreUpdateVersion(version) }
+                        onIgnoreVersion = { version -> viewModel.ignoreUpdateVersion(version) },
+                        onQuitApp = { viewModel.quitAppForInstallation() }
                     )
                 }
 

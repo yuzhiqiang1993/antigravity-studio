@@ -6,11 +6,13 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
@@ -222,10 +224,13 @@ fun AppSidebar(
                 )
                 Spacer(Modifier.height(8.dp))
 
+                val hasUpdateBadge by viewModel.hasNewVersionBadge.collectAsState()
+
                 AppSidebarDrawerItem(
                     item = SidebarItem(NavTab.SETTINGS, s.navSettings, Icons.Outlined.Settings),
                     selected = currentTab == NavTab.SETTINGS,
                     isCollapsed = isCollapsed,
+                    showBadge = hasUpdateBadge,
                     onClick = { viewModel.selectTab(NavTab.SETTINGS) },
                     modifier = Modifier.tourAnchor(TourStep.SIDEBAR_SETTINGS, tourManager)
                 )
@@ -251,6 +256,7 @@ private fun AppSidebarDrawerItem(
     item: SidebarItem,
     selected: Boolean,
     isCollapsed: Boolean,
+    showBadge: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -258,11 +264,23 @@ private fun AppSidebarDrawerItem(
 
     NavigationDrawerItem(
         icon = {
-            Icon(
-                imageVector = item.icon,
-                contentDescription = item.title,
-                modifier = Modifier.size(20.dp)
-            )
+            Box {
+                Icon(
+                    imageVector = item.icon,
+                    contentDescription = item.title,
+                    modifier = Modifier.size(20.dp)
+                )
+                if (showBadge) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .align(Alignment.TopEnd)
+                            .offset(x = 2.dp, y = (-2).dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE53935))
+                    )
+                }
+            }
         },
         label = {
             AnimatedVisibility(

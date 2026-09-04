@@ -61,13 +61,15 @@ fun SettingsScreen(
         }
     }
 
+    val hasUpdateBadge by viewModel.hasNewVersionBadge.collectAsState()
     val sections = remember { SettingsSection.values() }
-    val tabItems = remember(s) {
+    val tabItems = remember(s, hasUpdateBadge) {
         sections.map { section ->
             StudioTabItem(
                 key = section,
                 title = section.title(s),
-                icon = section.icon()
+                icon = section.icon(),
+                showDot = section == SettingsSection.ABOUT && hasUpdateBadge
             )
         }
     }

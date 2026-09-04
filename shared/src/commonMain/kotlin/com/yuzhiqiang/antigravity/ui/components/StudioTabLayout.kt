@@ -9,6 +9,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +39,9 @@ data class StudioTabItem<T>(
     val icon: ImageVector? = null,
     val trailingIcon: ImageVector? = null,
     val badge: String? = null,
-    val isWarningBadge: Boolean = false
+    val isWarningBadge: Boolean = false,
+    val showDot: Boolean = false,
+    val dotColor: Color? = null
 )
 
 /**
@@ -237,6 +240,16 @@ fun <T> StudioSlidingTabLayout(
                                 maxLines = 1
                             )
 
+                            if (item.showDot) {
+                                val dotC = item.dotColor ?: Color(0xFFE53935)
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.5.dp)
+                                        .clip(CircleShape)
+                                        .background(dotC)
+                                )
+                            }
+
                             if (item.trailingIcon != null) {
                                 androidx.compose.material3.Icon(
                                     imageVector = item.trailingIcon,
@@ -411,6 +424,16 @@ fun <T> StudioUnderlineTabLayout(
                             color = textColor,
                             maxLines = 1
                         )
+
+                        if (item.showDot) {
+                            val dotC = item.dotColor ?: Color(0xFFE53935)
+                            Box(
+                                modifier = Modifier
+                                    .size(6.5.dp)
+                                    .clip(CircleShape)
+                                    .background(dotC)
+                            )
+                        }
 
                         if (!item.badge.isNullOrBlank()) {
                             Surface(

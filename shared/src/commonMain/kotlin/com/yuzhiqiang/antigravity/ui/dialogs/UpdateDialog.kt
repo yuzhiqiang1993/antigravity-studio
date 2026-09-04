@@ -17,7 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import antigravity_studio.shared.generated.resources.Res
 import antigravity_studio.shared.generated.resources.logo_transparent
+import com.yuzhiqiang.antigravity.i18n.AppLanguage
 import com.yuzhiqiang.antigravity.i18n.I18nManager
 import com.yuzhiqiang.antigravity.update.model.AppUpdateDownloadState
 import com.yuzhiqiang.antigravity.update.model.ReleaseInfo
@@ -51,7 +52,8 @@ fun UpdateDialog(
     onInstall: (VerifiedUpdateArtifact) -> Unit = {},
     onShowInFolder: (File) -> Unit = {},
     onDismiss: () -> Unit,
-    onIgnoreVersion: (String) -> Unit
+    onIgnoreVersion: (String) -> Unit,
+    onQuitApp: () -> Unit = {}
 ) {
     val s = I18nManager.strings
     val statusColors = AppStatusColors
@@ -59,6 +61,26 @@ fun UpdateDialog(
     val isDownloading = downloadState is AppUpdateDownloadState.Downloading
     val isCompleted = downloadState is AppUpdateDownloadState.Completed
     val isFailed = downloadState is AppUpdateDownloadState.Failed
+
+    var hasLaunchedInstaller by remember { mutableStateOf(false) }
+    val parsedChangelog = remember(release.body) {
+        com.yuzhiqiang.antigravity.update.model.UpdateChangelogParser.parse(release.body)
+    }
+    var selectedLangTab by remember {
+        mutableStateOf(if (I18nManager.currentLanguage == AppLanguage.ZH_CN) "zh" else "en")
+    }
+    val displayChangelog: String = remember(parsedChangelog, selectedLangTab) {
+        if (parsedChangelog.hasBilingual) {
+            val content = if (selectedLangTab == "zh") {
+                parsedChangelog.chineseContent ?: parsedChangelog.rawContent
+            } else {
+                parsedChangelog.englishContent ?: parsedChangelog.rawContent
+            }
+            content.takeIf { it.isNotBlank() } ?: s.updateNoChangelog
+        } else {
+            parsedChangelog.rawContent.takeIf { it.isNotBlank() } ?: s.updateNoChangelog
+        }
+    }
 
     Dialog(onDismissRequest = {
         if (!isDownloading) {
@@ -227,31 +249,78 @@ fun UpdateDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Changelog Section Title
+                // Changelog Section Title with Bilingual Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Description,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = s.updateChangelogTitle,
-                        style = MaterialTheme.typography.titleSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Description,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = s.updateChangelogTitle,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    if (parsedChangelog.hasBilingual) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .padding(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (selectedLangTab == "zh") MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent)
+                                    .clickable { selectedLangTab = "zh" }
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = s.updateChangelogTabZh,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                        fontWeight = if (selectedLangTab == "zh") FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    color = if (selectedLangTab == "zh") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (selectedLangTab == "en") MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent)
+                                    .clickable { selectedLangTab = "en" }
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = s.updateChangelogTabEn,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                        fontWeight = if (selectedLangTab == "en") FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    color = if (selectedLangTab == "en") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                val changelogText = release.body?.takeIf { it.isNotBlank() } ?: s.updateNoChangelog
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -264,7 +333,7 @@ fun UpdateDialog(
                         .verticalScroll(rememberScrollState())
                 ) {
                     StudioMarkdownViewer(
-                        markdown = changelogText,
+                        markdown = displayChangelog,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -378,8 +447,13 @@ fun UpdateDialog(
                                             tint = statusColors.success,
                                             modifier = Modifier.size(16.dp)
                                         )
+                                        val completedMessage = if (hasLaunchedInstaller && DesktopPlatformService.isMac) {
+                                            s.updateMacDmgGuide
+                                        } else {
+                                            s.updatePackageReady
+                                        }
                                         Text(
-                                            text = s.updateDownloadCompleted,
+                                            text = completedMessage,
                                             style = MaterialTheme.typography.bodySmall.copy(
                                                 fontWeight = FontWeight.Medium,
                                                 fontSize = 12.sp
@@ -522,28 +596,57 @@ fun UpdateDialog(
                                     Text(text = s.commonCancel, fontSize = 12.5.sp)
                                 }
 
-                                Button(
-                                    onClick = { onInstall((downloadState as AppUpdateDownloadState.Completed).artifact) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.height(36.dp),
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.SystemUpdateAlt,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = s.updateInstallNow,
-                                        style = MaterialTheme.typography.labelMedium.copy(
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 13.sp
+                                if (hasLaunchedInstaller && DesktopPlatformService.isMac) {
+                                    Button(
+                                        onClick = onQuitApp,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(36.dp),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
                                         )
-                                    )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = s.updateQuitAndInstall,
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.sp
+                                            )
+                                        )
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = {
+                                            onInstall((downloadState as AppUpdateDownloadState.Completed).artifact)
+                                            hasLaunchedInstaller = true
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(36.dp),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.SystemUpdateAlt,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = s.updateInstallNow,
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.sp
+                                            )
+                                        )
+                                    }
                                 }
                             }
 

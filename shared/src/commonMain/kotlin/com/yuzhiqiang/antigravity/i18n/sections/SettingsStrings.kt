@@ -130,6 +130,12 @@ interface SettingsStrings {
     val updateDownloading: String
     val updateDownloadCompleted: String
     val updateInstallNow: String
+    val updatePackageReady: String
+    val updateQuitAndInstall: String
+    val updateMacDmgGuide: String
+    val updateChangelogTabZh: String
+    val updateChangelogTabEn: String
+    val updateNewVersionNotice: String
     val updateShowInFolder: String
     fun updateDownloadFailed(error: String): String
     val updateRetryDownload: String
@@ -310,6 +316,12 @@ object SettingsStringsZh : SettingsStrings {
     override val updateDownloading = "正在下载更新…"
     override val updateDownloadCompleted = "下载完成，正在打开安装器…"
     override val updateInstallNow = "立即安装"
+    override val updatePackageReady = "本地安装包已就绪，可直接安装"
+    override val updateQuitAndInstall = "退出并完成安装"
+    override val updateMacDmgGuide = "已挂载安装镜像，请将应用图标拖入 Applications 文件夹覆盖旧版并重启"
+    override val updateChangelogTabZh = "🇨🇳 中文"
+    override val updateChangelogTabEn = "🌐 English"
+    override val updateNewVersionNotice = "发现新版本，点击查看更新详情"
     override val updateShowInFolder = "打开文件位置"
     override fun updateDownloadFailed(error: String) = "下载失败：$error"
     override val updateRetryDownload = "重试下载"
@@ -496,6 +508,12 @@ object SettingsStringsEn : SettingsStrings {
     override val updateDownloading = "Downloading update…"
     override val updateDownloadCompleted = "Download complete. Opening installer…"
     override val updateInstallNow = "Install Now"
+    override val updatePackageReady = "Update package is ready to install"
+    override val updateQuitAndInstall = "Quit & Install"
+    override val updateMacDmgGuide = "Disk image opened. Drag to Applications to overwrite and restart."
+    override val updateChangelogTabZh = "🇨🇳 中文"
+    override val updateChangelogTabEn = "🌐 English"
+    override val updateNewVersionNotice = "New version available, click to view details"
     override val updateShowInFolder = "Show in Folder"
     override fun updateDownloadFailed(error: String) = "Download failed: $error"
     override val updateRetryDownload = "Retry Download"

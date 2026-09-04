@@ -42,6 +42,32 @@ object AppUpdateDownloader {
         "github-releases.githubusercontent.com"
     )
 
+    /**
+     * 尝试快速校验本地是否已存在完整且验签通过的安装包。
+     * 若已存在且有效，返回 VerifiedUpdateArtifact，避免重复下载。
+     */
+    suspend fun tryValidateExistingArtifact(
+        asset: ReleaseAsset,
+        version: String,
+        targetFile: File
+    ): VerifiedUpdateArtifact? = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        runCatching {
+            if (!targetFile.isFile) return@runCatching null
+            val manifestUrl = siblingUrl(asset.downloadUrl, asset.name + UpdateArtifactVerifier.MANIFEST_SUFFIX)
+            val signatureUrl = siblingUrl(asset.downloadUrl, asset.name + UpdateArtifactVerifier.SIGNATURE_SUFFIX)
+            val manifestBytes = downloadBytes(manifestUrl)
+            val signatureBytes = decodeSignature(downloadBytes(signatureUrl))
+            val manifest = UpdateArtifactVerifier.parseAndVerifyManifest(
+                asset = asset,
+                expectedVersion = version,
+                manifestBytes = manifestBytes,
+                signatureBytes = signatureBytes
+            )
+            UpdateArtifactVerifier.verifyArtifact(targetFile, manifest, expectedName = manifest.assetName)
+            VerifiedUpdateArtifact(targetFile, manifest, manifestBytes, signatureBytes)
+        }.getOrNull()
+    }
+
     fun download(asset: ReleaseAsset, version: String, targetFile: File): Flow<DownloadProgress> = flow {
         require(asset.name.isNotBlank() && targetFile.name == asset.name) { "Invalid update asset name" }
         require(!targetFile.exists()) { "Target update file already exists" }

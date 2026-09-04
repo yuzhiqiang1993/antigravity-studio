@@ -10,8 +10,8 @@ import java.net.URI
 internal object DesktopPlatformService {
 
     private val osName = System.getProperty("os.name", "").lowercase()
-    private val isMac = osName.contains("mac") || osName.contains("darwin")
-    private val isWindows = !isMac && osName.contains("win")
+    internal val isMac = osName.contains("mac") || osName.contains("darwin")
+    internal val isWindows = !isMac && osName.contains("win")
 
     /**
      * 在默认系统浏览器中打开指定 URL
