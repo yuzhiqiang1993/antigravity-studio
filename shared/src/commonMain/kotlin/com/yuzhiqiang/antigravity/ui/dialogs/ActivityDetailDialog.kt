@@ -32,7 +32,6 @@ import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import com.yuzhiqiang.antigravity.ui.utils.formatDuration
 import com.yuzhiqiang.antigravity.ui.utils.formatHitRate
 import com.yuzhiqiang.antigravity.ui.utils.formatTokens
-import com.yuzhiqiang.antigravity.ui.utils.formatTpot
 import com.yuzhiqiang.antigravity.ui.utils.formatTps
 import com.yuzhiqiang.antigravity.ui.utils.getCacheHitRateColor
 import com.yuzhiqiang.antigravity.ui.utils.getDurationLatencyTier
@@ -170,6 +169,13 @@ fun ActivityDetailDialog(
                             val ttftColor = getFirstTokenLatencyTier(ttft).toColor(MaterialTheme.colorScheme.secondary)
                             DetailItemRow(s.activityDetailFirstToken, ttftFormatted, highlightColor = ttftColor)
                         }
+                        log.tokensPerSecond?.let { tps ->
+                            DetailItemRow(
+                                s.activityDetailTps,
+                                formatTps(tps),
+                                highlightColor = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         DetailItemRow(s.activityDetailTimestamp, formatFullTime(log.timestamp))
                         if (log.retryCount > 0) {
                             DetailItemRow(
@@ -193,46 +199,7 @@ fun ActivityDetailDialog(
                         }
                     }
 
-                    // 2. 速度与流式指标 (若存在)
-                    val hasSpeedInfo = log.tokensPerSecond != null || log.timePerOutputTokenMs != null ||
-                            log.generationDurationMs != null || log.maxChunkGapMs != null ||
-                            log.lastTokenMs != null
-                    if (hasSpeedInfo) {
-                        DetailSectionCard(title = s.activityDetailSpeedSection) {
-                            Row(
-                                 modifier = Modifier.fillMaxWidth(),
-                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                TokenMetricBadge(
-                                    label = s.activityDetailTps,
-                                    value = log.tokensPerSecond?.let(::formatTps) ?: "—",
-                                    customValueColor = log.tokensPerSecond?.let { MaterialTheme.colorScheme.primary },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                TokenMetricBadge(
-                                    label = s.activityDetailTpot,
-                                    value = log.timePerOutputTokenMs?.let(::formatTpot) ?: "—",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                TokenMetricBadge(
-                                    label = s.activityDetailGenerationDuration,
-                                    value = log.generationDurationMs?.let(::formatDuration) ?: "—",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                TokenMetricBadge(
-                                    label = s.activityDetailMaxChunkGap,
-                                    value = log.maxChunkGapMs?.let(::formatDuration) ?: "—",
-                                    customValueColor = log.maxChunkGapMs?.let { MaterialTheme.colorScheme.tertiary },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            log.lastTokenMs?.let {
-                                DetailItemRow(s.activityDetailLastToken, formatDuration(it))
-                            }
-                        }
-                    }
-
-                    // 3. Token 消耗统计 (若存在)
+                    // 2. Token 消耗统计 (若存在)
                     val hasTokenInfo = log.totalTokens != null || log.inputTokens != null || log.outputTokens != null ||
                             log.cacheReadTokens != null || log.cacheWriteTokens != null || log.reasoningTokens != null ||
                             log.unattributedTokens != null
