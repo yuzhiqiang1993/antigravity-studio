@@ -16,7 +16,7 @@ object UsageStringsZh : UsageStrings {
     override val usagePricingSource: (source: String) -> String = { source ->
         when (source.lowercase()) {
             "custom" -> "自定义"
-            "external" -> "LiteLLM"
+            "external" -> "models.dev"
             "builtin" -> "内置"
             "mixed" -> "多来源"
             else -> "未匹配价格"
@@ -63,17 +63,17 @@ object UsageStringsZh : UsageStrings {
     override val usageKpiTotalTokensTitle: String = "总 Token 消耗"
     override val usageTotalInputTitle: String = "输入用量 (Prompt Input)"
     override val usageTotalOutputTitle: String = "输出用量 (Model Output)"
-    override val usageCacheCardTitle: String = "缓存命中 (Cache Hit)"
+    override val usageCacheCardTitle: String = "缓存命中率 (Cache Hit Rate)"
     override val usageSavedAmountLabel: String = "已省成本"
     override val usageUncachedInputLabel: String = "普通输入"
-    override val usageCacheHitLabel: String = "缓存命中"
+    override val usageCacheHitLabel: String = "缓存读取"
     override val usageCacheWriteLabel: String = "缓存创建"
     override val usageGenerationLabel: String = "内容生成"
     override val usageKpiTokensDetail: (input: String, output: String, reasoning: String) -> String =
         { input, output, reasoning ->
             "入 $input · 出 $output · 思 $reasoning"
         }
-    override val usageKpiCacheHitRatioTitle: String = "缓存读取率"
+    override val usageKpiCacheHitRatioTitle: String = "缓存命中率"
     override val usageKpiCacheReadDetail: (cacheRead: String) -> String = { cacheRead -> "缓存读取 $cacheRead Tokens" }
     override val usageKpiCallsTitle: String = "API 调用次数"
     override val usageKpiConversationsDetail: (count: Long) -> String = { count -> "涉及 $count 个会话" }

@@ -1040,6 +1040,68 @@ class UsageAggregatorTest {
         assertEquals(4L, stats30d.totalCalls)
     }
 
+    @Test
+    fun testCrossRuntimeUsageContractVector() {
+        fun entry(
+            model: String,
+            input: Long,
+            output: Long,
+            cacheRead: Long,
+            cacheWrite: Long,
+            reasoning: Long,
+            missingUsageFields: List<String> = emptyList()
+        ) = TokenEntry(
+            input = input,
+            output = output,
+            cacheRead = cacheRead,
+            cacheWrite = cacheWrite,
+            reasoning = reasoning,
+            modelObservation = ModelObservation(
+                providerConfigId = TEST_PROVIDER_CONFIG_ID,
+                responseModelId = model
+            ),
+            missingUsageFields = missingUsageFields,
+            timestamp = "2026-08-31T00:00:00Z"
+        )
+
+        val stats = UsageAggregator.aggregate(
+            conversations = listOf(
+                ConversationUsageData(
+                    conversationId = "cross-runtime-contract",
+                    entries = listOf(
+                        entry("claude-3-7-sonnet", 100_000, 20_000, 50_000, 10_000, 10_000),
+                        entry("gemini-2.0-flash", 200_000, 40_000, 100_000, 20_000, 0),
+                        entry("gpt-4o", 300_000, 60_000, 150_000, 30_000, 20_000),
+                        entry(
+                            "sparse-model",
+                            10,
+                            0,
+                            0,
+                            0,
+                            0,
+                            listOf("output", "cache", "cacheWrite", "reasoning")
+                        )
+                    )
+                )
+            ),
+            pricingService = createTestPricingService(),
+            timeRange = UsageTimeRange.ALL_TIME,
+            zoneId = ZoneId.of("UTC")
+        )
+
+        assertEquals(600_010L, stats.totalInput)
+        assertEquals(120_000L, stats.totalOutput)
+        assertEquals(300_000L, stats.totalCacheRead)
+        assertEquals(60_000L, stats.totalCacheWrite)
+        assertEquals(30_000L, stats.totalReasoning)
+        assertEquals(1_110_010L, stats.totalTokens)
+        assertEquals(300_000.0 / 960_010.0, stats.promptCacheHitRatio ?: -1.0, 0.000000001)
+        assertEquals(2.6555, stats.estimatedCostUsd, 0.000001)
+        assertEquals(0.33, stats.estimatedSavingsUsd, 0.000001)
+        assertTrue(stats.cacheHitRateIncomplete)
+        assertTrue(stats.costLowerBound)
+    }
+
     private fun createOfficialGeminiEntry(
         runtimeModelId: String?,
         responseModelId: String?,

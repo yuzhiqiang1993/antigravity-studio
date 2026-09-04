@@ -19,7 +19,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
-private const val USAGE_DISK_CACHE_VERSION = 6
+private const val USAGE_DISK_CACHE_VERSION = 8
 
 @Serializable
 data class UsageDiskCache(
@@ -227,6 +227,7 @@ class UsageRepository(
                     targets = targets,
                     currentKeys = currentKeys,
                     successfulKeys = parsed.successfulKeys,
+                    retryKeys = parsed.retryKeys,
                     snapshot = snapshot
                 )
                 saveDiskCache(merged, sourceMtimes)
@@ -275,6 +276,7 @@ class UsageRepository(
         targets: List<ScannedConversationTarget>,
         currentKeys: Set<String>,
         successfulKeys: Set<String>,
+        retryKeys: Set<String>,
         snapshot: UsageScanSnapshot
     ) {
         val incompleteSources = snapshot.incompleteSources
@@ -289,6 +291,7 @@ class UsageRepository(
 
         // 只有成功解析的目标才推进 mtime。失败目标保留旧 mtime（若有），下轮会重试。
         for (key in successfulKeys) {
+            if (key in retryKeys) continue
             targetByKey[key]?.let { sourceMtimes[key] = it.lastModified }
         }
     }

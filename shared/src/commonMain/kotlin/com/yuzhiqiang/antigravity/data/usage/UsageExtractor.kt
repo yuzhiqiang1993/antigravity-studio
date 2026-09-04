@@ -145,16 +145,26 @@ object UsageExtractor {
     private fun findUsageContext(obj: JsonObject): UsageContext? {
         val metadata = obj["metadata"] as? JsonObject
         if (metadata != null) {
-            val nestedUsage = metadata["usage"] ?: metadata["model_usage"] ?: metadata["modelUsage"]
+            val nestedUsage = metadata["usage"]
+                ?: metadata["model_usage"]
+                ?: metadata["modelUsage"]
+                ?: metadata["usage_metadata"]
+                ?: metadata["usageMetadata"]
             if (nestedUsage is JsonObject) return UsageContext(nestedUsage, metadata)
         }
 
-        val direct = obj["usage"] ?: obj["model_usage"] ?: obj["modelUsage"]
+        val direct = obj["usage"]
+            ?: obj["model_usage"]
+            ?: obj["modelUsage"]
+            ?: obj["usage_metadata"]
+            ?: obj["usageMetadata"]
         if (direct is JsonObject) return UsageContext(direct, obj, timestampContainer = metadata)
 
         val chatModel = obj["chat_model"] ?: obj["chatModel"]
         if (chatModel is JsonObject) {
             val nestedUsage = chatModel["usage"]
+                ?: chatModel["usage_metadata"]
+                ?: chatModel["usageMetadata"]
             if (nestedUsage is JsonObject) return UsageContext(nestedUsage, chatModel)
         }
 
@@ -168,21 +178,32 @@ object UsageExtractor {
         appSource: String,
         modelContext: JsonObject? = null
     ): TokenEntry? {
-        val input = readTokenField(
+        val reportedInput = readTokenField(
             usage,
-            "input_tokens", "inputTokens", "prompt_tokens", "promptTokens", "input"
+            "input_tokens",
+            "inputTokens",
+            "prompt_tokens",
+            "promptTokens",
+            "prompt_token_count",
+            "promptTokenCount",
+            "input"
         )
-        val output = readTokenField(
+        val aggregateOutput = readTokenField(
             usage,
             "output_tokens",
             "outputTokens",
             "completion_tokens",
             "completionTokens",
-            "output",
-            "response_output_tokens",
-            "responseOutputTokens"
+            "output"
         )
-        val cacheRead = readTokenField(
+        val responseOutput = readTokenField(
+            usage,
+            "response_output_tokens",
+            "responseOutputTokens",
+            "candidates_token_count",
+            "candidatesTokenCount"
+        )
+        val flatCacheRead = readTokenField(
             usage,
             "cache_read_tokens",
             "cacheReadTokens",
@@ -190,7 +211,7 @@ object UsageExtractor {
             "cacheReadInputTokens",
             "cache_read"
         )
-        val cacheWrite = readTokenField(
+        val rawCacheWrite = readTokenField(
             usage,
             "cache_write_tokens",
             "cacheWriteTokens",
@@ -204,6 +225,8 @@ object UsageExtractor {
             "thinkingOutputTokens",
             "reasoning_tokens",
             "reasoningTokens",
+            "thoughts_token_count",
+            "thoughtsTokenCount",
             "thinking"
         )
         val reportedTotal = readTokenField(
@@ -213,16 +236,67 @@ object UsageExtractor {
             "total_token_count",
             "totalTokenCount"
         )
-        val rawOutputValue = output.value
-        val reasoningValue = reasoning.value
-        // 若 reportedTotal 等于 input + output 且存在 reasoning，说明 output 包含了 reasoning（OpenAI 标准），需拆分避免重复计数
-        val effectiveOutputValue = if (reportedTotal.known && reportedTotal.value == input.value + rawOutputValue && reasoningValue > 0L) {
-            maxOf(0L, rawOutputValue - reasoningValue)
-        } else {
-            rawOutputValue
+        val detailedCacheRead = readNestedTokenField(
+            usage,
+            objectKeys = arrayOf(
+                "input_tokens_details",
+                "inputTokensDetails",
+                "prompt_tokens_details",
+                "promptTokensDetails"
+            ),
+            tokenKeys = arrayOf("cached_tokens", "cachedTokens")
+        )
+        val geminiCacheRead = readTokenField(
+            usage,
+            "cached_content_token_count",
+            "cachedContentTokenCount"
+        )
+        val rawCacheRead = when {
+            detailedCacheRead.known -> detailedCacheRead
+            geminiCacheRead.known -> geminiCacheRead
+            else -> flatCacheRead
         }
+        val inputIncludesCache = hasAnyKey(
+            usage,
+            "prompt_tokens",
+            "promptTokens",
+            "prompt_token_count",
+            "promptTokenCount",
+            "input_tokens_details",
+            "inputTokensDetails",
+            "prompt_tokens_details",
+            "promptTokensDetails",
+            "cached_content_token_count",
+            "cachedContentTokenCount"
+        )
+        val cacheWithinReportedInput = !inputIncludesCache || !reportedInput.known ||
+                saturatedSum(rawCacheRead.value, rawCacheWrite.value) <= reportedInput.value
+        val inputValue = if (inputIncludesCache && reportedInput.known && cacheWithinReportedInput) {
+            reportedInput.value - rawCacheRead.value - rawCacheWrite.value
+        } else {
+            reportedInput.value
+        }
+        val input = TokenFieldValue(inputValue, reportedInput.known)
+        val cacheRead = if (cacheWithinReportedInput) rawCacheRead else TokenFieldValue(0L, known = false)
+        val cacheWrite = if (cacheWithinReportedInput) rawCacheWrite else TokenFieldValue(0L, known = false)
+
+        val rawOutputValue = aggregateOutput.value
+        val reasoningValue = reasoning.value
+        val outputIncludesReasoning = reasoningValue > 0L && (
+                hasAnyKey(usage, "thinking_output_tokens", "thinkingOutputTokens") ||
+                        (reportedTotal.known && reportedTotal.value == reportedInput.value + rawOutputValue)
+                )
+        val effectiveOutputValue = when {
+            responseOutput.known -> responseOutput.value
+            aggregateOutput.known && outputIncludesReasoning -> maxOf(0L, rawOutputValue - reasoningValue)
+            else -> rawOutputValue
+        }
+        val output = TokenFieldValue(
+            value = effectiveOutputValue,
+            known = responseOutput.known || aggregateOutput.known
+        )
         val attributedTotal = saturatedSum(
-            input.value,
+            inputValue,
             effectiveOutputValue,
             cacheRead.value,
             cacheWrite.value,
@@ -321,6 +395,22 @@ object UsageExtractor {
         }
         return TokenFieldValue(0L, known = hasValidZero)
     }
+
+    private fun readNestedTokenField(
+        obj: JsonObject,
+        objectKeys: Array<String>,
+        tokenKeys: Array<String>
+    ): TokenFieldValue {
+        for (objectKey in objectKeys) {
+            val nested = obj[objectKey] as? JsonObject ?: continue
+            val value = readTokenField(nested, *tokenKeys)
+            if (value.known) return value
+        }
+        return TokenFieldValue(0L, known = false)
+    }
+
+    private fun hasAnyKey(obj: JsonObject, vararg keys: String): Boolean =
+        keys.any(obj::containsKey)
 
     private fun missingUsageFields(
         input: TokenFieldValue,

@@ -825,9 +825,9 @@ internal fun usageBucketCostLabel(
     costLowerBound: Boolean,
     s: com.yuzhiqiang.antigravity.i18n.Strings
 ): String {
-    if (!pricingMatched) return s.usageCostValue("0")
+    if (!pricingMatched && costUsd <= 0.0) return s.usageCostUnavailable
     val amount = UsageNumberFormatter.formatUsdAmount(costUsd)
-    return if (costLowerBound) {
+    return if (costLowerBound || !pricingMatched) {
         s.usageCostLowerBound(amount)
     } else {
         s.usageCostValue(amount)

@@ -83,6 +83,51 @@ class SqliteConversationReaderTest {
     }
 
     @Test
+    fun testReadsStepsOnlyUsageAndMergesItWithGeneratorMetadata() {
+        val dbFile = File.createTempFile("usage-reader-steps-", ".db")
+        try {
+            val stepTimestamp = timestampMessage(1_788_487_597L, 63_325_000L)
+            val stepUsage = concat(
+                varintField(1, 1_318),
+                varintField(2, 173_457),
+                varintField(3, 4_283),
+                varintField(9, 2_270),
+                varintField(10, 2_013),
+                stringField(11, "steps-only")
+            )
+            createDatabase(
+                dbFile,
+                listOf(0 to metadataBlob(input = 10, responseId = "metadata-entry")),
+                listOf(
+                    7 to concat(
+                        messageField(1, stepTimestamp),
+                        messageField(9, stepUsage),
+                        stringField(12, "step-id")
+                    )
+                )
+            )
+
+            val result = SqliteConversationReader.readConversationDb(dbFile, "cid", "ide")
+
+            assertTrue(result.complete)
+            assertEquals(listOf("metadata-entry", "steps-only"), result.entries.map { it.responseId })
+            val entry = result.entries.single { it.responseId == "steps-only" }
+            assertEquals(173_457L, entry.input)
+            assertEquals(2_013L, entry.output)
+            assertEquals(2_270L, entry.reasoning)
+            assertEquals("MODEL_PLACEHOLDER_M318", entry.modelObservation.runtimeModelId)
+            assertEquals(
+                java.time.Instant.ofEpochSecond(1_788_487_597L, 63_325_000L).toString(),
+                entry.timestamp
+            )
+        } finally {
+            dbFile.delete()
+            File("${dbFile.path}-wal").delete()
+            File("${dbFile.path}-shm").delete()
+        }
+    }
+
+    @Test
     fun testMalformedMetadataRowMarksReadIncompleteButKeepsValidEntries() {
         val dbFile = File.createTempFile("usage-reader-malformed-", ".db")
         try {
@@ -110,7 +155,7 @@ class SqliteConversationReaderTest {
         val dbFile = File.createTempFile("usage-reader-missing-", ".db")
         try {
             val usage = concat(
-                varintField(9, 7),
+                varintField(10, 7),
                 stringField(11, "output-only")
             )
             createDatabase(
@@ -127,6 +172,102 @@ class SqliteConversationReaderTest {
                 listOf("input", "cache", "cacheWrite", "reasoning"),
                 result.entries.single().missingUsageFields
             )
+        } finally {
+            dbFile.delete()
+        }
+    }
+
+    @Test
+    fun testReadsInstalledModelUsageStatsFieldLayoutWithoutCountingModelEnum() {
+        val dbFile = File.createTempFile("usage-reader-schema-", ".db")
+        try {
+            createDatabase(
+                dbFile,
+                listOf(
+                    0 to metadataBlob(
+                        modelEnum = 1_400,
+                        input = 22_943,
+                        output = 15,
+                        cacheRead = 138_270,
+                        cacheWrite = 12,
+                        reasoning = 50
+                    )
+                ),
+                emptyList()
+            )
+
+            val entry = SqliteConversationReader.readConversationDb(dbFile, "cid", "ide").entries.single()
+
+            assertEquals(22_943L, entry.input)
+            assertEquals(15L, entry.output)
+            assertEquals(138_270L, entry.cacheRead)
+            assertEquals(12L, entry.cacheWrite)
+            assertEquals(50L, entry.reasoning)
+            assertEquals(161_290L, entry.totalTokens)
+        } finally {
+            dbFile.delete()
+        }
+    }
+
+    @Test
+    fun testDerivesContentOutputFromTotalWhenResponseOutputFieldIsMissing() {
+        val dbFile = File.createTempFile("usage-reader-output-fallback-", ".db")
+        try {
+            val usage = concat(
+                varintField(1, 1_400),
+                varintField(2, 100),
+                varintField(3, 65),
+                varintField(9, 50),
+                stringField(11, "fallback-output")
+            )
+            createDatabase(dbFile, listOf(0 to messageField(1, messageField(4, usage))), emptyList())
+
+            val entry = SqliteConversationReader.readConversationDb(dbFile, "cid", "ide").entries.single()
+
+            assertEquals(15L, entry.output)
+            assertEquals(50L, entry.reasoning)
+        } finally {
+            dbFile.delete()
+        }
+    }
+
+    @Test
+    fun testExplicitZeroResponseOutputDoesNotFallBackToTotalOutput() {
+        val dbFile = File.createTempFile("usage-reader-zero-output-", ".db")
+        try {
+            val usage = concat(
+                varintField(1, 1_400),
+                varintField(2, 100),
+                varintField(3, 50),
+                varintField(9, 50),
+                varintField(10, 0),
+                stringField(11, "zero-output")
+            )
+            createDatabase(dbFile, listOf(0 to messageField(1, messageField(4, usage))), emptyList())
+
+            val entry = SqliteConversationReader.readConversationDb(dbFile, "cid", "ide").entries.single()
+
+            assertEquals(0L, entry.output)
+            assertEquals(50L, entry.reasoning)
+        } finally {
+            dbFile.delete()
+        }
+    }
+
+    @Test
+    fun testUsesMessageIdWhenResponseIdIsMissing() {
+        val dbFile = File.createTempFile("usage-reader-message-id-", ".db")
+        try {
+            val usage = concat(
+                varintField(2, 10),
+                varintField(3, 1),
+                stringField(7, "bot-message-id")
+            )
+            createDatabase(dbFile, listOf(0 to messageField(1, messageField(4, usage))), emptyList())
+
+            val entry = SqliteConversationReader.readConversationDb(dbFile, "cid", "ide").entries.single()
+
+            assertEquals("bot-message-id", entry.responseId)
         } finally {
             dbFile.delete()
         }
@@ -266,6 +407,7 @@ class SqliteConversationReaderTest {
     }
 
     private fun metadataBlob(
+        modelEnum: Long = 1_400,
         input: Long = 10,
         output: Long = 7,
         cacheRead: Long = 2,
@@ -279,11 +421,13 @@ class SqliteConversationReaderTest {
         createdAtSeconds: Long = 1_785_850_093L
     ): ByteArray {
         val usage = concat(
-            varintField(1, input),
-            varintField(3, cacheRead),
-            varintField(5, cacheWrite),
-            varintField(9, output),
-            varintField(10, reasoning),
+            varintField(1, modelEnum),
+            varintField(2, input),
+            varintField(3, output + reasoning),
+            varintField(4, cacheWrite),
+            varintField(5, cacheRead),
+            varintField(9, reasoning),
+            varintField(10, output),
             stringField(11, responseId)
         )
         val chatFields = mutableListOf(

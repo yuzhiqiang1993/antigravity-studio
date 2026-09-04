@@ -16,7 +16,7 @@ object UsageStringsEn : UsageStrings {
     override val usagePricingSource: (source: String) -> String = { source ->
         when (source.lowercase()) {
             "custom" -> "Custom"
-            "external" -> "LiteLLM"
+            "external" -> "models.dev"
             "builtin" -> "Built-in"
             "mixed" -> "Mixed"
             else -> "Unmatched"
@@ -63,17 +63,17 @@ object UsageStringsEn : UsageStrings {
     override val usageKpiTotalTokensTitle: String = "Total Tokens"
     override val usageTotalInputTitle: String = "Input Usage (Prompt Input)"
     override val usageTotalOutputTitle: String = "Output Usage (Model Output)"
-    override val usageCacheCardTitle: String = "Cache Performance (Hit)"
+    override val usageCacheCardTitle: String = "Cache Hit Rate"
     override val usageSavedAmountLabel: String = "Cost Saved"
     override val usageUncachedInputLabel: String = "Uncached Input"
-    override val usageCacheHitLabel: String = "Cache Hit"
+    override val usageCacheHitLabel: String = "Cache Read"
     override val usageCacheWriteLabel: String = "Cache Write"
     override val usageGenerationLabel: String = "Generation"
     override val usageKpiTokensDetail: (input: String, output: String, reasoning: String) -> String =
         { input, output, reasoning ->
             "In $input · Out $output · Think $reasoning"
         }
-    override val usageKpiCacheHitRatioTitle: String = "Cache Hit Ratio"
+    override val usageKpiCacheHitRatioTitle: String = "Cache Hit Rate"
     override val usageKpiCacheReadDetail: (cacheRead: String) -> String =
         { cacheRead -> "Cache read $cacheRead Tokens" }
     override val usageKpiCallsTitle: String = "API Requests"

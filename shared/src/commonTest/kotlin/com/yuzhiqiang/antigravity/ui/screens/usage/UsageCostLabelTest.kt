@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.ui.screens.usage
 
+import com.yuzhiqiang.antigravity.i18n.StringsEn
 import com.yuzhiqiang.antigravity.i18n.StringsZh
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,9 +29,9 @@ class UsageCostLabelTest {
     }
 
     @Test
-    fun unmatchedPricingDisplaysZero() {
+    fun unmatchedPricingDisplaysUnpriced() {
         assertEquals(
-            "$0",
+            "未定价",
             usageBucketCostLabel(
                 costUsd = 0.0,
                 pricingMatched = false,
@@ -38,13 +39,39 @@ class UsageCostLabelTest {
                 s = StringsZh
             )
         )
+    }
+
+    @Test
+    fun partiallyPricedBucketShowsKnownCostAsLowerBound() {
         assertEquals(
-            "$0",
+            "$1.2",
             usageBucketCostLabel(
                 costUsd = 1.25,
                 pricingMatched = false,
                 costLowerBound = false,
                 s = StringsZh
+            )
+        )
+    }
+
+    @Test
+    fun englishLabelsUseTheSameSemantics() {
+        assertEquals(
+            "Unpriced",
+            usageBucketCostLabel(
+                costUsd = 0.0,
+                pricingMatched = false,
+                costLowerBound = false,
+                s = StringsEn
+            )
+        )
+        assertEquals(
+            "$1.2",
+            usageBucketCostLabel(
+                costUsd = 1.25,
+                pricingMatched = false,
+                costLowerBound = false,
+                s = StringsEn
             )
         )
     }

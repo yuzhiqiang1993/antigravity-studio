@@ -84,6 +84,80 @@ class LanguageServerUsageReaderTest {
         )
     }
 
+    @Test
+    fun testReadStepsDoesNotRefetchMetadata() = runBlocking {
+        val endpoint = RuntimeAccountProbe.LanguageServerEndpoint(1234, "csrf")
+        val requestedMethods = mutableListOf<String>()
+        var page = 0
+        val reader = LanguageServerUsageReader(
+            discoverEndpoints = { Result.success(listOf(endpoint)) },
+            requestJson = { _, method, _, _ ->
+                requestedMethods += method
+                check(method == "GetCascadeTrajectorySteps")
+                if (page++ == 0) {
+                    """
+                    {
+                      "steps": [
+                        {
+                          "metadata": {"createdAt": "2026-08-31T06:15:10Z"},
+                          "modelUsage": {
+                            "inputTokens": "20", "outputTokens": "5", "responseId": "steps-only"
+                          }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                } else {
+                    "{\"steps\":[]}"
+                }
+            }
+        )
+
+        val result = reader.readSteps("conversation", "ide")
+
+        assertNotNull(result)
+        assertEquals(listOf("steps-only"), result.entries.map { it.responseId })
+        assertEquals(
+            listOf("GetCascadeTrajectorySteps", "GetCascadeTrajectorySteps"),
+            requestedMethods
+        )
+    }
+
+    @Test
+    fun testReadStepsContinuesUntilRequiredResponseIdsAreCovered() = runBlocking {
+        val firstEndpoint = RuntimeAccountProbe.LanguageServerEndpoint(1234, "first")
+        val secondEndpoint = RuntimeAccountProbe.LanguageServerEndpoint(5678, "second")
+        val pagesByPort = mutableMapOf<Int, Int>()
+        val reader = LanguageServerUsageReader(
+            discoverEndpoints = { Result.success(listOf(firstEndpoint, secondEndpoint)) },
+            requestJson = { endpoint, method, _, _ ->
+                check(method == "GetCascadeTrajectorySteps")
+                val page = pagesByPort.getOrDefault(endpoint.port, 0)
+                pagesByPort[endpoint.port] = page + 1
+                if (page > 0) {
+                    "{\"steps\":[]}"
+                } else {
+                    val responseId = if (endpoint.port == firstEndpoint.port) "unrelated" else "required"
+                    """
+                    {
+                      "steps": [
+                        {"modelUsage": {"inputTokens": "1", "responseId": "$responseId"}}
+                      ]
+                    }
+                    """.trimIndent()
+                }
+            }
+        )
+
+        val result = reader.readSteps("conversation", "ide", setOf("required"))
+
+        assertNotNull(result)
+        assertEquals(true, result.complete)
+        assertEquals(setOf("unrelated", "required"), result.entries.map { it.responseId }.toSet())
+        assertEquals(2, pagesByPort[firstEndpoint.port])
+        assertEquals(2, pagesByPort[secondEndpoint.port])
+    }
+
     private fun requestOffset(body: String): Int {
         return Regex("""(?:generator_metadata_offset|step_offset)":(\d+)""")
             .find(body)

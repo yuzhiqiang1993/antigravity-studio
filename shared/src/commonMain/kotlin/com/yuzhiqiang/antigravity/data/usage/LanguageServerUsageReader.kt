@@ -18,6 +18,12 @@ interface UsageRemoteReader {
         conversationId: String,
         appSource: String
     ): RemoteUsageReadResult?
+
+    suspend fun readSteps(
+        conversationId: String,
+        appSource: String,
+        requiredResponseIds: Set<String> = emptySet()
+    ): RemoteUsageReadResult? = read(conversationId, appSource)
 }
 
 data class RemoteUsageReadResult(
@@ -70,6 +76,29 @@ internal class LanguageServerUsageReader(
             }
         }
         null
+    }
+
+    override suspend fun readSteps(
+        conversationId: String,
+        appSource: String,
+        requiredResponseIds: Set<String>
+    ): RemoteUsageReadResult? = withContext(Dispatchers.IO) {
+        val endpoints = getEndpoints()
+        if (endpoints.isEmpty()) return@withContext null
+        val collectedEntries = mutableListOf<com.yuzhiqiang.antigravity.domain.model.usage.TokenEntry>()
+
+        for (endpoint in endpoints) {
+            val steps = fetchPages(endpoint, STEPS_SERVICE, conversationId, "step_offset", appSource)
+            if (!steps.complete) continue
+            collectedEntries += steps.entries
+            val entries = UsageExtractor.dedupEntries(collectedEntries)
+            val responseIds = entries.mapNotNullTo(mutableSetOf()) { it.responseId }
+            if (entries.isNotEmpty() && (requiredResponseIds.isEmpty() || responseIds.containsAll(requiredResponseIds))) {
+                return@withContext RemoteUsageReadResult(entries, complete = true)
+            }
+        }
+        val entries = UsageExtractor.dedupEntries(collectedEntries)
+        entries.takeIf { it.isNotEmpty() }?.let { RemoteUsageReadResult(it, complete = false) }
     }
 
     private suspend fun getEndpoints(): List<RuntimeAccountProbe.LanguageServerEndpoint> =

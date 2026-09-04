@@ -34,13 +34,15 @@ data class UsageScanSnapshot(
 data class UsageParseBatchResult(
     val conversations: List<ConversationUsageData>,
     val successfulKeys: Set<String>,
-    val failedKeys: Set<String>
+    val failedKeys: Set<String>,
+    val retryKeys: Set<String> = emptySet()
 )
 
 private data class ParsedTargetResult(
     val key: String,
     val conversation: ConversationUsageData?,
-    val complete: Boolean
+    val complete: Boolean,
+    val retry: Boolean = false
 )
 
 /**
@@ -130,9 +132,10 @@ class UsageLogScanner(
         val batchResult = UsageParseBatchResult(
             conversations = results.mapNotNull { it.conversation },
             successfulKeys = results.filter { it.complete }.mapTo(mutableSetOf()) { it.key },
-            failedKeys = results.filterNot { it.complete }.mapTo(mutableSetOf()) { it.key }
+            failedKeys = results.filterNot { it.complete }.mapTo(mutableSetOf()) { it.key },
+            retryKeys = results.filter { it.retry }.mapTo(mutableSetOf()) { it.key }
         )
-        AppLog.d("Usage/Scanner") { "并发解析完成: 有效会话=${batchResult.conversations.size}, 成功Key=${batchResult.successfulKeys.size}, 失败Key=${batchResult.failedKeys.size}, 耗时=${System.currentTimeMillis() - startMs}ms" }
+        AppLog.d("Usage/Scanner") { "并发解析完成: 有效会话=${batchResult.conversations.size}, 成功Key=${batchResult.successfulKeys.size}, 失败Key=${batchResult.failedKeys.size}, 待补充Key=${batchResult.retryKeys.size}, 耗时=${System.currentTimeMillis() - startMs}ms" }
         batchResult
     }
 
@@ -162,6 +165,23 @@ class UsageLogScanner(
                 )
                 if (dbResult.complete) {
                     var entries = dbResult.entries
+                    val localResponseIds = entries.mapNotNull { it.responseId }.toSet()
+                    val missingStepResponseIds = dbResult.stepUsageResponseIds - localResponseIds
+                    var retryRemoteSteps = false
+                    if ((!dbResult.stepInfoComplete || missingStepResponseIds.isNotEmpty()) && remoteReader != null) {
+                        val remoteSteps = remoteReader.readSteps(
+                            target.conversationId,
+                            target.appSource,
+                            missingStepResponseIds
+                        )
+                        val remoteEntries = remoteSteps?.entries.orEmpty()
+                        if (remoteEntries.isNotEmpty()) {
+                            entries = UsageExtractor.dedupEntries(entries + remoteEntries)
+                        }
+                        val mergedResponseIds = entries.mapNotNullTo(mutableSetOf()) { it.responseId }
+                        retryRemoteSteps = remoteSteps?.complete != true ||
+                                !mergedResponseIds.containsAll(missingStepResponseIds)
+                    }
                     if (entries.any { it.missingUsageFields.isNotEmpty() }) {
                         val responseIds = entries.mapNotNull { it.responseId }.toSet()
                         val localEntries = readFallbackTranscript(target)
@@ -179,7 +199,8 @@ class UsageLogScanner(
                             entries = entries,
                             lastKnownIdx = dbResult.maxIdx
                         ),
-                        complete = true
+                        complete = true,
+                        retry = retryRemoteSteps
                     )
                 }
 

@@ -5,6 +5,8 @@ import java.io.File
 import java.sql.DriverManager
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -52,7 +54,7 @@ class UsageRepositoryTest {
             File(root, ".deep_stats_cache.json").writeText(
                 """
                 {
-                  "version": 1,
+                  "version": 6,
                   "updatedAt": 1,
                   "sourceMtimes": {"ide:cached": 1},
                   "conversations": [
@@ -148,8 +150,65 @@ class UsageRepositoryTest {
         }
     }
 
+    @Test
+    fun testRetriesMissingStepSupplementBeforeAdvancingCheckpoint() = runBlocking {
+        val root = createTempRoot()
+        val id = "55555555-5555-4555-8555-555555555555"
+        val db = databaseFile(root, id)
+        try {
+            createMetadataDatabase(db, input = 10, responseId = "local-response")
+            insertStepMetadata(db, idx = 0, responseId = "steps-only-response")
+            var remoteReady = false
+            var remoteCalls = 0
+            val remoteReader = object : UsageRemoteReader {
+                override suspend fun read(conversationId: String, appSource: String): RemoteUsageReadResult {
+                    remoteCalls++
+                    return if (remoteReady) {
+                        RemoteUsageReadResult(
+                            entries = listOf(
+                                com.yuzhiqiang.antigravity.domain.model.usage.TokenEntry(
+                                    responseId = "steps-only-response",
+                                    input = 20,
+                                    timestamp = "2026-08-31T00:01:00Z",
+                                    conversationId = conversationId,
+                                    appSource = appSource
+                                )
+                            ),
+                            complete = true
+                        )
+                    } else {
+                        RemoteUsageReadResult(emptyList(), complete = false)
+                    }
+                }
+            }
+            val repository = repository(root, UsageLogScanner(root, remoteReader))
+            repository.setTimeRange(com.yuzhiqiang.antigravity.domain.model.usage.UsageTimeRange.ALL_TIME)
+
+            assertEquals(10L, repository.refresh(false).getOrThrow().totalInput)
+            assertEquals(1, remoteCalls)
+            val firstCache = Json.parseToJsonElement(File(root, ".deep_stats_cache.json").readText()).jsonObject
+            assertTrue("ide:$id" !in firstCache.getValue("sourceMtimes").jsonObject)
+
+            remoteReady = true
+            assertEquals(30L, repository.refresh(false).getOrThrow().totalInput)
+            assertEquals(2, remoteCalls)
+
+            assertEquals(30L, repository.refresh(false).getOrThrow().totalInput)
+            assertEquals(2, remoteCalls)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     private fun repository(root: File): UsageRepository = UsageRepository(
         pricingService = PricingCatalogService(customRootDir = root),
+        customRootDir = root,
+        refreshPricingCatalog = false
+    )
+
+    private fun repository(root: File, scanner: UsageLogScanner): UsageRepository = UsageRepository(
+        pricingService = PricingCatalogService(customRootDir = root),
+        scanner = scanner,
         customRootDir = root,
         refreshPricingCatalog = false
     )
@@ -183,10 +242,24 @@ class UsageRepositoryTest {
         }
     }
 
+    private fun insertStepMetadata(dbFile: File, idx: Int, responseId: String) {
+        val usage = stringField(11, responseId)
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.prepareStatement("INSERT INTO steps(idx, metadata) VALUES (?, ?)").use { statement ->
+                statement.setInt(1, idx)
+                statement.setBytes(2, messageField(9, usage))
+                statement.executeUpdate()
+            }
+        }
+    }
+
     private fun metadataBlob(input: Long, responseId: String): ByteArray {
         val usage = concat(
-            varintField(1, input),
-            varintField(9, 2),
+            varintField(1, 1_400),
+            varintField(2, input),
+            varintField(3, 2),
+            varintField(9, 0),
+            varintField(10, 2),
             stringField(11, responseId)
         )
         return messageField(1, messageField(4, usage))

@@ -3,6 +3,7 @@ package com.yuzhiqiang.antigravity.data.usage
 import com.yuzhiqiang.antigravity.domain.model.ModelObservation
 import com.yuzhiqiang.antigravity.domain.model.usage.TokenEntry
 import java.io.File
+import java.sql.Connection
 import java.sql.DriverManager
 import java.time.Instant
 
@@ -12,17 +13,24 @@ data class ConversationDbResult(
     val title: String,
     val lastActiveTimestamp: String,
     val complete: Boolean = false,
-    val maxIdx: Int = -1
+    val maxIdx: Int = -1,
+    val stepUsageResponseIds: Set<String> = emptySet(),
+    val stepInfoComplete: Boolean = true
 )
 
 data class StepTimestampIndex(
     val byUuid: Map<String, String> = emptyMap(),
-    val byStepIdx: Map<Int, String> = emptyMap()
+    val byStepIdx: Map<Int, String> = emptyMap(),
+    val usageResponseIds: Set<String> = emptySet(),
+    val entries: List<TokenEntry> = emptyList(),
+    val complete: Boolean = true
 )
 
 private data class StepMetadataTimestamp(
     val timestamp: String?,
-    val stepId: String?
+    val stepId: String?,
+    val usageResponseId: String?,
+    val entry: TokenEntry?
 )
 
 private data class MetadataParseResult(
@@ -59,9 +67,16 @@ object SqliteConversationReader {
         var querySucceeded = false
         var observedMaxIdx = lastKnownIdx
         var isIncrementalRead = false
+        var stepIndex = StepTimestampIndex()
 
         try {
             DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+                stepIndex = readStepInfo(
+                    connection = connection,
+                    conversationId = conversationId,
+                    appSource = appSource,
+                    fileFallbackTs = fileFallbackTs
+                )
                 var canIncremental = lastKnownIdx >= 0 && existingEntries.isNotEmpty()
                 if (canIncremental) {
                     var dbMaxIdx = -1
@@ -110,12 +125,15 @@ object SqliteConversationReader {
                             val title = existingTitle.takeIf { it.isNotBlank() && !it.startsWith("会话 ") }
                                 ?: resolveBrainTitle(dbFile.parentFile?.parentFile, conversationId)
                                 ?: existingTitle.ifBlank { "会话 ${conversationId.take(8)}" }
+                            val entries = UsageExtractor.dedupEntries(existingEntries + stepIndex.entries)
                             return ConversationDbResult(
-                                entries = existingEntries,
+                                entries = entries,
                                 title = title,
-                                lastActiveTimestamp = existingEntries.maxOfOrNull { it.timestamp } ?: fileFallbackTs,
+                                lastActiveTimestamp = entries.maxOfOrNull { it.timestamp } ?: fileFallbackTs,
                                 complete = true,
-                                maxIdx = lastKnownIdx
+                                maxIdx = lastKnownIdx,
+                                stepUsageResponseIds = stepIndex.usageResponseIds,
+                                stepInfoComplete = stepIndex.complete
                             )
                         }
                     }
@@ -126,7 +144,6 @@ object SqliteConversationReader {
                     lastActiveTs = existingEntries.maxOfOrNull { it.timestamp } ?: fileFallbackTs
                 }
 
-                val stepIndex = readStepInfo(dbFile)
                 if (canIncremental) {
                     val sql = "SELECT idx, data FROM gen_metadata WHERE idx > ? ORDER BY idx"
                     connection.prepareStatement(sql).use { stmt ->
@@ -209,13 +226,9 @@ object SqliteConversationReader {
             ?: "会话 ${conversationId.take(8)}"
 
         val combinedEntries = if (isIncrementalRead && existingEntries.isNotEmpty()) {
-            if (newResults.isEmpty()) {
-                existingEntries
-            } else {
-                UsageExtractor.dedupEntries(existingEntries + newResults)
-            }
+            UsageExtractor.dedupEntries(existingEntries + newResults + stepIndex.entries)
         } else {
-            UsageExtractor.dedupEntries(newResults)
+            UsageExtractor.dedupEntries(newResults + stepIndex.entries)
         }
 
         return ConversationDbResult(
@@ -223,36 +236,60 @@ object SqliteConversationReader {
             title = resolvedTitle,
             lastActiveTimestamp = lastActiveTs,
             complete = querySucceeded && complete,
-            maxIdx = observedMaxIdx
+            maxIdx = observedMaxIdx,
+            stepUsageResponseIds = stepIndex.usageResponseIds,
+            stepInfoComplete = stepIndex.complete
         )
     }
 
-    private fun readStepInfo(dbFile: File): StepTimestampIndex {
+    private fun readStepInfo(
+        connection: Connection,
+        conversationId: String,
+        appSource: String,
+        fileFallbackTs: String
+    ): StepTimestampIndex {
         val byUuid = mutableMapOf<String, String>()
         val byStepIdx = mutableMapOf<Int, String>()
+        val usageResponseIds = mutableSetOf<String>()
+        val entries = mutableListOf<TokenEntry>()
 
-        try {
-            DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
-                connection.createStatement().use { statement ->
-                    statement.queryTimeout = 5
-                    statement.executeQuery(
-                        "SELECT idx, metadata FROM steps WHERE metadata IS NOT NULL ORDER BY idx"
-                    ).use { rs ->
-                        while (rs.next()) {
-                            val idx = rs.getInt("idx")
-                            val metadataBlob = rs.getBytes("metadata") ?: continue
-                            val parsed = parseStepMetadata(metadataBlob)
-                            val timestamp = parsed.timestamp ?: continue
+        return try {
+            connection.createStatement().use { statement ->
+                statement.queryTimeout = 5
+                statement.executeQuery(
+                    "SELECT idx, metadata FROM steps WHERE metadata IS NOT NULL ORDER BY idx"
+                ).use { rs ->
+                    while (rs.next()) {
+                        val idx = rs.getInt("idx")
+                        val metadataBlob = rs.getBytes("metadata") ?: continue
+                        val parsed = parseStepMetadata(
+                            metadataBytes = metadataBlob,
+                            idx = idx,
+                            conversationId = conversationId,
+                            appSource = appSource,
+                            fileFallbackTs = fileFallbackTs
+                        )
+                        parsed.usageResponseId?.let(usageResponseIds::add)
+                        parsed.entry?.let { entry ->
+                            entries += entry
+                        }
+                        parsed.timestamp?.let { timestamp ->
                             byStepIdx[idx] = timestamp
                             parsed.stepId?.takeIf { it.isNotBlank() }?.let { byUuid[it] = timestamp }
                         }
                     }
                 }
             }
+            StepTimestampIndex(
+                byUuid = byUuid,
+                byStepIdx = byStepIdx,
+                usageResponseIds = usageResponseIds,
+                entries = entries,
+                complete = true
+            )
         } catch (_: Exception) {
-            // Step 时间只影响回退；主 metadata 仍可使用文件 mtime 完成读取。
+            StepTimestampIndex(complete = false)
         }
-        return StepTimestampIndex(byUuid = byUuid, byStepIdx = byStepIdx)
     }
 
     private fun resolveBrainTitle(rootDir: File?, conversationId: String): String? {
@@ -296,23 +333,24 @@ object SqliteConversationReader {
         val usageFields = ProtobufLite.readFieldsStrict(usageBytes)
             ?: return MetadataParseResult(entry = null, valid = false)
 
-        val input = tokenCount(usageFields, 1)
-        val output = tokenCount(usageFields, 9).takeIf { it > 0L }
-            ?: tokenCount(usageFields, 2)
-        val cacheRead = tokenCount(usageFields, 3)
-        val cacheWrite = tokenCount(usageFields, 5)
-        val reasoning = tokenCount(usageFields, 10)
+        // ModelUsageStats: 1=model enum, 2=input, 3=total output, 4=cache write,
+        // 5=cache read, 7=message id, 9=thinking output, 10=response output, 11=response id.
+        val input = tokenCount(usageFields, 2)
+        val reasoning = tokenCount(usageFields, 9)
+        val output = if (hasValidTokenField(usageFields, 10)) {
+            tokenCount(usageFields, 10)
+        } else {
+            (tokenCount(usageFields, 3) - reasoning).coerceAtLeast(0L)
+        }
+        val cacheRead = tokenCount(usageFields, 5)
+        val cacheWrite = tokenCount(usageFields, 4)
         val missingUsageFields = missingUsageFields(usageFields)
 
         if (input == 0L && output == 0L && cacheRead == 0L && cacheWrite == 0L && reasoning == 0L) {
             return MetadataParseResult(entry = null, valid = true)
         }
 
-        val responseId = ProtobufLite.findField(usageFields, 11, wireType = 2)
-            ?.asString()
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: "cli-gen-$idx"
+        val responseId = usageEntryId(usageFields, idx)
         val responseModel = ProtobufLite.findField(chatFields, 19, wireType = 2)?.asString()?.observedValue()
         val displayName = ProtobufLite.findField(chatFields, 21, wireType = 2)?.asString()?.observedValue()
         val runtimeModelId = readStringMetadata(chatFields, "model_enum")?.observedValue()
@@ -369,18 +407,19 @@ object SqliteConversationReader {
     }
 
     private fun missingUsageFields(fields: List<ProtobufLite.Field>): List<String> {
-        fun hasValid(fieldNumber: Int): Boolean = fields.any {
-            it.number == fieldNumber && it.wireType == 0 && it.varint?.let { value -> value >= 0L } == true
-        }
-
         return buildList {
-            if (!hasValid(1)) add("input")
-            if (!hasValid(9) && !hasValid(2)) add("output")
-            if (!hasValid(3)) add("cache")
-            if (!hasValid(5)) add("cacheWrite")
-            if (!hasValid(10)) add("reasoning")
+            if (!hasValidTokenField(fields, 2)) add("input")
+            if (!hasValidTokenField(fields, 10) && !hasValidTokenField(fields, 3)) add("output")
+            if (!hasValidTokenField(fields, 5)) add("cache")
+            if (!hasValidTokenField(fields, 4)) add("cacheWrite")
+            if (!hasValidTokenField(fields, 9)) add("reasoning")
         }
     }
+
+    private fun hasValidTokenField(fields: List<ProtobufLite.Field>, fieldNumber: Int): Boolean =
+        fields.any {
+            it.number == fieldNumber && it.wireType == 0 && it.varint?.let { value -> value >= 0L } == true
+        }
 
     private fun tokenCount(fields: List<ProtobufLite.Field>, fieldNumber: Int): Long {
         return ProtobufLite.findField(fields, fieldNumber, wireType = 0)
@@ -396,15 +435,58 @@ object SqliteConversationReader {
         return parseTimestampMessage(timestampBytes)
     }
 
-    private fun parseStepMetadata(metadataBytes: ByteArray): StepMetadataTimestamp {
-        val fields = ProtobufLite.readFieldsStrict(metadataBytes) ?: return StepMetadataTimestamp(null, null)
+    private fun parseStepMetadata(
+        metadataBytes: ByteArray,
+        idx: Int,
+        conversationId: String,
+        appSource: String,
+        fileFallbackTs: String
+    ): StepMetadataTimestamp {
+        val fields = ProtobufLite.readFieldsStrict(metadataBytes) ?: return StepMetadataTimestamp(null, null, null, null)
         val timestampBytes = ProtobufLite.findField(fields, 1, wireType = 2)?.bytes
         val timestamp = timestampBytes?.let(::parseTimestampMessage)
         val stepId = ProtobufLite.findField(fields, 12, wireType = 2)
             ?.asString()
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
-        return StepMetadataTimestamp(timestamp, stepId)
+        val usageFields = ProtobufLite.findField(fields, 9, wireType = 2)
+            ?.bytes
+            ?.let(ProtobufLite::readFieldsStrict)
+        val usageResponseId = usageFields?.let(::stableUsageEntryId)
+        val entry = usageFields?.let { usage ->
+            val input = tokenCount(usage, 2)
+            val reasoning = tokenCount(usage, 9)
+            val output = if (hasValidTokenField(usage, 10)) {
+                tokenCount(usage, 10)
+            } else {
+                (tokenCount(usage, 3) - reasoning).coerceAtLeast(0L)
+            }
+            val cacheRead = tokenCount(usage, 5)
+            val cacheWrite = tokenCount(usage, 4)
+            if (input == 0L && output == 0L && cacheRead == 0L && cacheWrite == 0L && reasoning == 0L) {
+                null
+            } else {
+                val modelEnum = tokenCount(usage, 1)
+                TokenEntry(
+                    responseId = usageResponseId ?: "steps-$idx",
+                    input = input,
+                    output = output,
+                    cacheRead = cacheRead,
+                    cacheWrite = cacheWrite,
+                    reasoning = reasoning,
+                    modelObservation = ModelObservation(
+                        runtimeModelId = modelEnum
+                            .takeIf { it >= 1_000L }
+                            ?.let { "MODEL_PLACEHOLDER_M${it - 1_000L}" }
+                    ),
+                    missingUsageFields = missingUsageFields(usage),
+                    timestamp = timestamp ?: fileFallbackTs,
+                    conversationId = conversationId,
+                    appSource = appSource
+                )
+            }
+        }
+        return StepMetadataTimestamp(timestamp, stepId, usageResponseId, entry)
     }
 
     private fun parseTimestampMessage(timestampBytes: ByteArray): String? {
@@ -442,12 +524,21 @@ object SqliteConversationReader {
         val chatFields = ProtobufLite.readFieldsStrict(chatModelBytes) ?: return null
         val usageBytes = ProtobufLite.findField(chatFields, 4, wireType = 2)?.bytes ?: return null
         val usageFields = ProtobufLite.readFieldsStrict(usageBytes) ?: return null
-        return ProtobufLite.findField(usageFields, 11, wireType = 2)
-            ?.asString()
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: "cli-gen-$idx"
+        return usageEntryId(usageFields, idx)
     }
+
+    private fun usageEntryId(fields: List<ProtobufLite.Field>, idx: Int): String =
+        stableUsageEntryId(fields) ?: "cli-gen-$idx"
+
+    private fun stableUsageEntryId(fields: List<ProtobufLite.Field>): String? =
+        sequenceOf(11, 7)
+            .mapNotNull { fieldNumber ->
+                ProtobufLite.findField(fields, fieldNumber, wireType = 2)
+                    ?.asString()
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+            }
+            .firstOrNull()
 
     private fun String.observedValue(): String? = trim().takeIf(String::isNotEmpty)
 }

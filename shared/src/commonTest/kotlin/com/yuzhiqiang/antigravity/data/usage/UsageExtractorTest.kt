@@ -11,7 +11,7 @@ class UsageExtractorTest {
     fun testExtractPlannerResponseUsage() {
         val lines = sequenceOf(
             """{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"hello"}""",
-            """{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-08-31T06:15:10Z","usage":{"input_tokens":1000,"output_tokens":200,"cache_read_tokens":800,"thinking_output_tokens":50,"model":"claude-3-7-sonnet","response_id":"resp-123"}}"""
+            """{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-08-31T06:15:10Z","usage":{"input_tokens":1000,"output_tokens":250,"response_output_tokens":200,"cache_read_tokens":800,"thinking_output_tokens":50,"model":"claude-3-7-sonnet","response_id":"resp-123"}}"""
         )
 
         val entries = UsageExtractor.extractFromTranscript(lines, "convo-1", "ide")
@@ -143,6 +143,87 @@ class UsageExtractorTest {
 
         assertEquals(0L, entry.unattributed)
         assertEquals(15L, entry.totalTokens)
+    }
+
+    @Test
+    fun testKeepsCanonicalAndAnthropicInputBucketsExclusive() {
+        val entry = UsageExtractor.extractFromTranscript(
+            sequenceOf(
+                """{"usage":{"input_tokens":21,"output_tokens":5,"cache_read_input_tokens":1886,"cache_creation_input_tokens":99}}"""
+            ),
+            "anthropic",
+            "ide"
+        ).single()
+
+        assertEquals(21L, entry.input)
+        assertEquals(1_886L, entry.cacheRead)
+        assertEquals(99L, entry.cacheWrite)
+    }
+
+    @Test
+    fun testNormalizesOpenAiInclusivePromptAndOutputBuckets() {
+        val entry = UsageExtractor.extractFromTranscript(
+            sequenceOf(
+                """{"usage":{"prompt_tokens":1000,"prompt_tokens_details":{"cached_tokens":600},"completion_tokens":300,"reasoning_tokens":100,"total_tokens":1300}}"""
+            ),
+            "openai",
+            "ide"
+        ).single()
+
+        assertEquals(400L, entry.input)
+        assertEquals(600L, entry.cacheRead)
+        assertEquals(200L, entry.output)
+        assertEquals(100L, entry.reasoning)
+        assertEquals(1_300L, entry.totalTokens)
+    }
+
+    @Test
+    fun testNormalizesOpenAiResponsesInputDetailsAndExplicitResponseOutput() {
+        val entry = UsageExtractor.extractFromTranscript(
+            sequenceOf(
+                """{"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":60},"output_tokens":30,"response_output_tokens":20,"thinking_output_tokens":10}}"""
+            ),
+            "openai-responses",
+            "ide"
+        ).single()
+
+        assertEquals(40L, entry.input)
+        assertEquals(60L, entry.cacheRead)
+        assertEquals(20L, entry.output)
+        assertEquals(10L, entry.reasoning)
+    }
+
+    @Test
+    fun testNormalizesGeminiUsageMetadata() {
+        val entry = UsageExtractor.extractFromTranscript(
+            sequenceOf(
+                """{"usageMetadata":{"promptTokenCount":1500,"cachedContentTokenCount":500,"candidatesTokenCount":200,"thoughtsTokenCount":80,"totalTokenCount":1780}}"""
+            ),
+            "gemini",
+            "ide"
+        ).single()
+
+        assertEquals(1_000L, entry.input)
+        assertEquals(500L, entry.cacheRead)
+        assertEquals(200L, entry.output)
+        assertEquals(80L, entry.reasoning)
+        assertEquals(1_780L, entry.totalTokens)
+    }
+
+    @Test
+    fun testInvalidInclusiveCacheDoesNotCreateNegativeInputOrDoubleCount() {
+        val entry = UsageExtractor.extractFromTranscript(
+            sequenceOf(
+                """{"usage":{"prompt_tokens":100,"prompt_tokens_details":{"cached_tokens":120},"completion_tokens":10}}"""
+            ),
+            "invalid-cache",
+            "ide"
+        ).single()
+
+        assertEquals(100L, entry.input)
+        assertEquals(0L, entry.cacheRead)
+        assertEquals(110L, entry.totalTokens)
+        assertEquals(listOf("cache", "cacheWrite", "reasoning"), entry.missingUsageFields)
     }
 
     @Test
