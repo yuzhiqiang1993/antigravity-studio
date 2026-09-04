@@ -2,6 +2,32 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.3.2] - 2026-09-04
+
+### 🇨🇳 中文
+
+#### ✨ 体验与界面优化
+- **精简调用详情弹窗性能指标**：去除了独立“速度与流式指标”卡片中冗余的单 Token 耗时、纯生成耗时、流式等待间隔及末字到达耗时；将核心指标输出速率（TPS）直接融入第一板块“路由与调用信息”，紧随首字响应耗时展示，弹窗布局更紧凑工整，无需多余上下滚动
+- **用量成本与文案呈现优化**：完善用量大盘及调用日志中英文国际化文本，优化成本标签的展示逻辑
+
+#### 🐛 稳定性与协议修复
+- **用量统计协议与多模型结构兼容**：深度修正本地会话与语言服务日志中的 Token 用量协议解析，全面兼容多种模型返回的复杂数据结构；支持多步推理（Steps）增量补全统计，杜绝复杂多轮会话下 Token 漏计或断层问题
+- **配额抓取稳定性提升**：优化账号实时配额抓取路由策略，优先通过官方高可用端点拉取配额与订阅层级数据，避免生产主端点偶发限流导致的抓取超时与状态滞后
+
+---
+
+### 🌐 English
+
+#### ✨ Improvements & Experience
+- **Streamlined Request Details Dialog**: Removed the redundant "Speed & Streaming Metrics" card (TPOT, generation duration, stream gap, and time-to-last-token); integrated Tokens Per Second (TPS) directly into the "Routing & Call Information" card right after TTFT, making the modal more compact and eliminating unnecessary scrolling.
+- **Usage Cost & Localization Tweaks**: Enhanced bilingual strings and cost label formatting across usage dashboard and activity logs.
+
+#### 🐛 Stability & Bug Fixes
+- **Usage Protocol Parsing & Steps Incremental Tracking**: Corrected Token usage parsing from conversation logs and SQLite, compatible with multi-model response schemas and multi-step reasoning completion to ensure accurate Token accounting.
+- **High Availability Quota Endpoint**: Prioritized official daily endpoint for quota retrieval to avoid rate-limiting and connection timeouts on the primary endpoint.
+
+---
+
 ## [1.3.1] - 2026-09-03
 
 ### 🇨🇳 中文
