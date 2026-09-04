@@ -373,4 +373,24 @@ class AccountStoreTest {
         assertEquals(1, accountStore.currentAccounts().size)
         assertEquals("active@gmail.com", accountStore.currentAccounts().first().email)
     }
+
+    @Test
+    fun testActiveAccountSnapshotSerialization() = runBlocking {
+        val acc = AccountInfo(
+            id = "test_acc_123",
+            profile = AccountProfile("test_user@example.com"),
+            tokens = OAuthTokens("access", "refresh", System.currentTimeMillis() / 1000L + 3600L),
+            isActive = true,
+            status = AccountStatus.ACTIVE
+        )
+        accountStore.upsertAccount(acc)
+        accountStore.commitSwitchedAccount(acc)
+
+        val snapshotFile = File(tempDir, "active-account.json")
+        assertTrue(snapshotFile.exists(), "active-account.json should exist")
+        val content = snapshotFile.readText()
+        assertTrue(content.contains("test_acc_123"))
+        assertTrue(content.contains("test_user@example.com"))
+        assertTrue(content.contains("antigravity-studio"))
+    }
 }

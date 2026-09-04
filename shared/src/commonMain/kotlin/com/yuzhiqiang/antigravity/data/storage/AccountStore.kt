@@ -24,6 +24,15 @@ data class AccountStoreData(
     val activeAccountId: String? = null
 )
 
+@Serializable
+data class ActiveAccountSnapshot(
+    val version: Int = 1,
+    val accountId: String,
+    val email: String,
+    val source: String = "antigravity-studio",
+    val switchedAt: Long
+)
+
 /**
  * Studio 账号状态持久化存储器。
  * 官方 OAuth 凭据文件由 [OfficialCredentialsStore] 独立管理，本类只提供事务门面。
@@ -284,16 +293,17 @@ class AccountStore(
             val dir = customRootDir ?: File(System.getProperty("user.home"), ".gemini/antigravity")
             dir.mkdirs()
             val targetFile = File(dir, "active-account.json")
-            val payload = buildString {
-                append("{\n")
-                append("  \"version\": 1,\n")
-                append("  \"accountId\": \"${account.id}\",\n")
-                append("  \"email\": \"${account.email}\",\n")
-                append("  \"source\": \"antigravity-studio\",\n")
-                append("  \"switchedAt\": ${System.currentTimeMillis()}\n")
-                append("}\n")
-            }
-            targetFile.writeText(payload, Charsets.UTF_8)
+            val snapshot = ActiveAccountSnapshot(
+                accountId = account.id,
+                email = account.email,
+                switchedAt = System.currentTimeMillis()
+            )
+            val payload = json.encodeToString(ActiveAccountSnapshot.serializer(), snapshot)
+            AtomicFileWriter.writeText(
+                target = targetFile,
+                content = payload,
+                permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY
+            )
         }
     }
 

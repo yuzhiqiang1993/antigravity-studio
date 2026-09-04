@@ -61,8 +61,10 @@ class CrossProcessAccountSwitchLock(
         try {
             block()
         } finally {
-            heartbeatJob.cancelAndJoin()
-            releaseLock(sessionId)
+            withContext(NonCancellable) {
+                heartbeatJob.cancelAndJoin()
+                releaseLock(sessionId)
+            }
         }
     }
 

@@ -160,6 +160,7 @@ class OpenAiAdapter : ProviderAdapter {
                 }
             }
         } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
             val status = ProviderAdapter.upstreamFailureStatus(error)
             emit(NeutralStreamChunk.Error("OpenAI request failed: " + (error.message ?: "unknown error"), status, responseStarted = responseStarted))
         }

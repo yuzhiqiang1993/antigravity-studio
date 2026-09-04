@@ -1,7 +1,10 @@
 package com.yuzhiqiang.antigravity.di
 
+import com.yuzhiqiang.antigravity.core.concurrency.AppDispatchers
+import com.yuzhiqiang.antigravity.core.concurrency.DefaultAppDispatchers
 import com.yuzhiqiang.antigravity.data.storage.AccountStore
 import com.yuzhiqiang.antigravity.data.storage.ConfigStore
+import com.yuzhiqiang.antigravity.data.usage.UsageRepository
 import com.yuzhiqiang.antigravity.doctor.engine.DoctorEngine
 import com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer
 import com.yuzhiqiang.antigravity.services.auth.GoogleAuthService
@@ -11,8 +14,10 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val appModule = module {
+    single<AppDispatchers> { DefaultAppDispatchers() }
     single { ConfigStore() }
     single { AccountStore() }
+    single { UsageRepository() }
     single { GoogleAuthService() }
     single {
         val googleAuthService = get<GoogleAuthService>()

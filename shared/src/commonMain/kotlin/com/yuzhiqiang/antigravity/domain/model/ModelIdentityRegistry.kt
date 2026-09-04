@@ -541,4 +541,11 @@ object ModelIdentityRegistryHolder {
         officialModels = value
         registry = ModelIdentityRegistry.from(config, officialModels)
     }
+
+    @Synchronized
+    fun reset() {
+        config = AppConfig()
+        officialModels = emptyList()
+        registry = ModelIdentityRegistry.empty()
+    }
 }

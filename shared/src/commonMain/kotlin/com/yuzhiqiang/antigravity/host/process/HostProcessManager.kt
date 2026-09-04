@@ -350,6 +350,8 @@ object HostProcessManager {
     ): Boolean {
         return try {
             val processBuilder = ProcessBuilder(command)
+            processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD)
             if (workingDir != null && workingDir.isDirectory) {
                 processBuilder.directory(workingDir)
             }
@@ -360,6 +362,9 @@ object HostProcessManager {
                 val exited = process.waitFor(COMMAND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
                 if (!exited) {
                     process.destroy()
+                    if (process.isAlive) {
+                        process.destroyForcibly()
+                    }
                     false
                 } else {
                     process.exitValue() == 0
@@ -376,7 +381,10 @@ object HostProcessManager {
     private fun runCommand(vararg command: String): Boolean {
         var process: Process? = null
         return try {
-            process = ProcessBuilder(*command).start()
+            val processBuilder = ProcessBuilder(*command)
+            processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD)
+            process = processBuilder.start()
             val completed = process.waitFor(COMMAND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
             if (!completed) {
                 process.destroy()

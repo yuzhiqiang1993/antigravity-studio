@@ -405,25 +405,29 @@ class HostLifecycleDelegate(
     }
 
     fun enableCliHostInternal(actualPort: Int) {
-        val success = CliHostManager.enable(actualPort)
-        isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
-        if (success) {
-            showNotice(s.hostCliEnabledNotice, NoticeKind.SUCCESS)
-        } else {
-            showNotice(s.hostCliEnableFailed, NoticeKind.ERROR)
+        scope.launch(Dispatchers.IO) {
+            val success = CliHostManager.enable(actualPort)
+            isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
+            if (success) {
+                showNotice(s.hostCliEnabledNotice, NoticeKind.SUCCESS)
+            } else {
+                showNotice(s.hostCliEnableFailed, NoticeKind.ERROR)
+            }
+            refreshHostStatus(actualPort)
         }
-        refreshHostStatus(actualPort)
     }
 
     fun disableCliHostInternal(actualPort: Int) {
-        val success = CliHostManager.disable()
-        isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
-        if (success) {
-            showNotice(s.hostCliDisabledNotice, NoticeKind.SUCCESS)
-        } else {
-            showNotice(s.hostCliDisableFailed, NoticeKind.ERROR)
+        scope.launch(Dispatchers.IO) {
+            val success = CliHostManager.disable()
+            isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
+            if (success) {
+                showNotice(s.hostCliDisabledNotice, NoticeKind.SUCCESS)
+            } else {
+                showNotice(s.hostCliDisableFailed, NoticeKind.ERROR)
+            }
+            refreshHostStatus(actualPort)
         }
-        refreshHostStatus(actualPort)
     }
 
     /**

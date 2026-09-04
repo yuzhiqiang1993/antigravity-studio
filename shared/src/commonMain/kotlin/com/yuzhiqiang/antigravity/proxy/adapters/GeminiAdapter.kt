@@ -164,6 +164,7 @@ class GeminiAdapter : ProviderAdapter {
                 }
             }
         } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
             val status = ProviderAdapter.upstreamFailureStatus(error)
             emit(
                 NeutralStreamChunk.Error(

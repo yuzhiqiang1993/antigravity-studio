@@ -103,16 +103,25 @@ private fun setupPlatformAppIcon() {
     }
 }
 
+private val isCleanedUp = java.util.concurrent.atomic.AtomicBoolean(false)
+
 private fun cleanupAppResources() {
+    if (!isCleanedUp.compareAndSet(false, true)) return
     try {
         com.yuzhiqiang.antigravity.services.events.HostFileWatcher.stop()
         com.yuzhiqiang.antigravity.services.events.HostProcessWatcher.stop()
-        kotlinx.coroutines.runBlocking {
-            kotlinx.coroutines.withTimeoutOrNull(1500L) {
-                org.koin.core.context.GlobalContext.getOrNull()
-                    ?.getOrNull<com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer>()
-                    ?.stop()
-            }
+        val proxyServer = org.koin.core.context.GlobalContext.getOrNull()
+            ?.getOrNull<com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer>()
+        if (proxyServer != null) {
+            val stopThread = Thread({
+                kotlinx.coroutines.runBlocking {
+                    kotlinx.coroutines.withTimeoutOrNull(1500L) {
+                        proxyServer.stop()
+                    }
+                }
+            }, "studio-cleanup-proxy")
+            stopThread.start()
+            stopThread.join(1600L)
         }
     } catch (_: Throwable) {
     }
@@ -239,6 +248,7 @@ fun main() {
                     window.requestFocus()
                 }
                 onDispose {
+                    windowRef = null
                 }
             }
 

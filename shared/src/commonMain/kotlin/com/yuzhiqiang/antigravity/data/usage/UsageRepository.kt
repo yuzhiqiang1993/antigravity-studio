@@ -335,12 +335,16 @@ class UsageRepository(
                 conversations = conversations
             )
             val text = json.encodeToString(UsageDiskCache.serializer(), cache)
-            AtomicFileWriter.writeText(
+            val writeResult = AtomicFileWriter.writeText(
                 target = cacheFile,
                 content = text,
                 permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY
             )
-            AppLog.d("Usage/Repository") { "持久化用量磁盘缓存成功: 会话数=${conversations.size}, 耗时=${System.currentTimeMillis() - startMs}ms" }
+            if (writeResult.isSuccess) {
+                AppLog.d("Usage/Repository") { "持久化用量磁盘缓存成功: 会话数=${conversations.size}, 耗时=${System.currentTimeMillis() - startMs}ms" }
+            } else {
+                AppLog.w("Usage/Repository", writeResult.exceptionOrNull()) { "持久化用量磁盘缓存失败: 原子写入失败" }
+            }
         } catch (error: Exception) {
             AppLog.w("Usage/Repository", error) { "持久化用量磁盘缓存失败: ${error.message}" }
         }

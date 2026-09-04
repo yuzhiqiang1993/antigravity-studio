@@ -126,6 +126,7 @@ internal class OfficialPassthroughForwarder(
                     return
                 }
             } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
                 lastErrorMessage = error.message ?: "Official Cloud Code passthrough failed"
                 lastErrorSource = StreamErrorSource.UPSTREAM_TRANSPORT
                 if (attempt <= maxRetries) {
