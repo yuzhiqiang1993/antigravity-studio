@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.data.storage
 
 import com.yuzhiqiang.antigravity.core.file.AtomicFileWriter
+import com.yuzhiqiang.antigravity.logging.AppLog
 import com.yuzhiqiang.antigravity.domain.model.account.AccountInfo
 import com.yuzhiqiang.antigravity.domain.model.account.AccountProfile
 import com.yuzhiqiang.antigravity.domain.model.account.AccountStatus
@@ -80,7 +81,8 @@ internal class OfficialCredentialsStore(
                 isActive = true,
                 status = AccountStatus.ACTIVE
             )
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            AppLog.w("OfficialCredentialsStore", error) { "读取/导入官方凭据失败: ${error.message}" }
             null
         }
     }
@@ -114,7 +116,8 @@ internal class OfficialCredentialsStore(
                 writeSensitiveText(target.file, content)
             }
             true
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            AppLog.w("OfficialCredentialsStore", error) { "同步官方凭据文件失败: ${error.message}" }
             false
         }
     }
@@ -151,7 +154,8 @@ internal class OfficialCredentialsStore(
                     !fileSnapshot.file.exists() ||
                             (fileSnapshot.file.isFile && fileSnapshot.file.delete())
                 }
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                AppLog.w("OfficialCredentialsStore", error) { "恢复敏感文件失败: ${fileSnapshot.file.absolutePath} - ${error.message}" }
                 false
             }
             restored = restored && fileRestored
