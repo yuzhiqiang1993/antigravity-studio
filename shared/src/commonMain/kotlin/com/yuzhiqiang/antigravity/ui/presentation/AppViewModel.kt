@@ -48,7 +48,8 @@ class AppViewModel(
         tokenRefreshCallback = { refreshToken ->
             googleAuthService.refreshAccessToken(refreshToken).map { it.accessToken }
         }
-    )
+    ),
+    val usageRepository: UsageRepository = UsageRepository()
 ) : ViewModel() {
 
 
@@ -324,7 +325,6 @@ class AppViewModel(
 
     private val _downloadState = MutableStateFlow<AppUpdateDownloadState>(AppUpdateDownloadState.Idle)
     val downloadState: StateFlow<AppUpdateDownloadState> = _downloadState.asStateFlow()
-    val usageRepository = UsageRepository()
     private val usageDelegate = UsageDelegate(
         scope = viewModelScope,
         usageRepository = usageRepository,

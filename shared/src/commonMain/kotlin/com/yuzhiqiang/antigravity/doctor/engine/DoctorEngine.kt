@@ -12,6 +12,8 @@ import com.yuzhiqiang.antigravity.network.ConnectionTester
 import com.yuzhiqiang.antigravity.proxy.adapters.AdapterFactory
 import com.yuzhiqiang.antigravity.proxy.server.LocalProxyServer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -22,14 +24,38 @@ class DoctorEngine(
 ) {
     suspend fun diagnose(): DoctorReport = withContext(Dispatchers.IO) {
         val s = com.yuzhiqiang.antigravity.i18n.I18nManager.strings
-        val items = mutableListOf<DoctorCheckItem>()
         val config = configStore.currentConfig
         val actualPort = if (proxyServer.isRunning.value) proxyServer.actualPort.value else config.proxyPort
         val isProxyRunning = proxyServer.isRunning.value
 
-        // =========================================================================
-        // 1. 本地代理检测 (PROXY)
-        // =========================================================================
+        coroutineScope {
+            val proxyDeferred = async { runCatching { checkProxy(s, actualPort, isProxyRunning) }.getOrElse { emptyList() } }
+            val networkDeferred = async { runCatching { checkNetwork(s, config) }.getOrElse { emptyList() } }
+            val providerDeferred = async { runCatching { checkProviders(s, config) }.getOrElse { emptyList() } }
+            val hostDeferred = async { runCatching { checkHosts(s, config, actualPort, isProxyRunning) }.getOrElse { emptyList() } }
+
+            val items = proxyDeferred.await() + networkDeferred.await() + providerDeferred.await() + hostDeferred.await()
+
+            // 计算总体健康度
+            val overallStatus = when {
+                items.any { it.status == DoctorCheckStatus.FAILED } -> DoctorCheckStatus.FAILED
+                items.any { it.status == DoctorCheckStatus.WARNING } -> DoctorCheckStatus.WARNING
+                else -> DoctorCheckStatus.PASSED
+            }
+
+            DoctorReport(
+                items = items,
+                overallStatus = overallStatus
+            )
+        }
+    }
+
+    private fun checkProxy(
+        s: com.yuzhiqiang.antigravity.i18n.Strings,
+        actualPort: Int,
+        isProxyRunning: Boolean
+    ): List<DoctorCheckItem> {
+        val items = mutableListOf<DoctorCheckItem>()
         if (!isProxyRunning) {
             items.add(
                 DoctorCheckItem(
@@ -79,10 +105,14 @@ class DoctorEngine(
                 )
             }
         }
+        return items
+    }
 
-        // =========================================================================
-        // 2. 官方服务与网络代理检测 (NETWORK)
-        // =========================================================================
+    private suspend fun checkNetwork(
+        s: com.yuzhiqiang.antigravity.i18n.Strings,
+        config: com.yuzhiqiang.antigravity.domain.model.AppConfig
+    ): List<DoctorCheckItem> {
+        val items = mutableListOf<DoctorCheckItem>()
         val outboundConfig = config.outboundProxy
         val inspection = com.yuzhiqiang.antigravity.network.PlatformNetworkConfig.inspectOutboundProxy(outboundConfig)
         val networkResult = ConnectionTester.testOutboundProxy(outboundConfig)
@@ -161,10 +191,14 @@ class DoctorEngine(
                 )
             )
         }
+        return items
+    }
 
-        // =========================================================================
-        // 3. 提供商与配置检测 (PROVIDER / CONFIG)
-        // =========================================================================
+    private suspend fun checkProviders(
+        s: com.yuzhiqiang.antigravity.i18n.Strings,
+        config: com.yuzhiqiang.antigravity.domain.model.AppConfig
+    ): List<DoctorCheckItem> {
+        val items = mutableListOf<DoctorCheckItem>()
         val enabledProviders = config.providers.filter { it.enabled }
         if (enabledProviders.isEmpty()) {
             items.add(
@@ -200,10 +234,16 @@ class DoctorEngine(
                 }
             }
         }
+        return items
+    }
 
-        // =========================================================================
-        // 4. 宿主集成检测 (HOST)
-        // =========================================================================
+    private fun checkHosts(
+        s: com.yuzhiqiang.antigravity.i18n.Strings,
+        config: com.yuzhiqiang.antigravity.domain.model.AppConfig,
+        actualPort: Int,
+        isProxyRunning: Boolean
+    ): List<DoctorCheckItem> {
+        val items = mutableListOf<DoctorCheckItem>()
         // (1) IDE 诊断
         val ideStatus = IdeHostManager.inspect(
             proxyPort = actualPort,
@@ -365,18 +405,7 @@ class DoctorEngine(
                 }
             }
         }
-
-        // 计算总体健康度
-        val overallStatus = when {
-            items.any { it.status == DoctorCheckStatus.FAILED } -> DoctorCheckStatus.FAILED
-            items.any { it.status == DoctorCheckStatus.WARNING } -> DoctorCheckStatus.WARNING
-            else -> DoctorCheckStatus.PASSED
-        }
-
-        DoctorReport(
-            items = items,
-            overallStatus = overallStatus
-        )
+        return items
     }
 
     private suspend fun diagnoseProvider(

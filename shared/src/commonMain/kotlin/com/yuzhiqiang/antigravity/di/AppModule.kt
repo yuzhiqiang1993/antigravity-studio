@@ -49,7 +49,8 @@ val appModule = module {
             doctorEngine = get(),
             accountStore = get(),
             googleAuthService = get(),
-            quotaFetchService = get()
+            quotaFetchService = get(),
+            usageRepository = get()
         )
     }
 }
