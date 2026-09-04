@@ -39,6 +39,7 @@ class QuotaFetchService(
 
     companion object {
         private val CLOUD_CODE_HOSTS = listOf(
+            "https://daily-cloudcode-pa.googleapis.com",
             "https://cloudcode-pa.googleapis.com"
         )
         private const val DEFAULT_PROJECT_ID = "cloudaicompanion-enterprise"
