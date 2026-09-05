@@ -19,8 +19,8 @@ import kotlinx.serialization.serializer
 /**
  * 统一维护宿主接入的 ownership receipt。
  *
- * App 与 CLI 共享 `CLOUD_CODE_URL`，IDE 使用独立 settings receipt。所有停用操作都先
- * 校验当前值仍是 Studio 写入的值，避免覆盖用户或其他工具在接管期间产生的外部修改。
+ * App 与 CLI 各自保存启动端点，IDE 使用独立 settings receipt。旧版共享
+ * `CLOUD_CODE_URL` 的 API 保留兼容；迁移仅恢复仍属于 Studio 的环境值。
  */
 object HostOwnershipStore {
     private const val RECEIPT_SCHEMA_VERSION = 1
@@ -37,6 +37,23 @@ object HostOwnershipStore {
     enum class EnvironmentOwner {
         APP,
         CLI
+    }
+
+    @Serializable
+    private data class LaunchReceipt(
+        @SerialName("schema_version") val schemaVersion: Int,
+        val appEndpoint: String? = null,
+        val cliEndpoint: String? = null
+    ) {
+        fun endpoint(owner: EnvironmentOwner): String? = when (owner) {
+            EnvironmentOwner.APP -> appEndpoint
+            EnvironmentOwner.CLI -> cliEndpoint
+        }
+
+        fun withEndpoint(owner: EnvironmentOwner, endpoint: String?): LaunchReceipt = when (owner) {
+            EnvironmentOwner.APP -> copy(appEndpoint = endpoint)
+            EnvironmentOwner.CLI -> copy(cliEndpoint = endpoint)
+        }
     }
 
     @Serializable
@@ -80,6 +97,69 @@ object HostOwnershipStore {
         val endpointMatches: Boolean,
         val canDisable: Boolean
     )
+
+    /** 仅探测指定宿主的启动配置，不使用共享环境推断另一端状态。 */
+    fun inspectLaunchIntegration(owner: EnvironmentOwner, proxyPort: Int): IntegrationInspectResult {
+        val endpoint = configuredLaunchEndpoint(owner).getOrElse {
+            return IntegrationInspectResult(
+                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.UNAVAILABLE,
+                null,
+                false,
+                false
+            )
+        }
+        val matches = endpoint != null && endpoint == localEndpoint(proxyPort)
+        val state = when {
+            endpoint == null -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL
+            matches -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
+            else -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
+        }
+        return IntegrationInspectResult(state, endpoint, matches, endpoint != null)
+    }
+
+    /** 仅更新指定宿主的启动端点，保留另一端配置与共享环境。 */
+    @Synchronized
+    fun enableLaunchIntegration(owner: EnvironmentOwner, proxyPort: Int): Result<Unit> {
+        if (proxyPort !in 1..65535) {
+            return Result.failure(IllegalArgumentException("宿主代理端口必须在 1..65535 之间"))
+        }
+        val receipt = readLaunchReceipt().getOrElse { return Result.failure(it) }
+            ?: LaunchReceipt(RECEIPT_SCHEMA_VERSION)
+        return writeReceipt(launchReceiptFile(), receipt.withEndpoint(owner, localEndpoint(proxyPort)))
+    }
+
+    /** 仅移除指定宿主的启动配置，双方均停用时删除启动收据。 */
+    @Synchronized
+    fun disableLaunchIntegration(owner: EnvironmentOwner): Result<Unit> {
+        val receipt = readLaunchReceipt().getOrElse { return Result.failure(it) }
+            ?: return Result.success(Unit)
+        val updated = receipt.withEndpoint(owner, null)
+        return if (updated.appEndpoint == null && updated.cliEndpoint == null) {
+            removeReceipt(launchReceiptFile())
+        } else {
+            writeReceipt(launchReceiptFile(), updated)
+        }
+    }
+
+    fun configuredLaunchEndpoint(owner: EnvironmentOwner): Result<String?> =
+        readLaunchReceipt().map { it?.endpoint(owner) }
+
+    /** 共享环境仅供启动策略判断，不代表任何宿主已启用独立接入。 */
+    fun sharedEnvironmentEndpoint(): Result<String?> = readEnvironmentEndpoint()
+
+    /** 仅由显式用户操作调用；不在探测或读取启动配置时自动迁移。 */
+    fun migrateLegacyEnvironment(): Result<Unit> {
+        val receipt = readReceipt<EnvironmentReceipt>(environmentReceiptFile(), rejectInvalid = true)
+            .getOrElse { return Result.failure(it) } ?: return Result.success(Unit)
+        val current = readEnvironmentEndpoint().getOrElse { return Result.failure(it) }
+        if (current == receipt.managedEndpoint) {
+            val restored = receipt.originalEndpoint?.let(::setEnvironmentEndpoint) ?: unsetEnvironmentEndpoint()
+            if (!restored) {
+                return Result.failure(IllegalStateException("恢复 $ENVIRONMENT_KEY 原始值失败"))
+            }
+        }
+        return removeEnvironmentReceipts()
+    }
 
     /** 详细探测指定 IDE settings 的代理集成状态与端点。 */
     fun inspectIdeIntegration(settingsFile: File, proxyPort: Int): IntegrationInspectResult {
@@ -369,31 +449,28 @@ object HostOwnershipStore {
         }
     }
 
-    private fun readEnvironmentEndpoint(): Result<String?> {
-        return Result.success(
-            if (isWindows()) {
-                WindowsHostManager.getEnvironmentUrl()
-            } else {
-                MacHostManager.getEnvironmentUrl()
-            }
-        )
-    }
-
-    private fun setEnvironmentEndpoint(endpoint: String): Boolean {
-        return if (isWindows()) {
-            WindowsHostManager.setEnvironmentUrl(endpoint)
-        } else {
-            MacHostManager.setEnvironmentUrl(endpoint)
+    internal var environmentReader: () -> Result<String?> = {
+        runCatching {
+            if (isWindows()) WindowsHostManager.getEnvironmentUrl() else MacHostManager.getEnvironmentUrl()
         }
     }
 
-    private fun unsetEnvironmentEndpoint(): Boolean {
-        return if (isWindows()) {
-            WindowsHostManager.unsetEnvironmentUrl()
-        } else {
-            MacHostManager.unsetEnvironmentUrl()
-        }
+    internal var environmentWriter: (String) -> Boolean = { endpoint ->
+        if (isWindows()) WindowsHostManager.setEnvironmentUrl(endpoint) else MacHostManager.setEnvironmentUrl(endpoint)
     }
+
+    internal var environmentClearer: () -> Boolean = {
+        if (isWindows()) WindowsHostManager.unsetEnvironmentUrl() else MacHostManager.unsetEnvironmentUrl()
+    }
+
+    private fun readEnvironmentEndpoint(): Result<String?> =
+        runCatching { environmentReader().getOrThrow() }
+
+    private fun setEnvironmentEndpoint(endpoint: String): Boolean =
+        runCatching { environmentWriter(endpoint) }.getOrDefault(false)
+
+    private fun unsetEnvironmentEndpoint(): Boolean =
+        runCatching { environmentClearer() }.getOrDefault(false)
 
     private fun isWindows(): Boolean {
         return System.getProperty("os.name", "").lowercase().contains("win")
@@ -443,11 +520,24 @@ object HostOwnershipStore {
         return updated
     }
 
-    private fun environmentReceiptFile(): File =
-        AppDataPaths.resolve(AppDataPaths.ENVIRONMENT_RECEIPT_FILE_NAME)
+    internal var receiptRootOverride: File? = null
 
-    private fun ideReceiptFile(): File =
-        AppDataPaths.resolve(AppDataPaths.IDE_RECEIPT_FILE_NAME)
+    private fun receiptFile(name: String): File =
+        receiptRootOverride?.let { File(it, name) } ?: AppDataPaths.resolve(name)
+
+    private fun launchReceiptFile(): File = receiptFile("host-launch-ownership.json")
+
+    private fun environmentReceiptFile(): File = receiptFile(AppDataPaths.ENVIRONMENT_RECEIPT_FILE_NAME)
+
+    private fun ideReceiptFile(): File = receiptFile(AppDataPaths.IDE_RECEIPT_FILE_NAME)
+
+    private fun readLaunchReceipt(): Result<LaunchReceipt?> = runCatching {
+        readReceipt<LaunchReceipt>(launchReceiptFile(), rejectInvalid = true).getOrThrow()?.also { receipt ->
+            require(listOfNotNull(receipt.appEndpoint, receipt.cliEndpoint).all(::isLocalEndpoint)) {
+                "启动 receipt 端点必须是本机回环地址"
+            }
+        }
+    }
 
     private fun readEnvironmentReceipt(): Result<EnvironmentReceipt?> {
         return readReceipt(environmentReceiptFile())
@@ -457,13 +547,21 @@ object HostOwnershipStore {
         return readReceipt(ideReceiptFile())
     }
 
-    private inline fun <reified T> readReceipt(file: File): Result<T?> {
+    private inline fun <reified T> readReceipt(file: File, rejectInvalid: Boolean = false): Result<T?> {
         val path = file.toPath()
         if (!Files.exists(path, NOFOLLOW_LINKS)) {
-            return Result.success(null)
+            return if (rejectInvalid && !Files.notExists(path, NOFOLLOW_LINKS)) {
+                Result.failure(IllegalStateException("无法访问接入 receipt"))
+            } else {
+                Result.success(null)
+            }
         }
         if (Files.isSymbolicLink(path)) {
-            return removeReceipt(file).map { null }
+            return if (rejectInvalid) {
+                Result.failure(IllegalStateException("接入 receipt 不允许使用符号链接"))
+            } else {
+                removeReceipt(file).map { null }
+            }
         }
         AtomicFileWriter.setOwnerOnlyPermissions(file).getOrElse { error ->
             return Result.failure(error)
@@ -480,8 +578,12 @@ object HostOwnershipStore {
                 "不支持的 receipt schema_version：${schemaVersion ?: "缺失"}"
             }
             Result.success(json.decodeFromJsonElement(serializer<T>(), raw))
-        } catch (_: Exception) {
-            removeReceipt(file).map { null }
+        } catch (error: Exception) {
+            if (rejectInvalid) {
+                Result.failure(IllegalStateException("接入 receipt 解析失败：${error.message ?: "未知错误"}", error))
+            } else {
+                removeReceipt(file).map { null }
+            }
         }
     }
 

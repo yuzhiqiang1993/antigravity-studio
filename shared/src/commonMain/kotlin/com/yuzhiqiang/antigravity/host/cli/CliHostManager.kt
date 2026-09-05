@@ -5,7 +5,7 @@ import java.io.File
 
 /**
  * CLI 宿主集成管理器，对标 agy-byok 的 cli_host.rs。
- * 检测 agy CLI 工具是否安装，并管理其配置文件中的代理 URL。
+ * 检测 agy CLI 工具是否安装，并管理 Studio 专属的单次启动配置。
  */
 object CliHostManager {
 
@@ -113,13 +113,13 @@ object CliHostManager {
     }
 
     /**
-     * 检测 CLI 是否已配置代理端点。
+     * 检测 CLI 的 Studio 专属启动配置是否匹配当前端口。
      */
     fun isActive(proxyPort: Int): Boolean {
-        return HostOwnershipStore.isEnvironmentConfigured(
+        return HostOwnershipStore.inspectLaunchIntegration(
             HostOwnershipStore.EnvironmentOwner.CLI,
             proxyPort
-        )
+        ).endpointMatches
     }
 
     fun detectVersion(customInstallation: String? = null): String? {
@@ -174,7 +174,7 @@ object CliHostManager {
     ): com.yuzhiqiang.antigravity.host.model.HostDetailedStatus {
         val installed = isInstalled(customInstallation)
         val version = if (installed) runCatching { detectVersion(customInstallation) }.getOrNull() else null
-        val inspect = HostOwnershipStore.inspectEnvironmentIntegration(
+        val inspect = HostOwnershipStore.inspectLaunchIntegration(
             HostOwnershipStore.EnvironmentOwner.CLI,
             proxyPort
         )
@@ -202,34 +202,44 @@ object CliHostManager {
             canDisable = inspect.canDisable,
             canLaunch = false,
             customPath = customInstallation,
-            version = version
+            version = version,
+            externalEndpoint = HostOwnershipStore.sharedEnvironmentEndpoint().getOrNull()
         )
     }
 
-    /**
-     * 启用 CLI 代理接入：在配置文件中写入代理端点。
-     * 对标 cli_host.rs 中的 enable_cli_integration。
-     */
+    /** 启用 CLI 的 Studio 专属启动配置，不修改用户环境或终端配置。 */
     fun enable(proxyPort: Int): Boolean {
-        return HostOwnershipStore.enableEnvironment(
+        return HostOwnershipStore.enableLaunchIntegration(
             owner = HostOwnershipStore.EnvironmentOwner.CLI,
             proxyPort = proxyPort
         ).isSuccess
     }
 
-    /**
-     * 禁用 CLI 代理接入：移除配置文件中的代理端点。
-     */
+    /** 停用 CLI 的 Studio 专属启动配置，不影响已运行的进程。 */
     fun disable(): Boolean {
-        return HostOwnershipStore.disableEnvironment(
+        return HostOwnershipStore.disableLaunchIntegration(
             owner = HostOwnershipStore.EnvironmentOwner.CLI
         ).isSuccess
     }
 
-    /**
-     * 强制重置 CLI 代理接入至官方模式。
-     */
-    fun forceReset(): Boolean {
-        return HostOwnershipStore.forceResetEnvironment().isSuccess
+    /** 重置仅清除 CLI 启动意图，不触碰 App 或外部环境变量。 */
+    fun forceReset(): Boolean = disable()
+
+    /** 生成单次启动命令，仅对由该命令启动的 CLI 进程注入代理地址。 */
+    fun buildLaunchCommand(proxyPort: Int, customInstallation: String? = null): Result<String> = runCatching {
+        require(proxyPort in 1..65535) { "代理端口必须在 1..65535 范围内" }
+        check(HostOwnershipStore.configuredLaunchEndpoint(HostOwnershipStore.EnvironmentOwner.CLI).getOrThrow() != null) {
+            "请先启用 CLI 的 Studio 专属启动配置"
+        }
+        val os = System.getProperty("os.name", "").lowercase()
+        check(os.contains("mac") || os.contains("linux")) { "复制 CLI 启动命令目前仅支持 macOS / Linux" }
+        val candidates = customInstallation?.trim()?.takeIf { it.isNotEmpty() }?.let { path ->
+            listOf(File(path).let { if (it.isDirectory) File(it, "agy") else it })
+        } ?: getCandidateInstallations()
+        val executable = candidates.firstOrNull { it.isAbsolute && it.isFile && it.canExecute() }
+            ?: error("未找到可执行的 agy 绝对路径，请检查 CLI 安装路径")
+        val quotedExecutable = "'${executable.absolutePath.replace("'", "'\"'\"'")}'"
+        "env -u ANTIGRAVITY_LS_ADDRESS -u ANTIGRAVITY_CSRF_TOKEN -u ANTIGRAVITY_AGENT " +
+            "-u ANTIGRAVITY_AGENTAPI_EXE CLOUD_CODE_URL='http://127.0.0.1:$proxyPort' $quotedExecutable"
     }
 }

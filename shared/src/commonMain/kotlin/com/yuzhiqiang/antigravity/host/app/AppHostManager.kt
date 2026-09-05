@@ -10,26 +10,11 @@ import java.io.File
 import java.nio.file.Files
 
 /**
- * Antigravity App 宿主跨平台集成管理器（支持 macOS 与 Windows 双平台）。
+ * Antigravity App 宿主管理器。
  *
- * ## 平台差异与架构设计：
- *
- * 1. **macOS 平台（纯环境变量优先，零权限侵入）**：
- *    - **安装位置与安全模型**：位于 `/Applications/Antigravity.app`，受系统 TCC（透明度、同意和控制）及 Gatekeeper 签名保护。
- *      直接修改 App Bundle 内部文件会触发系统权限拦截（`Operation not permitted`）并破坏 Mach-O 代码签名。
- *    - **接入机制**：通过 `HostOwnershipStore.enableEnvironment` 执行 `launchctl setenv CLOUD_CODE_URL http://127.0.0.1:$port`。
- *      macOS 会自动向当前用户的所有 GUI App 会话广播该环境变量，配合 Studio 在拉起/重启 App 进程时显式注入的环境变量，
- *      即可让官方 `language_server` 自动连接本地代理，**实现 0 权限要求、免弹窗、不破坏签名的极致稳定接入**。
- *
- * 2. **Windows 平台（环境变量 + WindowsShimBinary 增强拦截）**：
- *    - **安装位置与安全模型**：默认安装在 `%LocalAppData%\Programs\Antigravity`，属于用户个人目录，**用户天然具有完整写权限，无权限阻碍**。
- *    - **接入机制**：除写入用户环境变量外，由于 Windows 下 Electron 内部调用 `language_server.exe` 时命令行参数 `--cloud_code_endpoint`
- *      可能优先于未完全广播的系统环境变量，因此 Windows 平台保留 `WindowsShimBinary`（4KB 嵌入式原生 PE 二进制），
- *      在用户目录下安全拦截并重写命令行参数至本地代理端口，保障 100% 精确接管。
- *
- * 3. **自愈与解耦机制**：
- *    - 核心基石始终以 `HostOwnershipStore` 环境变量状态为准；
- *    - 遇到历史版本遗留的 `.original` 备份残留时自动执行保底自愈，绝不造成状态死锁。
+ * Studio 专属启动意图与 CLI 独立保存，启动时仅向 App 子进程注入 CLOUD_CODE_URL。
+ * 不写用户全局环境，不保证 Dock/Finder 启动受控；外部 shell 配置仍可能影响继承环境。
+ * 旧版 Shim 仅保留识别与恢复能力，迁移失败必须报告，不能假装已经恢复官方模式。
  */
 object AppHostManager {
 
@@ -361,9 +346,11 @@ object AppHostManager {
     }
 
     private fun hasShimResidue(customInstallation: String? = null): Boolean {
-        // 正常接入时也会同时存在 Shim 与 .original 备份；只有缺少可用 Shim
-        // 的 .original 才是上一次接入未完成留下的残留。
-        return hasOriginalLanguageServer(customInstallation) && !isShimReady(customInstallation)
+        // 包括缺少包装入口的备份，以及缺少原始备份的损坏包装器。
+        return !isShimReady(customInstallation) && getCandidateInstallations(customInstallation).any { root ->
+            val files = languageServerFiles(root)
+            files.original.isFile || isShimFile(files.languageServer) || files.legacyCmdShim.isFile || files.endpointConfig.isFile
+        }
     }
 
     private fun copyFile(source: File, target: File): Boolean {
@@ -794,18 +781,14 @@ object AppHostManager {
     }
 
     /**
-     * 检测是否已设置代理（包含环境变量与 Shim 包装器）。
+     * 检测 App 的 Studio 专属启动端点是否匹配。
      */
     fun isActive(proxyPort: Int, customInstallation: String? = null): Boolean {
-        val environment = HostOwnershipStore.inspectEnvironmentIntegration(
+        val integration = HostOwnershipStore.inspectLaunchIntegration(
             HostOwnershipStore.EnvironmentOwner.APP,
             proxyPort
         )
-        val isAppManaged = environment.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED && environment.endpointMatches
-        val target = "http://127.0.0.1:$proxyPort"
-        val isShimActive = isShimReady(customInstallation) &&
-                (environment.endpointMatches || (environment.configuredEndpoint == null && readConfiguredShimEndpoint(customInstallation) == target))
-        return isAppManaged || isShimActive
+        return integration.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED && integration.endpointMatches
     }
 
     fun detectVersion(customInstallation: String? = null): String? {
@@ -841,7 +824,7 @@ object AppHostManager {
         val installed = isInstalled(customInstallation)
         val running = installed && isRunning(customInstallation)
         val version = if (installed) runCatching { detectVersion(customInstallation) }.getOrNull() else null
-        val inspect = HostOwnershipStore.inspectEnvironmentIntegration(
+        val inspect = HostOwnershipStore.inspectLaunchIntegration(
             HostOwnershipStore.EnvironmentOwner.APP,
             proxyPort
         )
@@ -852,24 +835,9 @@ object AppHostManager {
 
         val finalState = when {
             !installed -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL
-            // 0. Shim 残留（只存在 .original 备份或未还原） -> MISMATCH
-            shimResidue -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
-            // 1. 环境变量由 APP 托管且端点匹配 -> MANAGED
-            inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED && inspect.endpointMatches ->
-                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
-            // 2. 外部环境变量接管且端点匹配 -> EXTERNAL
-            inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL && inspect.endpointMatches ->
-                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL
-            // 3. 环境变量匹配 -> MANAGED
-            inspect.endpointMatches -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
-            // 4. 兼容老版本/Windows：环境变量为空但存在匹配端点的 Shim -> MANAGED
-            shimReady && (inspect.endpointMatches || (inspect.configuredEndpoint == null && shimEndpoint == target)) ->
-                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
-            // 5. 端点失配：环境变量存在但失配，或 Shim 端点存在但失配 -> MISMATCH
-            (inspect.configuredEndpoint != null && !inspect.endpointMatches) || (shimReady && shimEndpoint != target) ->
-                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
-            // 6. 其余情况为官方直连模式
-            else -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL
+            // 独立启动前必须恢复历史包装器，不能把旧共享接入误报为新接入已生效。
+            shimResidue || shimReady -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
+            else -> inspect.state
         }
 
         val configState = when {
@@ -894,92 +862,73 @@ object AppHostManager {
             configurationState = configState,
             configuredEndpoint = configured,
             targetEndpoint = target,
-            configPath = "CLOUD_CODE_URL",
+            configPath = "Studio · App launch",
             canEnable = installed,
-            canDisable = inspect.canDisable || shimResidue || shimReady,
+            canDisable = installed && (inspect.canDisable || shimResidue || shimReady),
             canLaunch = installed && (finalState == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL || (finalState.isReady && isProxyRunning)),
             customPath = customInstallation,
-            version = version
+            version = version,
+            externalEndpoint = HostOwnershipStore.sharedEnvironmentEndpoint().getOrNull()
         )
     }
 
-    /**
-     * 启用 App 代理接入：
-     * - macOS：通过 launchctl 设置用户全局环境变量 CLOUD_CODE_URL，零权限、免弹窗直接生效；
-     * - Windows：设置用户环境变量并写入 WindowsShimBinary 精确拦截命令行参数。
-     */
-    fun enable(proxyPort: Int, customInstallation: String? = null): Boolean {
-        return enableDetailed(proxyPort, customInstallation).isSuccess
+    /** 启用从 Studio 启动的 App 代理，不修改用户共享环境。 */
+    fun enable(proxyPort: Int, customInstallation: String? = null): Boolean =
+        enableDetailed(proxyPort, customInstallation).isSuccess
+
+    /** 干净安装不写 App 包；历史包装器必须先恢复，否则不能宣告接入成功。 */
+    fun enableDetailed(proxyPort: Int, customInstallation: String? = null): Result<Unit> = runCatching {
+        require(proxyPort in 1..65535) { "代理端口无效" }
+        check(isInstalled(customInstallation)) { "未找到 Antigravity App" }
+        restoreLegacyIntegration(customInstallation).getOrThrow()
+        HostOwnershipStore.enableLaunchIntegration(HostOwnershipStore.EnvironmentOwner.APP, proxyPort).getOrThrow()
     }
 
-    /**
-     * 启用 App 代理接入并返回详细结果。
-     *
-     * 核心步骤：
-     * 1. 设置系统共享环境变量（macOS launchctl / Windows 注册表），作为接入的核心基石（零权限要求）；
-     * 2. 仅 Windows 平台尽力尝试安装 Shim 包装器；macOS 下原生支持 CLOUD_CODE_URL 环境变量，零侵入、不触碰应用包；
-     * 3. 进程拉起/重启时由 Studio 显式注入 CLOUD_CODE_URL 环境变量提供双重保证。
-     */
-    fun enableDetailed(proxyPort: Int, customInstallation: String? = null): Result<Unit> {
-        AppLog.w("Host/App") {
-            "enable 开始：port=$proxyPort custom=${customInstallation ?: "<auto>"}"
-        }
-        // 1. 设置环境变量（核心基石，零权限要求）
-        val envResult = HostOwnershipStore.enableEnvironment(
-            owner = HostOwnershipStore.EnvironmentOwner.APP,
-            proxyPort = proxyPort
-        )
-        if (envResult.isFailure) {
-            AppLog.e("Host/App", envResult.exceptionOrNull()) { "enable 失败：环境变量写入失败" }
-            return envResult
-        }
-
-        // 2. 仅在 Windows 平台尽力安装 Shim 包装；macOS 原生支持 CLOUD_CODE_URL，零侵入、不改动二进制
-        if (isWindows) {
-            runCatching {
-                installLanguageServerShim(proxyPort, customInstallation)
-            }.onFailure {
-                AppLog.w("Host/App", it) { "尽力安装 Windows Shim 失败，保持环境变量模式生效" }
+    private fun restoreLegacyIntegration(customInstallation: String?): Result<Unit> = runCatching {
+        if (isShimReady(customInstallation) || hasShimResidue(customInstallation)) {
+            check(!isRunning(customInstallation)) { "请先退出 Antigravity App，再迁移历史包装器" }
+            check(getCandidateInstallations(customInstallation).none { root ->
+                val files = languageServerFiles(root)
+                isShimFile(files.languageServer) && !files.original.isFile
+            }) { "历史包装器缺少原始备份，请重新安装 Antigravity App" }
+            check(restoreOriginalLanguageServer(customInstallation) &&
+                    !isShimReady(customInstallation) && !hasShimResidue(customInstallation)) {
+                "历史 App 包装器恢复失败，请手动恢复原始 Language Server 或重新安装 App"
             }
         }
-
-        AppLog.w("Host/App") { "enable 成功：环境变量模式已就绪" }
-        return Result.success(Unit)
     }
 
-    /**
-     * 禁用 App 代理接入：移除环境变量并还原原始 Language Server 二进制。
-     */
+    /** 仅停用 App 专属启动设置，外部环境与 CLI 设置保持不变。 */
     fun disable(customInstallation: String? = null): Boolean {
-        val envOk = HostOwnershipStore.disableEnvironment(
-            owner = HostOwnershipStore.EnvironmentOwner.APP
-        ).isSuccess
-        runCatching { restoreOriginalLanguageServer(customInstallation) }
-        return envOk
+        if (restoreLegacyIntegration(customInstallation).isFailure) return false
+        return HostOwnershipStore.disableLaunchIntegration(HostOwnershipStore.EnvironmentOwner.APP).isSuccess
     }
 
-    /**
-     * 强制重置 App 代理接入至纯净官方模式。
-     */
-    fun forceReset(customInstallation: String? = null): Boolean {
-        val envOk = HostOwnershipStore.forceResetEnvironment().isSuccess
-        runCatching { restoreOriginalLanguageServer(customInstallation) }
-        return envOk
-    }
+    /** 重置范围仅为 App；旧共享环境需经单独确认迁移。 */
+    fun forceReset(customInstallation: String? = null): Boolean = disable(customInstallation)
 
     /**
      * 跨平台启动 Antigravity App。
      */
     fun launch(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
-        val env = if (proxyPort != null && isActive(proxyPort, customInstallation)) {
-            mapOf("CLOUD_CODE_URL" to ("http://127.0.0.1:" + proxyPort))
+        val configured = HostOwnershipStore.configuredLaunchEndpoint(HostOwnershipStore.EnvironmentOwner.APP)
+            .getOrElse { return false }
+        val env = if (configured != null) {
+            if (proxyPort == null || proxyPort !in 1..65535) return false
+            if (HostOwnershipStore.enableLaunchIntegration(HostOwnershipStore.EnvironmentOwner.APP, proxyPort).isFailure) return false
+            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:$proxyPort")
         } else {
             null
         }
         val installationPath = customInstallation?.trim()?.takeIf(String::isNotEmpty)
             ?: getCandidateInstallations().firstOrNull(::isInstallationComplete)?.absolutePath
+        val executable = if (isMac && installationPath != null) {
+            val root = normalizeCustomInstallation(installationPath)
+            listOf("Contents/MacOS/Antigravity", "Contents/MacOS/Antigravity App", "Contents/MacOS/Electron", "antigravity")
+                .map { File(root, it) }.firstOrNull { it.isFile && it.canExecute() }?.absolutePath ?: return false
+        } else installationPath
         return HostProcessManager.launch(
-            installationPath = installationPath,
+            installationPath = executable,
             defaultMacApp = "Antigravity",
             defaultWinExe = "Antigravity.exe",
             environment = env
@@ -1004,6 +953,9 @@ object AppHostManager {
      * 跨平台重启 Antigravity App（仅终止与重启 App 自身，绝不干扰 IDE）。
      */
     suspend fun restart(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
+        val configured = HostOwnershipStore.configuredLaunchEndpoint(HostOwnershipStore.EnvironmentOwner.APP)
+            .getOrElse { return false }
+        if (configured != null && (proxyPort == null || proxyPort !in 1..65535)) return false
         if (!terminate(customInstallation, force = true)) return false
         delay(150)
         if (!launch(customInstallation, proxyPort)) return false

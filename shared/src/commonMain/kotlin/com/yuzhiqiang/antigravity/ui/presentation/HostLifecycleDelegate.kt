@@ -279,44 +279,10 @@ class HostLifecycleDelegate(
         scope.launch(Dispatchers.IO) {
             _operatingHostKeys.value = _operatingHostKeys.value + "app"
             try {
-                val customInstallation = configStore.currentConfig.customHostPaths["app"]
-                val isCurrentlyRunning = wasRunning || AppHostManager.isRunning(customInstallation)
-                com.yuzhiqiang.antigravity.logging.AppLog.w("Host/App") {
-                    "enableAppHostInternal：wasRunning=$wasRunning isCurrentlyRunning=$isCurrentlyRunning custom=${customInstallation ?: "<auto>"} port=$actualPort"
-                }
-                AppHostManager.terminate(customInstallation, force = true)
-                val stoppedSuccessfully = !AppHostManager.isRunning(customInstallation)
-                com.yuzhiqiang.antigravity.logging.AppLog.w("Host/App") {
-                    "enableAppHostInternal：stoppedSuccessfully=$stoppedSuccessfully"
-                }
-                val enableResult = if (stoppedSuccessfully) {
-                    AppHostManager.enableDetailed(actualPort, customInstallation)
-                } else {
-                    Result.failure(IllegalStateException("未能成功停止现有 App 进程"))
-                }
-                val operationSucceeded = enableResult.isSuccess
-                val enableFailure = enableResult.exceptionOrNull()
-                com.yuzhiqiang.antigravity.logging.AppLog.w("Host/App") {
-                    "enableAppHostInternal：operationSucceeded=$operationSucceeded failure=$enableFailure"
-                }
-                val restartSucceeded = if (operationSucceeded && isCurrentlyRunning) {
-                    AppHostManager.launch(customInstallation, actualPort)
-                } else {
-                    !isCurrentlyRunning
-                }
-                val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
-                appDetailedStatusFlow.value = newStatus
-                isAppHostActiveFlow.value = newStatus.isProxyActive
-                val succeeded = operationSucceeded && restartSucceeded
+                val result = AppHostManager.enableDetailed(actualPort, configStore.currentConfig.customHostPaths["app"])
                 showNotice(
-                    when {
-                        succeeded && isCurrentlyRunning && isUpdate -> s.hostAppUpdatedAndRestarted
-                        succeeded && isCurrentlyRunning -> s.hostAppEnabledAndRestarted
-                        succeeded -> s.hostAppEnabledPendingStart
-                        operationSucceeded && !restartSucceeded -> s.hostAppConfigUpdatedRestartFailed
-                        else -> s.hostAppEnableFailed
-                    },
-                    if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
+                    if (result.isSuccess) s.hostAppEnabledPendingStart else result.exceptionOrNull()?.message ?: s.hostAppEnableFailed,
+                    if (result.isSuccess) NoticeKind.SUCCESS else NoticeKind.ERROR
                 )
                 refreshHostStatus(actualPort)
             } finally {
@@ -329,26 +295,8 @@ class HostLifecycleDelegate(
         scope.launch(Dispatchers.IO) {
             _operatingHostKeys.value = _operatingHostKeys.value + "app"
             try {
-                val customInstallation = configStore.currentConfig.customHostPaths["app"]
-                val isCurrentlyRunning = wasRunning || AppHostManager.isRunning(customInstallation)
-                if (isCurrentlyRunning) {
-                    AppHostManager.terminate(customInstallation, force = true)
-                }
-                val operationSucceeded = AppHostManager.disable(customInstallation)
-                val restartSucceeded = if (isCurrentlyRunning) AppHostManager.launch(customInstallation, null) else true
-                val newStatus = AppHostManager.inspect(actualPort, proxyServer.isRunning.value, customInstallation)
-                appDetailedStatusFlow.value = newStatus
-                isAppHostActiveFlow.value = newStatus.isProxyActive
-                val succeeded = operationSucceeded && restartSucceeded && !newStatus.isProxyActive
-                showNotice(
-                    when {
-                        succeeded && isCurrentlyRunning -> s.hostAppRestoredAndRestarted
-                        succeeded -> s.hostAppRestored
-                        operationSucceeded && !restartSucceeded -> s.hostAppConfigUpdatedRestartFailed
-                        else -> s.hostAppDisableFailed
-                    },
-                    if (succeeded) NoticeKind.SUCCESS else NoticeKind.ERROR
-                )
+                val success = AppHostManager.disable(configStore.currentConfig.customHostPaths["app"])
+                showNotice(if (success) s.hostAppRestored else s.hostAppDisableFailed, if (success) NoticeKind.SUCCESS else NoticeKind.ERROR)
                 refreshHostStatus(actualPort)
             } finally {
                 _operatingHostKeys.value = _operatingHostKeys.value - "app"
@@ -408,29 +356,66 @@ class HostLifecycleDelegate(
         }
     }
 
-    fun enableCliHostInternal(actualPort: Int) {
+    fun enableCliHostInternal(actualPort: Int) = updateCliIntegration(actualPort, enabled = true)
+
+    fun disableCliHostInternal(actualPort: Int) = updateCliIntegration(actualPort, enabled = false)
+
+    private fun updateCliIntegration(actualPort: Int, enabled: Boolean) {
         scope.launch(Dispatchers.IO) {
-            val success = CliHostManager.enable(actualPort)
-            isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
-            if (success) {
-                showNotice(s.hostCliEnabledNotice, NoticeKind.SUCCESS)
-            } else {
-                showNotice(s.hostCliEnableFailed, NoticeKind.ERROR)
+            _operatingHostKeys.value = _operatingHostKeys.value + "cli"
+            try {
+                val success = if (enabled) CliHostManager.enable(actualPort) else CliHostManager.disable()
+                showNotice(
+                    if (success) {
+                        if (enabled) s.hostCliEnabledNotice else s.hostCliDisabledNotice
+                    } else if (enabled) s.hostCliEnableFailed else s.hostCliDisableFailed,
+                    if (success) NoticeKind.SUCCESS else NoticeKind.ERROR
+                )
+                refreshHostStatus(actualPort)
+            } finally {
+                _operatingHostKeys.value = _operatingHostKeys.value - "cli"
             }
-            refreshHostStatus(actualPort)
         }
     }
 
-    fun disableCliHostInternal(actualPort: Int) {
+    fun requestMigrateSharedEnvironment(actualPort: Int) {
+        showConfirmDialog(
+            AppViewModel.ConfirmDialogState(
+                title = s.hostMigrateSharedEnvironment,
+                message = s.hostMigrateSharedEnvironmentConfirmMessage,
+                confirmLabel = s.hostMigrateSharedEnvironment,
+                cancelLabel = s.commonCancel,
+                isDestructive = false,
+                onConfirm = {
+                    scope.launch(Dispatchers.IO) {
+                        val result = com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.migrateLegacyEnvironment()
+                        showNotice(
+                            if (result.isSuccess) s.hostMigrateSharedEnvironmentSuccess else result.exceptionOrNull()?.message ?: s.hostCliDisableFailed,
+                            if (result.isSuccess) NoticeKind.SUCCESS else NoticeKind.ERROR
+                        )
+                        refreshHostStatus(actualPort)
+                    }
+                }
+            )
+        )
+    }
+
+    fun copyCliLaunchCommand(actualPort: Int) {
+        if (!proxyServer.isRunning.value) {
+            showNotice(s.hostCliLaunchCommandRequiresProxy, NoticeKind.ERROR)
+            return
+        }
         scope.launch(Dispatchers.IO) {
-            val success = CliHostManager.disable()
-            isCliHostActiveFlow.value = CliHostManager.isActive(actualPort)
-            if (success) {
-                showNotice(s.hostCliDisabledNotice, NoticeKind.SUCCESS)
-            } else {
-                showNotice(s.hostCliDisableFailed, NoticeKind.ERROR)
-            }
-            refreshHostStatus(actualPort)
+            val command = CliHostManager.buildLaunchCommand(actualPort, configStore.currentConfig.customHostPaths["cli"])
+            command.fold(
+                onSuccess = { text ->
+                    val copied = com.yuzhiqiang.antigravity.ui.utils.copyToClipboard(text)
+                    val updated = copied && CliHostManager.enable(actualPort)
+                    showNotice(if (updated) s.hostCliLaunchCommandCopied else s.hostCliEnableFailed, if (updated) NoticeKind.SUCCESS else NoticeKind.ERROR)
+                    refreshHostStatus(actualPort)
+                },
+                onFailure = { error -> showNotice(error.message ?: s.hostCliLaunchCommandRequiresIntegration, NoticeKind.ERROR) }
+            )
         }
     }
 
@@ -446,8 +431,8 @@ class HostLifecycleDelegate(
         }
         showConfirmDialog(
             AppViewModel.ConfirmDialogState(
-                title = s.hostForceResetConfirmTitle(hostName),
-                message = s.hostForceResetConfirmMessage(hostName),
+                title = if (hostKey == "ide") s.hostForceResetConfirmTitle(hostName) else s.hostLaunchResetConfirmTitle(hostName),
+                message = if (hostKey == "ide") s.hostForceResetConfirmMessage(hostName) else s.hostLaunchResetConfirmMessage(hostName),
                 confirmLabel = s.hostForceReset,
                 cancelLabel = s.commonCancel,
                 isDestructive = true,
@@ -457,6 +442,14 @@ class HostLifecycleDelegate(
     }
 
     private fun forceResetHostInternal(hostKey: String, actualPort: Int) {
+        if (hostKey == "app") {
+            disableAppHostInternal(appDetailedStatusFlow.value.isRunning, actualPort)
+            return
+        }
+        if (hostKey == "cli") {
+            disableCliHostInternal(actualPort)
+            return
+        }
         scope.launch(Dispatchers.IO) {
             _operatingHostKeys.value = _operatingHostKeys.value + hostKey
             try {
@@ -471,23 +464,6 @@ class HostLifecycleDelegate(
                         showNotice(s.hostForceResetSuccess(s.hostIdeTitle), NoticeKind.SUCCESS)
                     }
 
-                    "app" -> {
-                        val customPath = configStore.currentConfig.customHostPaths["app"]
-                        val isRunning = AppHostManager.isRunning(customPath)
-                        if (isRunning) {
-                            AppHostManager.terminate(customPath, force = true)
-                        }
-                        AppHostManager.forceReset(customPath)
-                        if (isRunning) {
-                            AppHostManager.launch(customPath, null)
-                        }
-                        showNotice(s.hostForceResetSuccess(s.hostAppTitle), NoticeKind.SUCCESS)
-                    }
-
-                    "cli" -> {
-                        CliHostManager.forceReset()
-                        showNotice(s.hostForceResetSuccess(s.hostCliTitle), NoticeKind.SUCCESS)
-                    }
                 }
                 refreshHostStatus(actualPort)
             } finally {
@@ -531,6 +507,7 @@ class HostLifecycleDelegate(
     }
 
     fun restartApp(actualPort: Int) {
+        if (!canLaunchApp()) return
         scope.launch(Dispatchers.IO) {
             _operatingHostKeys.value = _operatingHostKeys.value + "app"
             try {
@@ -548,11 +525,22 @@ class HostLifecycleDelegate(
         }
     }
 
-    fun launchApp(actualPort: Int) {
-        if (AppHostManager.isActive(actualPort) && !proxyServer.isRunning.value) {
-            showNotice(s.hostLaunchProxyNotRunning(s.hostAppTitle), NoticeKind.ERROR)
-            return
+    private fun canLaunchApp(): Boolean {
+        val configured = com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
+            .configuredLaunchEndpoint(com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.APP)
+        if (configured.isFailure) {
+            showNotice(configured.exceptionOrNull()?.message ?: s.hostLaunchFailed(s.hostAppTitle), NoticeKind.ERROR)
+            return false
         }
+        if (configured.getOrNull() != null && !proxyServer.isRunning.value) {
+            showNotice(s.hostLaunchProxyNotRunning(s.hostAppTitle), NoticeKind.ERROR)
+            return false
+        }
+        return true
+    }
+
+    fun launchApp(actualPort: Int) {
+        if (!canLaunchApp()) return
         scope.launch(Dispatchers.IO) {
             val ok = AppHostManager.launch(configStore.currentConfig.customHostPaths["app"], actualPort)
             if (ok) {

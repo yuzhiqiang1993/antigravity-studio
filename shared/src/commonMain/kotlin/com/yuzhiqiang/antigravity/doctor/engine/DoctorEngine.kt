@@ -518,16 +518,7 @@ class DoctorEngine(
                 }
 
                 is DoctorFixAction.RepairAppEnvironment -> {
-                    val customPath = configStore.currentConfig.customHostPaths["app"]
-                    val isRunning = AppHostManager.isRunning(customPath)
-                    if (isRunning) {
-                        AppHostManager.terminate(customPath, force = true)
-                    }
-                    val ok = AppHostManager.enable(port, customPath)
-                    if (ok && isRunning) {
-                        AppHostManager.launch(customPath, port)
-                    }
-                    ok
+                    AppHostManager.enable(port, configStore.currentConfig.customHostPaths["app"])
                 }
 
                 is DoctorFixAction.UpdateIdeSettings -> {
@@ -539,16 +530,7 @@ class DoctorEngine(
                 }
 
                 is DoctorFixAction.UpdateAppEnvironment -> {
-                    val customPath = configStore.currentConfig.customHostPaths["app"]
-                    val isRunning = AppHostManager.isRunning(customPath)
-                    if (isRunning) {
-                        AppHostManager.terminate(customPath, force = true)
-                    }
-                    val ok = AppHostManager.enable(port, customPath)
-                    if (ok && isRunning) {
-                        AppHostManager.launch(customPath, port)
-                    }
-                    ok
+                    AppHostManager.enable(port, configStore.currentConfig.customHostPaths["app"])
                 }
 
                 is DoctorFixAction.UpdateCliConfig -> {
@@ -564,16 +546,7 @@ class DoctorEngine(
                 }
 
                 is DoctorFixAction.ResetAppHostToOfficial -> {
-                    val customPath = configStore.currentConfig.customHostPaths["app"]
-                    val isRunning = AppHostManager.isRunning(customPath)
-                    if (isRunning) {
-                        AppHostManager.terminate(customPath, force = true)
-                    }
-                    val ok = AppHostManager.forceReset(customPath)
-                    if (ok && isRunning) {
-                        AppHostManager.launch(customPath, null)
-                    }
-                    ok
+                    AppHostManager.forceReset(configStore.currentConfig.customHostPaths["app"])
                 }
 
                 is DoctorFixAction.ResetCliHostToOfficial -> {
@@ -585,7 +558,11 @@ class DoctorEngine(
                 }
 
                 is DoctorFixAction.RestartAppHost -> {
-                    AppHostManager.restart(configStore.currentConfig.customHostPaths["app"])
+                    val configured = com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
+                        .configuredLaunchEndpoint(com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.APP)
+                        .getOrThrow()
+                    if (configured != null && !proxyServer.isRunning.value) false
+                    else AppHostManager.restart(configStore.currentConfig.customHostPaths["app"], port)
                 }
 
                 is DoctorFixAction.PruneInvalidModels -> {

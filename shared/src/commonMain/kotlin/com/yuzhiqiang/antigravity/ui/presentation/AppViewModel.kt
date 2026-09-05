@@ -680,6 +680,8 @@ class AppViewModel(
     fun launchIde() = hostDelegate.launchIde(actualProxyPort.value)
 
     fun toggleCliHost() = hostDelegate.requestToggleCliHost(actualProxyPort.value)
+    fun copyCliLaunchCommand() = hostDelegate.copyCliLaunchCommand(actualProxyPort.value)
+    fun migrateSharedHostEnvironment() = hostDelegate.requestMigrateSharedEnvironment(actualProxyPort.value)
     fun requestToggleCliHost() = hostDelegate.requestToggleCliHost(actualProxyPort.value)
     fun forceResetCliHost() = hostDelegate.requestForceResetHost("cli", actualProxyPort.value)
 

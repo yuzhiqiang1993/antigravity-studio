@@ -1,11 +1,13 @@
 package com.yuzhiqiang.antigravity.host
 
 import com.yuzhiqiang.antigravity.host.app.AppHostManager
+import com.yuzhiqiang.antigravity.host.model.ClientIntegrationState
+import com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
+import com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.attribute.PosixFilePermission
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
+import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,28 +15,29 @@ import kotlin.test.assertTrue
 
 class AppHostManagerTest {
 
+    private lateinit var environment: HostTestEnvironment
     private lateinit var tempAppDir: File
     private lateinit var binDir: File
 
     @BeforeTest
     fun setUp() {
-        com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
-        tempAppDir = File.createTempFile("AntigravityTestApp", "").apply {
-            delete()
-            mkdirs()
-        }
+        environment = HostTestEnvironment()
+        tempAppDir = File(environment.root, "AntigravityTestApp").apply { mkdirs() }
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
         binDir = if (isWindows) {
             File(tempAppDir, "resources/bin").apply { mkdirs() }
         } else {
             File(tempAppDir, "Contents/Resources/bin").apply { mkdirs() }
         }
+        File(tempAppDir, if (isWindows) "Antigravity.exe" else "Contents/MacOS/Antigravity").apply {
+            parentFile.mkdirs()
+            writeText("APP_BINARY")
+        }
     }
 
     @AfterTest
     fun tearDown() {
-        tempAppDir.deleteRecursively()
-        com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+        environment.close()
     }
 
     @Test
@@ -171,10 +174,12 @@ class AppHostManagerTest {
         val status = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
         assertFalse(status.isProxyActive)
         assertTrue(status.needsUpdate)
+        assertEquals(ClientIntegrationState.MISMATCH, status.integrationState)
+        assertFalse(AppHostManager.isActive(8330, tempAppDir.absolutePath))
     }
 
     @Test
-    fun installedShimWithMatchingEnvironmentIsNotMarkedForUpdate() {
+    fun installedShimWithMatchingEnvironmentRequiresMigration() {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
         val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
         if (!isWindows && !isMac) return // 宿主环境变量接管仅适用于 macOS 与 Windows 平台
@@ -192,24 +197,26 @@ class AppHostManagerTest {
 
         try {
             assertTrue(
-                com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.enableEnvironment(
-                    com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.APP,
+                HostOwnershipStore.enableEnvironment(
+                    EnvironmentOwner.APP,
                     8330
                 ).isSuccess
             )
             assertTrue(AppHostManager.installLanguageServerShim(8330, tempAppDir.absolutePath))
 
             val status = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
-            assertFalse(status.needsUpdate, "A ready Shim with the matching environment must not require an update")
-            assertTrue(status.isProxyActive)
+            assertTrue(status.needsUpdate, "旧 Shim 即使匹配共享环境也必须迁移")
+            assertEquals(ClientIntegrationState.MISMATCH, status.integrationState)
+            assertFalse(status.isProxyActive, "旧 Shim 和共享环境不代表独立启动意图")
+            assertFalse(AppHostManager.isActive(8330, tempAppDir.absolutePath))
         } finally {
             AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
-            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+            environment.endpoint = null
         }
     }
 
     @Test
-    fun testInstalledShimWithMatchingEndpointEvenIfEnvironmentEmptyIsNotMarkedForUpdate() {
+    fun testInstalledShimWithMatchingEndpointAndEmptyEnvironmentRequiresMigration() {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
         val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
         if (!isWindows && !isMac) return
@@ -226,12 +233,13 @@ class AppHostManagerTest {
         lsBinary.writeText("RAW_BINARY_CONTENT")
 
         try {
-            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+            environment.endpoint = null
             assertTrue(AppHostManager.installLanguageServerShim(8330, tempAppDir.absolutePath))
 
             val status = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
-            assertFalse(status.needsUpdate, "Shim 已配置当前代理端点时，即使全局环境变量未设置，也不应要求更新")
-            assertTrue(status.isProxyActive, "Shim 端点与代理端口一致时应处于活跃代理状态")
+            assertTrue(status.needsUpdate, "旧 Shim 端点匹配时仍必须迁移")
+            assertEquals(ClientIntegrationState.MISMATCH, status.integrationState)
+            assertFalse(status.isProxyActive, "Shim 端点不代表独立启动意图")
             assertEquals("http://127.0.0.1:8330", status.configuredEndpoint)
 
             val statusMismatched = AppHostManager.inspect(8335, isProxyRunning = true, tempAppDir.absolutePath)
@@ -239,7 +247,7 @@ class AppHostManagerTest {
             assertEquals("http://127.0.0.1:8330", statusMismatched.configuredEndpoint)
         } finally {
             AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
-            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+            environment.endpoint = null
         }
     }
 
@@ -250,19 +258,19 @@ class AppHostManagerTest {
         if (!isWindows && !isMac) return
 
         try {
-            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.enableEnvironment(
-                com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.CLI,
+            assertTrue(HostOwnershipStore.enableLaunchIntegration(
+                EnvironmentOwner.CLI,
                 8330
-            )
-            val nonExistentPath = File(tempAppDir, "non_existent_app_folder").absolutePath
+            ).isSuccess)
+            val nonExistentPath = File(environment.root, "non_existent_app_folder/Antigravity.app").absolutePath
             val status = AppHostManager.inspect(8330, isProxyRunning = true, customInstallation = nonExistentPath)
             assertFalse(status.isInstalled)
-            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL, status.integrationState)
+            assertEquals(ClientIntegrationState.OFFICIAL, status.integrationState)
             assertEquals(com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.UNAVAILABLE, status.configurationState)
             assertFalse(status.needsUpdate)
             assertFalse(status.canDisable)
         } finally {
-            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+            environment.endpoint = null
         }
     }
 
@@ -281,18 +289,18 @@ class AppHostManagerTest {
             }
         }
         try {
-            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.enableEnvironment(
-                com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.EnvironmentOwner.CLI,
+            assertTrue(HostOwnershipStore.enableLaunchIntegration(
+                EnvironmentOwner.CLI,
                 8330
-            )
+            ).isSuccess)
             val status = AppHostManager.inspect(8330, isProxyRunning = true, customInstallation = tempAppDir.absolutePath)
             assertTrue(status.isInstalled)
-            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL, status.integrationState)
+            assertEquals(ClientIntegrationState.OFFICIAL, status.integrationState)
             assertEquals(com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_ENABLED, status.configurationState)
             assertFalse(status.needsUpdate)
             assertFalse(status.canDisable)
         } finally {
-            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+            environment.endpoint = null
         }
     }
 
@@ -352,7 +360,7 @@ class AppHostManagerTest {
 
         val statusAfter = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
         assertFalse(statusAfter.needsUpdate)
-        assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL, statusAfter.integrationState)
+        assertEquals(ClientIntegrationState.OFFICIAL, statusAfter.integrationState)
     }
 
     @Test
@@ -374,7 +382,7 @@ class AppHostManagerTest {
     }
 
     @Test
-    fun testMacPureEnvironmentModeEnableAndDisable() {
+    fun testMacLaunchIntegrationEnableAndDisable() {
         val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
         if (!isMac) return
 
@@ -395,19 +403,100 @@ class AppHostManagerTest {
             assertFalse(File(binDir, "language_server.original").exists(), "macOS 下不应生成 .original 备份")
 
             val status = AppHostManager.inspect(8340, isProxyRunning = true, tempAppDir.absolutePath)
-            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED, status.integrationState)
+            assertEquals(ClientIntegrationState.MANAGED, status.integrationState)
             assertFalse(status.needsUpdate)
             assertTrue(status.isProxyActive)
 
             assertTrue(AppHostManager.disable(tempAppDir.absolutePath))
             val disabledStatus = AppHostManager.inspect(8340, isProxyRunning = true, tempAppDir.absolutePath)
-            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL, disabledStatus.integrationState)
+            assertEquals(ClientIntegrationState.OFFICIAL, disabledStatus.integrationState)
             assertFalse(disabledStatus.isProxyActive)
         } finally {
             AppHostManager.forceReset(tempAppDir.absolutePath)
         }
     }
 
+    @Test
+    fun enableDetailedRestoresOriginalOnlyBeforeEnablingLaunchIntegration() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val lsBinary = File(binDir, if (isWindows) "language_server.exe" else "language_server")
+        val original = File(binDir, if (isWindows) "language_server.original.exe" else "language_server.original")
+        original.writeText("RECOVERABLE_NATIVE_BINARY")
+        environment.endpoint = "https://external.example.invalid"
+
+        val before = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
+        assertEquals(ClientIntegrationState.MISMATCH, before.integrationState)
+        assertFalse(AppHostManager.isActive(8330, tempAppDir.absolutePath))
+        assertTrue(before.needsUpdate)
+
+        assertTrue(AppHostManager.enableDetailed(8330, tempAppDir.absolutePath).isSuccess)
+        assertEquals("RECOVERABLE_NATIVE_BINARY", lsBinary.readText())
+        assertFalse(original.exists())
+        assertFalse(AppHostManager.isShimInstalled(tempAppDir.absolutePath))
+        if (!isWindows) assertTrue(lsBinary.canExecute())
+        val after = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
+        assertEquals(ClientIntegrationState.MANAGED, after.integrationState)
+        assertFalse(after.needsUpdate)
+        assertTrue(after.isProxyActive)
+        assertTrue(AppHostManager.isActive(8330, tempAppDir.absolutePath))
+        assertEquals("https://external.example.invalid", environment.endpoint)
+        assertEquals(0, environment.environmentWrites)
+        assertEquals(0, environment.environmentClears)
+    }
+
+    @Test
+    fun enableDetailedRejectsShimWithoutOriginalAndDoesNotWriteLaunchReceipt() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val lsBinary = File(binDir, if (isWindows) "language_server.exe" else "language_server")
+        val original = File(binDir, if (isWindows) "language_server.original.exe" else "language_server.original")
+        lsBinary.writeText("NATIVE_BINARY")
+        assertTrue(AppHostManager.installLanguageServerShim(8330, tempAppDir.absolutePath))
+        val shimContent = lsBinary.readBytes()
+        assertTrue(original.delete())
+        environment.endpoint = "https://external.example.invalid"
+
+        val before = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
+        assertEquals(ClientIntegrationState.MISMATCH, before.integrationState)
+        assertTrue(before.needsUpdate)
+        assertFalse(before.isProxyActive)
+
+        assertTrue(AppHostManager.enableDetailed(8330, tempAppDir.absolutePath).isFailure)
+        assertTrue(shimContent.contentEquals(lsBinary.readBytes()), "缺失备份时不得破坏现有文件")
+        assertFalse(original.exists())
+        assertEquals(null, HostOwnershipStore.configuredLaunchEndpoint(EnvironmentOwner.APP).getOrThrow())
+        assertFalse(environment.root.resolve("receipts/host-launch-ownership.json").exists())
+        assertFalse(AppHostManager.isActive(8330, tempAppDir.absolutePath))
+        assertEquals("https://external.example.invalid", environment.endpoint)
+        assertEquals(0, environment.environmentWrites)
+        assertEquals(0, environment.environmentClears)
+    }
+
+    @Test
+    fun enableDisableAndResetPreserveCliAndSharedEnvironment() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        File(binDir, if (isWindows) "language_server.exe" else "language_server").writeText("NATIVE_BINARY")
+        environment.endpoint = "https://external.example.invalid"
+        assertTrue(HostOwnershipStore.enableLaunchIntegration(EnvironmentOwner.CLI, 8340).isSuccess)
+
+        for (reset in listOf(false, true)) {
+            assertTrue(AppHostManager.enableDetailed(8330, tempAppDir.absolutePath).isSuccess)
+            assertTrue(AppHostManager.isActive(8330, tempAppDir.absolutePath))
+            assertEquals(ClientIntegrationState.MANAGED,
+                HostOwnershipStore.inspectLaunchIntegration(EnvironmentOwner.CLI, 8340).state)
+            assertTrue(if (reset) AppHostManager.forceReset(tempAppDir.absolutePath)
+                else AppHostManager.disable(tempAppDir.absolutePath))
+            assertFalse(AppHostManager.isActive(8330, tempAppDir.absolutePath))
+            assertEquals(ClientIntegrationState.OFFICIAL,
+                HostOwnershipStore.inspectLaunchIntegration(EnvironmentOwner.APP, 8330).state)
+            assertEquals(ClientIntegrationState.MANAGED,
+                HostOwnershipStore.inspectLaunchIntegration(EnvironmentOwner.CLI, 8340).state)
+            assertEquals("https://external.example.invalid", environment.endpoint)
+        }
+        assertEquals(0, environment.environmentWrites)
+        assertEquals(0, environment.environmentClears)
+    }
+
+    @Ignore("真实应用安装诊断仅供手动运行，禁止自动测试修改应用")
     @Test
     fun diagnoseInstallOnRealAntigravityApp() {
         if (System.getenv("ANTIGRAVITY_DIAGNOSE_REAL_APP") != "1") {

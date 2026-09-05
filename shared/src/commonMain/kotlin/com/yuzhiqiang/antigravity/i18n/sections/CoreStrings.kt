@@ -120,6 +120,7 @@ interface CoreStrings {
     val hostAppNotDetected: String
     fun hostAppPendingUpdate(port: Int): String
     val hostAppActiveDesc: String
+    val hostAppOfficialDirectDesc: String
 
     fun hostCliPortMismatch(endpoint: String): String
     val hostCliInstalledDesc: String
@@ -127,6 +128,10 @@ interface CoreStrings {
     fun hostCliPendingUpdate(port: Int): String
     val hostCliActiveDesc: String
     val hostCliOfficialDirectDesc: String
+    val hostCopyCliLaunchCommand: String
+    val hostCliLaunchCommandCopied: String
+    val hostCliLaunchCommandRequiresProxy: String
+    val hostCliLaunchCommandRequiresIntegration: String
 
     // Host Confirm Dialogs & Notices
     val hostIdeUpdateConfirmTitle: String
@@ -182,6 +187,12 @@ interface CoreStrings {
     fun hostForceResetConfirmTitle(hostName: String): String
     fun hostForceResetConfirmMessage(hostName: String): String
     fun hostForceResetSuccess(hostName: String): String
+    fun hostLaunchResetConfirmTitle(hostName: String): String
+    fun hostLaunchResetConfirmMessage(hostName: String): String
+    fun hostExternalEnvironmentNotice(endpoint: String): String
+    val hostMigrateSharedEnvironment: String
+    val hostMigrateSharedEnvironmentConfirmMessage: String
+    val hostMigrateSharedEnvironmentSuccess: String
     fun hostRestartConfirmTitle(hostName: String): String
     fun hostRestartConfirmMessage(hostName: String): String
     fun hostRestartSuccess(hostName: String): String
@@ -350,20 +361,25 @@ object CoreStringsZh : CoreStrings {
     override val ecosystemCockpitOpenVsxBtn = "Open VSX 市场 ↗"
     override val ecosystemCockpitWebsiteBtn = "官方网站 ↗"
 
-    override fun hostAppPortMismatch(endpoint: String) = "检测到环境变量与当前端口不一致（$endpoint）"
+    override fun hostAppPortMismatch(endpoint: String) = "Studio 专属启动地址与当前端口不一致（$endpoint）"
     override val hostAppRunning = "Antigravity App 正在运行"
-    override val hostAppRunningAndConfigured = "Antigravity App 正在运行并已配置"
+    override val hostAppRunningAndConfigured = "App 正在运行；已保存 Studio 专属启动配置"
     override val hostAppReady = "Antigravity App 已安装"
     override val hostAppNotDetected = "未检测到 Antigravity App 安装"
-    override fun hostAppPendingUpdate(port: Int) = "环境变量待更新为 http://127.0.0.1:$port"
-    override val hostAppActiveDesc = "已通过环境变量配置代理"
+    override fun hostAppPendingUpdate(port: Int) = "Studio 后续启动地址待更新为 http://127.0.0.1:$port"
+    override val hostAppActiveDesc = "Studio 专属启动已启用；仅从 Studio 后续启动 App 时接入代理"
+    override val hostAppOfficialDirectDesc = "Studio 专属启动未启用；不改变已运行实例或外部环境"
 
-    override fun hostCliPortMismatch(endpoint: String) = "检测到 CLI 代理配置与当前端口不一致（$endpoint）"
+    override fun hostCliPortMismatch(endpoint: String) = "CLI 专属启动地址与当前端口不一致（$endpoint）"
     override val hostCliInstalledDesc = "Antigravity CLI (agy) 已安装"
-    override val hostCliNotDetected = "未检测到 agy CLI 配置文件"
-    override fun hostCliPendingUpdate(port: Int) = "CLI 配置待更新为 http://127.0.0.1:$port"
-    override val hostCliActiveDesc = "CLI 配置文件代理接入生效中"
-    override val hostCliOfficialDirectDesc = "CLI 当前处于官方直连模式"
+    override val hostCliNotDetected = "未检测到 agy CLI 可执行文件"
+    override fun hostCliPendingUpdate(port: Int) = "CLI 后续启动地址待更新为 http://127.0.0.1:$port"
+    override val hostCliActiveDesc = "Studio 专属启动已启用；请复制命令启动 CLI，仅影响该次启动"
+    override val hostCliOfficialDirectDesc = "CLI 专属启动未启用；不修改终端或外部环境"
+    override val hostCopyCliLaunchCommand = "复制启动命令"
+    override val hostCliLaunchCommandCopied = "CLI 启动命令已复制；请在终端执行，仅影响该次启动"
+    override val hostCliLaunchCommandRequiresProxy = "请先启动本地代理，再复制 CLI 启动命令"
+    override val hostCliLaunchCommandRequiresIntegration = "请先启用 CLI 的 Studio 专属启动配置"
 
     override val hostIdeUpdateConfirmTitle = "更新 Antigravity IDE 代理配置"
     override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) =
@@ -389,45 +405,45 @@ object CoreStringsZh : CoreStrings {
     override val hostIdeRestored = "Antigravity IDE 已恢复官方直连"
     override val hostIdeDisableFailed = "Antigravity IDE 停用代理接入失败"
 
-    override val hostAppUpdateConfirmTitle = "更新 Antigravity App 代理配置"
+    override val hostAppUpdateConfirmTitle = "更新 App 的 Studio 专属启动配置"
     override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) =
-        "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。更新后将自动重启 App 使配置生效。是否继续？"
+        "App 专属启动地址（$endpoint）与代理端口（$port）不匹配。更新仅影响后续从 Studio 启动的 App，不会重启或改变当前实例。是否继续？"
 
     override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) =
-        "检测到 App 当前代理环境变量（$endpoint）与本地代理端口（$port）不匹配。是否更新为当前代理端口？"
+        hostAppUpdateConfirmMessageRunning(endpoint, port)
 
-    override val hostAppEnableConfirmTitle = "确认启用代理模式"
+    override val hostAppEnableConfirmTitle = "启用 App 的 Studio 专属启动"
     override val hostAppEnableConfirmMessageRunning =
-        "启用代理模式后，Antigravity App 会接入配置的模型并自动重启使配置生效。是否继续？"
-    override val hostAppEnableConfirmMessageStopped = "启用代理模式将使 Antigravity App 在启动时连接本地代理。是否继续？"
-    override val hostAppDisableConfirmTitle = "确认停用代理接入"
+        "启用后仅从 Studio 后续启动的 App 接入代理，不改变已运行实例。是否继续？"
+    override val hostAppEnableConfirmMessageStopped = hostAppEnableConfirmMessageRunning
+    override val hostAppDisableConfirmTitle = "停用 App 的 Studio 专属启动"
     override val hostAppDisableConfirmMessageRunning =
-        "将停用 Antigravity App 的代理接入并重启恢复官方直连模式。是否继续？"
-    override val hostAppDisableConfirmMessageStopped = "将停用 Antigravity App 的代理接入，恢复官方直连模式。是否继续？"
-    override val hostAppUpdatedAndRestarted = "Antigravity App 代理配置已更新并完成重启"
-    override val hostAppEnabledAndRestarted = "Antigravity App 已启用代理模式并完成重启"
-    override val hostAppEnabledPendingStart = "Antigravity App 已启用代理模式，启动后生效"
-    override val hostAppConfigUpdatedRestartFailed = "Antigravity App 配置已更新，但自动重启失败"
-    override val hostAppEnableFailed = "Antigravity App 代理接入配置失败"
-    override val hostAppRestoredAndRestarted = "Antigravity App 已恢复官方直连并完成重启"
-    override val hostAppRestored = "Antigravity App 已恢复官方直连"
-    override val hostAppDisableFailed = "Antigravity App 停用代理接入失败"
+        "将停用 App 专属启动配置，后续从 Studio 启动不再注入代理，不改变已运行实例。是否继续？"
+    override val hostAppDisableConfirmMessageStopped = hostAppDisableConfirmMessageRunning
+    override val hostAppUpdatedAndRestarted = "App 专属启动配置已更新；仅影响后续从 Studio 启动"
+    override val hostAppEnabledAndRestarted = "App 专属启动已启用；仅影响后续从 Studio 启动"
+    override val hostAppEnabledPendingStart = "App 专属启动已启用；请从 Studio 启动 App"
+    override val hostAppConfigUpdatedRestartFailed = "App 专属启动配置已更新，但启动失败"
+    override val hostAppEnableFailed = "App 专属启动配置失败"
+    override val hostAppRestoredAndRestarted = "App 专属启动已停用；已运行实例不受影响"
+    override val hostAppRestored = "App 专属启动已停用；已运行实例不受影响"
+    override val hostAppDisableFailed = "停用 App 专属启动失败"
     override val hostAppNotInstalled = "未检测到 Antigravity App 安装"
 
-    override val hostCliUpdateConfirmTitle = "更新 Antigravity CLI 代理配置"
+    override val hostCliUpdateConfirmTitle = "更新 CLI 的 Studio 专属启动配置"
     override fun hostCliUpdateConfirmMessage(endpoint: String, port: Int) =
-        "检测到 CLI 当前代理配置（$endpoint）与本地代理端口（$port）不匹配。更新后请完全退出并重新打开终端应用生效。是否继续？"
+        "CLI 专属启动地址（$endpoint）与代理端口（$port）不匹配。更新后请重新复制启动命令，仅影响使用新命令的后续启动。是否继续？"
 
-    override val hostCliEnableConfirmTitle = "确认启用代理模式"
+    override val hostCliEnableConfirmTitle = "启用 CLI 的 Studio 专属启动"
     override val hostCliEnableConfirmMessage =
-        "启用代理模式后会在用户环境中配置 CLOUD_CODE_URL；完全退出并重新打开终端应用后生效。是否继续？"
-    override val hostCliDisableConfirmTitle = "确认停用代理接入"
+        "启用后请复制启动命令在终端执行，仅该次启动接入代理，不修改终端配置。是否继续？"
+    override val hostCliDisableConfirmTitle = "停用 CLI 的 Studio 专属启动"
     override val hostCliDisableConfirmMessage =
-        "将停用 CLI 的代理接入并恢复官方直连模式；完全退出并重新打开终端应用后生效。是否继续？"
-    override val hostCliEnabledNotice = "CLI 已启用代理模式；请完全退出并重新打开终端应用"
-    override val hostCliDisabledNotice = "CLI 代理接入已停用；请完全退出并重新打开终端应用"
-    override val hostCliEnableFailed = "CLI 代理接入配置失败"
-    override val hostCliDisableFailed = "CLI 停用代理接入失败"
+        "将停用 CLI 专属启动配置，不再生成代理启动命令；已运行进程和已复制的命令不受影响。是否继续？"
+    override val hostCliEnabledNotice = "CLI 专属启动已启用；请复制启动命令在终端执行"
+    override val hostCliDisabledNotice = "CLI 专属启动已停用；已运行进程和已复制命令不受影响"
+    override val hostCliEnableFailed = "CLI 专属启动配置失败"
+    override val hostCliDisableFailed = "停用 CLI 专属启动失败"
     override val hostCliNotInstalled = "未检测到 agy CLI 安装"
 
     override fun hostStartProxyFirstNotice(hostName: String) = "请先启动本地代理服务，再接入 $hostName"
@@ -436,6 +452,14 @@ object CoreStringsZh : CoreStrings {
         "此操作将清除 $hostName 的所有代理配置与环境变量，恢复为干净的官方直连模式。若应用正在运行将自动重启生效。是否确认重置？"
 
     override fun hostForceResetSuccess(hostName: String) = "$hostName 已强制重置为官方直连模式"
+    override val hostMigrateSharedEnvironment = "清理旧共享接入"
+    override val hostMigrateSharedEnvironmentConfirmMessage = "此操作独立清理旧版 Studio 共享接入。仅当旧收据与当前环境值匹配时恢复旧环境，否则保留外部环境；不会改变 App / CLI 专属启动开关。已运行进程不会即时生效。是否继续？"
+    override val hostMigrateSharedEnvironmentSuccess = "旧共享接入清理完成；外部环境与专属启动开关保持不变，已运行进程不受影响"
+    override fun hostLaunchResetConfirmTitle(hostName: String) = "重置 $hostName 的 Studio 专属启动"
+    override fun hostLaunchResetConfirmMessage(hostName: String) =
+        "仅清除 $hostName 的 Studio 专属启动设置，不修改共享或外部环境。已运行进程和已复制的 CLI 命令不受影响。是否继续？"
+    override fun hostExternalEnvironmentNotice(endpoint: String) =
+        "检测到共享环境中的 CLOUD_CODE_URL=$endpoint；非 Studio 专属启动的 App / CLI 可能仍受该外部环境控制。本地开关不会覆盖此设置。"
     override fun hostRestartConfirmTitle(hostName: String) = "确认重启 $hostName"
     override fun hostRestartConfirmMessage(hostName: String) =
         "确定要重启 $hostName 吗？重启将关闭当前运行中的实例并重新打开。是否继续？"
@@ -621,20 +645,25 @@ object CoreStringsEn : CoreStrings {
     override val ecosystemCockpitOpenVsxBtn = "Open VSX ↗"
     override val ecosystemCockpitWebsiteBtn = "Website ↗"
 
-    override fun hostAppPortMismatch(endpoint: String) = "Environment variable differs from current port ($endpoint)"
+    override fun hostAppPortMismatch(endpoint: String) = "Studio launch endpoint differs from current port ($endpoint)"
     override val hostAppRunning = "Antigravity App is running"
-    override val hostAppRunningAndConfigured = "Antigravity App is running and configured"
+    override val hostAppRunningAndConfigured = "App is running; Studio launch settings are saved"
     override val hostAppReady = "Antigravity App is installed"
     override val hostAppNotDetected = "Antigravity App installation not detected"
-    override fun hostAppPendingUpdate(port: Int) = "Environment variable pending update to http://127.0.0.1:$port"
-    override val hostAppActiveDesc = "CLOUD_CODE_URL environment proxy active"
+    override fun hostAppPendingUpdate(port: Int) = "Future Studio launches need endpoint http://127.0.0.1:$port"
+    override val hostAppActiveDesc = "Studio launch enabled; only future App launches from Studio use the proxy"
+    override val hostAppOfficialDirectDesc = "Studio launch disabled; running instances and external environment are unchanged"
 
-    override fun hostCliPortMismatch(endpoint: String) = "CLI proxy config differs from current port ($endpoint)"
+    override fun hostCliPortMismatch(endpoint: String) = "CLI launch endpoint differs from current port ($endpoint)"
     override val hostCliInstalledDesc = "Antigravity CLI (agy) is installed"
-    override val hostCliNotDetected = "agy CLI config file not detected"
-    override fun hostCliPendingUpdate(port: Int) = "CLI config pending update to http://127.0.0.1:$port"
-    override val hostCliActiveDesc = "CLI config proxy integration active"
-    override val hostCliOfficialDirectDesc = "CLI currently in official direct mode"
+    override val hostCliNotDetected = "agy CLI executable not detected"
+    override fun hostCliPendingUpdate(port: Int) = "Future CLI launches need endpoint http://127.0.0.1:$port"
+    override val hostCliActiveDesc = "Studio launch enabled; copy the command to start CLI with a one-time proxy"
+    override val hostCliOfficialDirectDesc = "CLI launch disabled; terminal and external environment are unchanged"
+    override val hostCopyCliLaunchCommand = "Copy Launch Command"
+    override val hostCliLaunchCommandCopied = "CLI launch command copied; run it in a terminal for a one-time launch"
+    override val hostCliLaunchCommandRequiresProxy = "Start the local proxy before copying the CLI launch command"
+    override val hostCliLaunchCommandRequiresIntegration = "Enable Studio launch settings for CLI first"
 
     override val hostIdeUpdateConfirmTitle = "Update Antigravity IDE Proxy Config"
     override fun hostIdeUpdateConfirmMessageRunning(endpoint: String, port: Int) =
@@ -662,47 +691,45 @@ object CoreStringsEn : CoreStrings {
     override val hostIdeRestored = "Antigravity IDE restored to official direct mode"
     override val hostIdeDisableFailed = "Failed to disable proxy integration for Antigravity IDE"
 
-    override val hostAppUpdateConfirmTitle = "Update Antigravity App Proxy Config"
+    override val hostAppUpdateConfirmTitle = "Update App Studio Launch Settings"
     override fun hostAppUpdateConfirmMessageRunning(endpoint: String, port: Int) =
-        "Detected App proxy environment ($endpoint) differs from local proxy port ($port). Updating will restart App to apply changes. Continue?"
+        "App launch endpoint ($endpoint) differs from proxy port ($port). Only future launches from Studio are affected; running instances stay unchanged. Continue?"
 
     override fun hostAppUpdateConfirmMessageStopped(endpoint: String, port: Int) =
-        "Detected App proxy environment ($endpoint) differs from local proxy port ($port). Update to current proxy port?"
+        hostAppUpdateConfirmMessageRunning(endpoint, port)
 
-    override val hostAppEnableConfirmTitle = "Enable Proxy Mode for App"
+    override val hostAppEnableConfirmTitle = "Enable App Studio Launch"
     override val hostAppEnableConfirmMessageRunning =
-        "Enabling proxy mode will inject configured models and restart Antigravity App to apply changes. Continue?"
-    override val hostAppEnableConfirmMessageStopped =
-        "Enabling proxy mode will configure Antigravity App to connect to the local proxy when started. Continue?"
-    override val hostAppDisableConfirmTitle = "Disable Proxy Mode for App"
+        "Only future App launches from Studio will use the proxy; running instances stay unchanged. Other running processes are not immediately affected. Continue?"
+    override val hostAppEnableConfirmMessageStopped = hostAppEnableConfirmMessageRunning
+    override val hostAppDisableConfirmTitle = "Disable App Studio Launch"
     override val hostAppDisableConfirmMessageRunning =
-        "Disabling proxy mode will restore official direct connection and restart Antigravity App. Continue?"
-    override val hostAppDisableConfirmMessageStopped =
-        "Disabling proxy mode will restore official direct connection for Antigravity App. Continue?"
-    override val hostAppUpdatedAndRestarted = "Antigravity App proxy config updated and restarted"
-    override val hostAppEnabledAndRestarted = "Antigravity App proxy mode enabled and restarted"
-    override val hostAppEnabledPendingStart = "Antigravity App proxy mode enabled; will apply on launch"
-    override val hostAppConfigUpdatedRestartFailed = "Antigravity App config updated, but auto-restart failed"
-    override val hostAppEnableFailed = "Failed to configure Antigravity App proxy integration"
-    override val hostAppRestoredAndRestarted = "Antigravity App restored to official direct mode and restarted"
-    override val hostAppRestored = "Antigravity App restored to official direct mode"
-    override val hostAppDisableFailed = "Failed to disable proxy integration for Antigravity App"
+        "Future App launches from Studio will no longer inject the proxy; running instances stay unchanged. Other running processes are not immediately affected. Continue?"
+    override val hostAppDisableConfirmMessageStopped = hostAppDisableConfirmMessageRunning
+    override val hostAppUpdatedAndRestarted = "App launch settings updated; only future launches from Studio are affected"
+    override val hostAppEnabledAndRestarted = "App Studio launch enabled; only future launches from Studio are affected"
+    override val hostAppEnabledPendingStart = "App Studio launch enabled; launch App from Studio"
+    override val hostAppConfigUpdatedRestartFailed = "App launch settings updated, but launch failed"
+    override val hostAppEnableFailed = "Failed to configure App Studio launch"
+    override val hostAppRestoredAndRestarted = "App Studio launch disabled; running instances stay unchanged"
+    override val hostAppRestored = "App Studio launch disabled; running instances stay unchanged"
+    override val hostAppDisableFailed = "Failed to disable App Studio launch"
     override val hostAppNotInstalled = "Antigravity App not detected"
 
-    override val hostCliUpdateConfirmTitle = "Update Antigravity CLI Proxy Config"
+    override val hostCliUpdateConfirmTitle = "Update CLI Studio Launch Settings"
     override fun hostCliUpdateConfirmMessage(endpoint: String, port: Int) =
-        "Detected CLI proxy config ($endpoint) differs from local proxy port ($port). Please restart your terminal application after updating. Continue?"
+        "CLI launch endpoint ($endpoint) differs from proxy port ($port). Copy a new launch command after updating; only subsequent launches using it are affected. Running processes stay unchanged. Continue?"
 
-    override val hostCliEnableConfirmTitle = "Enable Proxy Mode for CLI"
+    override val hostCliEnableConfirmTitle = "Enable CLI Studio Launch"
     override val hostCliEnableConfirmMessage =
-        "Enabling proxy mode will configure CLOUD_CODE_URL in your user environment; restart your terminal to apply. Continue?"
-    override val hostCliDisableConfirmTitle = "Disable Proxy Mode for CLI"
+        "Copy and run the launch command in a terminal; only that launch uses the proxy, without changing terminal settings. Running processes stay unchanged. Continue?"
+    override val hostCliDisableConfirmTitle = "Disable CLI Studio Launch"
     override val hostCliDisableConfirmMessage =
-        "Disabling proxy mode will restore official direct connection; restart your terminal to apply. Continue?"
-    override val hostCliEnabledNotice = "CLI proxy mode enabled; please restart your terminal application"
-    override val hostCliDisabledNotice = "CLI proxy mode disabled; please restart your terminal application"
-    override val hostCliEnableFailed = "Failed to configure CLI proxy integration"
-    override val hostCliDisableFailed = "Failed to disable CLI proxy integration"
+        "CLI proxy launch commands will no longer be generated; running processes and previously copied commands stay unchanged. Other running processes are not immediately affected. Continue?"
+    override val hostCliEnabledNotice = "CLI Studio launch enabled; copy and run the launch command in a terminal"
+    override val hostCliDisabledNotice = "CLI Studio launch disabled; running processes and copied commands stay unchanged"
+    override val hostCliEnableFailed = "Failed to configure CLI Studio launch"
+    override val hostCliDisableFailed = "Failed to disable CLI Studio launch"
     override val hostCliNotInstalled = "agy CLI not detected"
 
     override fun hostStartProxyFirstNotice(hostName: String) =
@@ -713,6 +740,14 @@ object CoreStringsEn : CoreStrings {
         "This will forcefully clear all proxy settings, environment variables and receipts for $hostName to restore clean official direct mode. The application will be restarted if running. Continue?"
 
     override fun hostForceResetSuccess(hostName: String) = "$hostName has been reset to official direct mode"
+    override val hostMigrateSharedEnvironment = "Clean Up Legacy Shared Integration"
+    override val hostMigrateSharedEnvironmentConfirmMessage = "This separately cleans up legacy Studio shared integration. The previous environment is restored only if the old receipt matches its current value; otherwise external settings are preserved. App / CLI Studio launch switches remain unchanged. Running processes are not immediately affected. Continue?"
+    override val hostMigrateSharedEnvironmentSuccess = "Legacy shared integration cleanup complete; external settings, launch switches and running processes are preserved"
+    override fun hostLaunchResetConfirmTitle(hostName: String) = "Reset $hostName Studio Launch"
+    override fun hostLaunchResetConfirmMessage(hostName: String) =
+        "Clear only Studio launch settings for $hostName, without changing shared or external environment settings. Running processes and copied CLI commands stay unchanged. Continue?"
+    override fun hostExternalEnvironmentNotice(endpoint: String) =
+        "Shared environment CLOUD_CODE_URL=$endpoint detected. App / CLI launched outside Studio's dedicated launch flow may still use it. Local switches do not overwrite this setting."
     override fun hostRestartConfirmTitle(hostName: String) = "Confirm Restart $hostName"
     override fun hostRestartConfirmMessage(hostName: String) =
         "Are you sure you want to restart $hostName? This will close running instances and launch a new process. Continue?"

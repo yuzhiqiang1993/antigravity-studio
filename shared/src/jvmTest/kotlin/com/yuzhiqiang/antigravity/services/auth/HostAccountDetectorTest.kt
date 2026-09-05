@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.services.auth
 
+import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -19,6 +20,7 @@ class HostAccountDetectorTest {
         assertEquals(targetName, decodedProfile.name, "解码名称应该与目标完全一致")
     }
 
+    @Ignore("真实账户探测仅供手动诊断，自动测试不得读取本机账户")
     @Test
     fun testRealEnvironmentDetection() = kotlinx.coroutines.runBlocking {
         println("=== RuntimeIdeAccountProbe ===")

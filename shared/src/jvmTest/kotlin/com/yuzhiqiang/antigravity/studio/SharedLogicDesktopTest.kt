@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.studio
 
+import com.yuzhiqiang.antigravity.host.HostTestEnvironment
 import com.yuzhiqiang.antigravity.host.app.AppHostManager
 import com.yuzhiqiang.antigravity.host.cli.CliHostManager
 import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
@@ -12,15 +13,24 @@ import kotlin.test.assertNotNull
 class SharedLogicDesktopTest {
 
     @Test
-    fun testHostInspectDoesNotCrash() {
-        val ideStatus = IdeHostManager.inspect(8080)
+    fun testHostInspectDoesNotCrash() = HostTestEnvironment().use { environment ->
+        val missingInstallation = environment.root.resolve("missing-host").absolutePath
+        val ideStatus = IdeHostManager.inspect(8080, customInstallation = environment.root.absolutePath)
         assertNotNull(ideStatus)
 
-        val appStatus = AppHostManager.inspect(8080)
+        val appStatus = AppHostManager.inspect(8080, customInstallation = missingInstallation)
         assertNotNull(appStatus)
+        assertFalse(appStatus.isInstalled)
 
-        val cliStatus = CliHostManager.inspect(8080)
+        val cliExecutable = environment.root.resolve("agy").apply {
+            writeText("#!/bin/sh\nprintf '1.0.0\\n'\n")
+            setExecutable(true)
+        }
+        val cliStatus = CliHostManager.inspect(8080, customInstallation = cliExecutable.absolutePath)
         assertNotNull(cliStatus)
+        kotlin.test.assertEquals("1.0.0", cliStatus.version)
+        kotlin.test.assertEquals(0, environment.environmentWrites)
+        kotlin.test.assertEquals(0, environment.environmentClears)
     }
 
     @Test

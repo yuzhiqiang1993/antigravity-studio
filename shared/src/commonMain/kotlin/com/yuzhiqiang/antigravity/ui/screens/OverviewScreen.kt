@@ -333,7 +333,7 @@ fun OverviewScreen(
                     integrationDetail = when {
                         appDetailedStatus.needsUpdate -> s.hostAppPendingUpdate(actualPort)
                         isAppActive -> s.hostAppActiveDesc
-                        else -> s.hostOfficialDirectDesc
+                        else -> s.hostAppOfficialDirectDesc
                     },
                     onToggle = { viewModel.toggleAppHost() },
                     actionLabel = if (isAppRunning) s.hostRestart else if (isAppInstalled) s.hostLaunch else null,
@@ -373,8 +373,8 @@ fun OverviewScreen(
                         else -> s.hostCliOfficialDirectDesc
                     },
                     onToggle = { viewModel.toggleCliHost() },
-                    actionLabel = null,
-                    onAction = null,
+                    actionLabel = s.hostCopyCliLaunchCommand,
+                    onAction = { viewModel.copyCliLaunchCommand() },
                     onRefresh = { viewModel.refreshHostStatus() },
                     onForceReset = { viewModel.forceResetHost("cli") },
                     onConfigurePath = { viewModel.openHostPathDialog("cli", "Antigravity CLI") },
@@ -397,6 +397,24 @@ fun OverviewScreen(
                         data = item,
                         modifier = Modifier.weight(1f)
                     )
+                }
+            }
+        }
+
+        listOfNotNull(appDetailedStatus.externalEndpoint, cliDetailedStatus.externalEndpoint).distinct().forEach { endpoint ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.card),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = s.hostExternalEnvironmentNotice(endpoint),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { viewModel.migrateSharedHostEnvironment() }) {
+                    Text(s.hostMigrateSharedEnvironment)
                 }
             }
         }
