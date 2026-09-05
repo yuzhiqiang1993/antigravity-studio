@@ -241,10 +241,10 @@ fun <T> StudioSlidingTabLayout(
                             )
 
                             if (item.showDot) {
-                                val dotC = item.dotColor ?: Color(0xFFE53935)
+                                val dotC = item.dotColor ?: MaterialTheme.colorScheme.error
                                 Box(
                                     modifier = Modifier
-                                        .size(6.5.dp)
+                                        .size(AppTokens.Size.statusDot)
                                         .clip(CircleShape)
                                         .background(dotC)
                                 )
@@ -426,10 +426,10 @@ fun <T> StudioUnderlineTabLayout(
                         )
 
                         if (item.showDot) {
-                            val dotC = item.dotColor ?: Color(0xFFE53935)
+                            val dotC = item.dotColor ?: MaterialTheme.colorScheme.error
                             Box(
                                 modifier = Modifier
-                                    .size(6.5.dp)
+                                    .size(AppTokens.Size.statusDot)
                                     .clip(CircleShape)
                                     .background(dotC)
                             )

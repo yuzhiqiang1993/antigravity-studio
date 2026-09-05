@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,7 +37,7 @@ fun CompactDualQuotaBar(
     quotaSnapshot: AccountQuotaSnapshot?,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val groups = quotaSnapshot?.normalizedDisplayGroups().orEmpty()
 
     StudioCrossfade(
@@ -159,7 +160,7 @@ private fun MiniBarCell(
     percentage: Int,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val targetPct = percentage.coerceIn(0, 100)
 
     val animatedProgress by rememberAnimatedQuotaProgress(targetPercentage = targetPct)

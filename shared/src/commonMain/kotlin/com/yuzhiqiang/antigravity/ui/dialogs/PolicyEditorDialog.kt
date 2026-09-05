@@ -28,6 +28,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.luminance
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.statusColors
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -78,7 +81,7 @@ fun PolicyEditorDialog(
     }
 
     // 经典标准色板（适配 M3 与深色模式）
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val byokAccent = MaterialTheme.colorScheme.primary
     val byokBorder = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.8f)
     val byokSurfaceInner =
@@ -124,9 +127,9 @@ fun PolicyEditorDialog(
                             )
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFFEFF6FF))
-                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                                    .clip(RoundedCornerShape(AppTokens.Radius.xs))
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.65f))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = cleanDisplayName,
@@ -272,8 +275,8 @@ fun PolicyEditorDialog(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(4.dp))
                                                         .background(
-                                                            if (isSelected) Color.White.copy(alpha = 0.25f)
-                                                            else Color(0xFF10B981).copy(alpha = 0.14f)
+                                                            if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f)
+                                                            else MaterialTheme.statusColors.successContainer
                                                         )
                                                         .padding(horizontal = 4.dp, vertical = 1.dp)
                                                 ) {
@@ -282,7 +285,7 @@ fun PolicyEditorDialog(
                                                         style = MaterialTheme.typography.labelSmall.copy(
                                                             fontSize = 10.sp,
                                                             fontWeight = FontWeight.Bold,
-                                                            color = if (isSelected) Color.White else Color(0xFF047857)
+                                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.statusColors.onSuccessContainer
                                                         )
                                                     )
                                                 }
@@ -506,14 +509,13 @@ fun PolicyEditorDialog(
                                 Icon(
                                     imageVector = Icons.Outlined.ErrorOutline,
                                     contentDescription = null,
-                                    tint = Color(0xFFDC2626),
-                                    modifier = Modifier.size(15.dp)
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = validationError,
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 12.sp,
-                                        color = Color(0xFFDC2626)
+                                        color = MaterialTheme.colorScheme.error
                                     ),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis

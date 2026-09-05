@@ -21,6 +21,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -35,13 +36,103 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+
+/**
+ * 桌面端统一基础按钮容器 (StudioButtonBase)：
+ * 统筹 Hover、Pressed、Loading 状态收集、平滑色彩过渡、Ripple 涟漪与无障碍焦点交互。
+ */
+@Composable
+private fun StudioButtonBase(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    enabled: Boolean = true,
+    isLoading: Boolean = false,
+    height: Dp = 32.dp,
+    shape: RoundedCornerShape = RoundedCornerShape(AppTokens.Radius.small),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+    backgroundColor: Color,
+    borderColor: Color? = null,
+    contentColor: Color
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val animatedBg by animateColorAsState(
+        targetValue = backgroundColor,
+        animationSpec = tween(durationMillis = 150),
+        label = "StudioButtonBg"
+    )
+
+    val animatedBorder by animateColorAsState(
+        targetValue = borderColor ?: Color.Transparent,
+        animationSpec = tween(durationMillis = 150),
+        label = "StudioButtonBorder"
+    )
+
+    val borderModifier = if (borderColor != null) {
+        Modifier.border(1.dp, animatedBorder, shape)
+    } else {
+        Modifier
+    }
+
+    val rippleIndication = ripple(
+        bounded = true,
+        color = contentColor
+    )
+
+    Box(
+        modifier = modifier
+            .height(height)
+            .clip(shape)
+            .background(animatedBg)
+            .then(borderModifier)
+            .hoverable(interactionSource = interactionSource, enabled = enabled && !isLoading)
+            .pointerHoverIcon(if (enabled && !isLoading) PointerIcon.Hand else PointerIcon.Default)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = rippleIndication,
+                enabled = enabled && !isLoading,
+                onClick = onClick
+            )
+            .padding(contentPadding),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = contentColor
+                )
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Medium
+                ),
+                color = contentColor
+            )
+        }
+    }
+}
 
 /**
  * 桌面端高质感统一主按钮 (StudioButton)：
- * - 原生 macOS / MD3 精致视觉体验
- * - 鼠标悬停（Hover）平滑变色与光标切换 Hand
- * - 杜绝原生 M3 方形 StateLayer 瑕疵
+ * - 原生 MD3 语义视觉体验
+ * - 鼠标悬停平滑变色与光标切换 Hand
+ * - 保留原生 Material 涟漪反馈与焦点环
  * - 支持加载中旋转 Loading 指示器
  */
 @Composable
@@ -53,7 +144,7 @@ fun StudioButton(
     enabled: Boolean = true,
     isLoading: Boolean = false,
     height: Dp = 32.dp,
-    shape: RoundedCornerShape = RoundedCornerShape(8.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(AppTokens.Radius.small),
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
     containerColor: Color = MaterialTheme.colorScheme.primary,
     contentColor: Color = MaterialTheme.colorScheme.onPrimary
@@ -69,65 +160,27 @@ fun StudioButton(
         isHovered -> if (isDark) containerColor.copy(alpha = 0.92f) else containerColor.copy(alpha = 0.90f)
         else -> containerColor
     }
-
-    val animatedBg by animateColorAsState(
-        targetValue = effectiveBg,
-        animationSpec = tween(durationMillis = 150),
-        label = "StudioButtonBg"
-    )
-
     val effectiveContentColor = if (enabled) contentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
 
-    Box(
-        modifier = modifier
-            .height(height)
-            .clip(shape)
-            .background(animatedBg)
-            .hoverable(interactionSource = interactionSource, enabled = enabled && !isLoading)
-            .pointerHoverIcon(if (enabled && !isLoading) PointerIcon.Hand else PointerIcon.Default)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                enabled = enabled && !isLoading,
-                onClick = onClick
-            )
-            .padding(contentPadding),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(13.dp),
-                    strokeWidth = 2.dp,
-                    color = effectiveContentColor
-                )
-            } else if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = effectiveContentColor,
-                    modifier = Modifier.size(15.dp)
-                )
-            }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.sp
-                ),
-                color = effectiveContentColor
-            )
-        }
-    }
+    StudioButtonBase(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        icon = icon,
+        enabled = enabled,
+        isLoading = isLoading,
+        height = height,
+        shape = shape,
+        contentPadding = contentPadding,
+        backgroundColor = effectiveBg,
+        contentColor = effectiveContentColor
+    )
 }
 
 /**
  * 桌面端高质感统一次级色调按钮 (StudioTonalButton)：
  * - 适用于次要操作（如重启、配置、诊断等）
- * - 优雅的微底色与 Hover 微高亮反馈，彻底消除生硬方块
+ * - 优雅的微底色与 Hover 微高亮反馈
  */
 @Composable
 fun StudioTonalButton(
@@ -138,7 +191,7 @@ fun StudioTonalButton(
     enabled: Boolean = true,
     isLoading: Boolean = false,
     height: Dp = 32.dp,
-    shape: RoundedCornerShape = RoundedCornerShape(8.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(AppTokens.Radius.small),
     contentPadding: PaddingValues = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
     containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -155,12 +208,6 @@ fun StudioTonalButton(
         else -> containerColor
     }
 
-    val animatedBg by animateColorAsState(
-        targetValue = effectiveBg,
-        animationSpec = tween(durationMillis = 150),
-        label = "StudioTonalButtonBg"
-    )
-
     val borderColor = if (isHovered && enabled) {
         if (containerColor.alpha < 0.5f) contentColor.copy(alpha = if (isDark) 0.55f else 0.45f)
         else MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.6f else 0.8f)
@@ -169,63 +216,22 @@ fun StudioTonalButton(
         else MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.25f else 0.4f)
     }
 
-    val animatedBorder by animateColorAsState(
-        targetValue = borderColor,
-        animationSpec = tween(durationMillis = 150),
-        label = "StudioTonalButtonBorder"
+    val effectiveContentColor = if (enabled) contentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+
+    StudioButtonBase(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        icon = icon,
+        enabled = enabled,
+        isLoading = isLoading,
+        height = height,
+        shape = shape,
+        contentPadding = contentPadding,
+        backgroundColor = effectiveBg,
+        borderColor = borderColor,
+        contentColor = effectiveContentColor
     )
-
-    val effectiveContentColor = if (enabled) {
-        contentColor
-    } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-    }
-
-    Box(
-        modifier = modifier
-            .height(height)
-            .clip(shape)
-            .background(animatedBg)
-            .border(1.dp, animatedBorder, shape)
-            .hoverable(interactionSource = interactionSource, enabled = enabled && !isLoading)
-            .pointerHoverIcon(if (enabled && !isLoading) PointerIcon.Hand else PointerIcon.Default)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                enabled = enabled && !isLoading,
-                onClick = onClick
-            )
-            .padding(contentPadding),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(13.dp),
-                    strokeWidth = 2.dp,
-                    color = effectiveContentColor
-                )
-            } else if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = effectiveContentColor,
-                    modifier = Modifier.size(15.dp)
-                )
-            }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp
-                ),
-                color = effectiveContentColor
-            )
-        }
-    }
 }
 
 /**
@@ -242,7 +248,7 @@ fun StudioOutlinedButton(
     isLoading: Boolean = false,
     isDestructive: Boolean = false,
     height: Dp = 32.dp,
-    shape: RoundedCornerShape = RoundedCornerShape(8.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(AppTokens.Radius.small),
     contentPadding: PaddingValues = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
     customColor: Color? = null
 ) {
@@ -264,69 +270,26 @@ fun StudioOutlinedButton(
         else -> if (customColor != null) customColor.copy(alpha = 0.06f) else Color.Transparent
     }
 
-    val animatedBg by animateColorAsState(
-        targetValue = effectiveBg,
-        animationSpec = tween(durationMillis = 150),
-        label = "StudioOutlinedButtonBg"
-    )
-
     val effectiveBorder = when {
         !enabled -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
         isHovered -> baseColor.copy(alpha = if (isDark) 0.8f else 0.9f)
         else -> baseColor.copy(alpha = if (isDark) 0.4f else 0.5f)
     }
 
-    val animatedBorder by animateColorAsState(
-        targetValue = effectiveBorder,
-        animationSpec = tween(durationMillis = 150),
-        label = "StudioOutlinedButtonBorder"
-    )
-
     val effectiveContentColor = if (enabled) baseColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
 
-    Box(
-        modifier = modifier
-            .height(height)
-            .clip(shape)
-            .background(animatedBg)
-            .border(1.dp, animatedBorder, shape)
-            .hoverable(interactionSource = interactionSource, enabled = enabled && !isLoading)
-            .pointerHoverIcon(if (enabled && !isLoading) PointerIcon.Hand else PointerIcon.Default)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                enabled = enabled && !isLoading,
-                onClick = onClick
-            )
-            .padding(contentPadding),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(13.dp),
-                    strokeWidth = 2.dp,
-                    color = effectiveContentColor
-                )
-            } else if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = effectiveContentColor,
-                    modifier = Modifier.size(15.dp)
-                )
-            }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp
-                ),
-                color = effectiveContentColor
-            )
-        }
-    }
+    StudioButtonBase(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        icon = icon,
+        enabled = enabled,
+        isLoading = isLoading,
+        height = height,
+        shape = shape,
+        contentPadding = contentPadding,
+        backgroundColor = effectiveBg,
+        borderColor = effectiveBorder,
+        contentColor = effectiveContentColor
+    )
 }

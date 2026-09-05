@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
@@ -295,7 +296,7 @@ fun UsageScreen(
 
                 // 4. 手动即时刷新按钮
                 StudioTooltip(text = s.accountsRefreshAllTooltip) {
-                    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
                     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                     val isHovered by interactionSource.collectIsHoveredAsState()
 

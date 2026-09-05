@@ -1,6 +1,7 @@
 package com.yuzhiqiang.antigravity.ui.utils
 
 import com.yuzhiqiang.antigravity.domain.model.usage.calculatePromptCacheHitRatio
+import com.yuzhiqiang.antigravity.ui.screens.usage.UsageNumberFormatter
 import kotlin.math.round
 
 /**
@@ -70,20 +71,7 @@ fun formatCurrentTimeClock(timestamp: Long = System.currentTimeMillis()): String
 fun formatTokens(tokens: Long?): String {
     if (tokens == null) return "—"
     if (tokens < 0L) return tokens.toString()
-    val s = tokens.toString()
-    val len = s.length
-    if (len <= 3) return s
-    val sb = StringBuilder()
-    val remainder = len % 3
-    if (remainder > 0) {
-        sb.append(s.substring(0, remainder))
-        if (len > remainder) sb.append(',')
-    }
-    for (i in remainder until len step 3) {
-        sb.append(s.substring(i, i + 3))
-        if (i + 3 < len) sb.append(',')
-    }
-    return sb.toString()
+    return UsageNumberFormatter.formatCount(tokens)
 }
 
 /**

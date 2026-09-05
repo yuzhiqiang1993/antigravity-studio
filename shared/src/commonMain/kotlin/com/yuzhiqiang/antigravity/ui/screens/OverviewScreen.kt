@@ -416,11 +416,11 @@ private fun EcosystemCockpitBanner(
     var isDismissed by remember { mutableStateOf(false) }
     if (isInstalled || isDismissed) return
 
-    val brandColor = Color(0xFF6366F1)
+    val brandColor = MaterialTheme.colorScheme.primary
     val cardBg = if (isDark) {
-        Color(0xFF1E1B4B).copy(alpha = 0.35f)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
     } else {
-        Color(0xFFEEF2FF).copy(alpha = 0.65f)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
     }
     val borderColor = if (isDark) {
         brandColor.copy(alpha = 0.35f)
@@ -471,7 +471,7 @@ private fun EcosystemCockpitBanner(
                 // 中间标题与特性亮点
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.xs)
                 ) {
                     Text(
                         text = s.ecosystemCockpitTitle,

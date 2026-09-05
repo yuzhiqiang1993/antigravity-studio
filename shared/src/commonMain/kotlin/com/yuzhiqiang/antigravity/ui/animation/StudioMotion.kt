@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -439,7 +440,7 @@ fun StudioCircularGauge(
     percentage: Int,
     barColor: Color,
     modifier: Modifier = Modifier,
-    trackColor: Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isSystemInDarkTheme()) 0.45f else 0.65f),
+    trackColor: Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) 0.45f else 0.65f),
     size: Dp = 22.dp,
     strokeWidth: Dp = 3.dp
 ) {

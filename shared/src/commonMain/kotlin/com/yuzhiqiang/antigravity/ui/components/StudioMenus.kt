@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontFamily
@@ -32,11 +33,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
 
 /**
- * 桌面端高质感统一弹出菜单组件 (StudioDropdownMenu)：
- * - 纯净底色 surfaceContainer
- * - 极细微边框 outlineVariant (1.dp)
- * - 优雅中圆角 8.dp + 柔和投影
- * - 紧凑桌面端间距
+ * 桌面端高质感统一弹出菜单容器 (StudioDropdownMenu)：
+ * - 紧凑桌面端圆角 (8.dp)
+ * - 与设计系统统一的边框与底色
+ * - 支持深浅色模式自适应
  */
 @Composable
 fun StudioDropdownMenu(
@@ -46,7 +46,7 @@ fun StudioDropdownMenu(
     offset: DpOffset = DpOffset(0.dp, 4.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val bg = if (isDark) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface
     val borderClr = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.4f else 0.8f)
 
@@ -89,7 +89,7 @@ fun StudioDropdownMenuItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     val textColor = when {
         !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
@@ -204,7 +204,7 @@ fun StudioDropdownTrigger(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     val containerColor = when {
         !enabled -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
@@ -267,7 +267,7 @@ fun StudioDropdownTrigger(
  */
 @Composable
 fun StudioMenuDivider(modifier: Modifier = Modifier) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     HorizontalDivider(
         modifier = modifier.padding(vertical = 4.dp, horizontal = 4.dp),
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.6f),

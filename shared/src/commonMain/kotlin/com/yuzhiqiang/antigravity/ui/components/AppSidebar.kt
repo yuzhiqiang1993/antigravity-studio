@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -273,11 +274,11 @@ private fun AppSidebarDrawerItem(
                 if (showBadge) {
                     Box(
                         modifier = Modifier
-                            .size(7.dp)
+                            .size(AppTokens.Size.statusDot)
                             .align(Alignment.TopEnd)
                             .offset(x = 2.dp, y = (-2).dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFE53935))
+                            .background(MaterialTheme.colorScheme.error)
                     )
                 }
             }

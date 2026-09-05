@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -24,6 +25,7 @@ import com.yuzhiqiang.antigravity.host.ide.IdeHostManager
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.statusColors
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -45,8 +47,8 @@ fun CustomHostPathDialog(
     onDismiss: () -> Unit
 ) {
     val s = strings()
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val successColor = if (isDark) Color(0xFF4ADE80) else Color(0xFF16A34A)
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val successColor = MaterialTheme.statusColors.success
     var pathInput by remember(initialPath) { mutableStateOf(initialPath) }
     val trimmedPath = pathInput.trim()
 

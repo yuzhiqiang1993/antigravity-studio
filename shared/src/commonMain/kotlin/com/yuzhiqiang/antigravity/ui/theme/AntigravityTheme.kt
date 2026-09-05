@@ -5,7 +5,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -88,6 +90,16 @@ private val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(AppTokens.Radius.dialog)
 )
 
+val LocalAppThemeIsDark = compositionLocalOf { false }
+
+val MaterialTheme.isDarkTheme: Boolean
+    @Composable
+    get() = LocalAppThemeIsDark.current
+
+val MaterialTheme.isDark: Boolean
+    @Composable
+    get() = colorScheme.surface.luminance() < 0.5f
+
 @Composable
 fun AntigravityTheme(
     themeMode: String? = "system",
@@ -107,6 +119,7 @@ fun AntigravityTheme(
     val quotaColors = if (isDark) StudioThemeColors.darkQuotaColors else StudioThemeColors.lightQuotaColors
 
     CompositionLocalProvider(
+        LocalAppThemeIsDark provides isDark,
         LocalAppStatusColors provides statusColors,
         LocalAppFeatureColors provides featureColors,
         LocalAppQuotaColors provides quotaColors

@@ -67,8 +67,8 @@ import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 fun StudioSearchField(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholder: String? = null
 ) {
     val s = strings()
     val effectivePlaceholder = placeholder ?: s.commonSearch
@@ -165,8 +165,8 @@ fun StudioSearchField(
 fun StudioTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String? = null,
     modifier: Modifier = Modifier,
+    placeholder: String? = null,
     singleLine: Boolean = true,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     minLines: Int = 1,
@@ -177,7 +177,7 @@ fun StudioTextField(
     enabled: Boolean = true
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     val bg = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLowest
     val borderClr = when {
@@ -264,15 +264,15 @@ fun StudioTextField(
 @Composable
 fun StudioSelectField(
     label: String,
-    isExpanded: Boolean = false,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isExpanded: Boolean = false,
     enabled: Boolean = true,
-    placeholder: String? = null,
-    modifier: Modifier = Modifier
+    placeholder: String? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
@@ -346,7 +346,7 @@ fun StudioCheckbox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     val targetBg = when {
         !enabled -> if (isDark) Color(0xFF334155).copy(alpha = 0.35f) else Color(0xFFE2E8F0)

@@ -67,10 +67,7 @@ fun PageHeader(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
+                    style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
 
@@ -159,11 +156,10 @@ fun SectionLabel(
 ) {
     Text(
         text = text,
-        modifier = modifier,
+        modifier = modifier.padding(bottom = AppTokens.Spacing.xs),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface
     )
-    Spacer(Modifier.height(AppTokens.Spacing.xs))
 }
 
 /**
@@ -189,10 +185,10 @@ fun BrandMark(
  */
 @Composable
 fun EmptyStateView(
-    icon: ImageVector = Icons.Outlined.Inbox,
     title: String,
-    description: String? = null,
     modifier: Modifier = Modifier,
+    icon: ImageVector = Icons.Outlined.Inbox,
+    description: String? = null,
     action: (@Composable () -> Unit)? = null
 ) {
     Column(

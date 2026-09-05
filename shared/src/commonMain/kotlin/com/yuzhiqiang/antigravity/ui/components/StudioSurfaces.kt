@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -32,7 +33,7 @@ import com.yuzhiqiang.antigravity.ui.theme.StudioGlassTokens
 @Composable
 fun StudioCard(
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(AppTokens.Radius.medium),
     containerColor: Color? = null,
     borderColor: Color? = null,
     borderWidth: Dp = StudioGlassTokens.borderWidth,
@@ -44,9 +45,10 @@ fun StudioCard(
     val effectiveBorderColor = borderColor ?: StudioGlassTokens.cleanBorderColor(isDark)
 
     Surface(
-        modifier = modifier.border(borderWidth, effectiveBorderColor, shape),
+        modifier = modifier,
         shape = shape,
         color = effectiveBg,
+        border = BorderStroke(borderWidth, effectiveBorderColor),
         shadowElevation = elevation,
         tonalElevation = 0.dp
     ) {
@@ -56,33 +58,26 @@ fun StudioCard(
 
 /**
  * 高质感现代毛玻璃卡片 (StudioGlassCard)：
- * - 纯白/深灰底色 (自适应亮暗主题)
- * - MD3 标准 1px 极细纯净微轮廓
+ * 直接委托给 StudioCard，保持向后兼容并消除重复代码。
  */
 @Composable
 fun StudioGlassCard(
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(AppTokens.Radius.medium),
     backgroundColor: Color? = null,
     borderColor: Color? = null,
     borderWidth: Dp = StudioGlassTokens.borderWidth,
     elevation: Dp = 0.dp,
     content: @Composable ColumnScope.() -> Unit
-) {
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val effectiveBg = backgroundColor ?: StudioGlassTokens.cardBackgroundColor(isDark)
-    val effectiveBorderColor = borderColor ?: StudioGlassTokens.cleanBorderColor(isDark)
-
-    Surface(
-        modifier = modifier.border(width = borderWidth, color = effectiveBorderColor, shape = shape),
-        shape = shape,
-        color = effectiveBg,
-        shadowElevation = elevation,
-        tonalElevation = 0.dp
-    ) {
-        Column(content = content)
-    }
-}
+) = StudioCard(
+    modifier = modifier,
+    shape = shape,
+    containerColor = backgroundColor,
+    borderColor = borderColor,
+    borderWidth = borderWidth,
+    elevation = elevation,
+    content = content
+)
 
 /**
  * 通用毛玻璃浮岛容器 Surface (StudioGlassSurface)
@@ -90,7 +85,7 @@ fun StudioGlassCard(
 @Composable
 fun StudioGlassSurface(
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(AppTokens.Radius.medium),
     backgroundColor: Color? = null,
     borderColor: Color? = null,
     borderWidth: Dp = StudioGlassTokens.borderWidth,
@@ -102,9 +97,10 @@ fun StudioGlassSurface(
     val effectiveBorderColor = borderColor ?: StudioGlassTokens.cleanBorderColor(isDark)
 
     Surface(
-        modifier = modifier.border(width = borderWidth, color = effectiveBorderColor, shape = shape),
+        modifier = modifier,
         shape = shape,
         color = effectiveBg,
+        border = BorderStroke(borderWidth, effectiveBorderColor),
         shadowElevation = elevation,
         tonalElevation = 0.dp,
         content = content

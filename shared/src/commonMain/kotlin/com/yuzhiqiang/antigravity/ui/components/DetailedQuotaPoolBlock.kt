@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -87,7 +88,7 @@ fun DetailedQuotaPoolBlock(
 private fun DetailedBucketRow(
     bucket: ModelQuotaInfo
 ) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val animatedProgress by animateFloatAsState(
         targetValue = (bucket.percentage / 100f).coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 400)

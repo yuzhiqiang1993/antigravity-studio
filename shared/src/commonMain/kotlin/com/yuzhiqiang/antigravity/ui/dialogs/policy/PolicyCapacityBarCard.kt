@@ -24,8 +24,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yuzhiqiang.antigravity.ui.screens.usage.UsageNumberFormatter
 import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.dialogs.provider.formatTokenDisplay
+import com.yuzhiqiang.antigravity.ui.theme.AppTokens
+import com.yuzhiqiang.antigravity.ui.theme.statusColors
 
 /**
  * 上下文容量分布卡片 (.policy-capacity-bar-wrapper)
@@ -47,13 +50,13 @@ fun PolicyCapacityBarCard(
     val s = strings()
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF8FAFC),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        shape = RoundedCornerShape(AppTokens.Radius.small),
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(AppTokens.Spacing.section),
+            verticalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
         ) {
             // 顶栏 (.policy-capacity-bar-labels)
             Row(
@@ -66,18 +69,18 @@ fun PolicyCapacityBarCard(
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 )
 
                 // 图例 (新版精准语义：正常对话区 / 预备存档区 / 未用物理余量)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.control)
                 ) {
-                    PolicyLegendDot(color = Color(0xFF10B981), label = s.policyLegendNormal)
-                    PolicyLegendDot(color = Color(0xFFF59E0B), label = s.policyLegendArchive)
-                    PolicyLegendDot(color = Color(0xFF94A3B8), label = s.policyLegendUnused)
+                    PolicyLegendDot(color = MaterialTheme.statusColors.success, label = s.policyLegendNormal)
+                    PolicyLegendDot(color = MaterialTheme.statusColors.warning, label = s.policyLegendArchive)
+                    PolicyLegendDot(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), label = s.policyLegendUnused)
                 }
             }
 
@@ -86,8 +89,8 @@ fun PolicyCapacityBarCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(10.dp)
-                    .clip(RoundedCornerShape(9999.dp))
-                    .background(Color(0xFFE2E8F0).copy(alpha = 0.6f))
+                    .clip(RoundedCornerShape(AppTokens.Radius.pill))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
                 Row(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
                     // 正常对话区
@@ -95,7 +98,7 @@ fun PolicyCapacityBarCard(
                         modifier = Modifier
                             .fillMaxHeight()
                             .weight(thresholdPct.coerceAtLeast(0.001f))
-                            .background(Color(0xFF10B981))
+                            .background(MaterialTheme.statusColors.success)
                     )
                     // 预备存档区
                     if (compressPct > 0.001f) {
@@ -103,7 +106,7 @@ fun PolicyCapacityBarCard(
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .weight(compressPct.coerceAtLeast(0.0001f))
-                                .background(Color(0xFFF59E0B))
+                                .background(MaterialTheme.statusColors.warning)
                         )
                     }
                     // 未用物理余量
@@ -112,7 +115,7 @@ fun PolicyCapacityBarCard(
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .weight(reservePct.coerceAtLeast(0.0001f))
-                                .background(Color(0xFF94A3B8))
+                                .background(MaterialTheme.colorScheme.outlineVariant)
                         )
                     }
                 }
@@ -181,15 +184,4 @@ fun PolicyLegendDot(color: Color, label: String) {
     }
 }
 
-fun formatCommaNumber(number: Long): String {
-    if (number <= 0L) return "0"
-    val str = number.toString()
-    val sb = StringBuilder()
-    for (i in str.indices) {
-        if (i > 0 && (str.length - i) % 3 == 0) {
-            sb.append(",")
-        }
-        sb.append(str[i])
-    }
-    return sb.toString()
-}
+fun formatCommaNumber(number: Long): String = UsageNumberFormatter.formatCount(number)
