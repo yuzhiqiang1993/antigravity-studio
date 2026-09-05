@@ -112,6 +112,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload Release Notes Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+
   # --------------------------------------------------------------------------
   # 2. 矩阵构建各平台安装包、生成 SHA-256 / Ed25519 签名 Sidecar 并上传
   # --------------------------------------------------------------------------
@@ -263,11 +269,82 @@ jobs:
     needs: [init-release, build-and-upload]
     runs-on: ubuntu-latest
     steps:
-      - name: Publish GitHub Release
+      - name: Download Release Notes Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Generate latest.json Metadata
+        env:
+          VERSION: ${{ needs.init-release.outputs.version }}
+          TAG_NAME: ${{ needs.init-release.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+          IS_PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
+        run: |
+          python3 - << 'EOF'
+          import json, os, datetime
+
+          version = os.environ.get("VERSION", "").strip()
+          tag_name = os.environ.get("TAG_NAME", "").strip()
+          repo = os.environ.get("REPO", "").strip()
+          is_prerelease = os.environ.get("IS_PRERELEASE", "false").lower() == "true"
+          base_url = f"https://github.com/{repo}/releases/download/{tag_name}"
+
+          body_content = ""
+          if os.path.exists("RELEASE_NOTES.md"):
+              with open("RELEASE_NOTES.md", "r", encoding="utf-8") as f:
+                  body_content = f.read().strip()
+
+          assets = [
+              {
+                  "name": f"Antigravity-Studio-{version}-macos-arm64.dmg",
+                  "browser_download_url": f"{base_url}/Antigravity-Studio-{version}-macos-arm64.dmg",
+                  "size": 0,
+                  "content_type": "application/octet-stream"
+              },
+              {
+                  "name": f"Antigravity-Studio-{version}-macos-x64.dmg",
+                  "browser_download_url": f"{base_url}/Antigravity-Studio-{version}-macos-x64.dmg",
+                  "size": 0,
+                  "content_type": "application/octet-stream"
+              },
+              {
+                  "name": f"Antigravity-Studio-{version}-windows-x64.exe",
+                  "browser_download_url": f"{base_url}/Antigravity-Studio-{version}-windows-x64.exe",
+                  "size": 0,
+                  "content_type": "application/octet-stream"
+              }
+          ]
+
+          latest_data = {
+              "tag_name": tag_name,
+              "name": f"Antigravity Studio {tag_name}",
+              "body": body_content,
+              "html_url": f"https://github.com/{repo}/releases/tag/{tag_name}",
+              "published_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "prerelease": is_prerelease,
+              "draft": false,
+              "assets": assets
+          }
+
+          with open("latest.json", "w", encoding="utf-8") as f:
+              json.dump(latest_data, f, ensure_ascii=False, indent=2)
+
+          print("Generated latest.json successfully:")
+          print(json.dumps(latest_data, ensure_ascii=False, indent=2))
+          EOF
+
+      - name: Publish GitHub Release with latest.json
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.init-release.outputs.tag_name }}
           draft: false
           prerelease: ${{ github.event.inputs.prerelease || false }}
+          files: latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
