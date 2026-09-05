@@ -913,10 +913,14 @@ object AppHostManager {
     fun launch(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
         val configured = HostOwnershipStore.configuredLaunchEndpoint(HostOwnershipStore.EnvironmentOwner.APP)
             .getOrElse { return false }
+        val configuredPort = configured?.substringAfterLast(':')?.trimEnd('/')?.toIntOrNull()
+        val effectivePort = proxyPort?.takeIf { it in 1..65535 } ?: configuredPort
         val env = if (configured != null) {
-            if (proxyPort == null || proxyPort !in 1..65535) return false
-            if (HostOwnershipStore.enableLaunchIntegration(HostOwnershipStore.EnvironmentOwner.APP, proxyPort).isFailure) return false
-            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:$proxyPort")
+            val portToUse = effectivePort ?: return false
+            if (HostOwnershipStore.enableLaunchIntegration(HostOwnershipStore.EnvironmentOwner.APP, portToUse).isFailure) return false
+            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:$portToUse")
+        } else if (effectivePort != null) {
+            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:$effectivePort")
         } else {
             null
         }
@@ -955,10 +959,12 @@ object AppHostManager {
     suspend fun restart(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
         val configured = HostOwnershipStore.configuredLaunchEndpoint(HostOwnershipStore.EnvironmentOwner.APP)
             .getOrElse { return false }
-        if (configured != null && (proxyPort == null || proxyPort !in 1..65535)) return false
+        val configuredPort = configured?.substringAfterLast(':')?.trimEnd('/')?.toIntOrNull()
+        val effectivePort = proxyPort?.takeIf { it in 1..65535 } ?: configuredPort
+        if (configured != null && effectivePort == null) return false
         if (!terminate(customInstallation, force = true)) return false
         delay(150)
-        if (!launch(customInstallation, proxyPort)) return false
+        if (!launch(customInstallation, effectivePort)) return false
         return waitUntilRunning(customInstallation)
     }
 

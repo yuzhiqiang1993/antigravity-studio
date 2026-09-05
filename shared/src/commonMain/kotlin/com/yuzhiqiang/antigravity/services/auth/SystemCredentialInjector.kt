@@ -40,7 +40,8 @@ internal sealed interface SystemCredentialSnapshot : AutoCloseable {
         override val backend: SystemCredentialBackend,
         internal val secret: ByteArray,
         internal val userName: String = CREDENTIAL_ACCOUNT,
-        internal val persist: Int = WINDOWS_PERSIST_LOCAL_MACHINE
+        internal val persist: Int = WINDOWS_PERSIST_LOCAL_MACHINE,
+        internal val targetName: String = CREDENTIAL_TARGET_KEYRING
     ) : SystemCredentialSnapshot {
         override fun close() {
             secret.fill(0)
@@ -52,7 +53,9 @@ internal sealed interface SystemCredentialSnapshot : AutoCloseable {
     }
 
     companion object {
+        internal const val CREDENTIAL_SERVICE = "gemini"
         internal const val CREDENTIAL_ACCOUNT = "antigravity"
+        internal const val CREDENTIAL_TARGET_KEYRING = "gemini:antigravity"
         internal const val WINDOWS_PERSIST_LOCAL_MACHINE = 2
     }
 }
@@ -74,9 +77,11 @@ internal object SystemCredentialInjector : SystemCredentialStore {
     private const val TAG = "Auth/Keychain"
     private const val CREDENTIAL_SERVICE = "gemini"
     private const val CREDENTIAL_ACCOUNT = "antigravity"
+    private const val CREDENTIAL_TARGET_KEYRING = "gemini:antigravity"
     private const val COMMAND_TIMEOUT_MILLIS = 10_000L
     private const val MAC_ITEM_NOT_FOUND_EXIT_CODE = 44
     private const val WINDOWS_CREDENTIAL_NOT_FOUND_EXIT_CODE = 3
+    private const val ERROR_NOT_FOUND = 1168
 
     private val osName = System.getProperty("os.name", "").lowercase()
     private val isMac = osName.contains("mac") || osName.contains("darwin")
@@ -103,7 +108,8 @@ internal object SystemCredentialInjector : SystemCredentialStore {
                     writeWindowsCredential(
                         secret = secret,
                         userName = CREDENTIAL_ACCOUNT,
-                        persist = SystemCredentialSnapshot.WINDOWS_PERSIST_LOCAL_MACHINE
+                        persist = SystemCredentialSnapshot.WINDOWS_PERSIST_LOCAL_MACHINE,
+                        targetName = CREDENTIAL_TARGET_KEYRING
                     )
                 }
 
@@ -135,7 +141,8 @@ internal object SystemCredentialInjector : SystemCredentialStore {
                         SystemCredentialBackend.WINDOWS_CREDENTIAL_MANAGER -> writeWindowsCredential(
                             secret = snapshot.secret,
                             userName = snapshot.userName,
-                            persist = snapshot.persist
+                            persist = snapshot.persist,
+                            targetName = snapshot.targetName
                         )
 
                         SystemCredentialBackend.NONE -> Unit
@@ -251,28 +258,35 @@ internal object SystemCredentialInjector : SystemCredentialStore {
             .map(String::trim)
             .firstOrNull { it.startsWith("PRESENT|") }
             ?: error("Windows Credential Manager 捕获结果格式错误")
-        val parts = line.split('|', limit = 4)
-        check(parts.size == 4) { "Windows Credential Manager 捕获结果字段缺失" }
+        val parts = line.split('|', limit = 5)
+        check(parts.size >= 4) { "Windows Credential Manager 捕获结果字段缺失" }
         val persist = parts[1].toIntOrNull()
             ?: error("Windows Credential Manager persist 字段无效")
         val userName = Base64.getDecoder().decode(parts[2]).toString(Charsets.UTF_8)
         val secret = Base64.getDecoder().decode(parts[3])
+        val targetName = if (parts.size >= 5 && parts[4].isNotBlank()) parts[4] else CREDENTIAL_TARGET_KEYRING
         return SystemCredentialSnapshot.Present(
             backend = SystemCredentialBackend.WINDOWS_CREDENTIAL_MANAGER,
             secret = secret,
             userName = userName,
-            persist = persist
+            persist = persist,
+            targetName = targetName
         )
     }
 
-    private fun writeWindowsCredential(secret: ByteArray, userName: String, persist: Int) {
+    private fun writeWindowsCredential(
+        secret: ByteArray,
+        userName: String,
+        persist: Int,
+        targetName: String = CREDENTIAL_TARGET_KEYRING
+    ) {
         val secretFile = createSecureTempFile("agy-cred-", ".tmp")
         val scriptFile = createSecureTempFile("agy-wincred-write-", ".ps1")
         try {
             secretFile.writeBytes(secret)
             writePowerShellScript(
                 scriptFile,
-                buildWinCredWriteScript(secretFile.absolutePath, userName, persist)
+                buildWinCredWriteScript(secretFile.absolutePath, userName, persist, targetName)
             )
             val result = runPowerShell(scriptFile)
             check(result.exitCode == 0) {
@@ -285,10 +299,10 @@ internal object SystemCredentialInjector : SystemCredentialStore {
         }
     }
 
-    private fun deleteWindowsCredential() {
+    private fun deleteWindowsCredential(targetName: String = CREDENTIAL_TARGET_KEYRING) {
         val scriptFile = createSecureTempFile("agy-wincred-delete-", ".ps1")
         try {
-            writePowerShellScript(scriptFile, buildWinCredDeleteScript())
+            writePowerShellScript(scriptFile, buildWinCredDeleteScript(targetName))
             val result = runPowerShell(scriptFile)
             check(result.exitCode == 0 || result.exitCode == WINDOWS_CREDENTIAL_NOT_FOUND_EXIT_CODE) {
                 "Windows Credential Manager 凭据删除失败: exitCode=${result.exitCode}"
@@ -352,6 +366,10 @@ internal object SystemCredentialInjector : SystemCredentialStore {
             put("auth_method", "consumer")
         }.toString()
 
+        if (isWindows) {
+            return tokenJson
+        }
+
         val base64Payload = Base64.getEncoder().encodeToString(tokenJson.toByteArray(Charsets.UTF_8))
         return "go-keyring-base64:$base64Payload"
     }
@@ -376,9 +394,11 @@ internal object SystemCredentialInjector : SystemCredentialStore {
             appendLine("}")
             appendLine("\"@")
             appendLine("\$pointer = [IntPtr]::Zero")
-            appendLine("if (-not [WinCredCapture]::CredRead('$CREDENTIAL_SERVICE', 1, 0, [ref]\$pointer)) {")
-            appendLine("    if ([Runtime.InteropServices.Marshal]::GetLastWin32Error() -eq 1168) { exit 3 }")
-            appendLine("    exit 4")
+            appendLine("if (-not [WinCredCapture]::CredRead('$CREDENTIAL_TARGET_KEYRING', 1, 0, [ref]\$pointer)) {")
+            appendLine("    if (-not [WinCredCapture]::CredRead('$CREDENTIAL_SERVICE', 1, 0, [ref]\$pointer)) {")
+            appendLine("        if ([Runtime.InteropServices.Marshal]::GetLastWin32Error() -eq 1168) { exit 3 }")
+            appendLine("        exit 4")
+            appendLine("    }")
             appendLine("}")
             appendLine("try {")
             appendLine("    \$credential = [Runtime.InteropServices.Marshal]::PtrToStructure(\$pointer, [type][WinCredCapture+CREDENTIAL])")
@@ -386,14 +406,21 @@ internal object SystemCredentialInjector : SystemCredentialStore {
             appendLine("    \$blob = New-Object byte[] \$credential.CredentialBlobSize")
             appendLine("    if (\$blob.Length -gt 0) { [Runtime.InteropServices.Marshal]::Copy(\$credential.CredentialBlob, \$blob, 0, \$blob.Length) }")
             appendLine("    \$user = [Text.Encoding]::UTF8.GetBytes([string]\$credential.UserName)")
-            appendLine("    Write-Output ('PRESENT|' + \$credential.Persist + '|' + [Convert]::ToBase64String(\$user) + '|' + [Convert]::ToBase64String(\$blob))")
+            appendLine("    \$target = \$credential.TargetName")
+            appendLine("    Write-Output ('PRESENT|' + \$credential.Persist + '|' + [Convert]::ToBase64String(\$user) + '|' + [Convert]::ToBase64String(\$blob) + '|' + \$target)")
             appendLine("} finally { [WinCredCapture]::CredFree(\$pointer) }")
         }
     }
 
-    private fun buildWinCredWriteScript(secretFilePath: String, userName: String, persist: Int): String {
+    private fun buildWinCredWriteScript(
+        secretFilePath: String,
+        userName: String,
+        persist: Int,
+        targetName: String = CREDENTIAL_TARGET_KEYRING
+    ): String {
         val escapedPath = secretFilePath.replace("'", "''")
         val escapedUser = userName.replace("'", "''")
+        val escapedTarget = targetName.replace("'", "''")
         return buildString {
             appendLine("\$ErrorActionPreference = 'Stop'")
             appendLine("\$blob = [System.IO.File]::ReadAllBytes('$escapedPath')")
@@ -414,7 +441,7 @@ internal object SystemCredentialInjector : SystemCredentialStore {
             appendLine("\"@")
             appendLine("\$credential = New-Object WinCredWriter+CREDENTIAL")
             appendLine("\$credential.Type = 1")
-            appendLine("\$credential.TargetName = '$CREDENTIAL_SERVICE'")
+            appendLine("\$credential.TargetName = '$escapedTarget'")
             appendLine("\$credential.UserName = '$escapedUser'")
             appendLine("\$credential.Persist = $persist")
             appendLine("\$credential.CredentialBlobSize = \$blob.Length")
@@ -426,7 +453,8 @@ internal object SystemCredentialInjector : SystemCredentialStore {
         }
     }
 
-    private fun buildWinCredDeleteScript(): String {
+    private fun buildWinCredDeleteScript(targetName: String = CREDENTIAL_TARGET_KEYRING): String {
+        val escapedTarget = targetName.replace("'", "''")
         return buildString {
             appendLine("Add-Type -TypeDefinition @\"")
             appendLine("using System.Runtime.InteropServices;")
@@ -435,7 +463,8 @@ internal object SystemCredentialInjector : SystemCredentialStore {
             appendLine("    public static extern bool CredDelete(string target, int type, int flags);")
             appendLine("}")
             appendLine("\"@")
-            appendLine("if (-not [WinCredDelete]::CredDelete('$CREDENTIAL_SERVICE', 1, 0)) {")
+            appendLine("[WinCredDelete]::CredDelete('$CREDENTIAL_SERVICE', 1, 0) | Out-Null")
+            appendLine("if (-not [WinCredDelete]::CredDelete('$escapedTarget', 1, 0)) {")
             appendLine("    if ([Runtime.InteropServices.Marshal]::GetLastWin32Error() -eq 1168) { exit 3 }")
             appendLine("    exit 4")
             appendLine("}")

@@ -189,8 +189,7 @@ internal object RuntimeAccountProbe {
 
     private fun discoverWindowsCandidates(matcher: ProcessMatcher): Result<List<LanguageServerCandidate>> {
         val script = "\$ProgressPreference = 'SilentlyContinue'; " +
-                "Get-CimInstance Win32_Process | " +
-                "Where-Object { \$_.Name -like '*language_server*' } | " +
+                "Get-CimInstance Win32_Process -Filter \"Name like '%language_server%'\" | " +
                 "ForEach-Object { \"\$(\$_.ProcessId) \$(\$_.CommandLine)\" }"
         val encodedScript = Base64.getEncoder().encodeToString(script.toByteArray(Charsets.UTF_16LE))
 
