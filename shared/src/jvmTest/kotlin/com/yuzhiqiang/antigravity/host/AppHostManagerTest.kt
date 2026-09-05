@@ -209,6 +209,41 @@ class AppHostManagerTest {
     }
 
     @Test
+    fun testInstalledShimWithMatchingEndpointEvenIfEnvironmentEmptyIsNotMarkedForUpdate() {
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        if (!isWindows && !isMac) return
+
+        if (isWindows) {
+            File(tempAppDir, "Antigravity.exe").writeText("EXE")
+        } else {
+            File(tempAppDir, "Contents/MacOS/Antigravity").apply {
+                parentFile.mkdirs()
+                writeText("BIN")
+            }
+        }
+        val lsBinary = if (isWindows) File(binDir, "language_server.exe") else File(binDir, "language_server")
+        lsBinary.writeText("RAW_BINARY_CONTENT")
+
+        try {
+            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+            assertTrue(AppHostManager.installLanguageServerShim(8330, tempAppDir.absolutePath))
+
+            val status = AppHostManager.inspect(8330, isProxyRunning = true, tempAppDir.absolutePath)
+            assertFalse(status.needsUpdate, "Shim 已配置当前代理端点时，即使全局环境变量未设置，也不应要求更新")
+            assertTrue(status.isProxyActive, "Shim 端点与代理端口一致时应处于活跃代理状态")
+            assertEquals("http://127.0.0.1:8330", status.configuredEndpoint)
+
+            val statusMismatched = AppHostManager.inspect(8335, isProxyRunning = true, tempAppDir.absolutePath)
+            assertTrue(statusMismatched.needsUpdate, "Shim 端点与新代理端口不一致时应要求更新")
+            assertEquals("http://127.0.0.1:8330", statusMismatched.configuredEndpoint)
+        } finally {
+            AppHostManager.restoreOriginalLanguageServer(tempAppDir.absolutePath)
+            com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore.forceResetEnvironment()
+        }
+    }
+
+    @Test
     fun testInspectWhenAppNotInstalledAndCliEnabledDoesNotShowMismatch() {
         val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
         val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
@@ -339,51 +374,37 @@ class AppHostManagerTest {
     }
 
     @Test
-    fun macAdminCommandPassesScriptAsArgument() {
-        val script = "target='/Applications/Antigravity App.app/it'\''s language_server'"
-        val command = AppHostManager.macAdminCommand(script)
+    fun testMacPureEnvironmentModeEnableAndDisable() {
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        if (!isMac) return
 
-        assertEquals(script, command.last())
-        assertTrue(command.dropLast(1).none { it.contains("Antigravity App.app") })
-        assertTrue(command.contains("--"))
-    }
-
-    @Test
-    fun shellQuotePreservesSpecialPathCharacters() {
-        val value = "/Applications/Antigravity App.app/it's ${'$'}HOME; echo unsafe"
-        val quoted = AppHostManager.shellQuote(value)
-        assertEquals("'/Applications/Antigravity App.app/it'\"'\"'s ${'$'}HOME; echo unsafe'", quoted)
-
-        if (File("/bin/sh").exists()) {
-            val process = ProcessBuilder(
-                "/bin/sh",
-                "-c",
-                """actual=$quoted; [ "${'$'}actual" = "${'$'}EXPECTED" ]"""
-            ).apply {
-                environment()["EXPECTED"] = value
-            }.start()
-
-            assertEquals(0, process.waitFor())
+        File(tempAppDir, "Contents/MacOS/Antigravity").apply {
+            parentFile.mkdirs()
+            writeText("BIN")
         }
-    }
+        val lsBinary = File(binDir, "language_server").apply {
+            writeText("NATIVE_GO_BINARY")
+        }
 
-    @Test
-    fun secureTempScriptsAreUniqueAndOwnerOnly() {
-        val first = AppHostManager.createSecureTempScript("agy_shim_test_", "first")
-        val second = AppHostManager.createSecureTempScript("agy_shim_test_", "second")
-        assertTrue(first != null && second != null)
         try {
-            assertTrue(first.absolutePath != second.absolutePath)
-            assertEquals("first", first.readText())
-            if ("posix" in first.toPath().fileSystem.supportedFileAttributeViews()) {
-                assertEquals(
-                    setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE),
-                    Files.getPosixFilePermissions(first.toPath())
-                )
-            }
+            val enableResult = AppHostManager.enableDetailed(8340, tempAppDir.absolutePath)
+            assertTrue(enableResult.isSuccess, "macOS 下启用代理应成功且无需管理员权限")
+
+            // 验证未破坏原生二进制
+            assertEquals("NATIVE_GO_BINARY", lsBinary.readText(), "macOS 下不应篡改或替换原生 language_server 二进制")
+            assertFalse(File(binDir, "language_server.original").exists(), "macOS 下不应生成 .original 备份")
+
+            val status = AppHostManager.inspect(8340, isProxyRunning = true, tempAppDir.absolutePath)
+            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED, status.integrationState)
+            assertFalse(status.needsUpdate)
+            assertTrue(status.isProxyActive)
+
+            assertTrue(AppHostManager.disable(tempAppDir.absolutePath))
+            val disabledStatus = AppHostManager.inspect(8340, isProxyRunning = true, tempAppDir.absolutePath)
+            assertEquals(com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL, disabledStatus.integrationState)
+            assertFalse(disabledStatus.isProxyActive)
         } finally {
-            first.delete()
-            second.delete()
+            AppHostManager.forceReset(tempAppDir.absolutePath)
         }
     }
 

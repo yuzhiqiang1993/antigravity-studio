@@ -291,6 +291,39 @@ object AppHostManager {
         return null
     }
 
+    /**
+     * 读取当前安装的 Shim 中所配置的目标代理端点。
+     *
+     * - Windows 平台：从 language_server_endpoint.txt 中读取；
+     * - macOS / Linux 平台：从 language_server 脚本中解析 TARGET_URL 默认值或 --cloud_code_endpoint 参数。
+     */
+    fun readConfiguredShimEndpoint(customInstallation: String? = null): String? {
+        val candidates = getCandidateInstallations(customInstallation)
+        for (root in candidates) {
+            if (!root.exists()) continue
+            val files = languageServerFiles(root)
+            if (isWindows) {
+                if (files.endpointConfig.exists()) {
+                    val content = runCatching { files.endpointConfig.readText(Charsets.UTF_8).trim() }.getOrNull()
+                    if (!content.isNullOrBlank() && (content.startsWith("http://") || content.startsWith("https://"))) {
+                        return content
+                    }
+                }
+            } else {
+                if (isShimScript(files.languageServer)) {
+                    val content = runCatching { files.languageServer.readText(Charsets.UTF_8) }.getOrNull() ?: continue
+                    val match = Regex("""TARGET_URL=["'](https?://[^"']+)["']""").findAll(content).lastOrNull()
+                        ?: Regex("""--cloud_code_endpoint(?:=|\s+)["']?(https?://[^\s"']+)""").find(content)
+                    val endpoint = match?.groupValues?.getOrNull(1)?.trim()
+                    if (!endpoint.isNullOrBlank()) {
+                        return endpoint
+                    }
+                }
+            }
+        }
+        return null
+    }
+
     private fun restoreShimContent(content: String, customInstallation: String?): Boolean {
         val candidates = getCandidateInstallations(customInstallation)
         var restored = false
@@ -649,12 +682,7 @@ object AppHostManager {
                     }
                 }
                 val executable = lsFile.setExecutable(true, false) || lsFile.canExecute()
-                var macShimOk = writeResult.isSuccess && executable && isShimScript(lsFile)
-                if (!macShimOk) {
-                    AppLog.w("Host/App") { "macOS 普通写入权限受限，尝试通过原生管理员提权安装 Shim：${lsFile.absolutePath}" }
-                    macShimOk = installShimWithMacAdminPrivileges(files, scriptContent)
-                }
-                macShimOk
+                writeResult.isSuccess && executable && isShimScript(lsFile)
             }
             if (ok) {
                 anySuccess = true
@@ -744,118 +772,9 @@ object AppHostManager {
             } else if (lsFile.exists() && !isShimFile(lsFile)) {
                 anyRestoredOrClean = true
             }
-
-            if (!anyRestoredOrClean && isMac && (origFile.exists() || isShimFile(lsFile))) {
-                AppLog.w("Host/App") { "macOS 普通权限还原失败，尝试通过原生管理员提权还原：${lsFile.absolutePath}" }
-                if (restoreWithMacAdminPrivileges(files)) {
-                    anyRestoredOrClean = true
-                }
-            }
         }
         return anyRestoredOrClean || candidates.none { it.exists() }
     }
-
-    private fun installShimWithMacAdminPrivileges(
-        files: LanguageServerFiles,
-        scriptContent: String
-    ): Boolean {
-        if (!isMac) return false
-        val tempScript = createSecureTempScript("agy_shim_", scriptContent + "\n") ?: return false
-        return try {
-            val exitCode = runMacAdminScript(
-                """
-                set -eu
-                source=${shellQuote(tempScript.absolutePath)}
-                target=${shellQuote(files.languageServer.absolutePath)}
-                original=${shellQuote(files.original.absolutePath)}
-                parent=${shellQuote(files.languageServer.parentFile.absolutePath)}
-                [ -d "${'$'}parent" ] || exit 1
-                [ ! -L "${'$'}target" ] || exit 1
-                [ ! -L "${'$'}original" ] || exit 1
-                if [ ! -f "${'$'}original" ]; then
-                    [ -f "${'$'}target" ] || exit 1
-                    /bin/cp -p "${'$'}target" "${'$'}original" || exit 1
-                fi
-                staged="${'$'}(/usr/bin/mktemp "${'$'}parent/.language_server.XXXXXX")" || exit 1
-                trap '/bin/rm -f "${'$'}staged"' EXIT
-                /bin/cp "${'$'}source" "${'$'}staged" || exit 1
-                /bin/chmod 755 "${'$'}staged" || exit 1
-                /bin/mv -f "${'$'}staged" "${'$'}target" || exit 1
-                trap - EXIT
-                """.trimIndent()
-            )
-            exitCode == 0 && isShimScript(files.languageServer)
-        } catch (error: Exception) {
-            AppLog.e("Host/App", error) { "通过 macOS 管理员提权安装 Shim 失败" }
-            false
-        } finally {
-            tempScript.delete()
-        }
-    }
-
-    private fun restoreWithMacAdminPrivileges(files: LanguageServerFiles): Boolean {
-        if (!isMac) return false
-        return try {
-            val exitCode = runMacAdminScript(
-                """
-                set -eu
-                target=${shellQuote(files.languageServer.absolutePath)}
-                original=${shellQuote(files.original.absolutePath)}
-                parent=${shellQuote(files.languageServer.parentFile.absolutePath)}
-                [ -d "${'$'}parent" ] || exit 1
-                [ ! -L "${'$'}target" ] || exit 1
-                [ ! -L "${'$'}original" ] || exit 1
-                if [ -f "${'$'}original" ]; then
-                    staged="${'$'}(/usr/bin/mktemp "${'$'}parent/.language_server.XXXXXX")" || exit 1
-                    trap '/bin/rm -f "${'$'}staged"' EXIT
-                    /bin/cp -p "${'$'}original" "${'$'}staged" || exit 1
-                    /bin/chmod 755 "${'$'}staged" || exit 1
-                    /bin/mv -f "${'$'}staged" "${'$'}target" || exit 1
-                    trap - EXIT
-                    /bin/rm -f "${'$'}original"
-                elif [ -f "${'$'}target" ]; then
-                    if /usr/bin/grep -q "ANTIGRAVITY_STUDIO_MANAGED_SHIM" "${'$'}target"; then
-                        /bin/rm -f "${'$'}target"
-                    fi
-                fi
-                """.trimIndent()
-            )
-            exitCode == 0
-        } catch (error: Exception) {
-            AppLog.e("Host/App", error) { "通过 macOS 管理员提权还原原生文件失败" }
-            false
-        }
-    }
-
-    internal fun createSecureTempScript(prefix: String, content: String): File? {
-        return runCatching {
-            Files.createTempFile(prefix, ".sh").toFile().apply {
-                writeText(content, Charsets.UTF_8)
-                setReadable(false, false)
-                setWritable(false, false)
-                check(setReadable(true, true) || canRead())
-                check(setWritable(true, true) || canWrite())
-            }
-        }.onFailure { error ->
-            AppLog.e("Host/App", error) { "创建 macOS 管理员临时脚本失败" }
-        }.getOrNull()
-    }
-
-    private fun runMacAdminScript(script: String): Int {
-        val process = ProcessBuilder(macAdminCommand(script)).start()
-        return process.waitFor()
-    }
-
-    internal fun macAdminCommand(script: String): List<String> = listOf(
-        "/usr/bin/osascript",
-        "-e", "on run argv",
-        "-e", "do shell script (item 1 of argv) with administrator privileges",
-        "-e", "end run",
-        "--",
-        script
-    )
-
-    internal fun shellQuote(value: String): String = "'" + value.replace("'", "'\"'\"'") + "'"
 
     /**
      * 检测 Antigravity App 是否正在运行（精确匹配 App 进程并排除 IDE 进程）。
@@ -883,7 +802,9 @@ object AppHostManager {
             proxyPort
         )
         val isAppManaged = environment.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED && environment.endpointMatches
-        val isShimActive = isShimReady(customInstallation)
+        val target = "http://127.0.0.1:$proxyPort"
+        val isShimActive = isShimReady(customInstallation) &&
+                (environment.endpointMatches || (environment.configuredEndpoint == null && readConfiguredShimEndpoint(customInstallation) == target))
         return isAppManaged || isShimActive
     }
 
@@ -926,6 +847,8 @@ object AppHostManager {
         )
         val shimReady = isShimReady(customInstallation)
         val shimResidue = hasShimResidue(customInstallation)
+        val shimEndpoint = if (shimReady) readConfiguredShimEndpoint(customInstallation) else null
+        val target = "http://127.0.0.1:$proxyPort"
 
         val finalState = when {
             !installed -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL
@@ -934,15 +857,18 @@ object AppHostManager {
             // 1. 环境变量由 APP 托管且端点匹配 -> MANAGED
             inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED && inspect.endpointMatches ->
                 com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
-            // 2. 外部环境变量接管且端点匹配，且 Shim 就绪 -> EXTERNAL
-            shimReady && inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL && inspect.endpointMatches ->
+            // 2. 外部环境变量接管且端点匹配 -> EXTERNAL
+            inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL && inspect.endpointMatches ->
                 com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.EXTERNAL
-            // 3. Shim 就绪且端点匹配 -> MANAGED
-            shimReady && inspect.endpointMatches -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
-            // 4. 端点失配且存在 Shim
-            shimReady && !inspect.endpointMatches ->
+            // 3. 环境变量匹配 -> MANAGED
+            inspect.endpointMatches -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
+            // 4. 兼容老版本/Windows：环境变量为空但存在匹配端点的 Shim -> MANAGED
+            shimReady && (inspect.endpointMatches || (inspect.configuredEndpoint == null && shimEndpoint == target)) ->
+                com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED
+            // 5. 端点失配：环境变量存在但失配，或 Shim 端点存在但失配 -> MISMATCH
+            (inspect.configuredEndpoint != null && !inspect.endpointMatches) || (shimReady && shimEndpoint != target) ->
                 com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MISMATCH
-            // 5. 其余情况为官方直连模式
+            // 6. 其余情况为官方直连模式
             else -> com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL
         }
 
@@ -959,18 +885,18 @@ object AppHostManager {
             !running -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.NOT_RUNNING
             else -> com.yuzhiqiang.antigravity.host.model.ClientConfigurationState.MATCHED
         }
-        val target = "http://127.0.0.1:$proxyPort"
+        val configured = inspect.configuredEndpoint ?: shimEndpoint ?: target.takeIf { shimReady }
         return com.yuzhiqiang.antigravity.host.model.HostDetailedStatus(
             type = com.yuzhiqiang.antigravity.host.model.HostType.APP,
             isInstalled = installed,
             isRunning = running,
             integrationState = finalState,
             configurationState = configState,
-            configuredEndpoint = inspect.configuredEndpoint ?: target.takeIf { shimReady },
+            configuredEndpoint = configured,
             targetEndpoint = target,
             configPath = "CLOUD_CODE_URL",
             canEnable = installed,
-            canDisable = (inspect.canDisable && inspect.state == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.MANAGED) || shimResidue || shimReady,
+            canDisable = inspect.canDisable || shimResidue || shimReady,
             canLaunch = installed && (finalState == com.yuzhiqiang.antigravity.host.model.ClientIntegrationState.OFFICIAL || (finalState.isReady && isProxyRunning)),
             customPath = customInstallation,
             version = version
@@ -990,8 +916,8 @@ object AppHostManager {
      * 启用 App 代理接入并返回详细结果。
      *
      * 核心步骤：
-     * 1. 设置系统共享环境变量（macOS launchctl / Windows 注册表），作为接入的核心基石；
-     * 2. 尽力尝试安装 Shim 包装器（Windows 下写入用户目录 100% 成功；macOS 若权限受限则自动跳过，绝不阻断）；
+     * 1. 设置系统共享环境变量（macOS launchctl / Windows 注册表），作为接入的核心基石（零权限要求）；
+     * 2. 仅 Windows 平台尽力尝试安装 Shim 包装器；macOS 下原生支持 CLOUD_CODE_URL 环境变量，零侵入、不触碰应用包；
      * 3. 进程拉起/重启时由 Studio 显式注入 CLOUD_CODE_URL 环境变量提供双重保证。
      */
     fun enableDetailed(proxyPort: Int, customInstallation: String? = null): Result<Unit> {
@@ -1008,11 +934,13 @@ object AppHostManager {
             return envResult
         }
 
-        // 2. 尽力安装 Shim 包装（Windows 用户目录无障碍写入；macOS 仅作非阻塞尝试）
-        runCatching {
-            installLanguageServerShim(proxyPort, customInstallation)
-        }.onFailure {
-            AppLog.w("Host/App", it) { "尽力安装 Shim 失败，跳过 Shim 保持环境变量模式生效" }
+        // 2. 仅在 Windows 平台尽力安装 Shim 包装；macOS 原生支持 CLOUD_CODE_URL，零侵入、不改动二进制
+        if (isWindows) {
+            runCatching {
+                installLanguageServerShim(proxyPort, customInstallation)
+            }.onFailure {
+                AppLog.w("Host/App", it) { "尽力安装 Windows Shim 失败，保持环境变量模式生效" }
+            }
         }
 
         AppLog.w("Host/App") { "enable 成功：环境变量模式已就绪" }
