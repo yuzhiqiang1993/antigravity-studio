@@ -2,6 +2,48 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.3.3] - 2026-09-05
+
+### 🇨🇳 中文
+
+#### ✨ 核心功能与架构升级
+- **App 与 CLI 独立代理控制**：彻底解耦 IDE 宿主与命令行工具的代理接入状态，支持分别独立开启或停用；新增专用 CLI 启动脚本 `agy-studio`，实现任意原生子命令与参数的无损透传
+- **macOS 零侵入纯环境变量启动**：重构 macOS 下 Antigravity App 的代理注入方案，采用纯环境变量包装模式，无需改动宿主包体与系统文件，安全纯净
+- **更新体系与本地安装包复用**：版本更新弹窗支持本地已下载安装包的快速校验与一键复用，支持多语言日志实时切换，优化层级红点消解逻辑
+
+#### 🎨 体验与交互优化
+- **统一跨平台系统托盘行为**：优化 macOS 托盘交互，左键单击直接拉起并聚焦应用主窗口，消除菜单拦截阻断；右键单击弹出 macOS 原生毛玻璃快捷菜单（“显示主窗口”、“退出应用”）；Windows 端保持左键直接拉起、右键弹出菜单的良好体验
+- **概览页宿主卡片视觉升级**：宿主接入卡片采用等高弹性布局与呼吸感间距，优化状态切换按钮与操作提示，文案更简洁易懂
+- **Material Design 3 视觉规范治理**：深度统一界面语义设计令牌，消除深色模式色彩穿透，下沉跨平台文件拾取与通用弹窗架构
+
+#### 🐛 跨平台与稳定性修复
+- **Windows 切号速度与成功率大幅提升**：通过 CIM 内核态过滤使目标进程与配置扫描加速 25 倍，重构 Windows 凭据管理器存储逻辑并增加重试兜底，彻底解决偶发切号卡死与失败问题
+- **Windows 启动脚本兼容性修复**：修复 PowerShell 执行策略限制与批处理换行符解析异常，确保 Windows 环境下一键唤醒代理稳定可靠
+- **官方直连模式环境变量隔离**：修复直连模式启动官方 App 时误残留代理环境变量的问题，确保运行环境纯净
+- **并发竞态与原子落盘治理**：修复核心并发死锁与配置落盘风险，消除凭据层静默吞异常，补全标准错误追踪链路
+
+---
+
+### 🌐 English
+
+#### ✨ Core Features & Architecture
+- **Independent App & CLI Proxy Control**: Decoupled proxy integration between the IDE host and CLI tools, allowing independent activation. Introduced `agy-studio` wrapper script for lossless command-line argument passthrough.
+- **Zero-Touch Environment Launch on macOS**: Refactored macOS Antigravity App integration using pure process environment variables, eliminating modifications to native application bundles or system files.
+- **Enhanced Update Workflow**: Added local installer cache validation and reuse, bilingual release notes toggle, and hierarchical notification badge management.
+
+#### 🎨 Experience & UI Polish
+- **Unified Cross-Platform System Tray**: Optimized macOS tray interaction—left-click instantly restores and focuses the main window without menu interruptions, while right-click displays a native macOS styled menu. Preserved Windows left-click launch and right-click menu behavior.
+- **Overview Host Cards Redesign**: Adopted intrinsic height matching, balanced spacing, and clear, human-centered copywriting for host integration cards.
+- **Material Design 3 Token Standardization**: Unified color tokens across light and dark themes, decoupling common dialog scaffolding and cross-platform file pickers.
+
+#### 🐛 Cross-Platform & Stability Fixes
+- **Accelerated Windows Account Switching**: Utilized CIM kernel-level filtering to boost process scanning by 25x. Refactored Credential Manager payloads with automatic retry fallbacks, eliminating account switching hangs on Windows.
+- **Windows Launcher Script Compatibility**: Fixed execution policy blocks and CRLF line-ending issues in PowerShell and batch wrappers.
+- **Direct Mode Environment Hygiene**: Prevented proxy environment variable leakage when launching official apps in direct connection mode.
+- **Concurrency & Atomic Storage Hardening**: Resolved concurrency deadlocks, secured atomic file persistence, and enhanced error tracing across credential layers.
+
+---
+
 ## [1.3.2] - 2026-09-04
 
 ### 🇨🇳 中文
