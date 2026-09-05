@@ -61,9 +61,9 @@ object UsageStringsZh : UsageStrings {
     override val usageKpiCostTitle: String = "预估总花费"
     override val usageKpiCostSavings: (savings: String) -> String = { savings -> "通过缓存已省 $$savings" }
     override val usageKpiTotalTokensTitle: String = "总 Token 消耗"
-    override val usageTotalInputTitle: String = "输入用量 (Prompt Input)"
-    override val usageTotalOutputTitle: String = "输出用量 (Model Output)"
-    override val usageCacheCardTitle: String = "缓存命中率 (Cache Hit Rate)"
+    override val usageTotalInputTitle: String = "输入"
+    override val usageTotalOutputTitle: String = "输出"
+    override val usageCacheCardTitle: String = "缓存"
     override val usageSavedAmountLabel: String = "已省成本"
     override val usageUncachedInputLabel: String = "普通输入"
     override val usageCacheHitLabel: String = "缓存读取"

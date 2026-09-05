@@ -61,9 +61,9 @@ object UsageStringsEn : UsageStrings {
     override val usageKpiCostTitle: String = "Estimated Cost"
     override val usageKpiCostSavings: (savings: String) -> String = { savings -> "Saved $$savings via caching" }
     override val usageKpiTotalTokensTitle: String = "Total Tokens"
-    override val usageTotalInputTitle: String = "Input Usage (Prompt Input)"
-    override val usageTotalOutputTitle: String = "Output Usage (Model Output)"
-    override val usageCacheCardTitle: String = "Cache Hit Rate"
+    override val usageTotalInputTitle: String = "Input"
+    override val usageTotalOutputTitle: String = "Output"
+    override val usageCacheCardTitle: String = "Cache"
     override val usageSavedAmountLabel: String = "Cost Saved"
     override val usageUncachedInputLabel: String = "Uncached Input"
     override val usageCacheHitLabel: String = "Cache Read"

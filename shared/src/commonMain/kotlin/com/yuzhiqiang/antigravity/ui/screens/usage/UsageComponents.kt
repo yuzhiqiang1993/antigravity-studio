@@ -178,8 +178,8 @@ fun UsageKpiGrid(
                             Text(
                                 text = s.usageKpiCallsTitle,
                                 style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Normal
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
                                 ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -191,15 +191,15 @@ fun UsageKpiGrid(
                                 Icon(
                                     imageVector = Icons.Outlined.ShowChart,
                                     contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(18.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                                 StudioAnimatedCounterText(
                                     value = stats.totalCalls,
                                     formatter = { tokenFormatter.formatCount(it) },
                                     style = MaterialTheme.typography.titleMedium.copy(
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
                                     ),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -207,7 +207,7 @@ fun UsageKpiGrid(
                         }
 
                         VerticalDivider(
-                            modifier = Modifier.height(28.dp),
+                            modifier = Modifier.height(32.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                         )
 
@@ -219,8 +219,8 @@ fun UsageKpiGrid(
                             Text(
                                 text = s.usageKpiCostTitle,
                                 style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Normal
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
                                 ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -231,8 +231,8 @@ fun UsageKpiGrid(
                                 StudioTickerText(
                                     text = costValue,
                                     style = MaterialTheme.typography.titleMedium.copy(
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
                                     ),
                                     color = if (stats.estimatedCostUsd > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -240,7 +240,7 @@ fun UsageKpiGrid(
                                     Text(
                                         text = "≈ ¥${tokenFormatter.formatCnyAmount(stats.estimatedCostUsd * stats.cnyRate)}",
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 12.5.sp,
+                                            fontSize = 13.5.sp,
                                             fontWeight = FontWeight.Normal
                                         ),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
@@ -311,9 +311,9 @@ fun UsageKpiGrid(
                             }
                             StudioTickerText(
                                 text = "${tokenFormatter.formatPercent(inputPct)}%",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
                                 ),
                                 color = colors.input
                             )
@@ -398,9 +398,9 @@ fun UsageKpiGrid(
                             }
                             StudioTickerText(
                                 text = "${tokenFormatter.formatPercent(outputPct)}%",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
                                 ),
                                 color = colors.output
                             )
@@ -492,8 +492,8 @@ fun UsageKpiGrid(
                             }
                             StudioTickerText(
                                 text = cacheHitRatioText,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.5.sp,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 ),
                                 color = colors.cacheRead
