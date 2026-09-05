@@ -1,8 +1,11 @@
 package com.yuzhiqiang.antigravity.core.platform
 
 import java.awt.Desktop
+import java.awt.FileDialog
+import java.awt.Frame
 import java.io.File
 import java.net.URI
+import javax.swing.JFileChooser
 
 /**
  * JVM 桌面平台底层实现，提供安全的浏览器调用、目录浏览与文件定位服务。
@@ -95,5 +98,66 @@ internal actual object DesktopPlatformService {
             operation(desktop)
             true
         }.getOrDefault(false)
+    }
+
+    internal actual fun pickFile(title: String, filterExtension: String?): File? {
+        return runCatching {
+            val fileDialog = FileDialog(null as Frame?, title, FileDialog.LOAD)
+            if (!filterExtension.isNullOrBlank()) {
+                fileDialog.setFilenameFilter { _, name -> name.endsWith(".$filterExtension", ignoreCase = true) }
+            }
+            fileDialog.isVisible = true
+            val file = fileDialog.file
+            val dir = fileDialog.directory
+            if (file != null && dir != null) File(dir, file) else null
+        }.getOrNull()
+    }
+
+    internal actual fun pickSaveFile(title: String, defaultName: String?, filterExtension: String?): File? {
+        return runCatching {
+            val fileDialog = FileDialog(null as Frame?, title, FileDialog.SAVE)
+            if (!defaultName.isNullOrBlank()) {
+                fileDialog.file = defaultName
+            }
+            if (!filterExtension.isNullOrBlank()) {
+                fileDialog.setFilenameFilter { _, name -> name.endsWith(".$filterExtension", ignoreCase = true) }
+            }
+            fileDialog.isVisible = true
+            val file = fileDialog.file
+            val dir = fileDialog.directory
+            if (file != null && dir != null) File(dir, file) else null
+        }.getOrNull()
+    }
+
+    internal actual fun pickPath(title: String, forDirectory: Boolean): File? {
+        return runCatching {
+            if (isMac) {
+                if (forDirectory) {
+                    System.setProperty("apple.awt.fileDialogForDirectories", "true")
+                }
+                val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD)
+                dialog.isVisible = true
+                val dir = dialog.directory
+                val file = dialog.file
+                if (forDirectory) {
+                    System.setProperty("apple.awt.fileDialogForDirectories", "false")
+                }
+                when {
+                    dir != null && file != null -> File(dir, file)
+                    dir != null -> File(dir)
+                    else -> null
+                }
+            } else {
+                val chooser = JFileChooser()
+                chooser.dialogTitle = title
+                chooser.fileSelectionMode = if (forDirectory) {
+                    JFileChooser.DIRECTORIES_ONLY
+                } else {
+                    JFileChooser.FILES_AND_DIRECTORIES
+                }
+                val result = chooser.showOpenDialog(null)
+                if (result == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
+            }
+        }.getOrNull()
     }
 }

@@ -14,4 +14,7 @@ internal expect object DesktopPlatformService {
     internal fun launchInstaller(file: File): Boolean
     internal fun openDirectory(directory: File): Boolean
     internal fun revealInFileManager(file: File): Boolean
+    internal fun pickFile(title: String, filterExtension: String? = null): File?
+    internal fun pickSaveFile(title: String, defaultName: String? = null, filterExtension: String? = null): File?
+    internal fun pickPath(title: String, forDirectory: Boolean = false): File?
 }

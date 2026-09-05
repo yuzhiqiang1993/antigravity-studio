@@ -862,53 +862,7 @@ internal fun calculateVisibleAxisIndices(
     bucketCount: Int,
     plotWidthDp: Float,
     minLabelSpacingDp: Float = 76f
-): Set<Int> {
-    if (bucketCount <= 0) return emptySet()
-    if (bucketCount == 1) return setOf(0)
-    if (bucketCount == 2) return setOf(0, 1)
-
-    val safeWidth = plotWidthDp.coerceAtLeast(1f)
-    val totalSpan = bucketCount - 1
-    val xStepDp = safeWidth / totalSpan
-
-    // 如果全部点位展开后的间距已经足够安全，全量展示
-    if (xStepDp >= minLabelSpacingDp) {
-        return (0 until bucketCount).toSet()
-    }
-
-    // 计算当前宽度下最多可安全容纳的刻度数（至少 2 个：首尾）
-    val maxLabels = (safeWidth / minLabelSpacingDp).toInt().coerceIn(2, bucketCount)
-    val intervals = (maxLabels - 1).coerceAtLeast(1)
-    val step = ceil(totalSpan.toFloat() / intervals.toFloat()).toInt().coerceAtLeast(1)
-
-    // 采用从尾向首的倒序贪心安全选择，确保最新时间点（lastIndex）和起始点（0）永远清晰可见
-    val lastIndex = totalSpan
-    val result = mutableListOf<Int>()
-    result.add(lastIndex)
-    var currentRight = lastIndex
-
-    var candidate = lastIndex - step
-    while (candidate > 0) {
-        val distToRightDp = (currentRight - candidate) * xStepDp
-        val distToStartDp = candidate * xStepDp
-
-        // 仅当距离右侧已选节点足够安全，且距离左侧起点（0）也保留足够安全间隙时才保留候选点
-        if (distToRightDp >= minLabelSpacingDp && distToStartDp >= minLabelSpacingDp * 0.8f) {
-            result.add(candidate)
-            currentRight = candidate
-            candidate -= step
-        } else if (distToStartDp < minLabelSpacingDp * 0.8f) {
-            // 已经太靠近起点 0，直接终止中间遍历，交给首节点 0
-            break
-        } else {
-            // 距离不够，继续向前找
-            candidate--
-        }
-    }
-
-    result.add(0)
-    return result.toSet()
-}
+): Set<Int> = ChartGeometryCalculator.calculateVisibleAxisIndices(bucketCount, plotWidthDp, minLabelSpacingDp)
 
 private fun formatDateLabel(date: String): String {
     val range = date.split('~')

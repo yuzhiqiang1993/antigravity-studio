@@ -37,11 +37,9 @@ import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.components.StudioTextField
 import com.yuzhiqiang.antigravity.ui.presentation.AppViewModel
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 import com.yuzhiqiang.antigravity.ui.utils.readFromClipboard
-import java.awt.FileDialog
-import java.awt.Frame
-import java.io.File
 
 private enum class AddAccountMode {
     BROWSER_OAUTH,
@@ -49,20 +47,8 @@ private enum class AddAccountMode {
 }
 
 private fun pickJsonFile(s: com.yuzhiqiang.antigravity.i18n.Strings = com.yuzhiqiang.antigravity.i18n.currentStrings()): String? {
-    return try {
-        val fileDialog = FileDialog(null as Frame?, s.accountsAddSelectJsonFileTitle, FileDialog.LOAD)
-        fileDialog.setFilenameFilter { _, name -> name.endsWith(".json", ignoreCase = true) }
-        fileDialog.isVisible = true
-        val file = fileDialog.file
-        val dir = fileDialog.directory
-        if (file != null && dir != null) {
-            File(dir, file).readText(Charsets.UTF_8)
-        } else {
-            null
-        }
-    } catch (_: Exception) {
-        null
-    }
+    val file = DesktopPlatformService.pickFile(s.accountsAddSelectJsonFileTitle, "json")
+    return runCatching { file?.readText(Charsets.UTF_8) }.getOrNull()
 }
 
 @Composable

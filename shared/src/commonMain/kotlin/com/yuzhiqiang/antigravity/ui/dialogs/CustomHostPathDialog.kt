@@ -26,10 +26,8 @@ import com.yuzhiqiang.antigravity.i18n.strings
 import com.yuzhiqiang.antigravity.ui.components.StudioDialogSurface
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.statusColors
-import java.awt.FileDialog
-import java.awt.Frame
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 import java.io.File
-import javax.swing.JFileChooser
 
 /**
  * 自定义宿主安装路径配置对话框。
@@ -497,36 +495,9 @@ private fun openSystemHostPicker(
     dialogTitle: String,
     onSelected: (String) -> Unit
 ) {
-    try {
-        val osName = System.getProperty("os.name", "").lowercase()
-        val isMac = osName.contains("mac")
-
-        if (isMac) {
-            System.setProperty("apple.awt.fileDialogForDirectories", if (hostKey == "cli") "false" else "true")
-            val dialog = FileDialog(null as Frame?, dialogTitle, FileDialog.LOAD)
-            dialog.isVisible = true
-            val dir = dialog.directory
-            val file = dialog.file
-            if (dir != null && file != null) {
-                onSelected(File(dir, file).absolutePath)
-            } else if (dir != null) {
-                onSelected(File(dir).absolutePath)
-            }
-            System.setProperty("apple.awt.fileDialogForDirectories", "false")
-        } else {
-            val chooser = JFileChooser()
-            chooser.dialogTitle = dialogTitle
-            chooser.fileSelectionMode = if (hostKey == "cli") {
-                JFileChooser.FILES_ONLY
-            } else {
-                JFileChooser.FILES_AND_DIRECTORIES
-            }
-            val result = chooser.showOpenDialog(null)
-            if (result == JFileChooser.APPROVE_OPTION && chooser.selectedFile != null) {
-                onSelected(chooser.selectedFile.absolutePath)
-            }
-        }
-    } catch (_: Throwable) {
+    val file = DesktopPlatformService.pickPath(dialogTitle, forDirectory = hostKey != "cli")
+    if (file != null) {
+        onSelected(file.absolutePath)
     }
 }
 

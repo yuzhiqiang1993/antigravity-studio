@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 import com.yuzhiqiang.antigravity.i18n.Strings
 import com.yuzhiqiang.antigravity.ui.components.StudioCard
 import com.yuzhiqiang.antigravity.ui.theme.AppTokens
@@ -178,18 +179,5 @@ fun DataSettingsSection(
 }
 
 private fun pickPricingJsonFile(): String? {
-    return try {
-        val fileDialog = java.awt.FileDialog(null as java.awt.Frame?, "选择 LiteLLM 定价 JSON 文件", java.awt.FileDialog.LOAD)
-        fileDialog.setFilenameFilter { _, name -> name.endsWith(".json", ignoreCase = true) }
-        fileDialog.isVisible = true
-        val file = fileDialog.file
-        val dir = fileDialog.directory
-        if (file != null && dir != null) {
-            File(dir, file).absolutePath
-        } else {
-            null
-        }
-    } catch (_: Exception) {
-        null
-    }
+    return DesktopPlatformService.pickFile("选择 LiteLLM 定价 JSON 文件", "json")?.absolutePath
 }

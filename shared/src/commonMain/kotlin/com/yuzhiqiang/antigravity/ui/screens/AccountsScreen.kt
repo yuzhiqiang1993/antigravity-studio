@@ -44,8 +44,7 @@ import com.yuzhiqiang.antigravity.ui.theme.AppTokens
 import com.yuzhiqiang.antigravity.ui.theme.StudioDesignTokens
 import com.yuzhiqiang.antigravity.ui.utils.copyToClipboard
 
-import java.awt.FileDialog
-import java.awt.Frame
+import com.yuzhiqiang.antigravity.core.platform.DesktopPlatformService
 import java.io.File
 
 private enum class AccountsViewMode {
@@ -668,29 +667,18 @@ private fun exportAccountsToFile(
     s: com.yuzhiqiang.antigravity.i18n.Strings = com.yuzhiqiang.antigravity.i18n.currentStrings()
 ) {
     try {
-        val fileDialog = FileDialog(null as Frame?, s.accountsExportDialogTitle, FileDialog.SAVE)
-        fileDialog.file = "antigravity_accounts.json"
-        fileDialog.setFilenameFilter { _, name -> name.endsWith(".json", ignoreCase = true) }
-        fileDialog.isVisible = true
-
-        val dir = fileDialog.directory
-        val filename = fileDialog.file
-        if (!dir.isNullOrBlank() && !filename.isNullOrBlank()) {
-            val targetFile = if (filename.endsWith(".json", ignoreCase = true)) {
-                File(dir, filename)
-            } else {
-                File(dir, "$filename.json")
-            }
-            val count = viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
-            val exportedJson = viewModel.exportAccountsJson()
-            AtomicFileWriter.writeText(
-                target = targetFile,
-                content = exportedJson,
-                permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
-                disallowSymlinks = true
-            ).getOrThrow()
-            viewModel.showNotice(s.accountsExportSuccessNotice(count, targetFile.name), NoticeKind.SUCCESS)
-        }
+        val targetFile = DesktopPlatformService.pickSaveFile(s.accountsExportDialogTitle, "antigravity_accounts.json", "json")
+            ?: return
+        val finalFile = if (targetFile.name.endsWith(".json", ignoreCase = true)) targetFile else File(targetFile.parentFile, "${targetFile.name}.json")
+        val count = viewModel.accounts.value.count { it.tokens.refreshToken.isNotBlank() }
+        val exportedJson = viewModel.exportAccountsJson()
+        AtomicFileWriter.writeText(
+            target = finalFile,
+            content = exportedJson,
+            permissionPolicy = AtomicFileWriter.PermissionPolicy.OWNER_ONLY,
+            disallowSymlinks = true
+        ).getOrThrow()
+        viewModel.showNotice(s.accountsExportSuccessNotice(count, finalFile.name), NoticeKind.SUCCESS)
     } catch (e: Exception) {
         viewModel.showNotice(s.accountsExportFailedNotice(e.message ?: s.commonUnknown), NoticeKind.ERROR)
     }
