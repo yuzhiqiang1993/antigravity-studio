@@ -415,7 +415,11 @@ class HostLifecycleDelegate(
                     showNotice(if (updated) s.hostCliLaunchCommandCopied else s.hostCliEnableFailed, if (updated) NoticeKind.SUCCESS else NoticeKind.ERROR)
                     refreshHostStatus(actualPort)
                 },
-                onFailure = { error -> showNotice(error.message ?: s.hostCliLaunchCommandRequiresIntegration, NoticeKind.ERROR) }
+                onFailure = { error ->
+                    val isNotIntegrated = error is IllegalStateException && (error.message?.contains("接入代理") == true || error.message?.contains("Studio 专属启动") == true)
+                    val message = if (isNotIntegrated) s.hostCliLaunchCommandRequiresIntegration else (error.message ?: s.hostCliLaunchCommandRequiresIntegration)
+                    showNotice(message, NoticeKind.ERROR)
+                }
             )
         }
     }

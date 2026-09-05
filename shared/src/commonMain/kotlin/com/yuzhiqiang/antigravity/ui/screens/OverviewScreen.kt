@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -384,10 +386,11 @@ fun OverviewScreen(
             )
         }
 
-        // 宿主环境卡片 (固定平铺 3 列并排布局，彻底杜绝缩放过程中的跨行折叠与高度抖动)
+        // 宿主环境卡片 (固定平铺 3 列并排布局，使用 IntrinsicSize.Max 确保各卡片高度物理对齐，杜绝高度参差不齐)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(IntrinsicSize.Max)
                 .tourAnchor(TourStep.OVERVIEW_HOST_GRID, tourManager),
             horizontalArrangement = Arrangement.spacedBy(AppTokens.Spacing.card)
         ) {
@@ -395,7 +398,9 @@ fun OverviewScreen(
                 key(item.title) {
                     HostCardItem(
                         data = item,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
             }

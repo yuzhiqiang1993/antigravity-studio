@@ -151,7 +151,7 @@ object CliHostManager {
         for (cmd in commands) {
             val version = runCatching {
                 val proc = ProcessBuilder(cmd).redirectErrorStream(true).start()
-                val completed = proc.waitFor(400, java.util.concurrent.TimeUnit.MILLISECONDS)
+                val completed = proc.waitFor(2000, java.util.concurrent.TimeUnit.MILLISECONDS)
                 if (completed && proc.exitValue() == 0) {
                     val text = proc.inputStream.bufferedReader().use { it.readText() }
                     val line = text.lines().firstOrNull { it.isNotBlank() }?.trim() ?: ""
@@ -482,7 +482,7 @@ object CliHostManager {
     ): Result<String> = runCatching {
         require(proxyPort in 1..65535) { "代理端口必须在 1..65535 范围内" }
         check(HostOwnershipStore.configuredLaunchEndpoint(HostOwnershipStore.EnvironmentOwner.CLI).getOrThrow() != null) {
-            "请先启用 CLI 的 Studio 专属启动配置"
+            "请先点击「接入代理」，再复制启动命令"
         }
 
         if (preferShortLauncher) {

@@ -132,7 +132,7 @@ fun HostCardItem(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -197,13 +197,11 @@ fun HostCardItem(
                 )
             }
 
-            // 2. 核心代理模式状态区 (与卡片本体完全融为一体，无内套小方盒)
+            // 2. 核心代理模式状态区 (与卡片本体完全融为一体，间距舒展有呼吸感)
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 2.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -251,9 +249,12 @@ fun HostCardItem(
 
                     Text(
                         text = data.integrationDetail,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        ),
                         color = if (data.needsUpdate) warningColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -283,6 +284,9 @@ fun HostCardItem(
                     )
                 }
             }
+
+            // 弹性占位：将操作栏推至底部，在不同文本行数下保证卡片绝对等高且按钮统一底对齐
+            Spacer(modifier = Modifier.weight(1f))
 
             // 3. 底部操作栏: 主操作按钮 + 重启/启动 + 右侧工具组
             Row(
