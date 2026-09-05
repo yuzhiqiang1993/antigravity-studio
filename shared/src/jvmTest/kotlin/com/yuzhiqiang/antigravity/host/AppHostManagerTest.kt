@@ -496,6 +496,31 @@ class AppHostManagerTest {
         assertEquals(0, environment.environmentClears)
     }
 
+    @Test
+    fun testResolveLaunchEnvironmentPreservesOfficialDirectModeAndSupportsPortFallback() {
+        // 1. 官方直连模式下（configured == null），即便透传当前代理端口，也必须返回 null，严禁注入环境变量
+        assertEquals(null, AppHostManager.resolveLaunchEnvironment(null, proxyPort = 8330))
+        assertEquals(null, AppHostManager.resolveLaunchEnvironment(null, proxyPort = null))
+
+        // 2. 启用代理模式下，传入有效端口时优先使用传入端口
+        assertEquals(
+            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:8340"),
+            AppHostManager.resolveLaunchEnvironment("http://127.0.0.1:8330", proxyPort = 8340)
+        )
+
+        // 3. 启用代理模式下，切号调用未显式传端口（proxyPort == null），自动回退继承已配置的端口
+        assertEquals(
+            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:8330"),
+            AppHostManager.resolveLaunchEnvironment("http://127.0.0.1:8330", proxyPort = null)
+        )
+
+        // 4. 端口越界或无效时回退已配置端口
+        assertEquals(
+            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:8330"),
+            AppHostManager.resolveLaunchEnvironment("http://127.0.0.1:8330", proxyPort = 70000)
+        )
+    }
+
     @Ignore("真实应用安装诊断仅供手动运行，禁止自动测试修改应用")
     @Test
     fun diagnoseInstallOnRealAntigravityApp() {

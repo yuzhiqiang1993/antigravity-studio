@@ -907,22 +907,23 @@ object AppHostManager {
     /** 重置范围仅为 App；旧共享环境需经单独确认迁移。 */
     fun forceReset(customInstallation: String? = null): Boolean = disable(customInstallation)
 
+    internal fun resolveLaunchEnvironment(configuredEndpoint: String?, proxyPort: Int?): Map<String, String>? {
+        if (configuredEndpoint == null) return null
+        val configuredPort = configuredEndpoint.substringAfterLast(':').trimEnd('/').toIntOrNull()
+        val effectivePort = proxyPort?.takeIf { it in 1..65535 } ?: configuredPort ?: return null
+        return mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:$effectivePort")
+    }
+
     /**
      * 跨平台启动 Antigravity App。
      */
     fun launch(customInstallation: String? = null, proxyPort: Int? = null): Boolean {
         val configured = HostOwnershipStore.configuredLaunchEndpoint(HostOwnershipStore.EnvironmentOwner.APP)
             .getOrElse { return false }
-        val configuredPort = configured?.substringAfterLast(':')?.trimEnd('/')?.toIntOrNull()
-        val effectivePort = proxyPort?.takeIf { it in 1..65535 } ?: configuredPort
-        val env = if (configured != null) {
-            val portToUse = effectivePort ?: return false
+        val env = resolveLaunchEnvironment(configured, proxyPort)
+        if (configured != null) {
+            val portToUse = env?.get("CLOUD_CODE_URL")?.substringAfterLast(':')?.toIntOrNull() ?: return false
             if (HostOwnershipStore.enableLaunchIntegration(HostOwnershipStore.EnvironmentOwner.APP, portToUse).isFailure) return false
-            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:$portToUse")
-        } else if (effectivePort != null) {
-            mapOf("CLOUD_CODE_URL" to "http://127.0.0.1:$effectivePort")
-        } else {
-            null
         }
         val installationPath = customInstallation?.trim()?.takeIf(String::isNotEmpty)
             ?: getCandidateInstallations().firstOrNull(::isInstallationComplete)?.absolutePath
