@@ -525,7 +525,7 @@ object HostOwnershipStore {
     private fun receiptFile(name: String): File =
         receiptRootOverride?.let { File(it, name) } ?: AppDataPaths.resolve(name)
 
-    private fun launchReceiptFile(): File = receiptFile("host-launch-ownership.json")
+    internal fun launchReceiptFile(): File = receiptFile("host-launch-ownership.json")
 
     private fun environmentReceiptFile(): File = receiptFile(AppDataPaths.ENVIRONMENT_RECEIPT_FILE_NAME)
 

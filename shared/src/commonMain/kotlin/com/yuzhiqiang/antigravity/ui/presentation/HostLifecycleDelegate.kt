@@ -364,7 +364,8 @@ class HostLifecycleDelegate(
         scope.launch(Dispatchers.IO) {
             _operatingHostKeys.value = _operatingHostKeys.value + "cli"
             try {
-                val success = if (enabled) CliHostManager.enable(actualPort) else CliHostManager.disable()
+                val customPath = configStore.currentConfig.customHostPaths["cli"]
+                val success = if (enabled) CliHostManager.enable(actualPort, customPath) else CliHostManager.disable()
                 showNotice(
                     if (success) {
                         if (enabled) s.hostCliEnabledNotice else s.hostCliDisabledNotice
