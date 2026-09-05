@@ -22,9 +22,16 @@ class SharedLogicDesktopTest {
         assertNotNull(appStatus)
         assertFalse(appStatus.isInstalled)
 
-        val cliExecutable = environment.root.resolve("agy").apply {
-            writeText("#!/bin/sh\nprintf '1.0.0\\n'\n")
-            setExecutable(true)
+        val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+        val cliExecutable = if (isWindows) {
+            environment.root.resolve("agy.cmd").apply {
+                writeText("@echo 1.0.0\r\n")
+            }
+        } else {
+            environment.root.resolve("agy").apply {
+                writeText("#!/bin/sh\nprintf '1.0.0\\n'\n")
+                setExecutable(true)
+            }
         }
         val cliStatus = CliHostManager.inspect(8080, customInstallation = cliExecutable.absolutePath)
         assertNotNull(cliStatus)
