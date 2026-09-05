@@ -10,11 +10,14 @@ import java.io.File
 object CliHostManager {
 
 
+    internal var configFileOverride: File? = null
+
     /**
      * 获取 CLI 配置文件路径。
      * agy CLI 使用 ~/.config/antigravity/cli-settings.json 存储配置。
      */
     fun getConfigFile(): File {
+        configFileOverride?.let { return it }
         val userHome = System.getProperty("user.home")
         val os = System.getProperty("os.name").lowercase()
         return when {
@@ -307,7 +310,7 @@ object CliHostManager {
             |)
             |
             |set "ENDPOINT="
-            |for /f "usebackq tokens=*" %%i in (`powershell -NoProfile -Command "(Get-Content -Raw -LiteralPath '!RECEIPT_FILE!' | ConvertFrom-Json).cliEndpoint" 2^>nul`) do set "ENDPOINT=%%i"
+            |for /f "usebackq tokens=*" %%i in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "(Get-Content -Raw -LiteralPath '!RECEIPT_FILE!' | ConvertFrom-Json).cliEndpoint" 2^>nul`) do set "ENDPOINT=%%i"
             |
             |if not defined ENDPOINT (
             |  echo [Studio] CLI 代理已停用。如需官方直连，请直接运行 agy；如需使用 Studio 代理，请在 Studio 中启用 CLI 接入。 1>&2
@@ -417,11 +420,14 @@ object CliHostManager {
 
         if (os.contains("win")) {
             val cmdScript = generateWindowsLauncherScript(executable.absolutePath, receiptFile)
+                .replace("\r\n", "\n")
+                .replace("\n", "\r\n")
             destination.writeText(cmdScript, Charsets.UTF_8)
-            // 在 Windows 环境下同时提供原生的 PowerShell 启动器
-            val ps1File = File(destination.parentFile, "agy-studio.ps1")
-            val ps1Script = generateWindowsPowerShellScript(executable.absolutePath, receiptFile)
-            ps1File.writeText(ps1Script, Charsets.UTF_8)
+            // 清理可能遗留的历史 agy-studio.ps1，防止 PowerShell 优先匹配 .ps1 触发安全策略拦截
+            val legacyPs1File = File(destination.parentFile, "agy-studio.ps1")
+            if (legacyPs1File.exists()) {
+                legacyPs1File.delete()
+            }
         } else {
             val posixScript = generatePosixLauncherScript(executable.absolutePath, receiptFile)
             destination.writeText(posixScript, Charsets.UTF_8)

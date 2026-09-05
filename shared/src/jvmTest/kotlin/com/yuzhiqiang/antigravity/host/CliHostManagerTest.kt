@@ -137,7 +137,8 @@ class CliHostManagerTest {
             val os = System.getProperty("os.name", "").lowercase()
             if (os.contains("win")) {
                 assertTrue(content.contains("%*"))
-                assertTrue(content.contains("CLOUD_CODE_URL=%ENDPOINT%"))
+                assertTrue(content.contains("CLOUD_CODE_URL=!ENDPOINT!"))
+                assertTrue(content.contains("\r\n"), "Windows 批处理脚本必须使用 CRLF 换行符")
             } else {
                 assertTrue(content.contains("\"$@\""))
                 assertTrue(content.contains("CLOUD_CODE_URL=\"\$ENDPOINT\""))

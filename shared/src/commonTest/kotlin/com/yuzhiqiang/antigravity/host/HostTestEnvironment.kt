@@ -1,5 +1,6 @@
 package com.yuzhiqiang.antigravity.host
 
+import com.yuzhiqiang.antigravity.host.cli.CliHostManager
 import com.yuzhiqiang.antigravity.host.ownership.HostOwnershipStore
 import java.nio.file.Files
 
@@ -31,6 +32,7 @@ internal class HostTestEnvironment : AutoCloseable {
             true
         }
         HostOwnershipStore.receiptRootOverride = root.resolve("receipts")
+        CliHostManager.configFileOverride = root.resolve("cli-settings.json")
         System.setProperty("user.home", root.absolutePath)
     }
 
@@ -38,6 +40,7 @@ internal class HostTestEnvironment : AutoCloseable {
         try {
             root.deleteRecursively()
         } finally {
+            CliHostManager.configFileOverride = null
             HostOwnershipStore.environmentReader = originalReader
             HostOwnershipStore.environmentWriter = originalWriter
             HostOwnershipStore.environmentClearer = originalClearer
