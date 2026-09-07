@@ -2,6 +2,36 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.4.1] - 2026-09-07
+
+### 🇨🇳 中文
+
+#### ✨ 核心功能与体验优化
+- **代理层 429 自动换号**：遇到 429 限流时，本地代理自动切换至健康备用账号并原地重试，无需重启客户端；支持按请求来源（IDE / App）独立切换，互不干扰。默认关闭，保持原有使用习惯
+- **额度告警前提前换号**：支持设置剩余额度阈值（如 ≤5%），额度耗尽前提前切到备用账号，避免报错中断；支持多个备用号级联接力
+- **账号列表排序与实时刷新**：优先置顶当前正在登录的账号，其次展示正在服务与待命的备用号，其他账号正常展示；备用号配额刷新频率与主号保持一致
+- **卡片选中边框与徽章优化**：当前登录账号与备用号卡片增加彩色高光选中边框；备用徽章移除表情图标，提升明暗主题下的文字对比度
+- **补齐多语言翻译**：修复换号状态栏、待命标签、操作按钮及换号设置弹窗在英文环境下的硬编码中文，支持完整中英文双语
+- **调用日志记录出口账号**：日志中新增显示实际响应请求的账号与会话 ID；账号显示遵循全局隐私脱敏设置
+- **会话管理秒级响应**：会话重命名与移动工作区支持乐观更新，操作即时生效；卡片增加一键复制会话 ID 与路径功能
+- **弹窗与界面细节优化**：换号设置弹窗按宽屏比例重构，避免内容截断；新增轻量级微型开关组件；完善 CI/CD 打包流水线
+
+---
+
+### 🌐 English
+
+#### ✨ Features & Improvements
+- **Automatic 429 Failover**: Local proxy automatically switches to a healthy backup account and retries on 429 errors without restarting; separates relay state by client source (IDE vs App). Disabled by default.
+- **Preemptive Handover**: Switch to backup accounts before quota runs out (e.g. ≤5%) to prevent rate-limit interruptions; supports multi-account cascade.
+- **Account Priority & Sync Refresh**: Prioritizes actively logged-in accounts, followed by serving and standby backup accounts; backup account quotas now refresh at the same active interval as the host.
+- **Selection Borders & Clean Badges**: Adds status-colored 1.5dp selection borders to active and backup accounts; polished badge contrast and removed emojis.
+- **Complete Localization**: Fixed hardcoded Chinese strings in status banners, standby badges, and configuration dialogs for full English support.
+- **Activity Log Attribution**: Displays the routed account and session ID for each request; honors global privacy masking.
+- **Optimistic Session Updates**: Instant UI response for session renaming and folder moves; added one-click actions to copy session IDs and paths.
+- **UI & Pipeline Polish**: Redesigned relay configuration dialog for widescreen layouts; added lightweight switch component; improved multiplatform release workflow.
+
+---
+
 ## [1.4.0] - 2026-09-06
 
 ### 🇨🇳 中文
