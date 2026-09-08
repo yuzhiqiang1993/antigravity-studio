@@ -2,6 +2,42 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.4.2] - 2026-09-08
+
+### 🇨🇳 中文
+
+#### ✨ 核心功能与体验升级
+- **模型管理独立滚动**：固定模型管理页面顶栏与服务商选择器，模型卡片列表区域独立滚动，避免操作与筛选被遮挡
+- **次级文本对比度与侧边栏增强**：调优全套主题次级文本颜色（浅色 Slate-700 / 深色 Slate-300），消除发虚发灰问题；导航栏字重加粗并加深未选中条目，视觉辨识度更佳
+- **账号接力状态卡片化**：移除占用顶部空间的独立大看板，将接力运行态微卡片与待命顺位角标直接下沉整合至账号卡片，界面更紧凑清爽
+- **用量大盘与图表气泡重构**：独立提取用量走势图悬浮数据气泡（FloatingTrendTooltip），重构用量 KPI 网格与模型排行卡片，排版更具呼吸感
+
+#### 🚀 性能优化与底层加固
+- **极速 SSE 单行流解析通道**：构建快速流式解析通道，降低大吞吐量高频流式通信下的对象开销与内存分配
+- **价格决议复合多级缓存**：计费决议接入多级缓存，避免高频请求重复计算
+- **会话长列表渲染优化**：恢复长列表重组跳过，消除会话扫盘递归与大文本全量分割，列表滑动极致流畅
+- **流式工具调用即刻推流**：工具调用（Tool Calls）输出完成后立即向下游透传，不再冗余等待上游流结束
+- **并发竞态消除与 Windows 脚本修复**：修复多协程状态流并发更新竞态并将主线程文件 IO 下沉至调度协程；修复 Windows 启动脚本 CRLF 规范换行符
+
+---
+
+### 🌐 English
+
+#### ✨ Features & Improvements
+- **Independent Models Scrolling**: Fixed the header and provider tabs on the models screen, allowing the model cards list to scroll independently.
+- **Theme Text Contrast & Bold Sidebar**: Enhanced secondary text colors across all themes to eliminate washed-out text; boosted sidebar typography and icon contrast.
+- **Embedded Account Relay**: Replaced top banner with embedded relay micro-cards and priority badges directly on account cards for a streamlined layout.
+- **Usage Grid & Trend Tooltips**: Decoupled trend chart floating tooltips and refined the KPI overview grid and top models breakdown.
+
+#### 🚀 Performance & Infrastructure
+- **Fast SSE Line Streamer**: Streamlined SSE line parsing pipeline to minimize object allocations during heavy streaming.
+- **Pricing Multi-Tier Cache**: Introduced compound caching for token pricing resolution to eliminate redundant calculations.
+- **Virtualized Session List**: Restored lazy list recomposition skips, eliminating recursive disk scanning and large string splitting.
+- **Instant Tool Call Relaying**: Relays tool call outputs immediately without waiting for upstream stream termination.
+- **Concurrency & Windows Launcher Fix**: Resolved state flow race conditions, moved main-thread file I/O to background dispatchers, and fixed CRLF line endings in Windows batch launcher.
+
+---
+
 ## [1.4.1] - 2026-09-07
 
 ### 🇨🇳 中文
