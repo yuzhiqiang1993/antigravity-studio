@@ -2,6 +2,40 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.4.3] - 2026-09-11
+
+### 🇨🇳 中文
+
+#### ✨ 核心功能与体验升级
+- **Activity 日志 Room KMP 本地持久化**：全面接入 AndroidX Room KMP 与 Bundled SQLite 本地引擎，采用主从表结构分离元数据与请求大报文；依托异步 Channel 与批量事务落盘，确保网络代理转发零阻塞。
+- **冷热数据分层与桌面端分页控制**：支持日志冷热分页加载，首屏实时监听活跃流量，历史数据按需查库；新增轻量通透的桌面端翻页交互控制器与加载预热，彻底消除长列表滑动卡顿。
+- **调用日志指标补全与 cURL 调试**：调用详情支持一键复制格式化带转义的终端 cURL 命令；补齐 reasoningTokens、首字延迟（firstByteMs）、流式卡顿度量及多账号路由标识；设置页支持 1~30 天自定义保留周期与数据库清理。
+- **账号接力控制条 2.0 与跑道居中**：接力策略全面重构并解耦 429 概念，转为纯实时额度与候选号最低阈值驱动；控制条中间跑道全局居中并精简为展示下一顺位待命账号与悬浮提示；规则设置独立为极简配置弹窗。
+- **卡片挂起标签拆分与托盘状态联动**：将账号卡片上的宿主身份标签与“挂起”状态彻底拆分为独立标签，分配专属琥珀色徽章；跨平台系统托盘悬停提示（Tooltip）支持动态展示当前接力状态与代跑账号邮箱。
+
+#### 🚀 性能优化与底层加固
+- **日志过滤短路算法与零分配扫描**：客户端分类匹配由正则拆分优化为零分配扫描，增加前置短路判断，大幅降低 CPU 占用。
+- **大报文异步格式化**：时间格式化复用单例解析器，大体积 JSON 美化排版移至后台调度协程，避免高频请求阻塞 Compose UI 主渲染线程。
+- **级联删除与外键安全约束**：数据库外键支持级联删除，新增孤儿报文兜底清理机制与安全流管道重构，消除未初始化状态异常。
+
+---
+
+### 🌐 English
+
+#### ✨ Features & Improvements
+- **Activity Log Room KMP Persistence**: Integrated AndroidX Room KMP with Bundled SQLite engine for local logging; uses parent-child relational tables to isolate metadata from payload bodies, leveraging asynchronous channel flushing to ensure zero proxy latency.
+- **Hot/Cold Tiered Pagination**: Introduced hot/cold log pagination—page 1 streams live traffic while historical pages query on demand; added a streamlined desktop pagination controller and startup warm-up to eliminate list scrolling lag.
+- **Attribution Metrics & cURL Copy**: Added one-click copy for escaped terminal cURL commands; populated reasoningTokens, firstByteMs, streaming latency metrics, and routed account tags; added 1–30 day retention policy settings and database purge tools.
+- **Centered Relay Control Bar 2.0**: Overhauled account relay strategy to be strictly quota-driven with candidate minimum balance validation; redesigned centered runway bar showing next-in-line standby account with hover tooltips; separated rules into a focused configuration dialog.
+- **Independent Standby Badges & Dynamic Tray Tooltip**: Decoupled host badges from suspended states with a dedicated amber tag; enabled dynamic system tray tooltips reflecting live relay status and active proxy accounts.
+
+#### 🚀 Performance & Infrastructure
+- **Zero-Allocation Log Filtering**: Replaced regex client parsing with zero-allocation scanning and short-circuit evaluation, significantly reducing CPU overhead.
+- **Asynchronous Payload Formatting**: Reused singleton date-time formatters and moved heavy JSON prettification to background coroutines, preventing UI thread frame drops.
+- **Cascade Deletion & Safe Streaming**: Implemented foreign key cascade deletion with orphan payload cleanup and fortified reactive streaming against uninitialized state errors.
+
+---
+
 ## [1.4.2] - 2026-09-08
 
 ### 🇨🇳 中文
