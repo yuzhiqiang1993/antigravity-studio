@@ -2,6 +2,52 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.4.4] - 2026-09-12
+
+### 🇨🇳 中文
+
+#### ✨ 核心功能与体验升级
+- **单账号独立出网代理**：支持为不同账号配置独立的 SOCKS5 / HTTP 代理节点；在 Token 刷新、配额轮询与请求转发链路中按账号派发独立连接池，完美支持多网络环境与地区隔离。
+- **模型上下文与最大输出必填校验**：服务商管理中引入模型物理上下文与最大输出必填校验，并提供待完善过滤筛选与批量设值工具，杜绝运行时超出窗口报错。
+- **上下文窗口容量交互重构**：界面概念统一为「上下文窗口容量」，预设首项归一为「默认」；卡片支持数值与百分比自由输入，精简多余数学公式并移除干扰性推荐徽章。
+- **官方原生压缩与自定义策略派生**：支持官方模型原生压缩策略解析（`CASCADE_USE_EXPERIMENT_CHECKPOINTER`）；自定义模型自动按 50% 物理容量与 54% 压缩预备线智能派生策略，保存时自动补齐。
+- **架构治理与 Kotlin/JVM 迁移**：共享模块归并迁移为标准 Kotlin/JVM 桌面架构，彻底消除多平台样板代码；统一通过 Koin 注入，提取 `AppLifecycle` 统一管理应用生命周期与资源安全退出。
+
+#### 🛡️ 代理安全与协议稳定性
+- **DeepSeek 思维链无损兼容**：完美解析 DeepSeek Responses 的 `reasoning_text` 流式增量与非流式思维链结构，解决 IDE 中思考过程静默丢失的问题。
+- **跨协议工具调用 ID 配对与孤立降级**：统一跨协议 Tool Call ID 配对；在出站编码前增加门禁检查，将未匹配到前置调用的孤立结果转为普通文本输入，防止上游返回 400 校验错误。
+- **本地代理安全防护升级**：收敛代理端口 CORS 策略，阻断公网网页发起的跨域预检与数据请求；严格校验 Host 请求头，消除 DNS Rebinding 潜在安全隐患。
+- **双宿主接力隔离与并发加固**：按宿主账号独立隔离 IDE 与 App 的挂起状态，避免相互误判；放宽并发信号量并增加 120s 超时保护；解绑 8317 端口以支持远程及容器化 CPA。
+
+#### 🚀 性能度量与体验打磨
+- **端到端吞吐 (TPS) 单调时钟度量**：引入 RequestTiming 单调时钟，统一基于请求总耗时计算实际输出速率 (TPS)，消除尾包断连推算出的虚假速率；首字节观测合并至首字耗时（TTFT）。
+- **日志持久化与队列刷盘一致性**：历史日志切页与清空操作前执行强制 flush 刷盘，消除异步写入队列与数据库分页的时序断层；Room 数据库安全升级至 v3。
+- **用量统计与细节修复**：修复占位模型分组和多来源用量重复统计并自动迁移缓存；修复 Token 格式化时整千数误匹配二进制单位（如 640K 误除以 1024 变为 625K）的显示缺陷；优化弹窗加载态按钮对比度。
+
+---
+
+### 🌐 English
+
+#### ✨ Features & Improvements
+- **Per-Account Outbound Proxy**: Support configuring dedicated SOCKS5/HTTP proxies per account; isolates connection pools across token renewal, quota polling, and request dispatching.
+- **Mandatory Context & Max Output Validation**: Introduced required validation for model physical context and max output limits in provider settings, with filter tools and batch setup.
+- **Context Window Capacity UI Overhaul**: Standardized terms to "Context Window Capacity" with "Default" preset; supports flexible token values and percentages, eliminating redundant formulas and recommendation badges.
+- **Native Compression & Smart Policy Derivation**: Parses native compression strategies for official models (`CASCADE_USE_EXPERIMENT_CHECKPOINTER`); auto-derives default 50% capacity / 54% reserve threshold policies for custom models.
+- **Architecture Migration to Kotlin/JVM**: Consolidated shared module into standard Kotlin/JVM desktop architecture; decoupled lifecycle management with `AppLifecycle` and Koin dependency injection.
+
+#### 🛡️ Proxy Security & Protocol Stability
+- **DeepSeek Reasoning Chain Compatibility**: Full support for DeepSeek Responses `reasoning_text` stream deltas and non-streaming thought structures in IDEs.
+- **Cross-Protocol Tool Call ID Pairing**: Harmonized tool call ID pairing across protocols with fallback text demotion for orphaned outputs, preventing upstream 400 validation rejections.
+- **Hardened Local Proxy Security**: Tightened CORS origin filtering to block untrusted web requests; enforces Host header validation to prevent DNS Rebinding attacks.
+- **Dual-Host Relay Isolation**: Separated suspended state tracking between IDE and App hosts; expanded concurrency semaphore with 120s timeout guard; decoupled port 8317 for remote CPA support.
+
+#### 🚀 Performance & Polish
+- **Monotonic Request Timing & TPS Metrics**: Integrated RequestTiming monotonic clock to calculate true end-to-end throughput (TPS), eliminating heuristic spikes; unified TTFT metrics.
+- **Log Persistence & Flush Guarantees**: Enforces queue flush before pagination and log purges to eliminate database race conditions; bumped Room database to version 3.
+- **Usage & Formatting Fixes**: Fixed usage deduplication and placeholder grouping with cache migration; fixed token decimal formatting (e.g. 640K misdivided by 1024 to 625K); improved loading button contrast.
+
+---
+
 ## [1.4.3] - 2026-09-11
 
 ### 🇨🇳 中文
