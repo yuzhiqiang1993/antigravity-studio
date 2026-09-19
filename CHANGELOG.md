@@ -2,6 +2,56 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.5.0] - 2026-09-19
+
+### 🇨🇳 中文
+
+#### ✨ 核心功能与体验升级
+- **宽屏自适应双栏常驻详情**：宽屏视口下调用日志详情面板支持右侧常驻并排展示，无需弹窗遮挡即可快速连贯比对多条请求报文、耗时与指标流。
+- **端到端吞吐 (E2E TPS) 与耗时深度拆解**：引入单调时钟 E2E TPS 吞吐度量标准，全面细化排队、首字延迟（TTFT）与 TPOT 生成耗时分布，并提供指标悬停计算口径说明与突发流速过滤。
+- **Agent 工具调用与后台辅助任务全感知**：精准识别上下文压缩、终端检测、标题生成、BYOK 流式工具调用等多种 Agent 任务类型，分配专属图文徽章并自动补齐思考 Token 统计。
+- **宿主更新横条独立重构与 CLI 候选路径探测**：更新提示重构为立体高光红点轻量横条，解决卡片头部拥挤问题并支持官网直达；CLI 版本探测优先遍历候选绝对路径，解决桌面打包环境下缺失 shell PATH 导致无法采集 CLI 版本的问题。
+- **一键强杀宿主进程与状态快照即时感知**：宿主卡片支持一键强杀运行中实例及整棵子进程树；优化进程快照缓存即时失效机制，优先利用 JVM 原生方式高效销毁进程，避免外部 kill 进程频繁 fork 开销。
+- **按模型族分池接力与真实 JWT 凭据解析**：账号接力映射支持按模型族独立分组隔离，杜绝跨模型挤占配额；凭据导入支持从真实有效 JWT 提取用户身份并清理遗留假邮箱；大幅优化 Windows 平台切号耗时与命令行参数传递。
+
+#### 🛡️ 生产安全与混淆加固
+- **桌面端 ProGuard 代码裁剪与名称混淆**：正式发布包全面启用 ProGuard 混淆与裁剪，精确保留 Room 数据库、SQLite JNI、JNA、Ktor 与 OkHttp 等反射与原生调用规则；打包流水线注入 mapping 映射表自动校验，杜绝 Debug 日志编入正式包。
+- **Release 模式彻底剥离调试日志**：基于 `BuildInfo.DEBUG` 实现编译期日志拦截，正式发版完全不求值也不输出调试日志，杜绝敏感数据泄漏风险并显著降低运行损耗。
+- **Room 连续升级迁移单测加固**：补充 Room 数据库从 v4 至 v6 连续平滑升级迁移的自动化测试，保障用户本地历史日志与配置数据绝对安全。
+
+#### 🚀 极速性能与内存深度治理
+- **JVM 堆与元空间上限压制**：精准约束 MaxMetaspaceSize（128M）与 ReservedCodeCacheSize（64M），压制 macOS 常驻内存占用，开启空闲内存主动归还系统机制。
+- **分词器 (Tokenizer) 软引用弹性回收**：词表与分词缓存改用软引用按需复用与弹性回收，防止多模型分词器长时间常驻引发堆积。
+- **连接池与后台扫描频率收敛**：OkHttp 连接池配置收敛，内存日志上限收拢至 200 条；降低后台会话与用量扫描频率，对指标流增加防抖，杜绝无意义的 UI 重组。
+- **子进程监控统一与防泄漏**：封装 `ProcessCommand` 统一子进程生命周期回收，彻底根除跨平台系统监控下的 Reaper 线程泄漏隐患。
+- **代理底层零拷贝秒级透传与堆震荡抑制**：官方请求原生字节头尾嗅探与零拷贝秒级透传，请求体单次连续分配内存避免堆震荡；跨模型切换自动清理不兼容参数，针对 GPT 对齐 `summary_text` 规范并修复思考链多轮截断问题。
+
+---
+
+### 🌐 English
+
+#### ✨ Features & Improvements
+- **Dual-Pane Persistent Details on Widescreen**: Activity log details can now be pinned as a persistent right sidebar on widescreen displays, enabling seamless side-by-side inspection and rapid comparison of payloads, timings, and metrics streams without modal obstruction.
+- **End-to-End Throughput (E2E TPS) & Latency Breakdown**: Introduced monotonic clock E2E TPS metrics with detailed breakdowns of queuing, Time to First Token (TTFT), and Time Per Output Token (TPOT), complete with hovering calculation tooltips and burst smoothing.
+- **Agent Tool Calling & Background Task Awareness**: Accurately detects context compression, terminal checks, title generation, and BYOK streaming tool invocations, annotating them with dedicated badges and backfilling reasoning token counters.
+- **Dedicated Host Update Banner & CLI Candidate Probing**: Decoupled version update alerts into an independent slim banner with stereoscopic highlights and official website links; `CliHostManager` iterates candidate absolute paths to reliably detect CLI versions in GUI environments lacking shell `PATH`.
+- **One-Click Host Process Termination & Real-Time Snapshot Invalidation**: Added one-click forced process tree termination for running hosts; optimized snapshot cache invalidation and leveraged JVM native process destruction to eliminate external `kill` fork overhead.
+- **Model Family Isolated Relay & Real JWT Parsing**: Supported independent relay mappings partitioned by model family to prevent cross-model quota contention; credentials import now parses authentic JWT tokens and purges placeholder emails; significantly improved Windows account switching latency.
+
+#### 🛡️ Production Security & Obfuscation
+- **Desktop ProGuard Code Shrinking & Obfuscation**: Enabled ProGuard shrinking and name obfuscation for release builds, rigorously preserving reflection and JNI symbols for Room, SQLite, JNA, Ktor, and OkHttp; integrated automated mapping verification to reject debug artifacts from release packages.
+- **Zero-Cost Debug Logging Stripping in Release**: Stripped all application debug log evaluations and invocations in release builds at compile-time via `BuildInfo.DEBUG`, eliminating sensitive data leakage risks and high-concurrency runtime overhead.
+- **Room Database Migration Test Hardening**: Added automated tests covering continuous migrations from Room schema v4 through v6, ensuring safe upgrades of local historical logs and configurations.
+
+#### 🚀 Performance & Deep Memory Governance
+- **JVM Heap & Metaspace Footprint Suppression**: Constrained `MaxMetaspaceSize` (128M) and `ReservedCodeCacheSize` (64M) to reduce macOS resident memory footprint, enabling proactive memory release back to the OS.
+- **Soft-Referenced Tokenizer Memory Management**: Transitioned tokenizer vocabularies and caches to soft references for elastic garbage collection, preventing heap accumulation from multi-model tokenizers.
+- **Connection Pool & Background Scan Throttling**: Tightened OkHttp connection pools, capped in-memory logs to 200 entries, reduced background scan frequencies for sessions and quotas, and debounced metric flows to prevent unnecessary UI recompositions.
+- **Unified Child Process Reclamation**: Encapsulated process executions within `ProcessCommand` to guarantee lifecycle cleanup, eliminating Reaper thread leaks across platforms.
+- **Zero-Copy Byte-Level Proxying & Heap Shock Prevention**: Streamlined official request forwarding via native byte sniffing and single contiguous buffer allocation; automatically strips incompatible context parameters when switching models, conforms to GPT `summary_text` specifications, and resolves multi-turn reasoning chain truncation.
+
+---
+
 ## [1.4.4] - 2026-09-12
 
 ### 🇨🇳 中文
