@@ -14,11 +14,6 @@
 - **一键强杀宿主进程与状态快照即时感知**：宿主卡片支持一键强杀运行中实例及整棵子进程树；优化进程快照缓存即时失效机制，优先利用 JVM 原生方式高效销毁进程，避免外部 kill 进程频繁 fork 开销。
 - **按模型族分池接力与真实 JWT 凭据解析**：账号接力映射支持按模型族独立分组隔离，杜绝跨模型挤占配额；凭据导入支持从真实有效 JWT 提取用户身份并清理遗留假邮箱；大幅优化 Windows 平台切号耗时与命令行参数传递。
 
-#### 🛡️ 生产安全与混淆加固
-- **桌面端 ProGuard 代码裁剪与名称混淆**：正式发布包全面启用 ProGuard 混淆与裁剪，精确保留 Room 数据库、SQLite JNI、JNA、Ktor 与 OkHttp 等反射与原生调用规则；打包流水线注入 mapping 映射表自动校验，杜绝 Debug 日志编入正式包。
-- **Release 模式彻底剥离调试日志**：基于 `BuildInfo.DEBUG` 实现编译期日志拦截，正式发版完全不求值也不输出调试日志，杜绝敏感数据泄漏风险并显著降低运行损耗。
-- **Room 连续升级迁移单测加固**：补充 Room 数据库从 v4 至 v6 连续平滑升级迁移的自动化测试，保障用户本地历史日志与配置数据绝对安全。
-
 #### 🚀 极速性能与内存深度治理
 - **JVM 堆与元空间上限压制**：精准约束 MaxMetaspaceSize（128M）与 ReservedCodeCacheSize（64M），压制 macOS 常驻内存占用，开启空闲内存主动归还系统机制。
 - **分词器 (Tokenizer) 软引用弹性回收**：词表与分词缓存改用软引用按需复用与弹性回收，防止多模型分词器长时间常驻引发堆积。
@@ -37,11 +32,6 @@
 - **Dedicated Host Update Banner & CLI Candidate Probing**: Decoupled version update alerts into an independent slim banner with stereoscopic highlights and official website links; `CliHostManager` iterates candidate absolute paths to reliably detect CLI versions in GUI environments lacking shell `PATH`.
 - **One-Click Host Process Termination & Real-Time Snapshot Invalidation**: Added one-click forced process tree termination for running hosts; optimized snapshot cache invalidation and leveraged JVM native process destruction to eliminate external `kill` fork overhead.
 - **Model Family Isolated Relay & Real JWT Parsing**: Supported independent relay mappings partitioned by model family to prevent cross-model quota contention; credentials import now parses authentic JWT tokens and purges placeholder emails; significantly improved Windows account switching latency.
-
-#### 🛡️ Production Security & Obfuscation
-- **Desktop ProGuard Code Shrinking & Obfuscation**: Enabled ProGuard shrinking and name obfuscation for release builds, rigorously preserving reflection and JNI symbols for Room, SQLite, JNA, Ktor, and OkHttp; integrated automated mapping verification to reject debug artifacts from release packages.
-- **Zero-Cost Debug Logging Stripping in Release**: Stripped all application debug log evaluations and invocations in release builds at compile-time via `BuildInfo.DEBUG`, eliminating sensitive data leakage risks and high-concurrency runtime overhead.
-- **Room Database Migration Test Hardening**: Added automated tests covering continuous migrations from Room schema v4 through v6, ensuring safe upgrades of local historical logs and configurations.
 
 #### 🚀 Performance & Deep Memory Governance
 - **JVM Heap & Metaspace Footprint Suppression**: Constrained `MaxMetaspaceSize` (128M) and `ReservedCodeCacheSize` (64M) to reduce macOS resident memory footprint, enabling proactive memory release back to the OS.
