@@ -2,6 +2,30 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.6.0] - 2026-09-24
+
+### 🇨🇳 中文
+
+- **支持 VS Code 插件接入**：支持托管 VS Code 扩展的代理转发，切换账号时联动重启。
+- **子代理账号继承**：子任务/子代理自动继承主会话账号，不再额外占用账号池配额。
+- **Claude 可用性指示**：检测各账号对 Claude 模型的支持情况，用红绿状态灯直观展示并优先调度。
+- **调度体验与卡片优化**：正在调用的账号置顶并展示顺时针流光动效，解决会话结束后卡片位置跳变问题。
+- **会话与标题体验**：会话列表细化区分编辑器来源，优化 AI 提炼标题的响应速度与准确度。
+- **安全与稳定性加固**：严格校验本地 Origin 防网页跨域探测，修复偶发的并发竞争与 429 误报。
+
+---
+
+### 🌐 English
+
+- **VS Code Extension Support**: Added proxy routing and automatic restart synchronization for VS Code extensions.
+- **Subagent Account Inheritance**: Subagents now inherit the parent session's account instead of contending for pool capacity.
+- **Claude Availability Checks**: Detects Claude model support per account with visual health indicators and priority routing.
+- **Queue & Card Improvements**: Actively servicing accounts are pinned with neon borders; fixed unexpected card jumping after sessions finish.
+- **Session & Title Enhancements**: Categorizes sessions by editor source and improves AI title generation accuracy.
+- **Security & Stability Fixes**: Strict local Origin checks to block untrusted browser probes; resolved concurrency race conditions and spurious 429 errors.
+
+---
+
 ## [1.5.0] - 2026-09-19
 
 ### 🇨🇳 中文
