@@ -126,7 +126,6 @@ Download the installer for your operating system from [GitHub Releases](https://
 | Operating System & Platform | Recommended Package | Description |
 | :--- | :--- | :--- |
 | **macOS (Apple Silicon)** | `Antigravity-Studio-x.x.x-macos-arm64.dmg` | For Apple Silicon (M1 / M2 / M3 / M4) Macs |
-| **macOS (Intel)** | `Antigravity-Studio-x.x.x-macos-x64.dmg` | For Intel-based Macs |
 | **Windows (x64)** | `Antigravity-Studio-x.x.x-windows-x64.exe` | For 64-bit Windows 10 / 11 |
 
 > 💡 **macOS First Launch Note (Unsigned App Workaround)**

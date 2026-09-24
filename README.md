@@ -125,8 +125,7 @@ Antigravity IDE / App / CLI
 
 | 操作系统与平台 | 推荐安装包 | 说明 |
 | :--- | :--- | :--- |
-| **macOS (Apple Silicon)** | `Antigravity-Studio-x.x.x-macos-arm64.dmg` | 适用于 M1 / M2 / M3 / M4 芯片 Mac |
-| **macOS (Intel)** | `Antigravity-Studio-x.x.x-macos-x64.dmg` | 适用于 Intel 处理器 Mac |
+| **macOS (Apple Silicon)** | `Antigravity-Studio-x.x.x-macos-arm64.dmg` | 适用于 M1 / M2 / M3 / M4 等 M 系列芯片 Mac |
 | **Windows (x64)** | `Antigravity-Studio-x.x.x-windows-x64.exe` | 适用于 64 位 Windows 10 / 11 |
 
 > 💡 **macOS 首次打开提示“已损坏”或“无法打开”？**
