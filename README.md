@@ -7,10 +7,13 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Compose Multiplatform](https://img.shields.io/badge/Compose%20Multiplatform-1.11.x-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://www.jetbrains.com/lp/compose-multiplatform/)
 [![Latest Release](https://img.shields.io/github/v/release/yuzhiqiang1993/antigravity-studio?color=green)](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest)
+[![QQ 群: 613214996](https://img.shields.io/badge/QQ%E7%BE%A4-613214996-12B7F5.svg?logo=tencentqq&logoColor=white)](#交流与反馈)
 
 **Antigravity Studio** 是为 Antigravity 生态（IDE 编辑器、独立 App、终端 CLI 以及 VS Code 插件）设计的桌面辅助与代理工具。
 
 它内置智能账号池与多策略调度引擎，按重置倒计时优先消耗临期配额，遇到限流平滑接棒；同时支持自带 Key (BYOK) 接入第三方大模型、调整长对话上下文压缩阈值、隐藏不常用模型，并在本地记录真实的请求耗时与 Token 消耗。
+
+> 💬 **用户交流大本营**：欢迎加入 QQ 交流群 **`613214996`**，交流配置心得、反馈问题与获取新版本动态。
 
 <p align="center">
   <img src="img/zh/overview.png" alt="Antigravity Studio 运行概览" width="100%" />
@@ -204,9 +207,10 @@ Antigravity IDE / App / CLI / VS Code
 
 ## 交流与反馈
 
-- **QQ 交流群**：`613214996`
-- **Telegram 群组**：[点击加入 Telegram 群组](https://t.me/+IMj6SaNJAAhlNjM1)
-- **问题反馈**：欢迎提交 [GitHub Issues](https://github.com/yuzhiqiang1993/antigravity-studio/issues)
+欢迎加入社区交流大本营，与其他开发者交流配置心得、反馈问题与获取新版本动态：
+
+- **QQ 交流群**：`613214996`（推荐，答疑与日常交流大本营）
+- **Bug 反馈与建议**：欢迎提交 [GitHub Issues](https://github.com/yuzhiqiang1993/antigravity-studio/issues)
 
 ---
 

@@ -7,10 +7,13 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Compose Multiplatform](https://img.shields.io/badge/Compose%20Multiplatform-1.11.x-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://www.jetbrains.com/lp/compose-multiplatform/)
 [![Latest Release](https://img.shields.io/github/v/release/yuzhiqiang1993/antigravity-studio?color=green)](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest)
+[![QQ Group: 613214996](https://img.shields.io/badge/QQ%20Group-613214996-12B7F5.svg?logo=tencentqq&logoColor=white)](#community--feedback)
 
 **Antigravity Studio** is a desktop companion and local proxy tool built for the Antigravity ecosystem (IDE editor, standalone App, terminal CLI, and VS Code extensions).
 
 It features a smart account pool and multi-strategy dispatch engine that prioritizes expiring quotas to prevent waste while seamlessly recovering from rate limits. It also lets you bring your own API keys (BYOK) for third-party LLMs, customize long-context compression thresholds, hide unused models, and monitor real request latencies and token usage locally.
+
+> 💬 **Community & Discussion**: Join our QQ group **`613214996`** for release updates, configuration tips, and troubleshooting.
 
 <p align="center">
   <img src="img/zh/overview.png" alt="Antigravity Studio Overview" width="100%" />
@@ -204,9 +207,10 @@ Download the installer for your platform from [GitHub Releases](https://github.c
 
 ## Community & Feedback
 
-- **QQ Group**: `613214996`
-- **Telegram Group**: [Join Telegram Group](https://t.me/+IMj6SaNJAAhlNjM1)
-- **Issue Tracker**: Submit questions on [GitHub Issues](https://github.com/yuzhiqiang1993/antigravity-studio/issues)
+Welcome to join our community for configuration tips, updates, and discussion:
+
+- **QQ Group**: `613214996` (Primary community for discussion and quick Q&A)
+- **Issue Tracker**: Submit bug reports and feature requests on [GitHub Issues](https://github.com/yuzhiqiang1993/antigravity-studio/issues)
 
 ---
 
