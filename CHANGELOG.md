@@ -2,6 +2,28 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.7.0] - 2026-09-27
+
+### 🇨🇳 中文
+
+- **智能选号与临期冲刺**：升级选号调度策略，引入“临期冲刺”排序，优先消耗即将重置的账号额度；严格隔离不同模型族配额，避免跨模型挤占。
+- **账号异常状态清晰透出**：受限或异常账号卡片增加红色边框高亮，支持悬浮查看原始报错与指引弹窗；受限账号自动置后，卡片标签细分额度不足与限流状态。
+- **智能接力与切号容灾更平滑**：遭遇 429 限流时支持原地退避重试与冷却自愈；优化 403 异常冷却隔离与切号静默容灾，大幅降低调用中断几率。
+- **AI 会话标题与长文本解析**：升级会话标题提炼引擎，生成更自然、精准的会话命名；修复长文本请求下模型误识别上下文的问题。
+- **桌面端交互与系统适配**：macOS 菜单栏托盘图标自适应深浅色模式；稳定卡片展示顺序消除切页抖动；优化 Windows 系统交互与宿主启动兼容性。
+
+---
+
+### 🌐 English
+
+- **Smart Scheduling & Sprint Priority**: Overhauled account selection with sprint priority for expiring quotas; partitioned quota usage across model families to prevent cross-model contention.
+- **Restricted Account Visual Guidance**: Highlighted restricted and errored accounts with red borders, error hover tooltips, and action guides; automatically deprioritized restricted accounts.
+- **Resilient Smart Relay & Failover**: Added in-place backoff retry and self-healing for 429 rate limits; refined 403 cooldown isolation and silent failover for smooth switching.
+- **Enhanced AI Session Titles**: Upgraded session title summarization for more natural, concise naming; fixed prompt payload confusion in long-context requests.
+- **UI Polish & System Adaptations**: Adaptive monochrome macOS tray icon supporting dark/light mode; stabilized card order to eliminate repositioning jitter; improved Windows host lifecycle compatibility.
+
+---
+
 ## [1.6.0] - 2026-09-24
 
 ### 🇨🇳 中文
