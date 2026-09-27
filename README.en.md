@@ -217,4 +217,7 @@ Welcome to join our community for configuration tips, updates, and discussion:
 ## License & Disclaimer
 
 - **License**: Released under the [MIT License](LICENSE). Source code and build instructions are available at [antigravity-studio-core](https://github.com/yuzhiqiang1993/antigravity-studio-core).
-- **Disclaimer**: Antigravity Studio is an independent open-source project and is not affiliated with Google or the Antigravity team. Please follow the respective service terms of each model provider.
+- **Disclaimer & Risk Notice**:
+  - Antigravity Studio is an independent open-source project and is not affiliated with Google or the official Antigravity team. Please follow the respective service terms of each model provider.
+  - Google's risk control and quota enforcement policies are constantly evolving and subject to unpredictable changes. Any consequences arising from the use of this tool (including, but not limited to, rate limits, abnormal account flags, suspensions, or quota deductions) are entirely your own responsibility, and the project and its developers assume no liability.
+  - **If you have any concerns regarding potential impacts on your personal or work accounts, please do not use this tool.**

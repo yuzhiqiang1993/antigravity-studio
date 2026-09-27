@@ -217,4 +217,7 @@ Antigravity IDE / App / CLI / VS Code
 ## 软件许可与免责声明
 
 - **软件许可**：Antigravity Studio 分发产物免费提供给个人及团队使用，遵循 [MIT License](LICENSE)。如需查阅核心引擎源码或从源码构建，请访问 [antigravity-studio-core](https://github.com/yuzhiqiang1993/antigravity-studio-core)。
-- **免责声明**：Antigravity Studio 为独立的第三方桌面辅助工具，与 Google 或 Antigravity 官方团队无关。请在使用时遵守各模型服务商的使用规范。
+- **免责声明与风险提示**：
+  - Antigravity Studio 为独立的第三方桌面辅助工具，与 Google 或 Antigravity 官方团队无任何关联，请在使用时遵守各服务商的使用规范。
+  - Google 官方的风控策略与配额规则处于不定期动态调整中，任何人均无法预知或保证其策略变化。使用本工具产生的任何后果（包括但不限于账号限流、异常标记、封禁或配额扣减等）均由使用者自行承担，与本项目及开发者无任何关系。
+  - **如果你担心对自己的个人或工作账号产生任何潜在影响，请勿使用本工具。**
