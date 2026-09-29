@@ -161,6 +161,7 @@ Download the installer for your platform from [GitHub Releases](https://github.c
 | OS & Platform | Package | Notes |
 | :--- | :--- | :--- |
 | **macOS (Apple Silicon)** | `Antigravity-Studio-x.x.x-macos-arm64.dmg` | For M1 / M2 / M3 / M4 Apple Silicon Macs |
+| **macOS (Intel)** | `Antigravity-Studio-x.x.x-macos-x64.dmg` | For Intel-based Macs |
 | **Windows (x64)** | `Antigravity-Studio-x.x.x-windows-x64.exe` | For 64-bit Windows 10 / 11 |
 
 > 💡 **macOS "App is damaged" or "Cannot be opened"?**
