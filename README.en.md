@@ -4,16 +4,14 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: macOS | Windows](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey.svg)](#installation--download)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
-[![Compose Multiplatform](https://img.shields.io/badge/Compose%20Multiplatform-1.11.x-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://www.jetbrains.com/lp/compose-multiplatform/)
 [![Latest Release](https://img.shields.io/github/v/release/yuzhiqiang1993/antigravity-studio?color=green)](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest)
 [![QQ Group: 613214996](https://img.shields.io/badge/QQ%20Group-613214996-12B7F5.svg?logo=tencentqq&logoColor=white)](#community--feedback)
 
-**Antigravity Studio** is a desktop companion and local proxy tool built for the Antigravity ecosystem (IDE editor, standalone App, terminal CLI, and VS Code extensions).
+Antigravity Studio is a desktop companion and local proxy tool built for Antigravity (including the IDE, standalone desktop app, terminal CLI, and VS Code extension).
 
-It features a smart account pool and multi-strategy dispatch engine that prioritizes expiring quotas to prevent waste while seamlessly recovering from rate limits. It also lets you bring your own API keys (BYOK) for third-party LLMs, customize long-context compression thresholds, hide unused models, and monitor real request latencies and token usage locally.
+When coding with Antigravity daily, managing multiple accounts is tedious, frequent requests easily hit 429 rate limits, and you can't directly use Claude, DeepSeek, or local models. Antigravity Studio solves these exact frictions: pool multiple Google accounts with automatic dispatching, prioritize quotas that are about to expire, seamlessly hand off to backup accounts when rate-limited, and plug in your own API keys for third-party models. Everything runs locally on your machine without intermediate servers.
 
-> 💬 **Community & Discussion**: Join our QQ group **`613214996`** for release updates, configuration tips, and troubleshooting.
+QQ Community: `613214996` (troubleshooting, config sharing, and release updates)
 
 <p align="center">
   <img src="img/zh/overview.png" alt="Antigravity Studio Overview" width="100%" />
@@ -23,202 +21,188 @@ It features a smart account pool and multi-strategy dispatch engine that priorit
 
 ## What Problems Does It Solve?
 
-Common friction points when using Antigravity daily:
+If you use Antigravity regularly, you've probably run into these issues:
 
-1. **Quota Waste & Frequent Rate Limits**: Official Google quotas roll on a 5-hour cycle and reset weekly; unused quotas expire without carrying over (Use-it-or-lose-it). Single accounts often hit 429 rate limits during intensive coding sessions while backup accounts sit idle. Switching accounts requires re-authenticating across tools and breaks focus.
-2. **Multi-Session Collisions & Cache Invalidation**: Running multiple windows or concurrent projects on a single account frequently triggers concurrency throttles. Inconsistent switching also destroys the provider's server-side Prompt Cache, forcing full context recomputations and spiking latency.
-3. **Missing Third-Party & Reasoning Models**: The built-in model lineup is limited. You cannot directly invoke Claude, DeepSeek (with full Thinking reasoning streams), GPT, or local Ollama models in Antigravity.
-4. **Premature Code Summarization in Long Chats**: The default context compression threshold is relatively low, often summarizing away important code details during deep multi-turn sessions.
-5. **Cluttered Model Dropdowns**: Too many unused official models crowd the dropdown, making it cumbersome to find your go-to models.
+1. **Wasted quotas vs. annoying 429 rate limits**: Official quotas roll every 5 hours and reset weekly. Unused quota expires without carrying over. When you're in the flow, a single account frequently hits rate limits while your idle backup accounts sit unused. Switching accounts manually across multiple tools is repetitive and breaks focus.
+2. **Multi-window collisions and sluggish responses**: Opening several projects at once crowds all requests onto a single account, triggering concurrency bottlenecks. Inconsistent switching also breaks the provider's server-side Prompt Cache, forcing slow, full-context recalculations on every turn.
+3. **Can't use third-party models in Antigravity**: Official model options are limited. You can't directly call Claude, DeepSeek (with full streaming reasoning thoughts), GPT, or local Ollama models in your workflow.
+4. **Important code gets summarized away too early**: The default context compression threshold is relatively low. In long sessions, early code and architectural context often get lost in summary.
+5. **Scattered history across different clients**: Working across IDE, desktop app, and CLI leaves conversations fragmented in different places. Default titles look identical, making it hard to find what you worked on.
+6. **Port collisions breaking proxy startup**: Default port 8321 is sometimes taken by another program, preventing the tool from launching smoothly.
 
 ---
 
-## Features
+## Key Features
 
-### 1. Smart Account Pool & Multi-Strategy Dispatch
-Manage multiple Google accounts with automatic local proxy interception and strategy routing:
+### 1. Smart Multi-Account Pooling & Auto-Relay
+Add your Google accounts to a shared pool, and the local proxy routes traffic automatically according to your strategy:
 
-- **Three Dispatch Strategies**:
-  - **Failover Relay**: Primary account priority. Directly uses the active host account under normal conditions. When quota drops below the candidate threshold (default 5%) or encounters a 429/403 error, the proxy silently routes requests to the optimal standby account. Once the host account recovers and the cooldown expires, traffic automatically reverts. For Claude calls, requests automatically route to Claude-supported accounts if the primary is restricted.
-  - **Sticky Session**: Binds each conversation session to a dedicated account throughout its lifecycle. Subsequent requests always target the same account to maximize server-side Prompt Cache hits and cut latency. Uses exclusive bindings when capacity allows and balances across least-loaded accounts otherwise. Subagents transparently inherit parent session accounts without consuming extra slots.
-  - **Round Robin**: Smoothly rotates requests across healthy accounts to evenly distribute concurrent loads and mitigate rate limits. Quickly fails over to the next candidate on 429 errors.
-- **Sprint Priority & Quota Maximization (Use-it-or-lose-it)**:
-  - **Dynamic Urgency Scoring**: Quotas expire when reset timers lapse. The engine scores candidates by `Urgency = Remaining Quota ÷ Time Until Reset`, routing traffic to accounts closest to reset with sufficient balance to fully exhaust expiring quotas. Weekly resets carry the highest priority.
-  - **Model Family Partitioning**: Gemini and Claude quotas are tracked and pooled separately to prevent cross-model quota starvation.
-  - **Adaptive Threshold Degradation**: Automatically ignores candidate minimum thresholds when the entire pool is depleted, squeezing remaining non-zero balances to keep services running until quotas refresh.
-- **Per-Account Outbound Proxy**: Configure dedicated HTTP / SOCKS5 proxies per account with isolated connection pools across token refreshes, quota polling, and request dispatching, keeping network egress and IPs segregated.
-- **Pool Quota Dashboard & Health Monitoring**:
-  - Aggregates available balance, total points, and healthy accounts per model family.
-  - Live Claude availability indicators (Available, Untested, Rate Limited, Restricted).
-  - Restricted account cards highlighted with red borders, raw error inspect tooltips, and action guidance.
-  - Active accounts pinned with neon borders; standby candidates clearly tagged with priority ranks.
-  - System tray icon with live hover tooltips displaying relay status and active proxy accounts.
-- **One-Click Account Switching**: Add Google accounts via one-click browser login or by pasting Refresh Tokens. Switch active accounts for IDE, App, CLI, or VS Code with one click and coordinated restarts.
+- **Failover (Recommended Default)**: Stick to your primary login account during normal use. When its quota runs low (e.g. below 5%) or hits a 429 rate limit, the tool automatically hands off to the backup account with the earliest weekly reset. Once the primary recovers, traffic switches back. If no accounts are available, it halts cleanly instead of hammering errors.
+- **Reset First**: All accounts compete together. Whichever account's weekly quota expires soonest gets picked first, squeezing out free quotas before they reset.
+- **Sticky Session**: Locks each conversation window to a dedicated account. As long as the session continues, it sticks to that account to maximize server-side Prompt Cache hits and cut latency. Subagent tasks inherit the same account. It only migrates if the account hits a rate limit or runs completely dry.
+- **Round Robin**: Distributes requests evenly across all healthy accounts to balance high-frequency spikes.
+- **Thresholds & Independent Outbound Proxies**: Set your own quota alert line (e.g. "switch when quota drops below 5%"). You can also attach distinct HTTP / SOCKS5 proxies to each account so they don't share the same exit IP.
 
-![Account Quota Management](img/zh/account_quota.png)
+![Account Quotas](img/zh/account_quota.png)
+![Dispatch Settings](img/zh/account_pool_relay.png)
 ![Switch Account](img/zh/account_switch.png)
 
+---
+
 ### 2. Bring Your Own Key (BYOK) for Any Model
-- **Mainstream Providers & Custom Endpoints**: Built-in presets for OpenAI, Anthropic, Gemini, DeepSeek, xAI, local Ollama, and OpenAI-compatible gateways.
-- **Reasoning Chains & Tool Calling Compatibility**: Full parsing for DeepSeek `reasoning_text` streaming and non-streaming thought deltas. Supports multimodal image inputs, code tool calling (Tools), and cross-protocol Tool Call ID pairing with fallback text demotion for orphaned outputs.
-- **One-Click Fetch & Inject**: Enter your API key to fetch available models and seamlessly inject them into Antigravity's model selector.
-- **Direct & Private**: Requests travel directly from your machine to your configured provider without intermediate third-party servers.
+Connect your own models directly into Antigravity:
+
+- **34+ Provider Presets**: OpenAI, Anthropic, Gemini, DeepSeek, Ollama, OpenRouter, SiliconFlow, DashScope, Kimi, Zhipu, and more. Just plug in your API key.
+- **Reasoning Chains & Tool Calling**: Full streaming support for DeepSeek's thinking process, image inputs, and code tool calls.
+- **Custom Context Windows**: Expand model context thresholds (e.g. to 512K or 1M) to delay automatic summarization and preserve your code.
+- **Strictly Local & Direct**: Test connections with one click. Requests travel directly from your computer to the model provider, never through any third-party middleman.
 
 ![Model Management](img/zh/model_management.png)
 ![Provider Presets](img/zh/provider_presets.png)
-![Select Models](img/zh/provider_models_select.png)
 
-### 3. One-Click Proxy Integration & Safe Revert
-- **Multi-Host Detection**: Automatically identifies running instances and versions of Antigravity IDE, App, CLI, and VS Code extensions.
-- **Process Management**: Kill running host processes and full subprocess trees with one click.
-- **Safe & Reversible**: Click "Connect Proxy" to integrate, and "Restore Direct Connection" to revert at any time without modifying any official binaries.
+---
 
-### 4. Hide Unused Models & Custom Context Compression
-- **Streamlined Model List**: Hide unused official models so the IDE dropdown stays focused on relevant options.
-- **Context Capacity & Compression Policies**: Supports native official compression policies (`CASCADE_USE_EXPERIMENT_CHECKPOINTER`) and auto-derives policies for custom models. Choose presets from 128K to 1M to delay summarization and preserve code details in long chats.
+### 3. Clear Routing Insights & Live Dashboard
+Never guess which account handled your request or why:
 
-![Context Strategy](img/zh/context_strategy.png)
+- **Plain-English Causal Banner**: The bottom bar clearly displays the reason for each routing decision, such as "Session from Antigravity IDE · Routed to backup account: Primary quota below 5%", along with latency, token usage, and cache hit rates.
+- **Active Card Glow**: The account currently answering illuminates with a neat streamer border, color-coded by model family (Gemini blue/purple, Claude orange/red), and fades out when finished.
+- **Auto Port Shifting**: If port 8321 is busy, the tool automatically tries the next open port (like 8322). A banner pops up on the dashboard so you can update your editor settings in one click.
 
-### 5. Activity Logs & End-to-End Performance Metrics
-- **Monotonic E2E Metrics**: Measures true end-to-end throughput (E2E TPS), Time to First Token (TTFT), queue duration, and generation speed (TPOT) via monotonic clocks.
-- **Dual-Pane Persistent Details & cURL Export**: Inspect payloads and metrics side-by-side on widescreen displays without dialogs, with one-click export of escaped terminal cURL commands.
-- **Agent Task Awareness**: Automatically tags context compression, terminal checks, title generation, and tool invocations, backfilling reasoning token counters.
-- **Local SQLite Persistence**: Built on AndroidX Room KMP and bundled SQLite with tiered hot/cold pagination. Data stays strictly local with configurable 1–30 day retention or one-click cleanup.
+---
 
-![Activity Logs](img/zh/activity_logs.png)
-![Model Speed Stats](img/zh/logs_model_speed_stats.png)
+### 4. One-Click Host Integration & Safe Account Switching
+- **Auto-Detects Clients**: Recognizes local installations of Antigravity 2.0 Desktop, Antigravity IDE, VS Code Extension, and terminal CLI.
+- **One-Click Proxy Toggle**: Enable or disable proxy routing per client directly from the UI, or copy terminal launch commands for CLI. Restore direct official connections at any time without touching official installation files.
+- **Safe Transactional Switching**: Switching active login accounts uses file locking and automated backups in the background to prevent corrupting editor config files.
 
-### 6. Token Usage Analytics
-- **Multi-Dimensional Analytics**: Track total tokens, input/output usage, Prompt cache hit rate, and estimated savings across flexible timeframes (Today, 1 Day, 7 Days, 14 Days, 30 Days, or Custom Date Range).
-- **Daily Trends & Top Models**: Inspect daily token consumption curves and analyze request counts and token share across models.
+---
+
+### 5. Unified Session Manager & AI Renaming
+- **Find Past Conversations Anywhere**: Browse sessions across IDE, Desktop, CLI, and VS Code in one place. Filter and search by project or client.
+- **AI Reads & Names Sessions**: When generic titles get confusing, ask AI to read the full conversation and summarize a concise, accurate title, with multiple candidates to choose from.
+- **Privacy First**: Conversation details open locally in their original editors. The tool only indexes metadata.
+
+![Session Management](img/zh/session_management.png)
+![AI Renaming](img/zh/session_rename_ai.png)
+
+---
+
+### 6. Local Usage Analytics & Request Logs
+- **Track Tokens & Costs**: Review daily and weekly token consumption, request counts, input/output/reasoning breakdowns, and estimated costs.
+- **Real Speeds & Latency**: Measures genuine Time to First Token (TTFT), generation speeds, and queue durations using monotonic local clocks. Copy cURL commands with one click to reproduce in terminal.
+- **Everything Stored Locally**: Logs live in a local SQLite database with customizable retention periods and one-click cleanup.
 
 ![Usage Statistics](img/zh/usage_statistics.png)
-
-### 7. Health Check & Diagnostics (Doctor)
-- Diagnose network connectivity, local proxy port binding, config file integrity, and host integration status with one click, complete with automated fixes.
-
-### 8. Appearance & General Preferences
-- **Appearance**: Light and dark themes with multiple Material 3 color schemes.
-- **General Settings**: English / Simplified Chinese UI toggle, default switch target app, and version update checks.
-
-![Settings](img/zh/settings_general.png)
-![About](img/zh/settings_about.png)
+![Health Doctor](img/zh/health_doctor.png)
 
 ---
 
 ## How It Works
 
 ```text
-Antigravity IDE / App / CLI / VS Code
-            │
-            ▼ (Requests sent to local proxy)
-    http://127.0.0.1:8321
-            │
-            ├─► Official Models (Gemini / Claude)
-            │         │
-            │         ▼
-            │    ┌───────────────────────────────────────────────┐
-            │    │         Smart Account Pool Engine             │
-            │    │ ┌───────────────────────────────────────────┐ │
-            │    │ │ Selectors: Failover / Sticky / Round Robin│ │
-            │    │ ├───────────────────────────────────────────┤ │
-            │    │ │ Urgency Score: Remaining ÷ Time to Reset  │ │
-            │    │ ├───────────────────────────────────────────┤ │
-            │    │ │ Failover: 429 Cooldown / Claude Probing   │ │
-            │    │ └───────────────────────────────────────────┘ │
-            │    └───────────────────────┬───────────────────────┘
-            │                            │
-            │                            ▼ (Routed via per-account egress proxies)
-            │                     Google Official Servers
-            │
-            └─► Custom Models (BYOK)
-                      │
-                      ▼ (Local protocol conversion, reasoning & tool adapters)
-            OpenAI / Anthropic / DeepSeek / Ollama etc.
+Antigravity Clients (IDE / Standalone App / CLI / VS Code)
+                     │
+                     ▼ (Local requests sent to proxy port)
+            Local Proxy Server (Default 8321, auto-shifts if busy)
+                     │
+         ┌───────────┴───────────┐
+         ▼                       ▼
+   Official Models (Gemini / Claude)  Third-Party Models (BYOK)
+         │                       │
+         ▼                       ▼ (Local protocol adapter & reasoning parser)
+  Smart Account Pool Engine       DeepSeek / OpenAI / Claude / Ollama
+  (Failover / Reset First / Sticky)
+         │
+         ▼ (Optional dedicated egress proxy per account)
+   Google Official Endpoints
 ```
 
 ---
 
-## Desktop App & IDE Extension Recommendation
+## Desktop App vs. IDE Extension
 
-| Product | Role & Core Scenario |
+| Tool | Best For |
 | :--- | :--- |
-| **Antigravity Studio (Desktop)** | **Account Pool Dispatch, BYOK Integration & Local Proxy**<br>Manages multi-account quota pools, dispatch strategies, per-account egress proxies, BYOK model injections, long-context compression policies, and multi-host takeovers (IDE / App / CLI / VS Code). |
-| **[Antigravity IDE Cockpit (Extension)](https://open-vsx.org/extension/yuzhiqiang/antigravity-ide-cockpit)** | **In-IDE Account Switching & Context Insights**<br>Runs inside Antigravity IDE for smooth in-editor account switching, real-time session token analytics, and sanitized diagnostics. |
+| **Antigravity Studio (Desktop)** | **Account pooling, automatic dispatching, BYOK model integration, local proxy**<br>Best for managing multiple Google account quotas, configuring outbound proxies, plugging in DeepSeek/Claude, and toggling proxy modes across all clients. |
+| **[Antigravity IDE Cockpit (Extension)](https://open-vsx.org/extension/yuzhiqiang/antigravity-ide-cockpit)** | **In-editor account switching & real-time context token insights**<br>Runs inside Antigravity IDE for switching accounts while coding and monitoring session token usage. |
 
-> 💡 **Recommendation**: Let **Studio Desktop** handle account pooling and model proxying, while using **Cockpit Extension** inside the IDE for in-editor switching and session analytics.
+> Tip: Run **Studio Desktop** in the background for account pooling and model routing, and keep **Cockpit Extension** inside your IDE for instant in-editor checks.
 
-👉 [Install Cockpit on Open VSX](https://open-vsx.org/extension/yuzhiqiang/antigravity-ide-cockpit) · [Official Website agycockpit.com](https://agycockpit.com)
+👉 [Cockpit on Open VSX](https://open-vsx.org/extension/yuzhiqiang/antigravity-ide-cockpit) · [Official Site agycockpit.com](https://agycockpit.com)
 
 ---
 
 ## Installation & Download
 
-### 1. Pre-built Binaries (Recommended)
+### 1. Download Binaries
 
-Download the installer for your platform from [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest):
+Get the installer for your system from [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest):
 
-| OS & Platform | Package | Notes |
+| Platform | Installer | Target Machine |
 | :--- | :--- | :--- |
-| **macOS (Apple Silicon)** | `Antigravity-Studio-x.x.x-macos-arm64.dmg` | For M1 / M2 / M3 / M4 Apple Silicon Macs |
-| **macOS (Intel)** | `Antigravity-Studio-x.x.x-macos-x64.dmg` | For Intel-based Macs |
-| **Windows (x64)** | `Antigravity-Studio-x.x.x-windows-x64.exe` | For 64-bit Windows 10 / 11 |
+| **macOS (Apple Silicon)** | `Antigravity-Studio-x.x.x-macos-arm64.dmg` | M1 / M2 / M3 / M4 Macs |
+| **macOS (Intel)** | `Antigravity-Studio-x.x.x-macos-x64.dmg` | Intel-based Macs |
+| **Windows (x64)** | `Antigravity-Studio-x.x.x-windows-x64.exe` | 64-bit Windows 10 / 11 |
 
-> 💡 **macOS "App is damaged" or "Cannot be opened"?**
-> This is caused by macOS Gatekeeper blocking unsigned binaries. Open Terminal and run:
+> **macOS says "App is damaged" or "Cannot be opened"?**
+> macOS Gatekeeper blocks unsigned open-source binaries by default. Open Terminal and run:
 > ```bash
 > sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"
 > ```
 
 ---
 
-### 2. Quick Start in 3 Steps
+### 2. Getting Started in 3 Steps
 
-1. **Configure Accounts or Third-Party Models**:
-   - **For Official Models**: Log in or import Google accounts in **Account Quotas**, then open **Dispatch Settings** to pick a strategy (e.g. "Failover Relay" or "Sticky Session").
-   - **For Third-Party Models**: Add a provider (e.g. DeepSeek, OpenAI, Claude) in **Model Management**, input your API key, and select the models you want.
-2. **Connect Proxy**: In **Overview**, click **Connect Proxy** on the target host card (e.g. Antigravity IDE).
-3. **Start Coding**: Reopen Antigravity IDE and choose your newly added model from the dropdown. When invoking official models, the proxy dispatches traffic across your account pool automatically.
+1. **Add Accounts or Models**:
+   - Official models: Add or import Google accounts in **Accounts**, turn on the pool switch, and select a strategy (Failover recommended);
+   - Third-party models: Click **Add Provider** in **Models**, choose a platform, enter your API key, and check the models you want.
+2. **Turn On Proxy**: Go to **Overview**, locate your editor (e.g. Antigravity IDE), and toggle the switch on. For CLI, copy the one-line launch command.
+3. **Start Coding**: Open your editor. Your new models will appear in the model list. When calling official models, the proxy will automatically select the best account in the background.
 
 ---
 
 ## FAQ
 
-**Q: Will automatic relay interrupt ongoing coding sessions?**
-- No. With Sticky Session, existing conversations remain pinned to their original account to preserve the Prompt Cache. With Failover Relay, standby accounts step in transparently in the background only when the primary hits a 429 or exhausts its quota, without disrupting editor workflows.
+**Q: Will switching accounts interrupt what I'm writing?**
+- No. If you use Sticky Session, your active chat stays locked to the same account to protect the context cache. If you use Failover, it won't switch while your primary account is healthy—it only hands off when the primary runs low or gets throttled. If every account in the pool is empty, it pauses cleanly with a notice instead of throwing broken errors.
 
-**Q: Why use "Sprint Priority"? Won't it deplete certain accounts too quickly?**
-- Official Google quotas refresh on rolling schedules and reset automatically; unused quotas do not roll over. Sprint Priority targets accounts closest to resetting to extract maximum value from quotas that would otherwise be discarded, increasing overall usable token capacity.
+**Q: Why does "Reset First" help save quota?**
+- Unused Google quotas expire when their reset cycle hits. Reset First watches each account's countdown and uses whichever account clears earliest, helping you burn expiring free quota before it vanishes.
 
-**Q: Can each account use a different proxy node?**
-- Yes. You can configure individual HTTP or SOCKS5 proxies on each account card, isolating exit IP addresses to avoid collateral risk across accounts.
+**Q: What does the threshold mean?**
+- It means "switch accounts when quota drops below X%" (5% by default). When an account's 5-hour quota falls below 5%, the system marks it as running low and finds a healthy account to take over.
 
-**Q: Added models don't appear in the IDE dropdown after connecting?**
-- Verify that models are enabled in **Model Management**;
-- Check that the local proxy is running and the IDE card displays "Connected";
-- Restart Antigravity IDE to reload the configuration.
+**Q: Can each account use a different proxy?**
+- Yes. You can set individual HTTP or SOCKS5 proxies on each account card. Token refreshes, quota lookups, and requests will all travel through that dedicated proxy, preventing multiple accounts from sharing the same exit IP.
 
-**Q: Does restoring direct connection erase my settings?**
-- No. Restoring direct connection only resets host network routing back to official endpoints. All accounts, keys, models, and settings remain safely stored locally.
+**Q: What if port 8321 is already in use?**
+- The tool automatically looks for the next open port (like 8322). A yellow banner will appear on the dashboard where you can sync the new port to your editor settings with one click.
 
-**Q: Are my API keys, credentials, and code secure?**
-- Yes. Antigravity Studio is 100% open-source and operates strictly locally. There are no remote backend servers. All credentials stay on your machine, and requests are sent directly to official endpoints or your configured providers.
+**Q: I turned on proxy, but don't see new models in my editor?**
+- Check that the model is checked in **Models**;
+- Check that the proxy shows running in green in **Overview** and your editor card says "Connected";
+- Quit and restart your editor so it reloads its configuration.
+
+**Q: Will turning off the proxy erase my settings?**
+- No. Turning off the proxy simply points your editor back to official servers. All your saved accounts, API keys, models, and usage logs stay safely on your computer.
+
+**Q: Are my API keys, accounts, and code safe?**
+- Yes. Antigravity Studio is completely open-source and runs entirely on your local machine. There are no tracking backends or relay servers. All credentials stay local, and requests go straight from your machine to Google or your configured providers.
 
 ---
 
 ## Community & Feedback
 
-Welcome to join our community for configuration tips, updates, and discussion:
-
-- **QQ Group**: `613214996` (Primary community for discussion and quick Q&A)
-- **Issue Tracker**: Submit bug reports and feature requests on [GitHub Issues](https://github.com/yuzhiqiang1993/antigravity-studio/issues)
+- **QQ Community**: `613214996` (Daily Q&A, configuration sharing, and updates)
+- **Bug Reports & Requests**: Submit issues on [GitHub Issues](https://github.com/yuzhiqiang1993/antigravity-studio/issues)
 
 ---
 
 ## License & Disclaimer
 
 - **License**: Released under the [MIT License](LICENSE).
-- **Disclaimer & Risk Notice**:
-  - Antigravity Studio is an independent open-source project and is not affiliated with Google or the official Antigravity team. Please follow the respective service terms of each model provider.
-  - Google's risk control and quota enforcement policies are constantly evolving and subject to unpredictable changes. Any consequences arising from the use of this tool (including, but not limited to, rate limits, abnormal account flags, suspensions, or quota deductions) are entirely your own responsibility, and the project and its developers assume no liability.
-  - **If you have any concerns regarding potential impacts on your personal or work accounts, please do not use this tool.**
+- **Disclaimer**:
+  - This is an independent open-source tool and is not affiliated with Google or Antigravity. Please use it within each provider's acceptable use policies.
+  - Official quota and risk policies can change at any time. Any account limitations, flags, or restrictions resulting from using this tool are your own responsibility. If you have concerns about impacts to personal or work accounts, please use discretion.
