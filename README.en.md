@@ -52,7 +52,7 @@ Add your Google accounts to a shared pool, and the local proxy routes traffic au
 ### 2. Bring Your Own Key (BYOK) for Any Model
 Connect your own models directly into Antigravity:
 
-- **34+ Provider Presets**: OpenAI, Anthropic, Gemini, DeepSeek, Ollama, OpenRouter, SiliconFlow, DashScope, Kimi, Zhipu, and more. Just plug in your API key.
+- **34+ Provider Presets**: OpenAI, Anthropic, Gemini, DeepSeek, Ollama, OpenRouter, Magpie, SiliconFlow, DashScope, Kimi, Zhipu, and more. Just plug in your API key.
 - **Reasoning Chains & Tool Calling**: Full streaming support for DeepSeek's thinking process, image inputs, and code tool calls.
 - **Custom Context Windows**: Expand model context thresholds (e.g. to 512K or 1M) to delay automatic summarization and preserve your code.
 - **Strictly Local & Direct**: Test connections with one click. Requests travel directly from your computer to the model provider, never through any third-party middleman.
@@ -62,12 +62,13 @@ Connect your own models directly into Antigravity:
 
 ---
 
-### 3. Clear Routing Insights & Live Dashboard
+### 3. Transparent Scheduling & Visual Routing Dashboard
 Never guess which account handled your request or why:
 
-- **Plain-English Causal Banner**: The bottom bar clearly displays the reason for each routing decision, such as "Session from Antigravity IDE · Routed to backup account: Primary quota below 5%", along with latency, token usage, and cache hit rates.
-- **Active Card Glow**: The account currently answering illuminates with a neat streamer border, color-coded by model family (Gemini blue/purple, Claude orange/red), and fades out when finished.
-- **Auto Port Shifting**: If port 8321 is busy, the tool automatically tries the next open port (like 8322). A banner pops up on the dashboard so you can update your editor settings in one click.
+- **Visual Routing Topology**: The top dashboard renders an interactive live topology map — connecting source clients (IDE / Desktop / CLI / VS Code) ➔ local proxy gateway ➔ active accounts and models with glowing flow lines, in-flight progress bars, and dedicated subagent indicators.
+- **Clear Dispatch Insights & Upstream Model Transparency**: The scheduler bar displays human-readable routing reasons and genuine model names (e.g. *"Session from Antigravity 2.0 · Using Gemini 3.8 Flash (High) · Routed to res\*\*\*@gmail.com · Sticky session"*), instantly reveals the active upstream model (e.g. `gemini-3.8-flash-n`), elapsed time, output tokens, and cache hit rate. It also folds smoothly into an edge handle for a cleaner canvas.
+- **Card Glow & Agent Working State Sync**: Serving nodes pulse with model-themed glow borders (Gemini blue-violet, Claude amber-red). The visual glow stays lit throughout local agent tool calls, terminal commands, and screenshots, fading out gracefully upon completion.
+- **Auto Port Shifting**: If port 8321 is busy, the tool automatically tries the next open port (like 8322/8323). A banner pops up on the dashboard so you can update your editor settings in one click.
 
 ---
 
