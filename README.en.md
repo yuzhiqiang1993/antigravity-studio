@@ -95,6 +95,7 @@ Never guess which account handled your request or why:
 - **Everything Stored Locally**: Logs live in a local SQLite database with customizable retention periods and one-click cleanup.
 
 ![Usage Statistics](img/zh/usage_statistics.png)
+![Activity Logs](img/zh/activity_logs.png)
 ![Health Doctor](img/zh/health_doctor.png)
 
 ---

@@ -95,6 +95,7 @@ QQ 交流群：`613214996`（配置交流、答疑与新版本通知）
 - **数据全在本地**：所有日志保存在本地数据库，支持自己设保留天数，也能随时一键清空。
 
 ![用量统计大盘](img/zh/usage_statistics.png)
+![调用日志明细](img/zh/activity_logs.png)
 ![系统健康诊断](img/zh/health_doctor.png)
 
 ---
