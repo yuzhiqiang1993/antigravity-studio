@@ -53,7 +53,6 @@ Review request counts, token usage, cost estimates, and request logs. Compare mo
 
 ![Usage statistics](img/zh/usage_statistics.png)
 ![Request logs](img/zh/activity_logs.png)
-![Network checks](img/zh/health_doctor.png)
 
 ## Installation and Quick Start
 

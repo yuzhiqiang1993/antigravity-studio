@@ -53,7 +53,6 @@ Antigravity Studio 是一款桌面端多账号管理与本地模型代理工具�
 
 ![用量统计](img/zh/usage_statistics.png)
 ![调用日志](img/zh/activity_logs.png)
-![网络体检](img/zh/health_doctor.png)
 
 ## 安装与快速上手
 
