@@ -2,6 +2,46 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.12.0]
+
+### 中文
+
+#### 新增与优化
+- 支持 Gemini 4 Argon 额度展示与调度，按账号实际权限区分独立额度和共享额度。
+- 账号列表新增精简视图，一屏查看更多账号，并记住视图偏好。
+- 模型耗时统计支持多选对比，查看哪些模型回复更快、生成速度更高。
+- 设置页新增网络一键体检，连接异常时可查看检测结果和处理建议。
+- 一键唤醒支持 Argon，自动匹配账号可用的模型。
+
+#### 修复
+- 修复 Windows 后台检测时弹出黑框、客户端版本号与更新提示缺失的问题。
+- 修复断开代理后被后台重新接管，以及接入状态显示不准确的问题。
+- 修复同一会话保存在多个客户端目录时无法重命名的问题。
+- 修复用量自动刷新失效、切换日期后显示错误范围数据的问题。
+
+#### 升级提醒
+升级前请退出旧版 Studio 并备份应用数据；升级后不要让新旧版本同时使用同一份数据。
+
+### English
+
+#### Added and improved
+- Added Gemini 4 Argon quota display and scheduling, distinguishing separate and shared quotas based on each account's access.
+- Added a compact account view that shows more accounts at once and remembers your preference.
+- Model timing statistics now support side-by-side comparisons of response times and generation speeds.
+- Added one-click network checks in Settings, with results and suggestions for connection problems.
+- Account wake-up now supports Argon and automatically selects models available to the account.
+
+#### Fixed
+- Fixed console windows appearing during background checks on Windows, along with missing client version numbers and update notices.
+- Fixed clients being reconnected to the proxy after disconnection and incorrect connection status displays.
+- Fixed renaming sessions stored in more than one client directory.
+- Fixed usage statistics failing to refresh automatically or showing data from the wrong date range.
+
+#### Before upgrading
+Quit the old version of Studio and back up your application data. Do not run old and new versions against the same data at the same time.
+
+---
+
 ## [1.7.0] - 2026-09-27
 
 ### 🇨🇳 中文
