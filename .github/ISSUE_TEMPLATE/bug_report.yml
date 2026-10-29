@@ -1,0 +1,90 @@
+name: 使用问题 / Bug 反馈
+description: 遇到报错、连接失败或功能异常，请提供复现信息。
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索已有 issue，避免重复反馈。标题请简要说明具体问题。
+
+        **Issue 内容公开可见。请勿上传 Token、API Key、Cookie、完整账号配置或私人会话；日志和截图中的邮箱、代理凭据、内网地址等信息也请先脱敏。**
+
+  - type: input
+    id: studio_version
+    attributes:
+      label: Studio 版本
+      description: 请填写具体版本号，可在设置中查看；不要只写“最新版”。无法启动时可填写安装包版本。
+      placeholder: "例如：v1.x.x"
+    validations:
+      required: true
+
+  - type: input
+    id: system
+    attributes:
+      label: 操作系统与架构
+      placeholder: "例如：macOS 15.6 / Apple Silicon，或 Windows 11 24H2 / x64"
+    validations:
+      required: true
+
+  - type: textarea
+    id: client
+    attributes:
+      label: 使用的客户端与版本
+      description: 填写 Antigravity App、Antigravity IDE、Antigravity CLI 或 VS Code（含相关插件版本）。其他调用方请写明名称；Studio 自身无法启动等问题可填“不涉及客户端”。
+      placeholder: "客户端名称及版本："
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 你原本希望发生什么？实际发生了什么？如有报错，请保留原文。
+      placeholder: |
+        预期结果：
+        实际结果 / 错误提示：
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤与频率
+      description: 请从具体操作开始描述。偶发或暂时无法稳定复现也请说明；如果之前正常，可补充从哪个版本或哪次操作后开始出问题。
+      placeholder: |
+        1. 打开……
+        2. 设置……
+        3. 执行……后出现问题
+
+        出现频率：每次 / 偶发 / 仅一次
+    validations:
+      required: true
+
+  - type: textarea
+    id: routing
+    attributes:
+      label: 模型、调度与网络配置（如适用）
+      description: 模型调用、账号或代理相关问题请补充。无需提供账号邮箱、密钥或完整配置文件；不知道的项目可填“不确定”。
+      placeholder: |
+        具体模型名称 / ID：
+        接入方式：Google 官方账号 / 自带 API Key（服务商名称）
+        是否开启账号池调度、所选策略及入池账号数量：
+        是否配置全局或账号专属出站代理（HTTP / SOCKS5 等，无需填写地址和凭据）：
+        是否使用其他中间网关：
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 脱敏日志或截图（选填）
+      description: 可从 Studio 的日志页复制对应请求的错误详情，或上传截图。请尽量保留错误码、耗时和错误来源；超时问题请说明是一直没有输出，还是输出一部分后中断。无法获取日志也可以直接提交。
+      placeholder: |
+        问题发生时间（含时区）：
+        错误码 / 请求耗时：
+        脱敏后的错误详情或截图：
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已检查填写内容及附件，未包含账号凭据或其他敏感信息。
+          required: true

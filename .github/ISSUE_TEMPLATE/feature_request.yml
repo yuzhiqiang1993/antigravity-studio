@@ -1,0 +1,42 @@
+name: 功能建议
+description: 说明使用场景、现有功能的不足，以及你希望的行为。
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索已有 issue。标题请简要说明想解决的问题，正文最好举一个具体使用场景。
+
+        **Issue 内容公开可见，请勿上传账号凭据、完整配置或私人会话；截图也请先脱敏。**
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景与遇到的问题
+      description: 你在什么情况下需要这个功能？目前哪里不方便，或者无法完成什么操作？
+      placeholder: "例如：我同时使用多个账号，希望……，但目前需要……"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: 希望的行为
+      description: 请描述操作后应该发生什么。如涉及自动切换、重试等，也请说明失败时希望如何处理。
+      placeholder: |
+        我希望可以……
+        例如，在……时，执行……，结果应该是……
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_workaround
+    attributes:
+      label: 尝试过的现有功能或替代方式（选填）
+      description: 是否有现有功能能部分满足需求？如果不方便使用，请说明原因；还没尝试也可以直接写明。
+      placeholder: "目前通过……实现，但仍有……问题。"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 相关环境或补充材料（选填）
+      description: 如与特定环境有关，请填写 Studio 版本、系统、客户端及版本、模型或服务商。也可补充脱敏截图或示意图。
