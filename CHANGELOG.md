@@ -2,6 +2,26 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.12.2]
+
+### 中文
+
+#### 优化
+- 启动时检查到新版本后在后台自动下载并校验更新包，下载完成后再提示安装，不会自动退出或安装。
+
+#### 修复
+- 修复升级到 1.12.1 后应用仍显示旧版本并重复提示更新的问题。
+
+### English
+
+#### Improved
+- Automatically download and verify updates in the background after the startup check. Installation is offered only after the package is ready; the app does not quit or install automatically.
+
+#### Fixed
+- Fixed the app still reporting an older version and repeatedly offering the same update after upgrading to 1.12.1.
+
+---
+
 ## [1.12.1]
 
 ### 中文
