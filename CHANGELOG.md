@@ -2,6 +2,42 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.12.1]
+
+### 中文
+
+#### 新增
+- 支持账号凭据跨工具导入导出，兼容 Studio、Magpie、CPA / CLIProxyAPI 和 Sub2API 格式；支持多文件导入及批量导出 Refresh Token。
+
+#### 优化
+- 当前已登录账号仍保留切换入口，方便重新应用账号或同步到其他宿主。
+- 精简账号导出弹窗，调整格式选择、安全提示和按钮文案。
+
+#### 修复
+- 修复第三方模型（BYOK）请求等待首包或持续生成时，约 20 秒后超时、中断的问题。
+- 修复 IDE 登录账号识别及凭据同步问题，避免未检测到宿主登录时误显示本地主账号为已登录。
+- 修复无关后台进程阻碍宿主代理切换的问题；宿主未启动语言服务时，也可断开代理接管并恢复配置。
+- 修复总览“今日请求”和“平均耗时”的统计口径，平均耗时不再仅取最近 50 条记录。
+- 修复更新元数据中的下载地址，改为使用正式版本安装包链接。
+
+### English
+
+#### Added
+- Import and export account credentials across Studio, Magpie, CPA / CLIProxyAPI, and Sub2API formats, with support for multi-file imports and bulk Refresh Token exports.
+
+#### Improved
+- Keep the switch action available for accounts already signed in, so they can be reapplied or synced to another host.
+- Simplify the account export dialog, including format selection, security notices, and button labels.
+
+#### Fixed
+- Fix BYOK requests timing out after approximately 20 seconds while waiting for the first response or streaming output.
+- Fix IDE account detection and credential syncing. The local primary account is no longer shown as signed in when no host login is detected.
+- Prevent unrelated background processes from blocking host proxy switching. Proxy takeover can now be disconnected and configuration restored even when the host language service is not running.
+- Correct today's request count and average duration on the overview page. Average duration now includes all valid requests for the day instead of only the latest 50.
+- Use official release download URLs in update metadata.
+
+---
+
 ## [1.12.0]
 
 ### 中文
