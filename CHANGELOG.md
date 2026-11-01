@@ -2,6 +2,32 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.12.3]
+
+### 中文
+
+#### 优化
+- 总览页待接入工具抽屉栏增加手动检测按钮，支持立即刷新本地宿主状态并重新核对远端最新版本。
+
+#### 修复
+- 修复开启系统代理或全局出站代理（尤其是 Windows 系统代理）时，Google OAuth 登录换票、续期和导入报 `EOF` 失败的问题；同步修正浏览器回调页状态与图标显示。
+- 修复账号在刷新额度遇到网络波动或上游响应偶发漏字段时被误判显示为 Free 的问题。
+- 修复用量统计切换时间段（如近 7 天、近 30 天）时视图数据不刷新及部分历史会话未计入统计的问题。
+- 修复宿主工具在本地升级后回到应用仍显示旧版本并继续提示更新的问题。
+
+### English
+
+#### Improved
+- Added a manual check button to the unintegrated hosts drawer on the overview page to immediately refresh local host status and recheck the latest remote versions.
+
+#### Fixed
+- Fixed Google OAuth token exchange, refresh, and import failing with `EOF` when using a system proxy or global outbound proxy (especially Windows system proxy), and corrected the browser callback page status and app icon display.
+- Fixed Pro accounts occasionally appearing as Free when quota refreshes hit transient network errors or incomplete upstream responses.
+- Fixed the usage view not updating when switching time ranges (such as 7 days or 30 days) and missing historical sessions stored only as transcripts.
+- Fixed host tools still showing the old version and update prompt after being upgraded locally.
+
+---
+
 ## [1.12.2]
 
 ### 中文
