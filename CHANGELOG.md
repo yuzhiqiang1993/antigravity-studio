@@ -2,6 +2,26 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.12.4]
+
+### 中文
+
+#### 新增
+- 账号池额度阈值的预设档位新增 1%，后端有效下限同步放宽，选择 1% 时不再被回退为默认的 5%。
+
+#### 修复
+- 修复第三方 BYOK 模型在 VS Code 插件等宿主菜单里选中后显示成官方 Claude 模型的问题。原因是官方模型目录占用了 `MODEL_PLACEHOLDER_M400` 到 `M405` 等枚举槽位，而自定义模型也从邻近位置正序取号，撞号后客户端按枚举查回排在前的官方模型。现在自定义模型改用高位倒序分配，并实时避开官方已占用的槽位；升级后旧配置会自动迁移，无需重新保存服务商。
+
+### English
+
+#### Added
+- Added a 1% preset to the account pool quota threshold, with the backend effective lower bound relaxed accordingly so the selection is no longer reset to the default 5%.
+
+#### Fixed
+- Fixed BYOK models showing up as an official Claude model after being selected in host menus such as the VS Code extension. The official catalog already occupied runtime enum slots like `MODEL_PLACEHOLDER_M400` through `M405`, while custom models allocated from nearby slots in ascending order; the collision made the client resolve to the earlier official entry. Custom models now allocate from a high descending range and skip slots the official catalog occupies, and existing configurations are migrated automatically after upgrading.
+
+---
+
 ## [1.12.3]
 
 ### 中文
