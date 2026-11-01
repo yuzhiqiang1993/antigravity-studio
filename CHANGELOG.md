@@ -2,6 +2,22 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.12.6]
+
+### 🇨🇳 中文
+
+#### 修复
+- 修复账号页面切换到 Claude 标签后，离开再回来会重置回 Gemini 的问题；搜索关键词、标签筛选、层级筛选和排序方向等视图状态现在也会保留。
+- 改进 Windows 平台的自动更新流程：点击「安装并重启」后，应用会先完全退出、再静默安装、安装完成后自动重启，不再需要手动关闭进程或重新打开应用。
+
+### 🌐 English
+
+#### Fixed
+- Fixed the accounts screen resetting back to the Gemini tab after navigating away and returning; search query, tag filter, tier filter, sort mode and sort direction are now preserved across page switches.
+- Improved the Windows auto-update flow: clicking "Install and Restart" now fully quits the app, silently runs the installer, and automatically relaunches after installation completes, eliminating the need to manually close the process or reopen the app.
+
+---
+
 ## [1.12.4]
 
 ### 中文
