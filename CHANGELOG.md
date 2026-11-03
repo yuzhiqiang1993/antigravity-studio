@@ -2,6 +2,46 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.13.0]
+
+### 🇨🇳 中文
+
+#### 新增
+- 调用日志支持按时间范围切片，日期选择器可自定义区间。
+
+#### 修复
+- 自动更新清理旧安装包时，不再误删下载目录里同名的其他文件。
+- 设置 `NO_PROXY` 后，本应直连的地址不再走代理。
+- 重新登录账号后，凭据不会再被过期的刷新结果覆盖。
+- Claude 筛查不再把凭据过期误判为账号受限。
+- 备用账号预览与实际选号一致，不再推荐其他客户端正在登录的账号。
+- 未检测到客户端登录时，默认主号不再被置顶。
+- 会话在多个客户端重复出现时，重命名会提示哪些位置更新失败。
+- 读取配置或运行状态失败时，不再显示默认值或误报「网关已停止」。
+- 用量统计和数据图表不再出现无 Token 的占位模型。
+- 「平均耗时」只统计成功完成的会话，失败与限流不再拉低均值。
+- 模型耗时面板查询失败时提示加载失败，不再显示「暂无数据」。
+
+### 🌐 English
+
+#### Added
+- Activity logs can now be sliced by time range, with a custom date-range picker.
+
+#### Fixed
+- Update cleanup no longer deletes unrelated files with similar names in the downloads folder.
+- `NO_PROXY` is now respected, so hosts meant to connect directly no longer go through the proxy.
+- Credentials are no longer overwritten by stale refresh results after signing in again.
+- Claude screening no longer reports an expired credential as a restricted account.
+- Backup account previews match actual selection and no longer suggest accounts signed in by other clients.
+- The default primary account is no longer pinned when no client login is detected.
+- Renaming a session that exists in several clients now reports which locations failed to update.
+- Configuration and status read failures no longer show defaults or a false "gateway stopped".
+- Placeholder models without tokens no longer appear in usage statistics and charts.
+- "Average duration" only counts successfully completed sessions, so failures and rate limits no longer skew the mean.
+- The model latency panel now reports a load error instead of "no data".
+
+---
+
 ## [1.12.6]
 
 ### 🇨🇳 中文
