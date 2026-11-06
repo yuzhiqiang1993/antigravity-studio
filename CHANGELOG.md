@@ -2,6 +2,54 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.14.0]
+
+### 🇨🇳 中文
+
+#### 新增
+- 长会话塞满历史截图或大文件触发 413 报错时，自动摘除早期轮次的图片与附件重发，保留近期上下文继续对话。
+- 单次生成请求大小上限提升到 256 MiB。
+- 检测 Antigravity 客户端配置的外部企业网关，发现冲突时提示待更新，不改动原有外部配置。
+- 自定义服务商（BYOK）模型拒绝 `reasoning_effort` 等可选参数时，自动去掉不支持的字段重发。
+- 流式请求空闲时发送保活帧，出站 HTTP/2 连接定期发送 Ping 探针，减少代理或 NAT 环境下长连接静默断开。
+- 设置页「关于」标签支持显示新版本红点提示。
+
+#### 修复
+- 官方模型的长对话自动压缩配置现在能被客户端正常识别。
+- 中途切换模型续聊时，不再因旧模型的思考状态或工具调用顺序报错；上游 gzip 响应也能正常解压。
+- 生成请求固定使用 900 秒超时，不再被短请求超时覆盖。
+- 额度刷新遇到 401 时，不再残留旧余量和正常状态；重登或恢复后自动切回可用。
+- 请求遇到 429 限流但本地仍显示有余量时，立即触发该账号额度刷新；账号池仅处于短暂冷却时最多等待 5 秒后重选。
+- 统一账号卡片、候选门槛与排序的额度口径，不再用 5 小时窗口充当缺失的周窗口，窗口到期时自动重排。
+- 额度自动刷新显示真实倒计时，批量刷新中单个账号完成后立即停止旋转动画。
+- 迁移会话工作区后直接同步客户端内存摘要，无需重启客户端即可生效；同时支持带注释与尾逗号的 `settings.json`。
+- 非交互式 CLI 会话不再被误判为损坏会话或回退显示首条长 Prompt。
+- 中途断开的请求不再计入平均耗时和吞吐速率统计。
+
+### 🌐 English
+
+#### Added
+- When a long session hits a 413 payload limit from accumulated screenshots or attachments, earlier inline media is stripped and the request is retried automatically while keeping recent context intact.
+- Increased the single generation request size limit to 256 MiB.
+- Detects external enterprise gateway configurations in Antigravity clients and marks conflicts as needing update without modifying external files.
+- Automatically drops unsupported optional parameters such as `reasoning_effort` and retries when rejected by a BYOK provider.
+- Sends keepalive frames on idle streams and enables HTTP/2 ping probes on outbound connections to prevent silent drops behind proxies or NAT.
+- Added an update indicator dot on the "About" tab in Settings.
+
+#### Fixed
+- Context compression settings for official models are now written to the client experiment field so auto-compression takes effect.
+- Switching models mid-conversation no longer fails on prior thinking blocks or tool-result ordering, and gzip-encoded upstream responses are decompressed properly.
+- Generation requests now consistently use the 900-second timeout instead of falling back to the short API timeout.
+- A 401 error during quota refresh now clears stale quota snapshots and marks the account expired, recovering automatically once re-authenticated.
+- Upstream 429 rate limits on accounts showing remaining local quota now trigger an immediate quota refresh, and selection waits up to 5 seconds when eligible accounts are in brief cooldown.
+- Aligned quota calculations across account cards, admission thresholds, and sorting; missing weekly windows are no longer backfilled from 5-hour windows, and lists re-sort when windows expire.
+- Auto-refresh shows a live countdown, and per-account spinners stop as soon as each account finishes refreshing.
+- Moving a session across workspaces updates the running client summary in memory without requiring a client restart, and `settings.json` files with comments or trailing commas are now supported.
+- Non-interactive CLI sessions are no longer misclassified as corrupted or shown with a raw long prompt fallback.
+- Interrupted responses are excluded from average duration and throughput calculations.
+
+---
+
 ## [1.13.0]
 
 ### 🇨🇳 中文
