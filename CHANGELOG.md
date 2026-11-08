@@ -2,6 +2,42 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.14.1]
+
+### 🇨🇳 中文
+
+#### 新增
+- 账号卡片菜单支持快捷唤醒指定账号，直达模型与提示词配置并执行探测，探测完成后自动刷新该账号配额。
+- 模型选择列表中支持行内编辑并保存各服务商模型的自定义显示名称。
+
+#### 优化
+- 配额计算与显示统一为两位小数精度（0.01% - 99.99%），避免微量消耗被四舍五入显示为满额，或微小余量被误判为耗尽。
+- 精简子代理配置策略为「跟随主模型」与「全局指定模型」两档，移除易混淆的只读档位标签。
+- 优化账号池控制栏空间布局，移除额度胶囊中与分组页签重复的模型族名称，精简开关状态文案，防止窄窗口下折行挤压。
+
+#### 修复
+- 修复 Windows 热更新在非默认安装路径下被安装至 AppData 导致拉起旧版的问题，并在退出后增加进程句柄释放缓冲与超时保护，避免写锁冲突导致静默安装中止。
+- 修复网关调用子代理触发 400 报错的问题；调整为在网关代理入口按会话实时重写目标模型与思考配置，移除目录档位覆写，并排除后台非对话预检请求，避免思考档位冲突。
+- 修复解析服务商模型目录时丢失命名空间前缀导致同名覆盖的问题。
+
+### 🌐 English
+
+#### Added
+- Quick wake from account cards: trigger quick wake directly from any account's action menu to configure models and prompts in a compact modal, automatically refreshing quota upon completion.
+- Custom model display names: inline editing and saving of model display names in the model selection list.
+
+#### Changed
+- Quota display precision to two decimal places: remaining quota percentages and pool averages now calculate directly from fractional balances, clamping non-empty/non-full values between 0.01% and 99.99% to avoid rounding errors.
+- Simplified subagent settings: consolidated subagent execution strategies into "Follow Primary Model" and "Globally Specified Model", removing redundant read-only tier labels.
+- Compact account pool control bar: removed duplicate family labels in quota badges and trimmed toggle texts to prevent wrapping in narrow viewports.
+
+#### Fixed
+- Windows hot update installation failure: fixed directory drift on non-default install locations and added process handle release buffers and timeout protections to prevent file lock conflicts during silent updates.
+- Subagent 400 errors during model dispatch: models and thinking configs are now rewritten per-session in the proxy gateway, preventing background health checks from being assigned high-tier models with incompatible thinking tiers.
+- Stripped provider model namespace prefixes: preserved complete model paths when upstreams return leaf names, preventing namespace collisions across same-named models.
+
+---
+
 ## [1.14.0]
 
 ### 🇨🇳 中文
