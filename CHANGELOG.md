@@ -2,6 +2,60 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.15.0]
+
+### 🇨🇳 中文
+
+#### 新增
+- 新增托盘悬浮面板与自定义右键菜单：在 macOS 和 Windows 左键点击托盘图标可弹出悬浮窗，只读查看账号池余量、最近调度记录与用量排行和分时趋势；右键弹出与主应用一致的主题菜单，支持快捷启停网关与切换调度策略。
+- 新增轻量模式：在托盘底栏或设置开启后，关闭主窗口会自动销毁界面并隐藏 macOS Dock 图标，跳过启动期全盘用量扫描并回收闲置内存；从托盘或再次启动应用时可随时恢复主窗口。
+- 新增 macOS 菜单栏多指标监控：支持在状态栏展示处理中会话数、今日平均耗时、生成速率或最近使用模型，提供极简、微标签和纯图标样式及设置页实时预览。
+- 新增全链路模型上下文水位与压缩观测：在中枢、会话列表、调用日志与托盘调度中实时展示当前上下文水位与物理窗口占用率，支持查看系统提示词、工具、对话、MCP 与技能五类占用拆解；识别上下文压缩任务并展示压缩前后对比指标。
+- 新增中枢与调用日志隐私模式：顶栏增加隐私模式开关，开启后自动脱敏项目名称、会话标题、会话 ID 与流转账号邮箱。
+- 新增 Vertex AI 服务账号接入与更多服务商预设：自定义服务商（BYOK）支持通过 Google Vertex AI 服务账号 JSON 凭据鉴权与项目/区域路由，并复用全局出站代理；新增 OpenAI、Anthropic、Google Gemini、Google Vertex AI、xAI Grok、NVIDIA NIM、Hugging Face 与 DeepInfra 预设模板。
+- 新增账号封禁诊断与流式接口探测：额度刷新、网关调度与唤醒支持识别服务禁用、违反服务条款或项目挂起等封禁账号，自动清空虚假满额、移出调度并提供申诉外链；接口调试支持流式生成探测与可用模型动态选择。
+- 用量页支持按多选模型过滤并在切换页面时保留筛选条件；会话卡片支持直接展示累计 Token 消耗。
+
+#### 优化
+- 统一中枢调度与调用日志卡片流布局，展示关联工作区来源、会话标题、细粒度文件与多智能体操作动作以及安全审查等后台任务用途，并在宽屏下自动展开长邮箱与文件路径。
+- 优化单账号唤醒速度与进度反馈：收到首个生成文本片段后立即结束流式请求并合并初始化查询，界面实时推送各模型族唤醒进度。
+- 优化自定义服务商配置向导的卡片排版，并修复全局标签管理中未绑定账号的标签不显示的问题。
+- 优化运行时内存占用与扫描效率：减少可见窗口期间的冗余内存修剪与重复统计查询，跳过未变更凭据的重复落盘，并对本地会话库采用增量解析。
+
+#### 修复
+- 修复在部分终端或脚本工具链环境下从界面拉起宿主应用、IDE 或 VS Code 时点击无反应的问题。
+- 修复 Gemini 与 Vertex AI 自定义模型接入时的请求外壳兼容问题，以及跨模型或跨通道续聊时因思考状态校验导致的 400 报错，并保留完整的模型显示名称与路径前缀。
+- 修复 Windows 下背景扫描、工作区迁移与删除会话竞争文件句柄导致的占用冲突，并在启动时自动补齐历史活动日志表缺失列。
+- 修复账号唤醒在配置本地代理地址时误走调度网关触发换号的问题；常规网络或服务端异常不再将账号误标为受限状态。
+- 修复宿主端重命名会话后被旧标题覆盖、macOS 状态栏图标循环重绘导致偶尔无法弹出面板，以及活动日志变动后用量汇总缓存未及时更新的问题。
+
+### 🌐 English
+
+#### Added
+- Added tray popover panel and custom context menu: left-clicking the tray icon on macOS and Windows opens a floating panel to inspect pool balances, recent dispatches, top models, and usage trends; right-clicking opens a themed menu for quick gateway toggles and routing strategy switches.
+- Added Lightweight Mode: available in the tray footer and Settings, closing the main window tears down the WebView, hides the macOS Dock icon, skips startup full-disk usage scans, and trims idle memory; the main window restores on demand from the tray or relaunch.
+- Added macOS menu bar multi-metric monitor: displays active sessions, today's average duration, throughput, or latest model in the status bar with compact, badge, and icon-only styles plus live preview in Settings.
+- Added end-to-end model context gauge and compaction tracking: shows live context usage and physical window occupancy across Overview, Sessions, Activity, and the tray, with a 5-category breakdown (system prompt, tools, conversation, MCP, skills) and before/after metrics for compaction tasks.
+- Added Privacy Mode in Overview and Activity headers to mask project names, session titles, session IDs, and routed account emails.
+- Added Google Vertex AI service-account JSON authentication (with project/region routing and shared outbound proxy support) and new provider presets for OpenAI, Anthropic, Google Gemini, Google Vertex AI, xAI Grok, NVIDIA NIM, Hugging Face, and DeepInfra.
+- Added account ban diagnostics and streaming API debug probing: quota refresh, routing, and quick wake now detect disabled services, ToS violations, and suspended projects, clearing false full quotas, isolating affected accounts, and surfacing appeal links; API debug supports streaming probes and dynamic model selection.
+- Added multi-model filtering in Usage (persisted across tab switches) and cumulative token badges on session cards.
+
+#### Changed
+- Unified Overview and Activity feeds into a shared card layout displaying workspace origin, session titles, file-level and multi-agent actions, background task classifications, and adaptive expansion on wide screens.
+- Accelerated single-account wake by closing the stream on the first generated text chunk, merging redundant setup requests, and pushing per-family progress updates in real time.
+- Improved the BYOK provider wizard layout and ensured unassigned global tags remain visible in filter bars.
+- Reduced memory footprint and database overhead by throttling trims while windows are visible, skipping unchanged credential writes, and switching local session database parsing to incremental decoding.
+
+#### Fixed
+- Fixed host app, IDE, and VS Code launch failures caused by inherited runtime environment variables when Studio is started from terminal or script toolchains.
+- Fixed Gemini and Vertex AI BYOK request/response envelope unwrapping and 400 errors from incompatible thinking signatures when switching models mid-conversation, while preserving full model display names and path prefixes.
+- Fixed Windows SQLite file-sharing conflicts between background scans, workspace moves, and session deletion, and auto-migrated missing columns in legacy activity log tables on startup.
+- Fixed account wake routing through the local gateway instead of directly to upstream, and stopped marking transient 5xx/network errors as restricted accounts.
+- Fixed host-side session renames being overwritten by stale titles, macOS status-bar icon redraw loops blocking clicks, and stale usage summary caches after activity log updates.
+
+---
+
 ## [1.14.1]
 
 ### 🇨🇳 中文
