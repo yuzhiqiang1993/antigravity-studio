@@ -2,6 +2,54 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.16.0]
+
+### 🇨🇳 中文
+
+#### 新增
+- 新增客户端界面增强：支持在运行中的客户端对话界面内直接显示实时状态栏与悬浮详情窗，查看当前调度阶段、路由归因、账号余量、生成速率与上下文窗口占用，识别 8 类常见报错，并在输入框旁提供一键提示词优化按钮与可配置的优化模型选项。
+- 新增模型优先账号调度：将模型分流升级为模型优先账号三层调度，支持按具体模型配置优先使用的账号序列，自动解析上游模型标签、推荐状态及默认排序。
+- 新增自定义模型计费规则：在用量排行与设置页新增计费规则配置弹窗，支持检索并关联官方定价目录、设置五维自定义单价或标记为免费，并支持针对聚合通道切换按绑定或按响应模型算价；同时补充了常见公共自定义服务商的定价匹配。
+- 新增调用日志会话聚落与精简表格：支持按父会话聚合同父子代理请求；新增高信息密度的精简表格模式（默认展示时间、动作、会话、模型、账号、首字、耗时、速率与上下文），并支持在时间流水、精简表格与完整卡片间切换，同时提供双栏筛选工作台与后台安全审查过滤。
+- 新增客户端目录来源选择与按需重启：模型管理官方目录支持按客户端来源切换（自动识别各客户端完整参数），防止旧版客户端小目录覆盖全局模型；切换账号弹窗支持逐个勾选是否在更新凭证后自动重启对应客户端。
+- 新增单号或空池状态保护：当账号不足 2 个或调度池内仅剩当前客户端自身账号时，自动关闭多账号调度并禁用切换开关（仅保留非宿主备用号代跑时仍可开启）。
+
+#### 优化
+- 优化自定义服务商与模型卡测试交互：将单模型测速状态移至卡片底栏右侧避免能力标签折行，支持未测模型一键测速；服务商顶部合并测试结果与重测胶囊，新增批量测速等待态、仅重试失败模型以及失败诊断直达。
+- 优化会话列表台账化与统计对齐：将离散会话卡片改造成统一台账布局，对齐轮次、模型调用次数、上下文水位环与体积；补全本地会话耗时解码与图片附件体积估算。
+- 优化中枢与调用日志视觉及交互：消除数据刷新引起的列表闪动并保持聚落展开状态；统一视图切换菜单与日志页头控件；优化全链路拓扑图的节点排序与连线曲率，避免多节点连线交叉或溢出；全面提升明暗双主题下的状态徽标对比度。
+- 优化账号卡片动态标签：账号卡片按接口下发数据动态渲染模型能力徽标，并统一配额名称与中文化标签提示。
+- 优化高并发与内存性能：降低前端列表与高频在途状态的重绘开销，改用纯 CSS 骨架屏；后端在非流式请求同步开启 HTTP/2 连接协商、改用无锁配置快照并解耦账号写盘锁。
+
+#### 修复
+- 修复流式传输与调度稳定性问题：修复流式数据偶发死锁、缓冲池竞态及漏计思考 Token 导致速率缺失的问题；不再把上下文超限或用户主动取消计入账号断路器异常，并正确解析上游限流退避时间。
+- 修复客户端适配与热更新问题：修复关闭多账号调度后中枢卡片账号空白、扩展读取活跃账号异常及部分客户端目录字段解析报错；修复提示词优化故障转移异常；修改模型上下文配置后明确提示重启对应客户端生效；修复应用更新下载状态竞态与临时安装脚本冲突。
+- 修复接口与后台并发问题：修复 OAuth 登录结束并发丢号、单客户端并发探测锁竞争、未走网关的本地步骤误触发界面活跃状态，以及组件卸载时提示定时器未清理的问题。
+
+### 🌐 English
+
+#### Added
+- Added Client UI Enhancement: displays a live status bar and floating detail popovers directly inside supported client chat windows, showing routing stage, account attribution, remaining quota, throughput, context window occupancy, and 8 diagnostic error categories, alongside a one-click prompt optimizer button and configurable optimizer model.
+- Added model-first account routing: upgraded model routing to a three-tier model-first strategy supporting per-model priority account preferences and parsing upstream model tags, recommended flags, and default sort indices.
+- Added custom model pricing rules: introduced a pricing rule editor in Usage rankings and Settings to link official pricing catalog entries, set five-dimension custom unit rates or mark models free, and choose binding-level or response-level scope for aggregated channels, along with fallback pricing namespace matching for public BYOK providers.
+- Added Activity session clusters and compact table view: groups subagent requests under their parent session and adds a dense compact table mode (time, action, session, model, account, TTFT, duration, speed, and context), switchable with timeline and full card modes alongside a dual-pane filter workbench and background review exclusion.
+- Added client catalog source selector and optional restart on switch: lets you choose the client source for official model catalogs (preserving full host parameters so older client subsets do not overwrite the global catalog), and lets you toggle per-client automatic restart when switching accounts.
+- Added empty or single-host pool protection: automatically disables multi-account relay and its toggles when fewer than two accounts exist or only the active client account remains (while keeping relay available when a non-host backup account is usable).
+
+#### Changed
+- Improved BYOK provider and model card connectivity testing: moved per-model latency status and test triggers to the card footer right to avoid capability pill wrapping, merged provider header test metrics with a retest action, and added pending states, retry-failed-only, and direct failure diagnostics.
+- Redesigned Sessions into a unified ledger layout: aligned turn counts, model call counts, context gauges, and storage size in fixed columns, while decoding local session durations and estimating image attachment tokens by resolution.
+- Refined Overview and Activity visuals and controls: eliminated list flicker on refresh while keeping clusters expanded, unified view menus and page header controls, ordered topology node wiring to eliminate crossed lines and overflow, and increased status badge contrast in both light and dark themes.
+- Dynamic account card badges: rendered account model capability pills dynamically from upstream metadata with localized descriptions and unified quota labels.
+- Improved concurrency and memory efficiency: reduced list and in-flight re-renders using shallow checks and pure CSS skeletons, enabled HTTP/2 negotiation for non-streaming client connections, and switched config reads to lock-free snapshots.
+
+#### Fixed
+- Fixed streaming and relay stability issues: resolved streaming response deadlocks, buffer pool races, and missing thinking-token speed metrics; exempted context-overflow and client-canceled requests from circuit-breaker counts while honoring upstream retry-after durations.
+- Fixed client integration and updater races: fixed blank account cards in Overview when relay is disabled, extension active-account detection, object-shaped project catalog parsing, and prompt optimizer fallback routing; added explicit client restart prompts after editing context limits and resolved update download/script race conditions.
+- Fixed auth and background concurrency bugs: prevented OAuth finish race losses, serialized single-client probe invalidation, blocked unproxied local steps from marking Studio active, and cleaned up copy-toast timers on unmount.
+
+---
+
 ## [1.15.0]
 
 ### 🇨🇳 中文
