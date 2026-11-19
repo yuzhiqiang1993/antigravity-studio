@@ -2,6 +2,56 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.17.0]
+
+### 🇨🇳 中文
+
+#### 新增
+- 新增官方模型目录来源与账号隔离：模型管理页支持按「来源应用」与「使用账号」获取官方模型列表，并在宿主切号或登出时自动同步或清空旧快照，防止旧版客户端或不同账号子集覆盖全局参数；账号池调度弹窗与子代理设置统一同步最新目录。
+- 新增模型可用上下文可视化与压缩滑块调节：模型卡片底部新增可用上下文进度条；上下文窗口配置弹窗支持拖动滑块微调压缩预备线（遵循缓冲下限边界）、边界快选与一键还原，并补充各参数说明。
+- 新增应用升级信标、后台下载与在途会话护航：侧栏底部新增常驻升级信标（支持收起为精简条）并在托盘底栏展示升级状态药丸，支持跨窗口拉起更新弹窗及轻量模式下的状态衔接；更新弹窗支持后台下载与结构化 Markdown 双语日志展示，下载校验就绪后结合在途会话空闲防抖避免重启中断流式回复。
+- 新增客户端界面增强自动协调与会话均值展示：支持自动协调重连、先启用再打开对话框及开启 HUD 时由 Studio 拉起 Antigravity App 自动附带调试端口；合并顶栏入口为统一管理弹窗并展示诊断指引；对话底栏按需展示当前会话平均首字、耗时与生成速率，空会话自动隐藏不占位。
+- 新增提示词优化模型选择与调用日志观测：默认依据官方目录轻量任务角色选用推荐模型，支持手动固定官方模型或已探测通过的 BYOK 变体（模型不可用时提醒重选，总超时上限 60 秒）；Studio「调用日志」记录提示词优化调用与操作 ID 并新增「调用用途」筛选维度，保留真实用量统计而不污染主会话性能指标。
+- 新增模型优先账号排障筛选与账号快捷入口：模型优先账号配置列表自动排除已移出、凭据失效、受限、异常、429 限流、不支持及额度耗尽账号，已选但当前不可用的账号保留为可移除标签提示；账号页顶栏公共菜单整合「领取 Pro 福利」与「更改账号关联地区」快捷链接复制。
+
+#### 优化
+- 优化提示词优化输入体验与隔离性：保留输入框中的 Lexical Skill 芯片与图片/媒体节点，仅抽取用户文本润色并支持无需全选一键全量替换；按会话独立隔离优化进度，支持加载中点击停止。
+- 优化客户端注入界面跟随能力与隔离性：悬浮条与详情面板全面跟随 Studio 中英文界面语言，并根据宿主输入框实时适配明暗与透明配色；切换或新建会话时彻底清除旧指标，严格限定本地文档主世界与会话去重，避免页面导航后误注入或向旧会话回传。
+- 优化账号卡片与模型页排版及文案：账号卡片能力区采用精简短标签横向折行直接列出全部模型，并统一可用、即将停供与不可用状态下的芯片外观与前置圆点配色；统一模型管理页官方列表工具栏文案、悬浮提示与连通性测试表述；移除界面增强列表冗余的端口与窗口数展示。
+- 优化系统内存与流式处理开销：减少 Gemini 流式工具参数复制、HUD 配置读取及会话统计扫表开销，移除无消费者的拓扑事件订阅；忽略版本更新时同步清理缓存、取消在途下载并保持主窗与托盘状态一致。
+
+#### 修复
+- 修复流式报错归因误判与单模型 400 粘性死绑（#34）：官方透传遇到 4xx/5xx 非流式 JSON 错误时不再误判为传输中断；识别模型或思考档位不受支持的 400 错误，仅对该账号对应模型做 15 分钟冷却并切号接力，不影响该账号在其他正常会话的绑定，全池拦截时准确归因为模型不支持而非 429 限流。
+- 修复官方模型目录新增 `thinkingLevel=100` 与 `XHigh` 思考档位解析缺失的问题，并在子代理思考配置校准中正确识别 `XHIGH`，避免被误判为 `HIGH`。
+- 修复保存或刷新 BYOK 模型时覆盖供应商声明的输入输出能力的问题，并保留与接口能力相符的手动设置。
+- 修复总览紧凑卡片中 VS Code 宿主展示名不一致及客户端别名重复并列的问题；修复 Tooltip 误匹配 `max-w-full` 导致布局撑满整行的问题。
+- 修复 BYOK 重试前未释放上游响应、恢复宿主配置失败时未保留接管收据、注销日志监听器并发竞态，以及参数插值 `$` 转义导致会话提示文案异常的问题。
+
+### 🌐 English
+
+#### Added
+- Added per-host and per-account official catalog isolation: the Models toolbar lets you select the source app and account for official model catalogs, syncing or clearing stale snapshots on host account switches or sign-outs so smaller client subsets do not overwrite global parameters; relay config and subagent settings subscribe to the unified catalog store.
+- Added model context usage bars and compaction threshold slider: model cards display an available context progress bar, and the context policy dialog adds a slider to fine-tune the compaction threshold (within buffer bounds), quick boundary presets, one-click reset, and field descriptions.
+- Added sidebar update beacon, background downloads, and in-flight session protection: replaces the Settings dot with a collapsible sidebar update beacon and a compact tray status pill that opens the update dialog across windows (including Lightweight Mode); enables background downloading with structured Markdown release notes and an idle-debounce guard so restarts do not cut off active streaming sessions.
+- Added Client UI Enhancement auto-reconciliation and session averages: supports automatic reconnection, enabling HUD before a composer input opens, and launching Antigravity App with the remote debugging port enabled; consolidates header controls into a single popover and shows current-session average TTFT, duration, and speed in the footer when available while collapsing empty sessions cleanly.
+- Added prompt optimization model selection and Activity tracking: picks the lightweight default from the official catalog or lets you pin an official model or verified BYOK variant (with unavailability warnings and a 60s total budget); Studio Activity Logs record prompt optimization calls with operation IDs and a new Purpose filter while keeping them out of main-chat latency statistics.
+- Added unavailable/429 filtering in model-first routing and account utility links: excludes removed, invalid-credential, 403/error, 429 rate-limited, unsupported, and exhausted accounts from the candidate grid (retaining unavailable selections as removable chips), and adds quick copy links in the Accounts header menu for Claim Pro Benefits and Change Account Region.
+
+#### Changed
+- Improved prompt optimization reliability and isolation: preserves Lexical skill chips and image/media nodes while extracting only user text, replaces composer text in one click without manual selection, and isolates progress per conversation with click-to-stop support.
+- Improved Client HUD localization, adaptive theming, and session isolation: syncs HUD language with Studio settings, adapts colors dynamically to the host input area, clears stale metrics when switching conversations, and confines bridge bindings to verified local main-world frames with duplicate-session cleanup.
+- Refined Accounts and Models presentation: displays all account model badges inline with wrapping short pills and unified status dots (available, retiring soon, unavailable), clarifies Models toolbar and connectivity test wording, and removes redundant port/target counters from the UI enhancement host list.
+- Reduced runtime overhead by eliminating redundant Gemini streaming parameter copies, full-config clones in HUD reads, duplicate session scans, and unused topology subscriptions; ignoring an update now clears caches, cancels in-flight downloads, and keeps the main window and tray in sync.
+
+#### Fixed
+- Fixed streaming error attribution and model-unsupported 400 sticky lock-in (#34): stopped misclassifying non-SSE 4xx/5xx JSON error responses as transport failures; detects model/thinking-level unsupported 400 responses, applies a 15-minute per-model cooldown, triggers quota refresh, and relays to another healthy account without clearing unrelated bindings or misreporting full-pool blocks as 429 rate limits.
+- Fixed official catalog parsing for `thinkingLevel=100` and `XHigh` reasoning levels, ensuring subagent thinking calibration recognizes `XHIGH` instead of falling back to `HIGH`.
+- Fixed BYOK model saving and catalog refreshes overwriting provider-declared input/output capabilities, preserving valid manual settings.
+- Fixed inconsistent VS Code display names and duplicate client aliases in Overview compact columns, as well as `StudioTooltip` substring-matching `max-w-full` as `w-full`.
+- Fixed upstream response leaks before BYOK retries, missing takeover receipts when host restore fails, activity store listener teardown races, and `$` escape issues in localized parameter interpolation.
+
+---
+
 ## [1.16.0]
 
 ### 🇨🇳 中文
