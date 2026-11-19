@@ -27,6 +27,9 @@
 - 修复总览紧凑卡片中 VS Code 宿主展示名不一致及客户端别名重复并列的问题；修复 Tooltip 误匹配 `max-w-full` 导致布局撑满整行的问题。
 - 修复 BYOK 重试前未释放上游响应、恢复宿主配置失败时未保留接管收据、注销日志监听器并发竞态，以及参数插值 `$` 转义导致会话提示文案异常的问题。
 
+#### 安装提醒（macOS）
+- macOS 安装或覆盖升级后若系统提示“已损坏”或“无法打开”，请在确认安装包来自官方 Release 且校验无误后，打开「终端」执行以下命令移除隔离标记：`sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
 ### 🌐 English
 
 #### Added
@@ -49,6 +52,9 @@
 - Fixed BYOK model saving and catalog refreshes overwriting provider-declared input/output capabilities, preserving valid manual settings.
 - Fixed inconsistent VS Code display names and duplicate client aliases in Overview compact columns, as well as `StudioTooltip` substring-matching `max-w-full` as `w-full`.
 - Fixed upstream response leaks before BYOK retries, missing takeover receipts when host restore fails, activity store listener teardown races, and `$` escape issues in localized parameter interpolation.
+
+#### Installation Notes (macOS)
+- If macOS reports that the app is “damaged” or “cannot be opened” after installing or upgrading from a verified official release, run this command in Terminal to clear the quarantine attribute: `sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
 
 ---
 

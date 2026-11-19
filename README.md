@@ -6,6 +6,13 @@ Antigravity Studio 是一款桌面端多账号管理与本地模型代理工具�
 
 账号、配置和用量记录保存在本地；模型请求仍会发送给 Google 或你配置的服务商，并非离线运行。
 
+> [!IMPORTANT]
+> **macOS 安装后提示“已损坏”或“无法打开”？**
+> 确认安装包来自 [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest) 且校验无误、将应用拖入「应用程序」后，打开系统「终端」执行以下命令移除隔离标记即可（详见 [FAQ](#macos-提示已损坏或无法打开怎么办)）：
+> ```bash
+> sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"
+> ```
+
 ![运行概览](img/zh/overview.png)
 
 ## 主要功能
@@ -67,6 +74,12 @@ Antigravity Studio 是一款桌面端多账号管理与本地模型代理工具�
 | Windows · x64 | `Antigravity-Studio-<version>-windows-x64.exe` |
 
 macOS 打开 DMG 后将应用放入「应用程序」；Windows 运行安装程序，并确保已安装 Microsoft Edge WebView2 运行库。不要默认所有 Windows 10 环境都兼容，请先查看所选版本的要求。
+
+> [!TIP]
+> macOS 首次安装或覆盖升级后若遇到“已损坏”或“无法打开”提示，确认来源与校验无误后在「终端」执行：
+> ```bash
+> sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"
+> ```
 
 升级前先退出旧版并备份应用数据，避免新旧版本同时访问同一份数据。关闭窗口可能只是隐藏到托盘，请确认已完全退出。
 

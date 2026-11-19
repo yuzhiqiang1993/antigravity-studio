@@ -6,6 +6,13 @@ Antigravity Studio is a desktop account manager and local model proxy for Antigr
 
 Accounts, settings, and usage records are stored locally. Model requests still go to Google or your configured provider; this is not an offline tool.
 
+> [!IMPORTANT]
+> **macOS says the app is “damaged” or “cannot be opened”?**
+> After verifying the installer from [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest) and moving the app to Applications, run this command in Terminal to remove the quarantine attribute (see [FAQ](#what-if-macos-says-the-app-is-damaged-or-cannot-be-opened) for details):
+> ```bash
+> sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"
+> ```
+
 ![Overview](img/zh/overview.png)
 
 ## Key Features
@@ -67,6 +74,12 @@ Choose a published version from [GitHub Releases](https://github.com/yuzhiqiang1
 | Windows · x64 | `Antigravity-Studio-<version>-windows-x64.exe` |
 
 On macOS, open the DMG and move the app to Applications. On Windows, run the installer and make sure the Microsoft Edge WebView2 Runtime is installed. Do not assume compatibility with every Windows 10 environment; check the requirements for your chosen release.
+
+> [!TIP]
+> If macOS shows a “damaged” or “cannot be opened” warning after installing or upgrading from a verified official release, run this in Terminal:
+> ```bash
+> sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"
+> ```
 
 Before upgrading, quit the old version and back up your application data. Do not run old and new versions against the same data at the same time. Closing the window may only hide the app to the tray, so make sure it has fully exited.
 
