@@ -2,6 +2,38 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.17.1]
+
+### 🇨🇳 中文
+
+#### 新增与优化
+- 选号列表支持按订阅等级分组排序，主页锁定列表支持同步排序（#35）。
+- 调整客户端界面增强启用成功的提示文案，表述更简洁直观。
+
+#### 修复
+- 修复开启多账号调度并连接 Antigravity 时，未登录、登录新账号或切号重启恢复期拉取官方模型目录返回 `502`，进而导致 `GetUserStatus` 丢失邮箱、卡死登录与切号确认的死锁问题。
+- 修复 Windows 端切号时系统凭据（`CredWriteW`）超出 2560 字节上限失败的问题（超限时自动剥离非必需 `id_token` 并在调用前校验上限）。
+- 修复 Windows 端切号杀停 Electron 进程树（`taskkill /F /T`）偶发非零退出码误判失败，以及重启后未等待冷启就绪即判为需手动重启的问题。
+- 修复费率目录自动同步缺失，以及新模型费率匹配与客户端界面增强重复计费的问题。
+
+#### 安装提醒（macOS）
+- macOS 安装或覆盖升级后若系统提示“已损坏”或“无法打开”，请在确认安装包来自官方 Release 且校验无误后，打开「终端」执行以下命令移除隔离标记：`sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
+### 🌐 English
+
+#### Added & Changed
+- Grouped account selection lists by subscription tier and supported sorting for the home pinned list (#35).
+- Simplified the success notification message when enabling Client UI Enhancement.
+
+#### Fixed
+- Fixed a deadlock when multi-account relay is enabled and Antigravity signs in or restarts during an account switch: `fetchAvailableModels` previously returned `502` before the host email was synced, causing `GetUserStatus` to omit `email` and blocking both sign-in and switch confirmation.
+- Fixed Windows `CredWriteW` failures when credential payloads exceed the 2560-byte limit by stripping non-essential `id_token` and validating payload size before calling Win32 APIs.
+- Fixed Windows Electron process-tree termination races (`taskkill /F /T` returning non-zero when child processes exit early) and added short polling after host restart to confirm active accounts once `language_server` finishes cold start.
+- Fixed missing automatic pricing catalog synchronization, new model rate matching, and duplicate billing in Client UI Enhancement.
+
+#### macOS Installation Note
+- If macOS reports the app is "damaged" or "cannot be opened" after installing from a verified official release, run in Terminal: `sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
 ## [1.17.0]
 
 ### 🇨🇳 中文
