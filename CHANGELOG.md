@@ -2,6 +2,48 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.17.2]
+
+### 🇨🇳 中文
+
+#### 新增
+- 封禁与异常账号改用专门的状态卡片：不再显示一堆空的 `--%` 配额占位，直接按类型给出说明和快捷按钮（去申诉、重新登录、查看详情），同时保留封禁前的金色/普通 Pro 徽章区分，并禁用封禁账号的切号与唤醒。
+- 账号池冷却和粘性会话状态支持持久化，重启 Studio 不会丢调度状态；活跃账号余量快到换号阈值时会自动加密刷新。
+- 会话标题生成与提示词优化统一执行逻辑并记入调用日志，方便按用途筛选和核对用量。
+
+#### 优化
+- 账号列表活跃上浮支持短暂保留与鼠标悬停冻结，精简卡片直接标出当前在用的模型组；重写了异常状态和重新登录提示文案。
+- 调整托盘面板与右键菜单布局，增加单请求切号上限与大请求体并发保护，并按页面拆分前端生产资源包。
+
+#### 修复
+- 适配 Antigravity App 2.34+ 取消命令行 `--csrf_token` 的变化，改为通过本地网关入站请求和切号记录识别当前登录账号，恢复账号页「当前登录」标记与模型页默认账号跟随。
+- 修复删除账号后又被宿主自动导回的问题；删除当前登录账号前会弹出明确提醒。
+- 修复上游算力不足（503）误触发全池熔断、429 限流后反复选中已耗尽账号，以及总览页刷新时漏掉刚完成请求的问题。
+- 修复底栏 HUD 挤占输入框、拖拽闪烁与新会话残留旧状态的问题，窄屏下改为自动精简字段不再折行堆叠。
+
+#### 安装提醒（macOS）
+- macOS 安装或覆盖升级后若系统提示“已损坏”或“无法打开”，请在确认安装包来自官方 Release 且校验无误后，打开「终端」执行以下命令移除隔离标记：`sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
+### 🌐 English
+
+#### Added
+- Replaced empty `--%` quota rows on suspended and error accounts with dedicated status cards and direct actions (Submit appeal, Sign in again, View details), preserving prior Gold/Standard Pro badges while disabling account switching and wake for suspended accounts.
+- Persisted account pool cooldown and sticky-session state across restarts, and shortened quota polling intervals when an active account approaches the switch threshold.
+- Unified execution and activity logging for session title generation and prompt optimization so usage and purpose filters stay consistent.
+
+#### Changed
+- Added short retention and hover-freeze to active account promotion, showed active model groups on compact cards, and rewrote anomaly and re-login copy to be clearer.
+- Reworked the tray popover and context menu layout, capped per-request failover hops with large-body concurrency guards, and split frontend production bundles by screen.
+
+#### Fixed
+- Adapted to Antigravity App 2.34+ removing `--csrf_token` from `language_server` arguments by observing authenticated host requests through the local gateway and confirmed switches, restoring the "Signed in" badge and default official catalog account.
+- Prevented deleted accounts from being automatically re-imported from hosts and added a confirmation warning before removing the currently signed-in account.
+- Fixed upstream capacity 503 errors tripping the entire pool circuit breaker, 429 retries re-picking exhausted accounts, and Overview drops of completions arriving during a refresh.
+- Fixed bottom HUD layout crowding, drag flicker, stale data in new conversations, and narrow-width line wrapping.
+
+#### macOS Installation Note
+- If macOS reports the app is "damaged" or "cannot be opened" after installing from a verified official release, run in Terminal: `sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
 ## [1.17.1]
 
 ### 🇨🇳 中文
