@@ -2,6 +2,56 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.18.0]
+
+### 🇨🇳 中文
+
+#### 新增
+- 子代理分角色路由与谱系视图：设置页新增子代理策略配置，支持官方默认、跟随主会话、固定模型三态切换，并可按 6 类内置角色或自定义子代理类型分别指定模型；会话列表新增子代理计数与按需展开的父子谱系面板（含耗时、费用对比与路由轨迹），删除主会话时自动清理独占子代理文件；活动流与 HUD 子代理浮层同步展示角色及策略命中标签。
+- 未接管代理时的 HUD 账号与配额展示：宿主未开启代理接管或断开连接时，Composer HUD 可识别当前宿主登录账号，结合所选模型实时显示对应模型池的 5 小时与周配额余量，并在直连轮次结束后自动刷新。
+- 全界面账号订阅等级徽章：为 Ultra、各档位 Pro、Enterprise 与 Free 提供分层的纯文字订阅徽章及 Ultra 金色卡片样式，并在账号页、模型管理、中枢、活动日志、托盘和批量筛查弹窗统一展示。
+- 地区受限账号直达处理入口：当账号因地区暂不支持显示异常时，卡片与详情弹窗新增 Google 账户关联地区更改表单直达按钮及链接复制功能。
+
+#### 优化
+- 重构 Composer HUD 顶栏、底栏与展开浮层样式以贴合宿主明暗主题；解除顶眉账号与模型名的固定宽度截断并在中等窗口下保留模型名；将折叠入口移至输入框右上角，并将子代理胶囊移至指标行轮次统计左侧，减少长模型名下的排版挤压。
+- 优化会话页与账号页交互：会话页顶栏直出快速筛选并新增上下文与体积排序，取消长标题 45 字截断、折叠角色前缀与工程路径，增加删除防误触分隔；账号页统一将状态标签与等级徽章靠右对齐，优化邮箱悬停复制反馈及卡片悬停聚焦效果，无可用许可异常补充具体的操作指引。
+- 拆分单账号手动刷新通道并缩短全量批刷错峰间隔，提升刷新响应速度；提示词优化输入字符上限从 16000 提升至 24000（保持 32KB 字节上限），拦截纯斜杠指令或仅含芯片的无效输入。
+- 降低后台资源占用：窗口隐藏或空闲待机时暂停高频轮询、事件推送与冗余动效绘制；超长报文展开前跳过同步 JSON 格式化；缓存总览、HUD、会话元数据与长上下文解析结果，并支持运行期日志文件自动轮转。
+
+#### 修复
+- 修复 Ultra 共享 Gemini 配额组被误归为独立 Argon 池导致接力查不到周配额的问题，兼容 Ultra 与 Pro 混池下的 Argon 校验及跨套餐同义编排模型转发；修复账号缺少项目 ID 时无法拉取额度、汇总桶缺少重置时间时误判满额，以及订阅层级被周期同步覆盖的问题。
+- 修正 403 封禁提示为“反重力服务被封禁”，防止切号、续签与批量刷新覆盖封禁状态；允许对封禁账号发起切号，并在手动单刷时按需复核推理封禁状态。
+- 缓解网络闪断导致的断路器误阻断，区分并细化账号池预检、网络传输与上游异常的错误来源和提示；收紧控制面与账号连接池隔离，脱敏开发者载荷中的 API Key 与 Cookie 请求头；修复 SSE 截断尾帧判定与 BYOK 生成速率回填。
+- 修复旧宿主退出时反写旧凭据覆盖目标账号、宿主断开代理后 HUD 残留旧账号池路由与模型，以及提示词优化芯片重复挂载和全角冒号回写异常，并收紧提示词优化的宿主账号边界与限流保护。
+- 过滤工作流与蜂群派生的子代理会话，修复会话列表滚动空白、重命名弹窗重复请求导致标题生成中断、账号卡片悬停顶部裁切、中枢调度栏箭头方向相反、批量刷新期间卡片无响应，以及身份不确定条目保存自定义计费覆盖规则后仍未计费的问题；改进 macOS 自动更新替换流程并修复下载状态机竞态。
+
+#### 安装提醒（macOS）
+- macOS 安装或覆盖升级后若系统提示“已损坏”或“无法打开”，请在确认安装包来自官方 Release 且校验无误后，打开「终端」执行以下命令移除隔离标记：`sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
+### 🌐 English
+
+#### Added
+- Per-role subagent routing and lineage view: configure subagent routing in Settings with Official Default, Follow Main Session, or Fixed Model modes, plus overrides by 6 built-in role buckets or custom subagent types. The Sessions list now displays subagent counts and an expandable parent-child lineage panel (latency, cost, and routing trace), cascades exclusive subagent cleanup on main session deletion, and surfaces role and policy-match tags in Activity and the HUD popover.
+- Direct-mode HUD account and quota display: when proxy takeover is off or disconnected, Composer HUD identifies the currently signed-in host account, shows the 5-hour and weekly quota for the selected model pool, and refreshes asynchronously after direct turns.
+- Unified subscription tier badges across the app: added distinct text tier badges for Ultra, Pro tiers, Enterprise, and Free along with gold styling for Ultra account cards across Accounts, Models, Overview, Activity, Tray, and batch screening dialogs.
+- Direct region-change action for unsupported-location accounts: added an external link button and copy action to the Google account region association form on account cards and anomaly detail dialogs.
+
+#### Changed
+- Reworked Composer HUD styling to match host light/dark themes, removed fixed truncation limits on the header account and model pills at medium widths, moved the collapse trigger to the top-right of the input box, and relocated the subagent pill next to turn metrics.
+- Improved Sessions and Accounts UX: surfaced quick filters and added context/size sorting on Sessions, lifted the 45-character title truncation, folded role prefixes and workspace paths, and separated the delete button; right-aligned status and tier badges on Accounts, refined hover copy feedback and card focus elevation, and clarified guidance for unlicensed accounts.
+- Split single-account manual refresh from batch refresh queues with shorter stagger delays, raised the prompt optimizer character limit from 16,000 to 24,000 (within the 32 KB UTF-8 cap), and skipped pure slash commands or chip-only inputs.
+- Reduced idle resource usage by pausing background polling, high-frequency event pushes, and idle animations when windows are hidden, deferring JSON pretty-printing on oversized payloads until expanded, caching Overview/HUD/session metadata, and adding runtime log file rotation.
+
+#### Fixed
+- Fixed Ultra shared Gemini quota groups being misclassified as standalone Argon pools, enabled mixed Ultra/Pro pool Argon validation and cross-tier equivalent orchestrator forwarding, synthesized and persisted fallback project IDs when `loadCodeAssist` omits `cloudaicompanionProject`, corrected missing reset-time summary buckets, and prevented periodic syncs from overwriting confirmed subscription tiers.
+- Clarified 403 suspension copy as Antigravity service suspension, prevented account switching, token refresh, or batch refreshes from clearing suspended status, allowed switching suspended accounts, and added on-demand inference ban checks during manual single refresh.
+- Mitigated false circuit-breaker trips on transient transport disconnects, distinguished account pool preflight errors from proxy/upstream failures, tightened control-plane and per-account connection pool isolation, redacted API key and Cookie headers in developer payloads, and fixed truncated SSE frame detection and BYOK generation speed reporting.
+- Prevented exiting host processes from overwriting switched credentials, cleared stale proxy routing state in HUD after disconnecting the proxy, fixed prompt-optimizer chip duplication and full-width colon writeback, and enforced host account boundaries and cooldown throttling for prompt optimization.
+- Filtered workflow and swarm subagent sessions from the main list, fixed blank session scrolling, duplicate title-generation requests on rename modal open, account card hover clipping, inverted Overview dispatch bar arrows, unresponsive cards during batch refresh, and unpriced custom override rules on uncertain-identity usage rows; hardened macOS auto-update staging and fixed download state races.
+
+#### macOS Installation Note
+- If macOS reports the app is "damaged" or "cannot be opened" after installing from a verified official release, run in Terminal: `sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
 ## [1.17.2]
 
 ### 🇨🇳 中文
