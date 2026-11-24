@@ -2,6 +2,32 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.18.1]
+
+### 🇨🇳 中文
+
+#### 优化
+- 适配官方配额调整（Argon 并入普通 Gemini 共享配额池）：当账号不存在独立 Argon 周配额桶时，完整卡片与精简卡片不再重复显示单独的「高级模型周额度」行，直接将 Argon、Carbon、Orchestrator 等模型能力标签及高级模型调度组的运行态徽章归并至 Gemini 区块展示，保持卡片高度紧凑对齐。
+
+#### 修复
+- 修正共享配额池下 Argon 模型的账号受限状态判定：当账号无独立 Argon 池且普通 Gemini 处于受限（Restricted）状态时，选号准入与模型优先调度评估同步拦截该账号。
+- 修复提示词优化与标题生成等辅助请求的冷却预检范围过大问题：按目标模型族、实际消费配额池与具体模型精确判断冷却状态，避免账号仅 Claude 限流时误拦正常的 Gemini / Argon 辅助请求。
+
+#### 安装提醒（macOS）
+- macOS 安装或覆盖升级后若系统提示“已损坏”或“无法打开”，请在确认安装包来自官方 Release 且校验无误后，打开「终端」执行以下命令移除隔离标记：`sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
+### 🌐 English
+
+#### Changed
+- Adapted account cards for unified Gemini quota pools (Argon merged into standard Gemini quota): when an account has no standalone Argon weekly bucket, full and compact cards omit the duplicate Advanced Weekly Quota row and merge Argon/Carbon/Orchestrator capability chips and runtime relay badges directly into the Gemini section.
+
+#### Fixed
+- Enforced `GeminiStatus == Restricted` filtering for shared-pool Argon requests across candidate admission and Model Dispatch evaluation while keeping standalone Argon pools isolated.
+- Scoped auxiliary request cooldown checks (prompt optimization and title generation) to the target model family, consumed quota pool, and exact model so Claude rate limits no longer block healthy Gemini/Argon auxiliary calls.
+
+#### macOS Installation Note
+- If macOS reports the app is "damaged" or "cannot be opened" after installing from a verified official release, run in Terminal: `sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
 ## [1.18.0]
 
 ### 🇨🇳 中文
