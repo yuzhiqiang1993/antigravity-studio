@@ -2,6 +2,52 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.19.0]
+
+### 🇨🇳 中文
+
+#### 新增
+- 拉起宿主前会先检查代理节点和官方模型目录，节点异常时弹窗给出重试或排查入口，避免把残缺模型列表带进客户端。
+- 中枢顶栏新增模型目录预览，能直接看到当前目录来源、生效模型和已启用的自定义模型。
+- 点击 Antigravity CLI 升级提示可直接复制对应平台的更新命令。
+- 批量刷新额度时自动跳过需要重新登录的账号，不再反复报 `invalid_grant`；未接管代理的直连模式下也能识别子代理运行状态。
+
+#### 调整与优化
+- 移除「模型优先账号」调度策略，旧配置升级后会自动沿用原来的回退调度策略。
+- 会话清理改为按实际模型调用深度判断，自动避开带子代理、大体积或置顶/运行中的会话。
+- 窗口隐藏时不再频繁后台唤醒，WebView 异常退出后会自动恢复。
+
+#### 修复
+- 修复 Antigravity 2.34+ 重启后单号代跑误判并自动关闭的问题（#40），以及批量删除会话时实时通知 401 误报失败的问题。
+- 适配 Argon 停供与新版高阶模型分组，修复高低阶 Pro 误判、续签网络抖动误标账号失效，以及令牌权限不足误罚整号的问题。
+- 修复自定义服务商编辑与单模型开关偶发相互覆盖的问题，加固跨源凭据隔离。
+- 修复 Windows 自动更新脚本中文乱码或中止、全局提示条超长文本溢出等问题。
+
+#### 安装提醒（macOS）
+- macOS 安装或覆盖升级后若系统提示“已损坏”或“无法打开”，请在确认安装包来自官方 Release 且校验无误后，打开「终端」执行以下命令移除隔离标记：`sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
+### 🌐 English
+
+#### Added
+- Pre-launch proxy and catalog checks before starting managed hosts, with retry and troubleshooting prompts when nodes fail so incomplete model lists are not injected.
+- Live catalog preview in the Overview header showing the active source host, account, official groups, and enabled BYOK models.
+- One-click platform update commands in the Antigravity CLI upgrade badge dropdown.
+- Batch quota refresh now skips accounts that need re-login instead of repeating `invalid_grant` errors, and direct mode now detects active subagents.
+
+#### Changed
+- Removed the "Model-Priority Account" strategy; existing configs keep their previous fallback strategy after upgrading.
+- Session cleanup now checks actual model call depth and protects sessions with subagents, large sizes, or pinned/running states.
+- Reduced background wakeups while windows are hidden and added automatic WebView crash recovery.
+
+#### Fixed
+- Fixed single-account relay disabling itself after restarts on Antigravity 2.34+ (#40) and false failure errors on 401 live notifications during batch session deletion.
+- Updated high-tier model and Argon handling, fixing Pro tier misdetection, transient refresh errors marking accounts invalid, and scope-insufficient errors penalizing whole accounts.
+- Fixed provider edits and single-model toggles overwriting each other, and tightened cross-origin credential boundaries.
+- Fixed Windows updater script encoding/parse issues and long text overflow in global snackbars.
+
+#### macOS Installation Note
+- If macOS reports the app is "damaged" or "cannot be opened" after installing from a verified official release, run in Terminal: `sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
 ## [1.18.1]
 
 ### 🇨🇳 中文
