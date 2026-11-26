@@ -2,6 +2,50 @@
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [1.19.1]
+
+### 🇨🇳 中文
+
+#### 新增
+- 桌面宿主（App、IDE、VS Code）支持配置附加启动参数，可在宿主配置弹窗或设置页直接填写。
+- 账号页更多菜单新增「Google 常用链接」弹窗，收纳福利地区、订阅支付、安全服务等 18 条官方常用入口（含查看关联地区页），支持搜索、复制和浏览器打开。
+- 自动更新改为启动、回前台（30 分钟冷却）和后台每 2 小时静默检查，不重启也能及时发现新版本。
+
+#### 优化
+- 调整中枢调度信息条的停留节奏与切换动效，新增鼠标悬停暂停，不再一闪而过。
+- 统一中枢、日志、用量和弹窗在各主题下的底色与高亮色，活跃会话连线优先跟随当前主题色。
+- 收紧精简模式活动日志的模型列宽，减少长邮箱与等级徽章被提前截断的情况。
+
+#### 修复
+- 修复更新下载点击后无即时反馈、连接阻塞无法取消以及自动安装偶发报错的问题，补充 macOS 写权限预检和失败时手动安装兜底。
+- 修复提示词优化、标题生成、安全审查与子代理容易切到非主会话账号的问题，现在会优先跟随当前主会话账号。
+- 修复 Windows 系统文本缩放下托盘右键菜单和浮窗右侧、底部被裁切的问题。
+- 修复中枢顶部宿主卡片的更多菜单被容器裁切的问题。
+
+#### 安装提醒（macOS）
+- macOS 安装或覆盖升级后若系统提示“已损坏”或“无法打开”，请在确认安装包来自官方 Release 且校验无误后，打开「终端」执行以下命令移除隔离标记：`sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
+### 🌐 English
+
+#### Added
+- Optional extra launch arguments for desktop hosts (App, IDE, and VS Code) in the host config dialog and Settings.
+- Grouped "Google Quick Links" dialog in the Accounts menu with 18 official links (region, billing, security, and terms) supporting search, copy, and browser open.
+- Background update checks every 2 hours plus silent focus checks (30-minute cooldown), so running instances pick up new releases without restarting.
+
+#### Changed
+- Refined Overview dispatch ticker pacing and transitions with hover pause so updates stay readable.
+- Aligned surface and accent colors across Overview, Activity, Usage, and dialogs under all themes, matching active session links to the active theme color.
+- Narrowed the model column in compact Activity rows so long account emails and tier badges truncate less often.
+
+#### Fixed
+- Fixed update downloads lacking immediate feedback, stalled connections ignoring cancel, and intermittent auto-install errors; added macOS write-permission preflight checks and a manual install fallback.
+- Kept prompt optimization, title generation, safety checks, and subagents on the main session's current account when eligible instead of switching away.
+- Fixed Windows tray context menus and flyout popovers clipping on the right or bottom under system text scaling.
+- Fixed the top host card's More menu on Overview getting clipped by the container.
+
+#### macOS Installation Note
+- If macOS reports the app is "damaged" or "cannot be opened" after installing from a verified official release, run in Terminal: `sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"`
+
 ## [1.19.0]
 
 ### 🇨🇳 中文
