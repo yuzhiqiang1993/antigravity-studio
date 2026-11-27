@@ -13,7 +13,11 @@ Antigravity Studio 是一款桌面端多账号管理与本地模型代理工具�
 > sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"
 > ```
 
-![运行概览](img/zh/overview.png)
+## 功能演示
+
+[![观看 Antigravity Studio 功能演示视频（02:18）](img/zh/promo-video-cover.jpg)](media/antigravity-studio-demo-zh.mp4)
+
+> 点击封面查看完整演示视频（`02:18` · `1080p` · 含中文讲解）：覆盖四端接管、多账号自动接力、单号代理与常用链接、BYOK 接入 DeepSeek / Ollama、输入框状态栏、跨端会话与本地用量。
 
 ## 主要功能
 
@@ -46,6 +50,8 @@ Antigravity Studio 是一款桌面端多账号管理与本地模型代理工具�
 ### 客户端接管与运行概览
 
 为四种受支持的客户端开启代理或恢复直连；CLI 可复制启动命令使用。概览展示请求路由、使用的账号与模型、在途状态及调度原因，方便排查请求去了哪里。
+
+![运行概览](img/zh/overview.png)
 
 ### 会话整理与 AI 标题
 

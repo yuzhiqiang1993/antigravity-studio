@@ -13,7 +13,11 @@ Accounts, settings, and usage records are stored locally. Model requests still g
 > sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Studio.app"
 > ```
 
-![Overview](img/zh/overview.png)
+## Demo Video
+
+[![Watch Antigravity Studio Product Walkthrough (02:18, Chinese Narration)](img/en/promo-video-cover.jpg)](media/antigravity-studio-demo-zh.mp4)
+
+> Click the cover to open the full walkthrough video (`02:18` · `1080p` · Chinese narration): covers 4-client integration, multi-account failover, per-account proxy & Google quick links, BYOK DeepSeek / Ollama, Composer HUD, cross-client sessions, and local usage.
 
 ## Key Features
 
@@ -46,6 +50,8 @@ Connection tests and context settings are available. Increasing a setting cannot
 ### Client integration and live overview
 
 Enable proxy routing or restore direct connections for the four supported clients; copy a launch command for the CLI. The overview shows request routes, accounts and models in use, in-flight status, and scheduling reasons so you can see where requests are going.
+
+![Overview](img/zh/overview.png)
 
 ### Sessions and AI titles
 
