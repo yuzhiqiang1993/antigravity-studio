@@ -173,6 +173,18 @@ Studio 不会在后台偷偷换端口，以免把已有客户端配置搅乱。�
 
 这类提示通常是因为安装包尚未经过苹果开发者公证，系统给下载文件加了隔离标记（quarantine），但也可能是下载不完整或文件损坏。请先确认安装包来自本仓库 [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest) 并核对随附的 `.sha256` 校验值；确认来源与完整性没问题后，再执行文首的 `xattr` 命令仅对该应用解除隔离。不要为了省事去全局关闭 macOS Gatekeeper。
 
+### Windows 提示 SmartScreen 拦截或 Windows Defender 误报隔离怎么办？
+
+由于本项目为个人免费工具，暂未购买商业代码签名证书，Windows 可能会触发以下两类提示：
+
+1. **蓝色 SmartScreen 提示（“Windows 已保护你的电脑”）**：确认安装包来自本仓库 [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest) 且校验无误后，点击「更多信息」→「仍要运行」即可继续安装。
+2. **Windows Defender 实时保护误报并直接隔离**：未签名的 Go 桌面程序与 NSIS 安装包容易触发 Defender 机器学习启发式误报，且安装包与安装后的主程序可能分别触发拦截。**请勿按 ThreatID 全局放行某类威胁**，建议核验完整性后仅排除安装目录：
+   - 先核对 Release 随附的 `.sha256` 校验文件（PowerShell）：
+     ```powershell
+     Get-FileHash .\Antigravity-Studio-<version>-windows-x64.exe -Algorithm SHA256
+     ```
+   - 确认哈希与官方 Release 一致后，打开 **Windows 安全中心 → 病毒和威胁防护 → 管理设置 → 排除项 → 添加或删除排除项**，将安装目录 `%LOCALAPPDATA%\Programs\Antigravity Studio`（以及存放安装包的专用下载目录）添加为文件夹排除项，再重新安装。
+
 ### Studio 和 Cockpit 怎么选？
 
 Antigravity Studio 侧重桌面端的账号池调度、第三方模型代理以及四个客户端的统一管理；[Antigravity IDE Cockpit](https://open-vsx.org/extension/yuzhiqiang/antigravity-ide-cockpit) 侧重 IDE 内部的轻量切号和上下文用量查看。看自己需要单用，也可以配合着一起用。

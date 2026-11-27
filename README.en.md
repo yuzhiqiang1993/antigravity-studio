@@ -173,6 +173,18 @@ Account credentials, settings, usage records, and logs stay on your local machin
 
 This usually happens because the build is not notarized with a commercial Apple Developer certificate, so macOS tags downloaded files with a quarantine attribute—though an incomplete or corrupted download can trigger a similar warning. Confirm the installer came from [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest) and verify its `.sha256` checksum first; once verified, run the `xattr` command at the top of this page to clear quarantine for this app only. Do not disable Gatekeeper globally.
 
+### What if Windows shows SmartScreen warnings or Windows Defender quarantines the app?
+
+Because this is a free personal project without a paid commercial code-signing certificate, Windows may show two kinds of warnings:
+
+1. **Windows SmartScreen ("Windows protected your PC")**: After confirming the installer is from [GitHub Releases](https://github.com/yuzhiqiang1993/antigravity-studio/releases/latest) and matches its checksum, click **More info** → **Run anyway**.
+2. **Windows Defender real-time quarantine**: Unsigned Go executables and NSIS installers can trigger Defender machine-learning false positives, and the installer and installed binary may be flagged separately. **Do not globally allow a generic ThreatID**; verify integrity and exclude only the installation directory:
+   - Verify the installer against the `.sha256` file published alongside the release (PowerShell):
+     ```powershell
+     Get-FileHash .\Antigravity-Studio-<version>-windows-x64.exe -Algorithm SHA256
+     ```
+   - Once verified, open **Windows Security → Virus & threat protection → Manage settings → Exclusions → Add or remove exclusions**, add `%LOCALAPPDATA%\Programs\Antigravity Studio` (and the dedicated folder containing the installer) as folder exclusions, then run the installer again.
+
 ### Should I use Studio or Cockpit?
 
 Antigravity Studio focuses on desktop account pooling, third-party model proxying, and unified management across all four clients. [Antigravity IDE Cockpit](https://open-vsx.org/extension/yuzhiqiang/antigravity-ide-cockpit) focuses on lightweight account switching and context usage inside the IDE. Use either one or both together.
