@@ -15,9 +15,9 @@ Antigravity Studio 是一款桌面端多账号管理与本地模型代理工具�
 
 ## 功能演示
 
-[![观看 Antigravity Studio 功能演示视频（02:18）](img/zh/promo-video-cover.jpg)](media/antigravity-studio-demo-zh.mp4)
+https://github.com/user-attachments/assets/56421265-6e84-4f2f-b978-e81ce126fbb6
 
-> 点击封面查看完整演示视频（`02:18` · `1080p` · 含中文讲解）：覆盖四端接管、多账号自动接力、单号代理与常用链接、BYOK 接入 DeepSeek / Ollama、输入框状态栏、跨端会话与本地用量。
+> 完整功能演示（`02:18` · 含中文讲解）：覆盖四端接管、多账号自动接力、单号代理与常用链接、BYOK 接入 DeepSeek / Ollama、输入框状态栏、跨端会话与本地用量。
 
 ## 主要功能
 

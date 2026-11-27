@@ -15,9 +15,9 @@ Accounts, settings, and usage records are stored locally. Model requests still g
 
 ## Demo Video
 
-[![Watch Antigravity Studio Product Walkthrough (02:18, Chinese Narration)](img/en/promo-video-cover.jpg)](media/antigravity-studio-demo-zh.mp4)
+https://github.com/user-attachments/assets/56421265-6e84-4f2f-b978-e81ce126fbb6
 
-> Click the cover to open the full walkthrough video (`02:18` · `1080p` · Chinese narration): covers 4-client integration, multi-account failover, per-account proxy & Google quick links, BYOK DeepSeek / Ollama, Composer HUD, cross-client sessions, and local usage.
+> Full product walkthrough (`02:18` · Chinese narration): covers 4-client integration, multi-account failover, per-account proxy & Google quick links, BYOK DeepSeek / Ollama, Composer HUD, cross-client sessions, and local usage.
 
 ## Key Features
 
